@@ -10,7 +10,7 @@ use super::{
 };
 use crate::analyser::AnalysisResult;
 use crate::signature_scan::scope::SignatureSourceNameKey;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 use tcl_lexer::NativeWord;
@@ -82,7 +82,7 @@ pub(super) struct NativeAutoloadHorizon {
     command_candidates: Vec<ByteCommandSlot>,
     library_candidates: Vec<NameBytes>,
     library_slots: Vec<ByteCommandSlot>,
-    cells: super::super::SharedSourceInventory<HashMap<ByteCommandSlot, AdviceCell>>,
+    cells: super::super::SharedSourceInventory<rustc_hash::FxHashMap<ByteCommandSlot, AdviceCell>>,
     possible_occupants: BTreeSet<ByteCommandSlot>,
     namespace_paths: BTreeMap<ByteNamespacePath, Vec<ByteNamespacePath>>,
     unknown_paths: BTreeSet<ByteNamespacePath>,

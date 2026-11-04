@@ -956,7 +956,9 @@ impl BodyWalk<'_, '_> {
         branch: AdviceGraph,
         operation: &[NativeWord],
     ) {
-        for (key, cell) in &original.cells {
+        // An untouched branch still shares the original's cells: nothing to compare.
+        let cells_changed = !branch.cells.shares(&original.cells);
+        for (key, cell) in original.cells.iter().filter(|_| cells_changed) {
             if branch.cells.get(key) != Some(cell) {
                 // Possible original source mutations block an earlier schema;
                 // they do not prove that a delete or replacement succeeded.
@@ -973,7 +975,7 @@ impl BodyWalk<'_, '_> {
         }
         // A command first created by a possible branch is not installed, but
         // a later lookup may no longer fall through its coordinate.
-        for key in branch.cells.keys() {
+        for key in branch.cells.keys().filter(|_| cells_changed) {
             if !original.cells.contains_key(key) {
                 graph.possible_occupants.insert(key.clone());
             }

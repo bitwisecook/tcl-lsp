@@ -6,13 +6,15 @@
 
 use super::{
     AdviceCell, AdviceNamingPolicy, Arc, ByteCommandSlot, ByteNamespacePath, ContextRegistry,
-    HashMap, InvocationDialect, NameBytes, NamePolicyProtocol, NativeNameProtocol, root_context,
+    InvocationDialect, NameBytes, NamePolicyProtocol, NativeNameProtocol, root_context,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Mutex, Weak};
 
 pub(super) struct AdviceCatalogueSeed {
-    cells: crate::command_binding::SharedSourceInventory<HashMap<ByteCommandSlot, AdviceCell>>,
+    cells: crate::command_binding::SharedSourceInventory<
+        rustc_hash::FxHashMap<ByteCommandSlot, AdviceCell>,
+    >,
     namespaces: BTreeSet<ByteNamespacePath>,
     namespace_exports: BTreeMap<ByteNamespacePath, Vec<NameBytes>>,
 }
@@ -20,7 +22,9 @@ pub(super) struct AdviceCatalogueSeed {
 impl AdviceCatalogueSeed {
     pub(super) fn cells(
         &self,
-    ) -> crate::command_binding::SharedSourceInventory<HashMap<ByteCommandSlot, AdviceCell>> {
+    ) -> crate::command_binding::SharedSourceInventory<
+        rustc_hash::FxHashMap<ByteCommandSlot, AdviceCell>,
+    > {
         self.cells.clone()
     }
     pub(super) fn namespaces(&self) -> BTreeSet<ByteNamespacePath> {
@@ -31,7 +35,7 @@ impl AdviceCatalogueSeed {
     }
     pub(super) fn build(context: &ContextRegistry, policy: &AdviceNamingPolicy) -> Option<Self> {
         let mut seed = Self {
-            cells: HashMap::new().into(),
+            cells: rustc_hash::FxHashMap::default().into(),
             namespaces: BTreeSet::from([ByteNamespacePath::root()]),
             namespace_exports: BTreeMap::new(),
         };

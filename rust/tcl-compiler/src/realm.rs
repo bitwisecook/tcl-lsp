@@ -358,7 +358,7 @@ impl CommandBindingRealm {
         config: tcl_lexer::LexerConfig,
     ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
         self.bindings
-            .original_written_name_input_at_span(span, config)
+            .original_written_name_input_at_span_with(span, config, Some(&self.query_memo))
     }
 
     /// Retained original input with exact caller-source and channel currency.

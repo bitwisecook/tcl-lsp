@@ -341,6 +341,9 @@ pub(super) struct PrebuiltRealm {
     source: String,
     inputs: RealmBuildInputs,
     realm: crate::realm::CommandBindingRealm,
+    /// The whole-file command-trust scan, when the shell already lowered the
+    /// document for it; it reads the same source, store, grammar and entry.
+    command_trust: Option<Arc<crate::command_binding::ModuleCommandMutations>>,
 }
 
 /// Ownership of the pre-built unit consumed by one diagnostic tail.
@@ -2223,6 +2226,7 @@ impl Analyser {
             && prebuilt.source == source
             && prebuilt.inputs == self.realm_build_inputs()
         {
+            self.command_trust = prebuilt.command_trust;
             return prebuilt.realm;
         }
         self.document_command_realm(source)
@@ -3328,6 +3332,7 @@ impl Analyser {
                 source,
                 inputs,
                 realm: std::mem::take(&mut self.head_identities),
+                command_trust: self.command_trust.take(),
             }));
         }
         fresh.analyse(new_text, dialect)

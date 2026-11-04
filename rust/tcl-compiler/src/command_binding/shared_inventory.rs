@@ -8,8 +8,24 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 /// Analysis writes detach a shared inventory; retained body selection shares it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub(super) struct SharedSourceInventory<T>(Arc<T>);
+
+impl<T: PartialEq> PartialEq for SharedSourceInventory<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+    }
+}
+
+impl<T: Eq> Eq for SharedSourceInventory<T> {}
+
+impl<T> SharedSourceInventory<T> {
+    /// Whether both handles still share one undetached inventory, so neither
+    /// side has written since the copy.
+    pub(super) fn shares(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
 
 impl<T> From<T> for SharedSourceInventory<T> {
     fn from(value: T) -> Self {

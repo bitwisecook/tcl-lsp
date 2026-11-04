@@ -1850,8 +1850,21 @@ impl super::SourceCommandBindings {
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
     ) -> Option<SignatureSourceNameInput> {
+        self.original_written_name_input_at_span_with(span, config, None)
+    }
+
+    /// [`Self::original_written_name_input_at_span`] reading the owning realm's
+    /// site memo, so each site's binding is joined once rather than per query.
+    pub(crate) fn original_written_name_input_at_span_with(
+        &self,
+        span: tcl_lexer::Span,
+        config: tcl_lexer::LexerConfig,
+        memo: Option<&OriginalRealmQueryMemo>,
+    ) -> Option<SignatureSourceNameInput> {
         let mut found = None;
-        for (input, _, _) in self.original_written_name_observations_at_span(span, config)? {
+        for (input, _, _) in
+            self.original_written_name_observations_at_span_with(span, config, memo)?
+        {
             if found.as_ref().is_some_and(|previous| previous != &input) {
                 return None;
             }
@@ -1882,7 +1895,7 @@ impl super::SourceCommandBindings {
         };
         let mut found = None;
         for (input, binding, site) in
-            self.original_written_name_observations_at_span(span, config)?
+            self.original_written_name_observations_at_span_with(span, config, None)?
         {
             let scope = match (logical, tape.as_ref()) {
                 (Some(owner), Some(tape)) => tape
@@ -1904,10 +1917,11 @@ impl super::SourceCommandBindings {
         found
     }
 
-    fn original_written_name_observations_at_span(
+    fn original_written_name_observations_at_span_with(
         &self,
         span: tcl_lexer::Span,
         config: tcl_lexer::LexerConfig,
+        memo: Option<&OriginalRealmQueryMemo>,
     ) -> Option<
         Vec<(
             SignatureSourceNameInput,
@@ -1915,7 +1929,7 @@ impl super::SourceCommandBindings {
             super::CommandAllocationSite,
         )>,
     > {
-        self.original_written_word_observations_at_span(span, config)?
+        self.original_written_word_observations_at_span_with(span, config, memo)?
             .into_iter()
             .map(|(word, written, binding, site)| {
                 let input = if let Some((words, retained_config)) =
@@ -2098,6 +2112,9 @@ impl super::SourceCommandBindings {
                 .as_ref()?;
             let upper = sites.partition_point(|site| site.offset <= span.start());
             for site in sites[..upper].iter().rev() {
+                if site.written_end_through < span.end() {
+                    break;
+                }
                 if site.config != config
                     || !site.written.iter().any(|written| {
                         written.start() <= span.start() && span.end() <= written.end()
@@ -2226,10 +2243,15 @@ impl super::SourceCommandBindings {
                 .iter()
                 .filter_map(|word| word.original_written_span(bytes))
                 .collect::<Vec<_>>();
+            let written_end_through = sites
+                .last()
+                .map_or(0, |site: &OriginalWrittenWordSite| site.written_end_through)
+                .max(written.iter().map(|span| span.end()).max().unwrap_or(0));
             sites.push(OriginalWrittenWordSite {
                 offset,
                 config,
                 written,
+                written_end_through,
                 binding,
             });
         }
@@ -2315,6 +2337,9 @@ struct OriginalWrittenWordSite {
     offset: u32,
     config: tcl_lexer::LexerConfig,
     written: Vec<tcl_lexer::Span>,
+    /// The furthest written-word end of this and every earlier site, so a
+    /// reverse scan stops once no earlier site can contain the queried span.
+    written_end_through: u32,
     binding: super::SourceInvocationBinding,
 }
 

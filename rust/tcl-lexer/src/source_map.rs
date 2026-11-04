@@ -406,6 +406,9 @@ pub struct SourceMap<'src> {
     base_offset: u32,
     base_line: u32,
     base_col: u32,
+    /// The UTF-8 view of `source`, checked once at construction: consumers
+    /// ask for it once per word, and each check scans the whole buffer.
+    text: Result<&'src str, std::str::Utf8Error>,
 }
 
 impl<'src> SourceMap<'src> {
@@ -421,6 +424,7 @@ impl<'src> SourceMap<'src> {
             base_offset: 0,
             base_line: 0,
             base_col: 0,
+            text: Ok(source),
         }
     }
 
@@ -436,6 +440,7 @@ impl<'src> SourceMap<'src> {
             base_offset: 0,
             base_line: 0,
             base_col: 0,
+            text: Ok(source),
         }
     }
 
@@ -455,6 +460,7 @@ impl<'src> SourceMap<'src> {
             base_offset: 0,
             base_line: 0,
             base_col: 0,
+            text: std::str::from_utf8(source),
         }
     }
 
@@ -504,7 +510,7 @@ impl<'src> SourceMap<'src> {
     /// # Errors
     /// Returns the original UTF-8 decoding failure; it never repairs bytes.
     pub fn try_source(&self) -> Result<&'src str, std::str::Utf8Error> {
-        std::str::from_utf8(self.source)
+        self.text
     }
 
     /// The input channel whose continuation rules apply to this source.
@@ -585,6 +591,7 @@ impl<'src> SourceMap<'src> {
             base_offset: 0,
             base_line: 0,
             base_col: 0,
+            text: std::str::from_utf8(source),
         }
     }
 

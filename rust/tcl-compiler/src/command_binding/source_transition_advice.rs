@@ -1713,7 +1713,7 @@ fn merge_receipt_inventory<K: Ord, T: PartialEq>(
 struct AdviceGraph {
     native_baseline: bool,
     stock_source_effects: Vec<super::jim_stock_class::OriginalJimStockSourceEffects>,
-    cells: super::SharedSourceInventory<HashMap<ByteCommandSlot, AdviceCell>>,
+    cells: super::SharedSourceInventory<rustc_hash::FxHashMap<ByteCommandSlot, AdviceCell>>,
     namespaces: BTreeSet<ByteNamespacePath>,
     namespace_exports: BTreeMap<ByteNamespacePath, Vec<NameBytes>>,
     namespace_paths: BTreeMap<ByteNamespacePath, Vec<ByteNamespacePath>>,
@@ -3717,6 +3717,43 @@ impl super::SourceCommandBindings {
     ) -> Option<OriginalSourceTransitionAdviceTape> {
         self.original_source_transition_seed()?
             .prepare_for(context, purpose)
+    }
+
+    /// [`Self::original_source_transition_advice_tape`], shared with every
+    /// other realm and bindings copy that holds an equal seed.
+    pub(crate) fn original_source_transition_advice_tape_shared(
+        &self,
+        context: &ContextRegistry,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        self.original_source_transition_advice_tape_for_shared(
+            context,
+            OriginalSourceCataloguePurpose::CompleteProgram,
+        )
+    }
+
+    /// [`Self::original_source_transition_advice_tape_for`], shared.
+    pub(crate) fn original_source_transition_advice_tape_for_shared(
+        &self,
+        context: &ContextRegistry,
+        purpose: OriginalSourceCataloguePurpose,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        match self.original_source_transition_seed() {
+            Some(seed) => seed.prepared_shared(context, purpose),
+            None => Arc::new(None),
+        }
+    }
+}
+
+impl OriginalSourceTransitionSeed {
+    /// A fresh tape for the realm caches. Not shared across realms: receipts
+    /// derived from a tape are compared by identity, and a process-wide memo
+    /// made those comparisons depend on what was analysed earlier.
+    pub(super) fn prepared_shared(
+        &self,
+        context: &ContextRegistry,
+        purpose: OriginalSourceCataloguePurpose,
+    ) -> Arc<Option<OriginalSourceTransitionAdviceTape>> {
+        Arc::new(self.prepare_for(context, purpose))
     }
 }
 

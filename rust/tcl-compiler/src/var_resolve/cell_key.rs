@@ -5,9 +5,10 @@
 //! Domain-separated variable storage keys and compatibility-only text queries.
 
 use crate::command_binding::SourceNamespaceKey;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     hash::Hash,
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -397,7 +398,7 @@ impl<T: VariableCellKeyQuery + ?Sized> VariableCellKeyQuery for &T {
 /// Shared copy-on-write: flow states clone these per program point, and most
 /// clones are never written, so a clone shares the table until it changes.
 #[derive(Debug, Clone)]
-pub struct VariableCellTable<V>(Arc<HashMap<VariableCellKey, V>>);
+pub struct VariableCellTable<V>(Arc<FxHashMap<VariableCellKey, V>>);
 impl<V: PartialEq> PartialEq for VariableCellTable<V> {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
@@ -406,11 +407,11 @@ impl<V: PartialEq> PartialEq for VariableCellTable<V> {
 impl<V: Eq> Eq for VariableCellTable<V> {}
 impl<V> Default for VariableCellTable<V> {
     fn default() -> Self {
-        Self(Arc::new(HashMap::new()))
+        Self(Arc::new(FxHashMap::default()))
     }
 }
 impl<V> Deref for VariableCellTable<V> {
-    type Target = HashMap<VariableCellKey, V>;
+    type Target = FxHashMap<VariableCellKey, V>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -498,7 +499,7 @@ impl<V: Clone> IntoIterator for VariableCellTable<V> {
 ///
 /// Shared copy-on-write, like [`VariableCellTable`].
 #[derive(Debug, Clone, Default)]
-pub struct VariableCellSet(Arc<HashSet<VariableCellKey>>);
+pub struct VariableCellSet(Arc<FxHashSet<VariableCellKey>>);
 impl PartialEq for VariableCellSet {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
@@ -506,7 +507,7 @@ impl PartialEq for VariableCellSet {
 }
 impl Eq for VariableCellSet {}
 impl Deref for VariableCellSet {
-    type Target = HashSet<VariableCellKey>;
+    type Target = FxHashSet<VariableCellKey>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -834,10 +835,10 @@ mod tests {
 /// A copy-on-write hash set for flow-state fields that are cloned per
 /// program point and rarely written after the clone.
 #[derive(Debug, Clone)]
-pub struct SharedSet<T>(Arc<HashSet<T>>);
+pub struct SharedSet<T>(Arc<FxHashSet<T>>);
 impl<T> Default for SharedSet<T> {
     fn default() -> Self {
-        Self(Arc::new(HashSet::new()))
+        Self(Arc::new(FxHashSet::default()))
     }
 }
 impl<T: Eq + Hash> PartialEq for SharedSet<T> {
@@ -847,7 +848,7 @@ impl<T: Eq + Hash> PartialEq for SharedSet<T> {
 }
 impl<T: Eq + Hash> Eq for SharedSet<T> {}
 impl<T> Deref for SharedSet<T> {
-    type Target = HashSet<T>;
+    type Target = FxHashSet<T>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }

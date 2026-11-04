@@ -1538,7 +1538,7 @@ fn hash_unordered_set<T: Hash, H: Hasher>(items: &HashSet<T>, state: &mut H) {
     hashes.hash(state);
 }
 
-fn hash_set<T: Hash + Ord, H: Hasher>(items: &HashSet<T>, state: &mut H) {
+fn hash_set<T: Hash + Ord, S, H: Hasher>(items: &HashSet<T, S>, state: &mut H) {
     let mut ordered: Vec<_> = items.iter().collect();
     ordered.sort_unstable();
     ordered.hash(state);
