@@ -53,5 +53,11 @@
     "product_source_checkpoint": "UNBUILT/UNVERIFIED; current v2 only",
     "permanent_artifact": "reviewed-draft-v2/source.patch"
   },
-  "permanent_handoff": "reviewed-draft-v2/README.md"
+  "permanent_handoff": "reviewed-draft-v2/README.md",
+  "issue_update": {
+    "state": "open",
+    "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/1956#issuecomment-6643349824",
+    "exact_comment_readback": true
+  },
+  "stop_handoff": "../../../docs/LSP_RELEASE_PROVIDER_STOP_HANDOFF_2026-11-04.json"
 }

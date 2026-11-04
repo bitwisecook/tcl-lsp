@@ -1,0 +1,33 @@
+{
+  "status": "STOP HANDOFF; current reviewed work pushed, no further product work or Cargo",
+  "verified_at_utc": "2026-11-04 22:08:13 UTC",
+  "source_checkpoint": "cc80104c68d377b5aac6053a9c3de533d0786911",
+  "clay_draft_patch_sha256": "afaf71a8b637ecb0bf3374fe73495bf28e507fe47050e9136f7d9edc31b4b1cc",
+  "clay_draft_original_base": "cc6262bed73765f88c2e563465ea6fe996cd939e",
+  "clay_draft_manifest": "../experiments/name-handling/lsp-1956-clay/reviewed-draft-v2/manifest.json",
+  "clay_validation": "UNBUILT/UNVERIFIED; nine semantic controls, Cargo, codegen, rust-check and prep-pr UNRUN",
+  "seed_repair_checkpoint": "f2b927c5ce08b5b8da4df2ba2a52c022391b99a4",
+  "seed_repair_scope": "Independent retained-cell seed-map repair with recorded compiler Clippy/no-run and12 counted controls PASS; exact IMAP4 original-read coverage remains unresolved",
+  "issues": [
+    {
+      "issue": 1956,
+      "state": "open",
+      "comment_id": 6643349824,
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/1956#issuecomment-6643349824",
+      "exact_comment_readback": true,
+      "author": "bitwisecook",
+      "comment_body_sha256": "6b60ea4c3726b585b3020efe01f62c00893f5fc72bb817f07ffe746f6e446e38"
+    },
+    {
+      "issue": 2243,
+      "state": "open",
+      "comment_id": 6643352406,
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2243#issuecomment-6643352406",
+      "exact_comment_readback": true,
+      "author": "bitwisecook",
+      "comment_body_sha256": "eeda9b9bba51a14f623ffa57e38e656db46c01934f4fe80fa21e11ec23ddd9bc"
+    }
+  ],
+  "stashes": "All preserved; only current eedae9ee8555c0bcef38dec209a43dedaa310b33 restored. Older abandoned stashes not restored.",
+  "rust_integration": "Root coordinates final integration/push to remote rust after #2131 closure."
+}

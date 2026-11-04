@@ -235,5 +235,11 @@
     "repair_status": "Independent shared-cell/provenance repair verified: production Clippy and compiler lib no-run exited 0, followed by 12 counted controls in 6 processes. Exact #2243 coverage remains unavailable.",
     "repair_record": "../experiments/name-handling/lsp-2243-coverage/seed-repair/receipt.json",
     "repair_binary_sha256": "b8fab38db77645ebf5691d00af8c38da105fcfd2f16bf33348a73128e21069fb"
+  },
+  "issue_update": {
+    "state": "open",
+    "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2243#issuecomment-6643352406",
+    "exact_comment_readback": true,
+    "stop_handoff": "LSP_RELEASE_PROVIDER_STOP_HANDOFF_2026-11-04.json"
   }
 }
