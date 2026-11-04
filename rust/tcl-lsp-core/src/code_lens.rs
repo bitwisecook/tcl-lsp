@@ -270,6 +270,13 @@ mod readonly_source_count_tests {
             readonly_reference_count_title(2, ReadonlyReferenceCoverage::ExistingInventory),
             "2 references"
         );
+        assert_eq!(
+            readonly_reference_count_title(
+                2,
+                ReadonlyReferenceCoverage::CompleteSourceOccurrenceCensus
+            ),
+            "2 references"
+        );
     }
 
     #[test]
@@ -1053,9 +1060,11 @@ mod tests {
 
     // The lens count must equal the reference list.
 
-    /// Parse a `"N reference(s)"` title back into its integer count.
+    /// Parse an exact or lower-bound reference title into its observed count.
     fn title_count(title: &str) -> usize {
         title
+            .strip_prefix("at least ")
+            .unwrap_or(title)
             .split_once(' ')
             .and_then(|(n, _)| n.parse().ok())
             .unwrap_or_else(|| panic!("unparseable lens title: {title:?}"))
@@ -1361,7 +1370,12 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("speak lens");
-        assert_eq!(speak.command_title, "1 reference", "{lenses:?}");
+        assert_eq!(speak.command_title, "at least 1 reference", "{lenses:?}");
+        assert_eq!(
+            speak.reference_coverage,
+            Some(crate::original_declaration::ReadonlyReferenceCoverage::Partial)
+        );
+        assert_lens_matches_references(src, 1);
     }
 
     #[test]
@@ -1398,7 +1412,11 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("speak lens");
-        assert_eq!(speak.command_title, "2 references", "{lenses:?}");
+        assert_eq!(speak.command_title, "at least 2 references", "{lenses:?}");
+        assert_eq!(
+            speak.reference_coverage,
+            Some(crate::original_declaration::ReadonlyReferenceCoverage::Partial)
+        );
         // Lens and peek (from the `Base::speak` declaration) must agree.
         assert_lens_matches_references(src, 1);
     }
