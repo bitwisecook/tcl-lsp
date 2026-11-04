@@ -74,3 +74,25 @@ load before calling the procedure, and records the exact issue script's
 actual argument bytes. `native-controls` preserves its raw byte captures.
 This does not establish a compiler repair. The independent bound-name draft
 remains uncompiled and the guarded declaration-graph work remains separate.
+
+## Existing consumer boundary
+
+`consumer-boundary` records a controlled second diagnostic invocation on the
+same authentic source and retained compilation unit. The probe keeps the
+returned `AnalysisResult`, then invokes the existing public per-procedure
+dispatcher with an empty extra-known-name set. This deliberately omits the
+opaque-name heuristic and is not the production whole-pipeline result.
+
+| Case | Production baseline | Controlled existing consumer |
+| --- | --- | --- |
+| Exact original | Only y at 105..107 | x at 79..81 and y at 105..107 |
+| Guarded-only x | Quiet | Quiet |
+| Guarded x then later read | Quiet | Later x at 65..67 |
+
+This confirms the existing physical/guard consumer can represent the original
+warning when opaque-name advice is absent. The declaration graph limitation
+is independent; repairing it may not be necessary for the exact issue. A
+diagnostic-only original Registry callee classifier is an alternative under
+review. No source-selection, Native, Normal, frame or admission owner was
+changed or supplied by the probe. The product library remains the frozen
+5d1be13 artifact above, not the uncompiled bound-name draft.
