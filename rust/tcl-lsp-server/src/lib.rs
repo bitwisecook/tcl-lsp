@@ -1246,7 +1246,7 @@ struct AutoloadQueryObservation {
     sidecar: Arc<fresh_analysis_cache::SidecarRevision>,
     sidecar_published: bool,
     resolver_revision: u64,
-    unpublished_providers: Vec<String>,
+    providers: Vec<(String, Option<u64>)>,
 }
 
 struct LibraryPublicationSource {
@@ -18272,13 +18272,18 @@ impl Backend {
                     let resolver_revision = resolver.revision();
                     let candidates = request.files(&resolver);
                     drop(resolver);
-                    let libraries = self.autoloaded_library_uris.lock().await;
-                    let unpublished_providers = candidates
+                    let index = self.workspace_index.read().await;
+                    let providers = candidates
                         .iter()
                         .filter_map(|file| canonical_file_uri(file))
-                        .map(|uri| uri.as_str().to_owned())
-                        .filter(|uri| !libraries.contains(uri))
+                        .map(|uri| {
+                            (
+                                uri.as_str().to_owned(),
+                                index.document_revision(uri.as_str()),
+                            )
+                        })
                         .collect();
+                    drop(index);
                     Some(AutoloadQueryObservation {
                         request,
                         inputs_epoch: source_epoch,
@@ -18286,7 +18291,7 @@ impl Backend {
                         sidecar,
                         sidecar_published,
                         resolver_revision,
-                        unpublished_providers,
+                        providers,
                     })
                 } else {
                     None
@@ -18362,12 +18367,12 @@ impl Backend {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .is_current(&observation.sidecar);
-        let libraries = self.autoloaded_library_uris.lock().await;
-        let providers_published = observation
-            .unpublished_providers
+        let index = self.workspace_index.read().await;
+        let providers_changed = observation
+            .providers
             .iter()
-            .any(|uri| libraries.contains(uri));
-        drop(libraries);
+            .any(|(uri, revision)| index.document_revision(uri) != *revision);
+        drop(index);
         let inputs_epoch = self.diag_inputs_epoch();
         let factory_generation = *self.class_factory_generation.read().await;
         let resolver_revision = self.package_resolver.read().await.revision();
@@ -18377,7 +18382,7 @@ impl Backend {
             || !sidecar_current
             || observation.sidecar.is_published_current() != observation.sidecar_published
             || resolver_revision != observation.resolver_revision
-            || providers_published)
+            || providers_changed)
     }
 
     async fn compute_definition_for_snapshot(
@@ -61925,6 +61930,19 @@ proc p {} {
             assert_eq!(locations.len(), 1);
             assert_eq!(locations[0].uri, provider);
             assert_eq!(locations[0].range.start.line, 0);
+            if public {
+                for _ in 0..2 {
+                    let response = backend.goto_definition(serde_json::from_value(serde_json::json!({
+                        "textDocument":{"uri":app.as_str()}, "position":{"line":0,"character":4}
+                    })).unwrap()).await.unwrap();
+                    assert!(
+                        matches!(response, Some(GotoDefinitionResponse::Array(ref targets))
+                        if targets.len() == 1 && targets[0].uri == provider && targets[0].range.start.line == 0),
+                        "repeated publication must preserve the current target: {response:?}"
+                    );
+                }
+            }
+
             assert!(
                 core_definition::original_autoload_request_at(
                     "Rbc_ActiveLegend \n",
@@ -72049,6 +72067,7 @@ mod closed_scan_input_custody {
         target: PathBuf,
         reads: AtomicUsize,
         pauses: AtomicUsize,
+        native_saved_sources: bool,
         started: tokio::sync::Notify,
         resume: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
     }
@@ -72071,6 +72090,16 @@ mod closed_scan_input_custody {
             publish: &mut dyn FnMut(),
         ) -> Result<(), vfs::SourceUriPathUnavailable> {
             vfs::SourceStore::with_current_document_paths(&vfs::NativeStore, paths, publish)
+        }
+        fn with_current_document_sources(
+            &self,
+            sources: &[(&vfs::SourceUriPath, &[u8])],
+            publish: &mut dyn FnMut(),
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            if !self.native_saved_sources {
+                return Err(vfs::SourceUriPathUnavailable::ProviderUnavailable);
+            }
+            vfs::SourceStore::with_current_document_sources(&vfs::NativeStore, sources, publish)
         }
         fn read(&self, path: &Path) -> std::io::Result<Vec<u8>> {
             let read = vfs::SourceStore::read(&vfs::NativeStore, path)?;
@@ -72112,6 +72141,12 @@ mod closed_scan_input_custody {
     }
     impl Fixture {
         async fn new(pauses: usize) -> Self {
+            Self::build(pauses, false).await
+        }
+        async fn with_native_saved_sources(pauses: usize) -> Self {
+            Self::build(pauses, true).await
+        }
+        async fn build(pauses: usize, native_saved_sources: bool) -> Self {
             let root = std::env::temp_dir().join(format!(
                 "closed-scan-inputs-{}-{}",
                 std::process::id(),
@@ -72130,6 +72165,7 @@ mod closed_scan_input_custody {
                 target: path,
                 reads: AtomicUsize::new(0),
                 pauses: AtomicUsize::new(0),
+                native_saved_sources,
                 started: tokio::sync::Notify::new(),
                 resume: std::sync::Mutex::new(receiver),
             });
@@ -72205,7 +72241,7 @@ mod closed_scan_input_custody {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn autoload_definition_recaptures_the_whole_query_after_input_publication() {
-        let fixture = Fixture::new(1).await;
+        let fixture = Fixture::with_native_saved_sources(1).await;
         let caller = Uri::from_file_path(fixture.root.join("caller.tcl")).unwrap();
         let source = "p\n";
         fixture
