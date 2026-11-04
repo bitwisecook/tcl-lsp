@@ -230,3 +230,13 @@ remain unchanged; Bytecode/Traced snapshots agree. The named-procedure variant
 remains a measured warning gap, and #940/S102 is not claimed fixed. Exact library
 custody, source inputs and receipts are in
 [`independent-s100-guards`](../rust/tcl-compiler/tests/data/shimmer-940-source-owner/independent-s100-guards/README.md).
+
+The extra array owner's first failure was a fixture error: its query was
+provably false and retained no original RHS read. A public probe of the exact
+compiled candidate confirms that a conditional array-element write produces
+the required original Element identity/read. Thirty native observations pass
+on all six engines; see
+[`w210-short-circuit-array-boundaries`](../rust/tcl-compiler/tests/data/w210-short-circuit-array-boundaries/README.md).
+Only the positive harness changes; the production guard code is byte-identical
+to the 175-assertion passing snapshot. The corrected 185-row/14-case run and
+production Clippy are pending allocation.
