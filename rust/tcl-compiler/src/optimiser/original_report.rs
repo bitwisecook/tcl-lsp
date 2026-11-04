@@ -303,7 +303,7 @@ pub struct OriginalOptimiserRewriteBatch {
     input: crate::analyser::ResolvedAnalysisInput,
     registry: tcl_registry::RegistrySnapshot,
     members: Vec<OptimisationPayload>,
-    realm: crate::realm::CommandBindingRealm,
+    realm: Arc<crate::realm::CommandBindingRealm>,
     origin: OriginalOptimiserSourceOrigin,
     dialect: Dialect,
 }
@@ -332,7 +332,7 @@ impl OriginalOptimiserRewriteBatch {
     /// Exact independently current source interpretation, not a dispatch grant.
     #[must_use]
     pub fn matches_source_realm(&self, realm: &crate::realm::CommandBindingRealm) -> bool {
-        &self.realm == realm
+        self.realm.as_ref() == realm
     }
     /// Original private source-pipeline inputs, independently rejoined by the adopter.
     #[must_use]

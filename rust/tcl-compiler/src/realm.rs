@@ -1107,14 +1107,15 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
 pub fn document_realm_bindings_for_module(
     module: &crate::ir::Module,
     registry: &CommandRegistry,
-) -> Option<CommandBindingRealm> {
+) -> Option<std::sync::Arc<CommandBindingRealm>> {
     // naming.source.retained-positioned-command-realm
     // docs/design/analysis/name-resolution-proofs/retained-positioned-command-realm.md
     let retained = module.retained_source_bindings.as_deref()?;
-    let bindings = retained.positioned_for_module(module, registry)?;
-    let mut realm = realm_from_source_bindings(bindings.clone(), registry);
-    realm.source_input.clone_from(&module.source_metadata_input);
-    Some(realm)
+    retained.document_realm_for_module(module, registry, |bindings| {
+        let mut realm = realm_from_source_bindings(bindings.clone(), registry);
+        realm.source_input.clone_from(&module.source_metadata_input);
+        realm
+    })
 }
 
 /// Build a document realm from explicit driver execution provenance.
@@ -1279,7 +1280,7 @@ mod tests {
                 registry,
                 &module.source_entry,
             );
-            assert_eq!(projected, independent, "{engine}");
+            assert_eq!(*projected, independent, "{engine}");
         }
     }
 
