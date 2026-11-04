@@ -233,6 +233,80 @@ fn a_workspace_packs_argument_roles_drive_semantic_tokens() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// A pack-defined environment must retain its argument roles after edits,
+/// whether selected by directive or the pack's extension (#2181).
+#[test]
+fn pack_environment_roles_survive_document_edits() {
+    let root = workspace("environment-edit-roles");
+    write(
+        &root.join(".tcl-lsp/bugrepro.tclspec"),
+        "speclib bugrepro 2.0 {\n  environment bugrepro {\n    display_name {Bug Repro}\n    core tcl 9.0\n    file_extension brp -name {Bug repro file}\n  }\n  command myblock {\n    arity 1\n    arg 0 -role Body\n  }\n  command other {\n    arity 1\n    arg 0 -role Expr\n  }\n}\n",
+    );
+    let body = "myblock {\n    myblock {\n        set x 1\n    }\n    other {$x > 1}\n}\n";
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    await_pack_named(&mut lsp, "bugrepro");
+    let legend: Vec<String> =
+        lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
+            .as_array()
+            .expect("semantic-token legend")
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect();
+
+    for (name, directive) in [
+        ("directive.tcl", true),
+        ("extension.brp", false),
+        ("control.tcl", false),
+    ] {
+        let source = if directive {
+            format!("# tcl-dialect: bugrepro\n{body}")
+        } else {
+            body.to_owned()
+        };
+        let doc = root.join(name);
+        write(&doc, &source);
+        let uri = file_uri(&doc);
+        let line = if directive { 3 } else { 2 };
+        let mut diagnostics = lsp.open_ready(&uri, &source);
+        let dialect = lsp.effective_config(&uri)["dialect"].clone();
+        if name == "control.tcl" {
+            assert_ne!(dialect, "bugrepro", "control must use a shipped dialect");
+        } else {
+            assert_eq!(dialect, "bugrepro", "pack dialect must route {name}");
+        }
+        for version in [1, 2] {
+            if version == 2 {
+                lsp.replace_document(&uri, 2, &format!("{source}\n"));
+                diagnostics = lsp.await_diagnostics_version(
+                    &uri,
+                    Some(2),
+                    std::time::Duration::from_secs(30),
+                );
+            }
+            assert!(
+                !diagnostics.iter().any(|diagnostic| {
+                    diagnostic["code"] == "W123"
+                        && diagnostic["message"].as_str().is_some_and(|message| {
+                            message.contains("myblock") || message.contains("other")
+                        })
+                }),
+                "pack commands became unknown for {name} version {version}: {diagnostics:#?}"
+            );
+            let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
+            assert!(
+                tokens.iter().any(|token| token.line == line
+                    && token.char == 8
+                    && token.length == 3
+                    && legend[usize::try_from(token.ttype).unwrap()] == "function"),
+                "nested set lost its function token for {name} version {version}: {tokens:?}"
+            );
+        }
+        lsp.close_document(&uri);
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// The same command, with **no** pack in the workspace, is unknown — so the
 /// test above is measuring the pack and not some pre-existing leniency.
 #[test]
@@ -599,7 +673,7 @@ fn a_workspace_pack_subcommand_arity_error_is_published() {
          arg 0 -role Value -type Double\n      arg 1 -role Value -type Double\n      \
          arg 2 -role Value -type Double\n      synopsis {cad box x y z}\n    }\n  }\n}\n",
     );
-    let source = "package require cad 0.4\n\ncad box 10 20\ncad box 1 2 3\n";
+    let source = "package require cad 0.4\n\ncad box 10 20\ncad box 1 2 3\nstring length one two\n";
     let doc = root.join("bad.tcl");
     write(&doc, source);
 
@@ -617,6 +691,29 @@ fn a_workspace_pack_subcommand_arity_error_is_published() {
         .collect();
     assert_eq!(arity.len(), 1, "{diagnostics:#?}");
     assert_eq!(arity[0]["range"]["start"]["line"], 2, "{arity:#?}");
+    assert_eq!(arity[0]["code"], "E002", "{arity:#?}");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic["code"] == "E002"
+                && diagnostic["range"]["start"]["line"] == 4
+                && diagnostic["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("string length"))
+        }),
+        "built-in arity control must be published too: {diagnostics:#?}"
+    );
+
+    let repaired =
+        "package require cad 0.4\n\ncad box 10 20 30\ncad box 1 2 3\nstring length one\n";
+    lsp.replace_document(&uri, 2, repaired);
+    let repaired_diagnostics =
+        lsp.await_diagnostics_version(&uri, Some(2), std::time::Duration::from_secs(30));
+    assert!(
+        !repaired_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "E002"),
+        "repair must clear both custom and built-in arity errors: {repaired_diagnostics:#?}"
+    );
 
     let _ = std::fs::remove_dir_all(&root);
 }
