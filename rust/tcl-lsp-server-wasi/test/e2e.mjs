@@ -58,6 +58,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { writeSync } from "node:fs";
+import { HOOK_HOST_PACK, runHookHostProof } from "../../../scripts/dev/lsp-hook-host-proof.mjs";
 import { HOST_NAMING_SOURCE, runMixedNamingHostRefusal, runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -704,6 +705,8 @@ async function cacheWritableSession() {
     let session;
     try {
         await cp(fixture, scratch, { recursive: true });
+        await mkdir(join(scratch, ".tcl-lsp"), { recursive: true });
+        await writeFile(join(scratch, ".tcl-lsp", "hook-host-control.tclspec"), HOOK_HOST_PACK);
         session = new Session({
             preopen: scratch,
             env: { XDG_CACHE_HOME: `${ROOT}/.cache` },
@@ -769,6 +772,9 @@ async function cacheWritableSession() {
             Array.isArray(published),
             published ? `${published.length} diagnostics` : "none",
         );
+
+        await runHookHostProof(session, `file://${ROOT}/hook-host-control.tcl`, check,
+            (probe) => until(probe, REPLY_BUDGET_MS));
 
         session.notify("exit", null);
         await Promise.race([session.exited, sleep(30_000).then(() => "timeout")]);

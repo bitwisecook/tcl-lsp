@@ -29,6 +29,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
+import { HOOK_HOST_PACK, runHookHostProof } from "../../../scripts/dev/lsp-hook-host-proof.mjs";
 import { HOST_NAMING_SOURCE, runMixedNamingHostRefusal, runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -367,6 +368,10 @@ async function workspaceSession(wasmBindgen) {
         "vfs_upsert_spec_pack accepts a name inside the mount",
         session.worker.vfs_upsert_spec_pack(HOST_PACK_NAME, HOST_PACK_SOURCE) === true,
     );
+    check(
+        "the host admits an executable hook pack",
+        session.worker.vfs_upsert_spec_pack("hook-host-control.tclspec", HOOK_HOST_PACK) === true,
+    );
     // A pack name that leaves the mount must not be able to shadow a store
     // path — here, the very file the scan is about to index.
     const escapes = [
@@ -384,7 +389,7 @@ async function workspaceSession(wasmBindgen) {
             session.worker.vfs_is_safe_spec_pack_name(name) === true,
         ) && escapes.every((name) => session.worker.vfs_is_safe_spec_pack_name(name) === false),
     );
-    check("the store holds the workspace before initialize", session.worker.vfs_len() === 5);
+    check("the store holds the workspace before initialize", session.worker.vfs_len() === 6);
 
     await session.request("initialize", {
         processId: null,
@@ -412,7 +417,7 @@ async function workspaceSession(wasmBindgen) {
     const packCount = Number(/(\d+) pack/.exec(packLine ?? "")?.[1] ?? -1);
     check(
         "the host's .tclspec pack loaded as the bundled tier",
-        packCount >= 9,
+        packCount >= 10,
         packLine ?? "no SpecTcl log line",
     );
 
@@ -465,6 +470,8 @@ async function workspaceSession(wasmBindgen) {
     );
 
     await runMixedNamingHostRefusal(session, "file:///ws/host-naming.tcl", check, "incomplete-original-command-coverage", (uri, source) => session.worker.vfs_upsert(uri, source));
+
+    await runHookHostProof(session, "file:///ws/hook-host-control.tcl", check, until);
 
     const shutdown = await session.request("shutdown", null);
     check("the workspace session shuts down", shutdown.error === undefined);
