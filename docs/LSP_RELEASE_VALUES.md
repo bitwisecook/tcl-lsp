@@ -6,7 +6,7 @@ also silent.
 
 | Issue | Current evidence and status |
 | --- | --- |
-| #940 | At `5755cd79d`, the reported conditional append and original font-size examples are quiet. A genuine int/string loop also produces no S102, so the result is inconclusive. See the replay below. |
+| #940 | Published top-level S100 and fixed-count S102 have genuine native LSP controls (`cab14d1a4`, receipts below). Original font and conditional-append coverage remains incomplete. The newer list-event draft is unpublished after nested-operation graph failures; its genuine C5 controls pass. |
 | #2498, #2500, #2504 | At `5755cd79d`, each reported warning is quiet, but all three genuine shimmer controls below also produce no warning. The results are inconclusive. |
 | #2499 | At `e19c0acaa`, the dynamic read is quiet and the dynamic write control emits W212. `lsp_external_validation::issue_2499_dynamic_variable_read`. |
 | #2503 | At `e19c0acaa`, the quoted expression is quiet and a direct nested expression emits W114. `lsp_external_validation::issue_2503_nested_expr_inside_quoted_result`. |
@@ -376,3 +376,7 @@ The first joint S102 candidate is under a frozen targeted build. Registry unit-t
 2026-11-04 20:59 UTC: The #940 nonempty-list-append and literal-index source-only candidate is statically reviewed and frozen against `201f09d2c`, with source-manifest SHA256 `8724763e07fae10e453689852b9920486785cf8ff7c59f8f5e6bbe1bd5aca57a`. It is not yet tested or published as a product fix. Its controls require real graph event state, target reads after nested substitutions, exact/unknown index results and existing S100/S102 controls; its conditional-if custody remains a separate missing stage. An unintended earlier no-run overlapped source edits and is invalid; the next gate explicitly cleans both affected crates first. The unrelated clean-source production Clippy result reported above remains valid. #940 remains open.
 
 2026-11-04 21:18 UTC: After the intentionally clean registry/compiler rebuild, list-event candidate Clippy identified three local style issues; those were corrected and independently reviewed. The new candidate at source `201f09d2c` with manifest SHA256 `82c123a6833214cc9a8fed00d52db29ed64d3cf2723bbe430f49a8aa34ccbb68` passed production compiler/registry Clippy and registry test no-run; compiler unit/integration no-run is still running. No new list-event runtime result or original #940 fix is claimed. Original conditional-if body support and workspace-wide gates remain pending.
+
+## Native foreach profile boundary, 21:25 UTC
+
+The [fresh native evidence](../evidence/tcl/lsp-940-foreach-numeric-representation.md) records 80 process rows. Tcl 8.6 converts numeric inputs to lists in both compiled and dynamically selected foreach; Tcl 9.0/9.1 preserve their numeric representation. Dictionaries convert on all three observed versions and both routes. Older Tcl and current Jim provide output-only evidence. A numeric foreach control cannot establish physical list conversion across all five C profiles. The original font-size example still needs a reached compiler consumer and an independently valid positive for its selected profile/object case. This is reference evidence, not a new product fix.
