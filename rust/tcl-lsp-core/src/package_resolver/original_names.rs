@@ -489,14 +489,19 @@ impl PackageResolver {
         exists: &dyn Fn(&Path) -> bool,
     ) {
         self.invalidate();
-        for version in tcl_dialect::TclVersion::ALL {
+        let requests = tcl_dialect::TclVersion::ALL.map(|version| {
             let profile = tcl_dialect::DialectProfile::find(version.dialect_name())
                 .expect("C release profile");
             let config = LexerConfig::from_grammar(
                 tcl_registry::InvocationDialect::of_profile(profile).lexer_grammar,
             );
             let policy = NamePolicyProtocol::authored_tcl(version);
-            for entry in original_index_entries(content, index_dir, exists, config, policy) {
+            (config, policy)
+        });
+        for ((_, policy), entries) in requests.into_iter().zip(original_index_entries_batch(
+            content, index_dir, exists, &requests,
+        )) {
+            for entry in entries {
                 self.original_auto_index
                     .entry((
                         policy.string_protocol(),
@@ -576,6 +581,64 @@ impl PackageResolver {
             })
             .is_some_and(|selected| !selected.is_empty())
     }
+}
+
+/// Survey independent release inputs in pairs while preserving release and
+/// directory order. The caller owns the rescan memo and all existence checks;
+/// workers receive only immutable source and return their exact release rows.
+fn original_index_entries_batch(
+    content: &str,
+    index_dir: &Path,
+    exists: &dyn Fn(&Path) -> bool,
+    requests: &[(LexerConfig, NamePolicyProtocol)],
+) -> Vec<Vec<OriginalAutoIndexRegistration>> {
+    let mut results = Vec::with_capacity(requests.len());
+    for pair in requests.chunks(2) {
+        let mut rows: Vec<Option<Vec<OriginalAutoIndexRegistration>>> = pair
+            .iter()
+            .map(|&(config, policy)| cached_index_survey(content, index_dir, config, policy))
+            .collect();
+        #[cfg(not(target_family = "wasm"))]
+        if pair.len() == 2
+            && rows.iter().all(Option::is_none)
+            && std::thread::available_parallelism().is_ok_and(|count| count.get() > 1)
+        {
+            let (left, right) = std::thread::scope(|scope| {
+                match std::thread::Builder::new().spawn_scoped(scope, || {
+                    survey_index_entries(content, index_dir, pair[0].0, pair[0].1)
+                }) {
+                    Ok(left) => {
+                        let right = survey_index_entries(content, index_dir, pair[1].0, pair[1].1);
+                        (
+                            left.join()
+                                .unwrap_or_else(|error| std::panic::resume_unwind(error)),
+                            right,
+                        )
+                    }
+                    Err(_) => (
+                        survey_index_entries(content, index_dir, pair[0].0, pair[0].1),
+                        survey_index_entries(content, index_dir, pair[1].0, pair[1].1),
+                    ),
+                }
+            });
+            rows[0] = Some(left);
+            rows[1] = Some(right);
+        }
+        for (&(config, policy), row) in pair.iter().zip(rows.drain(..)) {
+            let entries =
+                row.unwrap_or_else(|| survey_index_entries(content, index_dir, config, policy));
+            if cached_index_survey(content, index_dir, config, policy).is_none() {
+                remember_index_survey(content, index_dir, config, policy, &entries);
+            }
+            results.push(
+                entries
+                    .into_iter()
+                    .filter(|entry| exists(&entry.file))
+                    .collect(),
+            );
+        }
+    }
+    results
 }
 
 /// Original package-name producer paired with its selected database purpose.
@@ -879,6 +942,7 @@ pub(super) struct OriginalAutoIndexRegistration {
 /// registrations are retained, never the analysis; existence is checked on
 /// every call. The memo is per thread (scans run on blocking workers), bounded
 /// by entry count and retained index bytes.
+#[cfg(test)]
 fn original_index_entries(
     content: &str,
     index_dir: &Path,
@@ -886,51 +950,76 @@ fn original_index_entries(
     config: LexerConfig,
     policy: NamePolicyProtocol,
 ) -> Vec<OriginalAutoIndexRegistration> {
-    type Row = (
-        Box<str>,
-        PathBuf,
-        LexerConfig,
-        NamePolicyProtocol,
-        Vec<OriginalAutoIndexRegistration>,
-    );
-    const MAX_ENTRIES: usize = 64;
-    const MAX_INDEX_BYTES: usize = 4 * 1024 * 1024;
-    thread_local! {
-        static MEMO: std::cell::RefCell<std::collections::VecDeque<Row>> =
-            const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
-    }
-    let cached = MEMO.with_borrow(|memo| {
-        memo.iter()
-            .find(|(bytes, dir, grammar, naming, _)| {
-                bytes.as_ref() == content
-                    && dir.as_path() == index_dir
-                    && *grammar == config
-                    && *naming == policy
-            })
-            .map(|row| row.4.clone())
-    });
-    let surveyed = cached.unwrap_or_else(|| {
+    let surveyed = cached_index_survey(content, index_dir, config, policy).unwrap_or_else(|| {
         let surveyed = survey_index_entries(content, index_dir, config, policy);
-        MEMO.with_borrow_mut(|memo| {
-            memo.push_back((
-                content.into(),
-                index_dir.to_path_buf(),
-                config,
-                policy,
-                surveyed.clone(),
-            ));
-            while memo.len() > MAX_ENTRIES
-                || memo.iter().map(|row| row.0.len()).sum::<usize>() > MAX_INDEX_BYTES
-            {
-                memo.pop_front();
-            }
-        });
+        remember_index_survey(content, index_dir, config, policy, &surveyed);
         surveyed
     });
     surveyed
         .into_iter()
         .filter(|entry| exists(&entry.file))
         .collect()
+}
+
+type IndexSurveyCacheRow = (
+    Box<str>,
+    PathBuf,
+    LexerConfig,
+    NamePolicyProtocol,
+    Vec<OriginalAutoIndexRegistration>,
+);
+
+fn with_index_survey_cache<R>(
+    f: impl FnOnce(&mut std::collections::VecDeque<IndexSurveyCacheRow>) -> R,
+) -> R {
+    thread_local! {
+        static MEMO: std::cell::RefCell<std::collections::VecDeque<IndexSurveyCacheRow>> =
+            const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+    }
+    MEMO.with_borrow_mut(f)
+}
+
+fn cached_index_survey(
+    content: &str,
+    dir: &Path,
+    config: LexerConfig,
+    policy: NamePolicyProtocol,
+) -> Option<Vec<OriginalAutoIndexRegistration>> {
+    with_index_survey_cache(|memo| {
+        memo.iter()
+            .find(|(bytes, cached_dir, grammar, naming, _)| {
+                bytes.as_ref() == content
+                    && cached_dir.as_path() == dir
+                    && *grammar == config
+                    && *naming == policy
+            })
+            .map(|row| row.4.clone())
+    })
+}
+
+fn remember_index_survey(
+    content: &str,
+    dir: &Path,
+    config: LexerConfig,
+    policy: NamePolicyProtocol,
+    entries: &[OriginalAutoIndexRegistration],
+) {
+    const MAX_ENTRIES: usize = 64;
+    const MAX_INDEX_BYTES: usize = 4 * 1024 * 1024;
+    with_index_survey_cache(|memo| {
+        memo.push_back((
+            content.into(),
+            dir.to_path_buf(),
+            config,
+            policy,
+            entries.to_vec(),
+        ));
+        while memo.len() > MAX_ENTRIES
+            || memo.iter().map(|row| row.0.len()).sum::<usize>() > MAX_INDEX_BYTES
+        {
+            memo.pop_front();
+        }
+    });
 }
 
 enum IndexSurveyContext {
@@ -2002,6 +2091,62 @@ mod tests {
                 vec![PathBuf::from("/library/b.tcl")]
             );
         }
+    }
+
+    #[test]
+    fn batched_index_surveys_match_each_release_and_recheck_existence() {
+        let source = "set auto_index(a) [list source [file join $dir a.tcl]]\n\
+                      set auto_index(b) [list source -encoding utf-8 [file join $dir b.tcl]]\n\
+                      set auto_index(dynamic) [list source $unknown]\n";
+        let requests = tcl_dialect::TclVersion::ALL.map(|version| {
+            (
+                LexerConfig::from_grammar(
+                    tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+                ),
+                NamePolicyProtocol::authored_tcl(version),
+            )
+        });
+        let batch_dir = Path::new("/batch-survey");
+        let batch = original_index_entries_batch(source, batch_dir, &|_| true, &requests);
+        assert!(
+            batch.iter().all(|rows| !rows.is_empty()),
+            "each release must retain the valid row"
+        );
+        let facts = |rows: &[OriginalAutoIndexRegistration]| {
+            rows.iter()
+                .map(|entry| (entry.input.clone(), entry.file.clone()))
+                .collect::<Vec<_>>()
+        };
+        for ((config, policy), rows) in requests.into_iter().zip(&batch) {
+            let serial = survey_index_entries(source, batch_dir, config, policy);
+            assert_eq!(facts(rows), facts(&serial), "{policy:?}");
+        }
+        let warm = original_index_entries_batch(source, batch_dir, &|_| true, &requests);
+        assert_eq!(
+            batch.iter().map(|rows| facts(rows)).collect::<Vec<_>>(),
+            warm.iter().map(|rows| facts(rows)).collect::<Vec<_>>()
+        );
+        assert!(
+            original_index_entries_batch(source, batch_dir, &|_| false, &requests)
+                .iter()
+                .all(Vec::is_empty),
+            "cached rows must recheck existence"
+        );
+        let partial_dir = Path::new("/partially-cached-survey");
+        original_index_entries(source, partial_dir, &|_| true, requests[0].0, requests[0].1);
+        let partial = original_index_entries_batch(source, partial_dir, &|_| true, &requests);
+        for ((config, policy), rows) in requests.into_iter().zip(&partial) {
+            assert_eq!(
+                facts(rows),
+                facts(&survey_index_entries(source, partial_dir, config, policy))
+            );
+        }
+        let changed = source.replace("a.tcl", "changed.tcl");
+        let changed_rows = original_index_entries_batch(&changed, batch_dir, &|_| true, &requests);
+        assert!(changed_rows.iter().all(|rows| {
+            rows.iter()
+                .any(|row| row.file == batch_dir.join("changed.tcl"))
+        }));
     }
 
     /// The rescan memo retains the survey, never the existence answer: the
