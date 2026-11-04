@@ -20,6 +20,21 @@ SCRIPTS = ROOT / "scripts/dev/bigip-probes/resolution-2286"
 
 
 class BigIPEvidenceTests(unittest.TestCase):
+    def test_shared_logs_only_ignore_invocations_attributed_to_other_scripts(
+        self,
+    ) -> None:
+        helpers = runpy.run_path(
+            str(ROOT / "scripts/dev/migrate-tcl-bigip-log-evidence.py")
+        )
+        attribution = helpers["source_attribution"]
+        self.assertEqual(attribution({"other.tcl"}, "selected.tcl"), "other")
+        self.assertEqual(attribution({"selected.tcl"}, "selected.tcl"), "selected")
+        self.assertEqual(
+            attribution({"selected.tcl", "other.tcl"}, "selected.tcl"), "ambiguous"
+        )
+        self.assertEqual(attribution(set(), "selected.tcl"), "ambiguous")
+        self.assertEqual(attribution({None}, "selected.tcl"), "ambiguous")
+
     def test_corpus_questions_are_resolved_by_question_id(self) -> None:
         helpers = runpy.run_path(str(ROOT / "scripts/dev/migrate-tcl-tmsh-evidence.py"))
         question = helpers["question"](
