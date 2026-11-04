@@ -3785,9 +3785,46 @@ mod tests {
                 .clone();
             assert_eq!(analysis.resolved_input.as_ref(), Some(&input));
             assert!(analysis.allows_lexical_declaration_advice());
-            let edits = rename(&source, profile, 1, 7, "new", &analysis, None);
-            assert!(!edits.is_empty(), "{name}");
-            assert_eq!(apply_edits(&source, &edits), "set {new} 1\nputs ${new}\n");
+            assert!(
+                rename_with_diagnosis(&source, profile, 1, 7, "new", &analysis, None).is_err(),
+                "{name}"
+            );
+            let proposal =
+                conditional_variable_rename_with_diagnosis(&source, 1, 7, "new", &analysis)
+                    .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+            let width = u32::try_from(name.encode_utf16().count()).unwrap();
+            assert_eq!(
+                proposal.edits,
+                vec![
+                    TextEdit {
+                        range: LspRange {
+                            start_line: 0,
+                            start_character: 4,
+                            end_line: 0,
+                            end_character: 6 + width,
+                        },
+                        new_text: "{new}".to_owned(),
+                    },
+                    TextEdit {
+                        range: LspRange {
+                            start_line: 1,
+                            start_character: 7,
+                            end_line: 1,
+                            end_character: 7 + width,
+                        },
+                        new_text: "new".to_owned(),
+                    },
+                ],
+                "{name}"
+            );
+            assert_eq!(
+                proposal.generated_source, "set {new} 1\nputs ${new}\n",
+                "{name}"
+            );
+            assert_eq!(
+                apply_edits(&source, &proposal.edits),
+                proposal.generated_source
+            );
             assert_eq!(
                 rename(
                     &(source.clone() + " "),
@@ -3796,9 +3833,20 @@ mod tests {
                     7,
                     "new",
                     &analysis,
-                    None,
+                    None
                 ),
                 [] as [crate::rename::TextEdit; 0]
+            );
+            assert!(
+                conditional_variable_rename_with_diagnosis(
+                    &(source.clone() + " "),
+                    1,
+                    7,
+                    "new",
+                    &analysis,
+                )
+                .is_err(),
+                "{name}"
             );
         }
     }
