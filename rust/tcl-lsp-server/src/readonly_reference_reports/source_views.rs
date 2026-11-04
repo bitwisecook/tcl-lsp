@@ -2413,6 +2413,22 @@ impl Backend {
         Ok(result.is_some())
     }
 
+    /// A first source edge admits its closed child through the normal disk
+    /// publisher before capturing an inherited interpretation at the real cut.
+    async fn source_child_document_snapshot(
+        &self,
+        uri: &Uri,
+    ) -> DocumentSourceResult<super::super::RehomingDocumentSnapshot> {
+        let snapshot = self.rehoming_document_snapshot(uri).await?;
+        if !matches!(snapshot, super::super::RehomingDocumentSnapshot::Missing) {
+            return Ok(snapshot);
+        }
+        let admission = self.document_path_admission(uri).await?;
+        self.reindex_index_from_disk_using(uri, Some(admission))
+            .await?;
+        self.rehoming_document_snapshot(uri).await
+    }
+
     async fn source_view_child(
         &self,
         parent: &Arc<PublishedOriginalSourceView>,
@@ -2437,7 +2453,7 @@ impl Backend {
         {
             return Ok(Some(cached));
         }
-        let snapshot = self.rehoming_document_snapshot(&uri).await?;
+        let snapshot = self.source_child_document_snapshot(&uri).await?;
         let super::super::RehomingDocumentSnapshot::Ready(document) = snapshot else {
             return Ok(None);
         };
@@ -3989,5 +4005,206 @@ mod completed_world_owner_controls {
             std::fs::read_to_string(fixture.root.join("host.tcl")).unwrap(),
             REFERENCE_SOURCE
         );
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod closed_source_child_ingress_tests {
+    use super::*;
+    use crate::{DocumentPublication, DocumentState, RehomingDocumentSnapshot};
+    use tower_lsp_server::ls_types::Position;
+
+    const CALLER: &str = "source child.tcl\nproc caller {} {return [helper 7]}\n";
+    const CHILD: &str = "proc helper {value} {return $value}\n";
+
+    struct Fixture {
+        root: std::path::PathBuf,
+        main: Uri,
+        child: Uri,
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    async fn open(backend: &Backend, uri: &Uri, source: &str) {
+        backend
+            .db_set_source(uri, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let admission = backend.document_path_admission(uri).await.unwrap();
+        let mut document = DocumentState::with_version(source.to_owned(), "tcl8.6".to_owned(), 1);
+        document.path_admission = Some(admission);
+        document.publication = DocumentPublication::Indexed;
+        backend
+            .documents
+            .lock("closed source child fixture")
+            .await
+            .insert(uri.clone(), document);
+        let analysis = backend
+            .analysis_for(uri, Arc::from(source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        backend
+            .workspace_index
+            .write()
+            .await
+            .add_document(uri.as_str(), &analysis);
+    }
+
+    async fn fixture() -> (Fixture, Backend) {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "tcl-lsp-source-child-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        std::fs::write(root.join("main.tcl"), CALLER).unwrap();
+        std::fs::write(root.join("child.tcl"), CHILD).unwrap();
+        let main = Uri::from_file_path(root.join("main.tcl")).unwrap();
+        let child = Uri::from_file_path(root.join("child.tcl")).unwrap();
+        let backend = crate::tests::test_backend();
+        open(&backend, &main, CALLER).await;
+        (Fixture { root, main, child }, backend)
+    }
+
+    async fn child_view(fixture: &Fixture, backend: &Backend) -> Arc<PublishedOriginalSourceView> {
+        let route = backend
+            .original_source_view_navigation_route(&fixture.main, Position::new(1, 24), None)
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(locations)) = route else {
+            panic!("expected inherited source navigation")
+        };
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].uri, fixture.child);
+        let table = backend.original_source_views.lock().unwrap();
+        let ids = table.by_uri.get(&fixture.child).unwrap();
+        let mut views = ids
+            .iter()
+            .filter_map(|id| table.by_id.get(id))
+            .filter(|view| view.draft.inherited.is_some());
+        let view = Arc::clone(views.next().unwrap());
+        assert!(views.next().is_none());
+        view
+    }
+
+    #[tokio::test]
+    async fn closed_source_child_issues_inherited_view_from_published_physical_owner() {
+        let (fixture, backend) = fixture().await;
+        assert!(!backend.db_files.lock().await.contains_key(&fixture.child));
+        assert!(
+            !backend
+                .documents
+                .lock("unopened child")
+                .await
+                .contains_key(&fixture.child)
+        );
+        let view = child_view(&fixture, &backend).await;
+        let inherited = view.draft.inherited.as_ref().unwrap();
+        assert!(
+            inherited
+                .point
+                .matches_parent_analysis(&inherited.parent.draft.producer.seed.analysis)
+        );
+        assert!(
+            inherited
+                .point
+                .matches_child_analysis(&view.draft.producer.seed.analysis)
+        );
+        assert!(view.draft.matches_producer());
+        let db = backend.db.lock().await;
+        let files = backend.db_files.lock().await;
+        let file = files[&fixture.child];
+        assert_eq!(file, view.draft.physical.file);
+        assert_eq!(file.text(&*db), CHILD);
+        assert_eq!(
+            file.path(&*db).as_deref(),
+            view.draft.physical.admission.analyser_path()
+        );
+        let paths = backend.source_path_admissions.lock().unwrap();
+        let published = &paths[&fixture.child];
+        assert_eq!(published.file, file);
+        assert_eq!(
+            published.admission.as_ref(),
+            view.draft.physical.admission.as_ref()
+        );
+        assert!(view.draft.physical.publication.open_revision.is_none());
+    }
+
+    #[tokio::test]
+    async fn changed_closed_source_child_withdraws_saved_interpretation() {
+        let (fixture, backend) = fixture().await;
+        let view = child_view(&fixture, &backend).await;
+        std::fs::write(fixture.root.join("child.tcl"), "proc replacement {} {}\n").unwrap();
+        assert!(
+            backend
+                .with_current_original_source_view(view.id, |_| Some(()))
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn deleted_closed_source_child_withdraws_saved_interpretation() {
+        let (fixture, backend) = fixture().await;
+        let view = child_view(&fixture, &backend).await;
+        std::fs::remove_file(fixture.root.join("child.tcl")).unwrap();
+        assert!(
+            backend
+                .with_current_original_source_view(view.id, |_| Some(()))
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn refused_closed_source_child_path_creates_no_publication() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///source-%FF.tcl".parse().unwrap();
+        assert!(matches!(
+            backend.source_child_document_snapshot(&uri).await,
+            Err(crate::DocumentSourceUnavailable::Path { .. })
+        ));
+        assert!(!backend.db_files.lock().await.contains_key(&uri));
+        assert!(
+            !backend
+                .source_path_admissions
+                .lock()
+                .unwrap()
+                .contains_key(&uri)
+        );
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn source_child_ingress_preserves_live_unsaved_document() {
+        let (fixture, backend) = fixture().await;
+        let unsaved = "proc helper {value} {return UNSAVED}\n";
+        open(&backend, &fixture.child, unsaved).await;
+        let RehomingDocumentSnapshot::Ready(snapshot) = backend
+            .source_child_document_snapshot(&fixture.child)
+            .await
+            .unwrap()
+        else {
+            panic!("expected live child")
+        };
+        assert_eq!(snapshot.text.as_ref(), unsaved);
+        let view = child_view(&fixture, &backend).await;
+        assert_eq!(view.draft.physical.source.as_ref(), unsaved);
+        assert!(view.draft.physical.publication.open_revision.is_some());
     }
 }
