@@ -94,3 +94,17 @@ Both selected #2434 regressions passed after that mechanical change (Tcl
 8.4–9.1 plus the applicable Jim escape controls). Older #2373, report-allocation
 and Tcllib setup work remains safely stashed as
 `Preserve optimiser release WIP before fresh issue 2507 verification`.
+
+
+## Resumed compiler safety: #2218
+
+The existing `issue_2218` regression fails at `182ea7784`: O115 still rewrites
+`double_expr` beside `proc g {cmd} {$cmd}`. Direct owner probes show both the
+unit's and a freshly scanned command-mutation fact already report dynamic
+mutation and distrust `expr`; the propagation helper bypasses that fact.
+The implementation now retains the registry-resolved expression invocation
+and checks its descriptor against the whole-module trust gate before O115.
+No binding-owner, CLI, VM or F5 code is changed. Focused return/argument
+controls and execution under Tcl 8.4–9.1/current Jim are prepared; corrected
+verification is pending this required integration checkpoint. Older tooling
+and allocation/setup drafts remain stashed.

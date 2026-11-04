@@ -1528,29 +1528,21 @@ fn fold_retained_builtin(
     .filter(|value| !crate::const_subst::folded_literal_reads_apart(value, release))
 }
 
-fn retained_expr_call(
+fn retained_expr_invocation(
     call: &crate::word_subst::LiftedCall,
     registry: &CommandRegistry,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-) -> bool {
-    let Some(metadata) = metadata else {
-        return false;
-    };
-    call.tokens
-        .as_ref()
-        .and_then(|tokens| {
-            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
-                registry,
-                Some(metadata),
-                tokens,
-            )
-        })
-        .is_some_and(|invocation| {
-            invocation.facts.operation
-                == tcl_registry::SemanticOperationId::StructuredLowering(
-                    tcl_registry::hooks::LoweringHookId::Expr,
-                )
-        })
+) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
+    let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+        registry,
+        Some(metadata?),
+        call.tokens.as_ref()?,
+    )?;
+    (invocation.facts.operation
+        == tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Expr,
+        ))
+    .then_some(invocation)
 }
 
 fn retained_o115(
@@ -1563,7 +1555,11 @@ fn retained_o115(
 ) -> Option<String> {
     let actual = crate::registry_invocation::retained_module_metadata_context(registry, module)?;
     let metadata = Some(actual.as_ref().into());
-    if !retained_expr_call(call, registry, metadata) {
+    let invocation = retained_expr_invocation(call, registry, metadata)?;
+    if !ctx
+        .command_mutations
+        .trusts(invocation.facts.descriptor_key().label())
+    {
         return None;
     }
     let tokens = call.tokens.as_ref()?;
@@ -2686,7 +2682,7 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
-        let is_expr = retained_expr_call(call, registry, metadata);
+        let is_expr = retained_expr_invocation(call, registry, metadata).is_some();
 
         if is_expr && let Some(folded) = try_o101_expr_arg_fold(ctx, cu, tokens, call, constants) {
             ctx.report(Optimisation::new(

@@ -829,3 +829,81 @@ fn issue_2431_release_less_semantic_axes() {
         }
     }
 }
+
+#[test]
+fn issue_2218_preserves_known_command_heads() {
+    for body in [
+        "return [expr {[expr {$x * 2}]}]",
+        "puts [expr {[expr {$x * 2}]}]",
+    ] {
+        for suffix in [
+            "",
+            "proc g {} {puts safe}",
+            "proc g {} {set cmd puts; $cmd safe}",
+            "proc g {value} {puts $value}",
+        ] {
+            let source = format!("proc double_expr {{x}} {{{body}}}\n{suffix}\n");
+            let (_, applied) = optimise(&source, "tcl8.6");
+            assert!(
+                applied
+                    .iter()
+                    .any(|row| row.code == tcl_core_types::DiagCode::O115),
+                "{body}: {suffix}"
+            );
+        }
+        for suffix in [
+            "proc g {cmd} {$cmd}",
+            "proc g {cmd} {return [$cmd]}",
+            "proc g {cmd} {if {1} {$cmd}}",
+            "proc g {} {unknown_extension_command}",
+        ] {
+            let source = format!("proc double_expr {{x}} {{{body}}}\n{suffix}\n");
+            let (_, applied) = optimise(&source, "tcl8.6");
+            assert!(
+                applied
+                    .iter()
+                    .all(|row| row.code != tcl_core_types::DiagCode::O115),
+                "{body}: {suffix}"
+            );
+        }
+    }
+}
+
+#[test]
+fn issue_2218_unknown_future_target_preserves_execution() {
+    let source = "proc double_expr {x} {return [expr {[expr {$x * 2}]}]}\nproc g {cmd} {$cmd}\n";
+    // The public dynamic procedure can select a target installed after load.
+    let driver = "proc mutation {} {rename ::expr ::core_expr; proc ::expr {text} {return \"SHADOW:$text\"}}\ng mutation\nputs [double_expr 3]\n";
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
+            continue;
+        };
+        let (rewritten, applied) = optimise(source, &format!("tcl{}", version.version_string()));
+        assert!(
+            applied
+                .iter()
+                .all(|row| row.code != tcl_core_types::DiagCode::O115)
+        );
+        let original = observed(&tclsh.path, &format!("{source}{driver}"));
+        assert!(String::from_utf8_lossy(&original.stdout).contains("SHADOW:[expr"));
+        assert_eq!(
+            original,
+            observed(&tclsh.path, &format!("{rewritten}{driver}")),
+            "{version:?}\n{rewritten}"
+        );
+    }
+    if let Some(jim) = tcl_test_support::locate_jimsh().expect("validated Jim oracle") {
+        let (rewritten, applied) = optimise(source, "jim");
+        assert!(
+            applied
+                .iter()
+                .all(|row| row.code != tcl_core_types::DiagCode::O115)
+        );
+        let original = observed(&jim.path, &format!("{source}{driver}"));
+        assert!(String::from_utf8_lossy(&original.stdout).contains("SHADOW:[expr"));
+        assert_eq!(
+            original,
+            observed(&jim.path, &format!("{rewritten}{driver}"))
+        );
+    }
+}

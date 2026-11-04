@@ -193,7 +193,7 @@ Measured on this input, `readability`, O115 on `double_expr`:
 | `double_expr` alone | fires | fires |
 | `double_expr` + a call to a defined proc or a builtin | fires | fires |
 | `double_expr` + the `factorial` stanza | **not reported** | fires |
-| `double_expr` + `proc g {cmd} { $cmd }` | fires | fires |
+| `double_expr` + `proc g {cmd} { $cmd }` | fires | **not reported** |
 | `double_expr` + `rename ::expr` in a proc body | — | **not reported** |
 | `double_expr` + `proc ::expr` defined in a proc body | — | **not reported** |
 
@@ -202,11 +202,11 @@ third row safe rather than merely more permissive: a genuine threat to `expr`
 inside a procedure body still turns the gate off, reached through that
 procedure's own unit.
 
-The fourth row is **not** what the gate's description claims, and was already
-so before this change: a dynamic command head inside a proc body does not
-switch the gate off, though by the stated rule it should. That is a real
-remaining gap in the same family, recorded separately rather than papered over
-here.
+The fourth row now uses the same whole-module trust gate in return and
+command-argument positions. Its dynamic head can select code that replaces
+`expr`, so retaining an original expression operand does not justify removing
+the wrapper. A computed head proved to select an unchanged builtin still
+permits the rewrite.
 
 ## Design decisions
 
