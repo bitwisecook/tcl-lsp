@@ -10,6 +10,6 @@ Reviewed RMWv11 is running28tests/15jobs with matching pins, not passing yet. Re
 
 Browser traceCI41819715741 on5d0b90295 builds then fails: originalsymbolid3null, candidate rows reach hit-owner refusal and no mapped rows. Actual Origin comparison is not observed; an inherited-index/standalone mismatch is only a static candidate. Autoloadid4null and the possible early source-view branch remain unresolved. The run predates current byte lease and later fixes. Older45c Native stays active without terminal counts; syntax-only host isolation does not pass real hosts.
 
-The reviewed20-Python-binding source-only patch is Root-authenticated and verifier --fetch-origin passes20, but adoption is pending at this snapshot. Global2171errors remains the count before two Registry corrections, with no subtraction/recount or exemption.
+Source-only6052963c4 corrects20 Python implementation bindings after independent review, Root authenticated original comparisons, canonical verifier20pass and Ruff checks. Global2171errors remains the count before two Registry corrections, with no subtraction/recount or exemption.
 
 Publisher278694 is alive; CLI authentication failed11:37:56, later retries restored successful publication (manual11:50:27 f64bf54ed; daemon11:52:57 7088fc1d). Bounded race-safe retries and historical interruptions remain explicit. Restored runtime does not run missed10:52 gates or imply uninterrupted cadence. Preserve oracle evidence during required temporary-material cleanup.
