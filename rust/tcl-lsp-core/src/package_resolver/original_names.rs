@@ -537,7 +537,7 @@ impl PackageResolver {
 
     /// Genuine index files for separately typed conditional deferred-body SOURCE
     /// advice. These are source header candidates, never a resolved binding or
-    /// proof that auto_load executes at the future body invocation.
+    /// proof that `auto_load` executes at the future body invocation.
     #[must_use]
     pub fn resolve_conditional_native_autoload_source(
         &self,

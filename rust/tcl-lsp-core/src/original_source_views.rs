@@ -516,8 +516,9 @@ fn conditional_external_request(
     }
     let caller = advice.caller_declaration(owner.document.analysis)?;
     let head = advice.name().span();
-    if !owner.owns_command(caller.declaration_site().offset)
-        || !(head.start() <= cursor && cursor < head.end())
+    if !(owner.owns_command(caller.declaration_site().offset)
+        && head.start() <= cursor
+        && cursor < head.end())
     {
         return None;
     }
