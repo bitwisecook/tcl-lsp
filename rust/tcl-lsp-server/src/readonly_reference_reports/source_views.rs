@@ -14,7 +14,7 @@ pub(crate) use symbol_sources::{WorkspaceSymbolSourceView, WorkspaceSymbolSource
 
 use super::{
     Arc, Backend, DocumentSourceResult, ReadonlySourceDocument, ReadonlySourceState,
-    WorkspaceSymbolFreshInput, original_readonly_analysis_matches_input,
+    WorkspaceSymbolFreshInput, WorkspaceSymbolSourceAnalysis, original_readonly_analysis_matches_input,
 };
 use std::collections::{HashMap, HashSet};
 use tcl_compiler::auto_path_eval::{
@@ -3402,9 +3402,10 @@ impl Backend {
             .collect::<Vec<_>>();
         self.with_current_readonly_source_state(epoch, factory, &admissions, Some(&saved),
             |state| (views.iter().all(|view| view.draft.matches_physical_state(state, epoch, factory))
-                && providers.iter().all(|provider| provider.source.matches_current_snapshot(
-                    state.uri_generations, state.open, state.db, state.files, state.published,
-                ) && original_readonly_analysis_matches_input(&provider.source.source, &provider.analysis, &provider.source.input))).then_some(()),
+                && providers.iter().all(|provider| provider.owner.matches_current_state(state, epoch, factory)
+                    && provider.source.publication.matches_open_documents(state.open)
+                    && state.uri_generations.get(&provider.source.uri).copied().unwrap_or_default()
+                        == provider.source.publication.uri_generation)).then_some(()),
             |_, ()| {
                 let _publication = self.rehoming_gate.try_lock().ok()?;
                 let table = self.original_source_views.try_lock().ok()?;
@@ -4340,9 +4341,16 @@ impl Backend {
 
 /// Independent current provider header for conditional deferred-body advice.
 /// It is not installed in a source view or promoted to a runtime binding.
+struct ConditionalAutoloadProviderSource {
+    uri: Uri,
+    source: Arc<str>,
+    admission: Arc<super::super::DocumentPathAdmission>,
+    publication: super::super::LibraryPublicationSource,
+}
+
 struct ConditionalAutoloadProvider {
-    source: ReadonlySourceDocument,
-    analysis: Arc<tcl_compiler::analyser::AnalysisResult>,
+    source: ConditionalAutoloadProviderSource,
+    owner: WorkspaceSymbolSourceAnalysis,
 }
 
 impl Backend {
@@ -4372,9 +4380,10 @@ impl Backend {
         &self,
         files: Vec<std::path::PathBuf>,
     ) -> DocumentSourceResult<Option<Vec<ConditionalAutoloadProvider>>> {
-        // Materialise all actual provider inputs before capturing their common
-        // final readonly revision. No index/header publication is fabricated.
-        let mut analysed = Vec::new();
+        // Keep each actual source snapshot and its existing complete readonly
+        // owner. A closed, unindexed index target has no Salsa SourceFile; the
+        // fresh-source owner retains its real input and currency instead.
+        let mut providers = Vec::new();
         for file in files {
             let Some(uri) = crate::canonical_file_uri(&file) else {
                 return Ok(None);
@@ -4382,29 +4391,22 @@ impl Backend {
             let Some(document) = self.read_document(&uri).await? else {
                 return Ok(None);
             };
-            let analysis = self
-                .analysis_for(&uri, Arc::clone(&document.text), document.dialect)
-                .await?;
-            analysed.push((uri, document.text, analysis));
-        }
-        let mut providers = Vec::new();
-        for (uri, source, analysis) in analysed {
-            let Some(captured) = self
-                .capture_readonly_source_document(uri.as_str(), source)
-                .await?
-            else {
+            let Some(owner) = self.capture_workspace_symbol_analysis(&uri, &document).await? else {
                 return Ok(None);
             };
-            if !original_readonly_analysis_matches_input(
-                &captured.source,
-                &analysis,
-                &captured.input,
-            ) {
+            let Some(admission) = document.path_admission.clone() else {
+                return Ok(None);
+            };
+            if owner.admission() != admission.as_ref() || !owner.matches_snapshot(&uri, &document) {
                 return Ok(None);
             }
+            let source = Arc::clone(&document.text);
+            let Some(publication) = self.library_publication_source(&uri, document).await else {
+                return Ok(None);
+            };
             providers.push(ConditionalAutoloadProvider {
-                source: captured,
-                analysis,
+                source: ConditionalAutoloadProviderSource { uri, source, admission, publication },
+                owner,
             });
         }
         Ok(Some(providers))
@@ -4421,7 +4423,7 @@ impl Backend {
                 |provider| tcl_lsp_core::original_declaration::OriginalDeclarationDocument {
                     uri: provider.source.uri.as_str(),
                     source: &provider.source.source,
-                    analysis: &provider.analysis,
+                    analysis: provider.owner.analysis(),
                 },
             )
             .collect()
@@ -4501,7 +4503,7 @@ impl Backend {
                     .iter()
                     .find(|provider| provider.source.uri.as_str() == identity.uri())?;
                 identity
-                    .is_current(identity.uri(), &provider.source.source, &provider.analysis)
+                    .is_current(identity.uri(), &provider.source.source, provider.owner.analysis())
                     .then_some(())?;
                 let range = tcl_lsp_core::definition::span_to_range(
                     &provider.source.source,
