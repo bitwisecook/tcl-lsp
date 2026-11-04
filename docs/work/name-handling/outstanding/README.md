@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 03:57 UTC. The [current snapshot](../current-state.md) records evidence and limits. **Not release-ready**; no PR or release exists.
+Updated 04 November 2026, 04:23 UTC. The [current snapshot](../current-state.md) records evidence and limits. **Not release-ready**; no PR or release exists.
 
 | Work | Open acceptance |
 | --- | --- |
@@ -18,3 +18,5 @@ Pre-merge native cc2f matrix:15/15 original,17/19 mandatory; new closed-method s
 Current activation Core build passes under one declared test overlay, but2newcontrols fail and original vector runner aborts on a namespace error before installedcases; V2 continues with prior failures pinned. Current O127 rewrite producer reproduces CI failure (one of2 Core rewrite controls fails). Local universal-package stale-WASI invalidation defect is reproduced; privatefixpending. New partialhover/retry server code still needs serverunit/native execution. No reduced proofprofile is accepted. Last inspected publisher success03:55:57.
 
 All15 activated installed vectors pass with matched seals; original activation controls5/7 retainfailures. Evidence-grounded test-only corrections adopted, rerunpending. WASI custody fix adopted after independent no-build review, full build/CIpending. O127 actualNativeandLogicalboth0; speculativeingresscandidateprivate/unexecuted.
+
+Release-critical currenthookstateescapeconfirmed: globalincr/lappendpersistacrosscalls; fixprivateandpreliminarynotaccepted. RealprotocolServerdiagnosticfailsclosedchildpublication/projection;3othernewcontrolsPASSundersealedobserverbuild. Formatting and fourpackagingcontractspass. Delivery-registry/collisionwiretestcorrectionsadoptedunexecuted. RejectedLogicalingresscandidateisnotinMain.

@@ -1,12 +1,20 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 03:57 UTC. This is the active snapshot; historical results certify only their recorded source and inputs.
+Updated 04 November 2026, 04:23 UTC. This is the active snapshot; historical results certify only their recorded source and inputs.
 
 ## Scope and release verdict
 
 **The LSP is not release-ready.** The goal is the LSP and its dependencies, migrated to Tcl name resolution. Separate VM, BIG-IP and ancillary feature development is deferred; required linked dependencies and gates remain in scope. No PR, merge to `rust`, tag or release has been created.
 
 The checkout `/workspace/tcl-lsp-partial` is a shallow clone on `work`, configured origin `https://github.com/bitwisecook/tcl-lsp.git`. Reviewed development pushes before green tests are explicitly authorised. The publisher fetches remote `work`, verifies ancestry, safely fast-forwards, commits only its heartbeat and pushes reviewed HEAD every five minutes. It does not add product WIP or force-push. [repository-sync.json](repository-sync.json) records actual checkpoints, not test results. Last inspected success: 03:55:57 UTC, `1b4a75e8ed73cc8fd193b9fd5f0db91f04a25d8d`. Real cadence interruptions remain: 3 November18:30–19:03 and22:42–23:01; 4 November02:30 divergence (reviewed merge `a3c1d8a76`, push resumed02:35:57);03:05 HTTP503 (retry succeeded03:07:28). No continuous-success claim spans those gaps.
+
+## Latest acceptance and blocking failures
+
+- Activated installed-index vectors:15/15 fresh/full exact matches, including Tcl/Tk8.4; original activation controls remain5/7, corrected test-only expectations adopted but unexecuted.
+- Current controlled Server unit build passes; selected controls3/4. Owned partial definition/hover and first-lease contention/currentness controls pass. Real LspService initialization diagnostic returns null on its one public closed-child definition: app scope lacks a child publication and partial projection; this is not yet fixed by retry changes. All custom source/candidate/generated seals match. Receipt `/workspace/tmp/lsp-merged-cohort/source-protocol-init-current-build/protocol-initialization-diagnostic/receipt.json`.
+- **Current hook sandbox state escape reproduced:** global incr and lappend persist1→2 / x→x x across calls, observable from another hook. Local incr is stable; global set and unknown command refuse. Receipt `/workspace/tmp/pack-hook-confinement-current/receipt.json`. Generic captured-RMW confinement fix is private; preliminary is not accepted because it changes documented read-only behavior. This linked dependency blocks LSP release.
+- Current checkout formatting passes (`fmt-current-0418.log`). Existing/new web/WASI custody, release graph and WASI LTO contract checks pass (`packaging-contracts-current.log`); no full build/package/host acceptance follows.
+- Both actual Native and Logical O127 producer probes return0. The proposed ingress change is **rejected**, because it can acquire Native recipe/compiler assumptions from a Logical default. No such production change or fixture promotion is adopted. Command multi-document positive rename still lacks an authentic completed world/source relationship; its missing ownership is not waived.
 
 ## Adopted source and current work
 
@@ -83,3 +91,7 @@ Completed activated installed-index comparison: all15 Tcl/Tk/BLT ×5 profiles ac
 Reviewed WASI source/output receipt enforcement is adopted, with exact multiline environment hashing and a clean confined to the facade-owned fixed target. Private no-build regression and independent multiline reproduction pass; actual checkout checks/full build/package/CI remain pending. Global proof errors remain unresolved.
 
 Actual Native-vs-Logical public O127 producer probe returns0 edits in both domains, not a usable positive group; all source/candidate/dependency seals match. Receipt `/workspace/tmp/o127-producer-domain-current/receipt.json`. No fixture promotion or barrier relaxation is adopted. A private Logical standalone-ingress candidate is under independent review and remains unexecuted.
+
+Reviewed test-only delivery correction is adopted: genuine provider success/exact OverlayMiss are checked independently from a current suppression receipt; unsuppressed missing Registry still refuses. Builtin command collision wire test now asserts its existing InvalidParams/original-command-collision error. Both need fresh compilation/execution. They are not in the earlier3/4 Server binary. The historical DSL phase error belongs to BPF, not SpecTcl; the hook confinement failure above is separately reproduced on current linked code.
+
+Last inspected publisher success04:20:57, `49fba1acee6c400c7707d7d845ea87e99657ccd2`. Current CI results and global proof errors remain failed/incomplete; no replacement ordinary run has cancelled the unconfirmed surviving old shard.
