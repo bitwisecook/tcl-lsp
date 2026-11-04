@@ -10571,7 +10571,10 @@ impl SourceCommandBindings {
         facts: &InvocationFacts,
         effects: &tcl_registry::world_effect::EffectFootprint,
         transitions: &tcl_registry::StateTransitions,
-    ) -> Option<(tcl_registry::NamespaceTransition, String)> {
+    ) -> Option<(
+        tcl_registry::NamespaceTransition,
+        tcl_registry::NamespaceTransitionTarget,
+    )> {
         use tcl_registry::{
             hooks::{AnalyserHookId, LoweringHookId},
             world_effect::{

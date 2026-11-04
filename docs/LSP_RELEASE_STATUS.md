@@ -79,3 +79,9 @@ no lint suppression is added. The reviewed patch SHA-256 is
 Standalone rustfmt and diff checks pass. Compilation, production Clippy and
 runtime regression checks are pending the priority #940 joint build; this is
 not a claim that either repository gate is green.
+
+The first joint compiler build after this extraction exited 101 before tests
+or Clippy: the namespace helper declared `String` for the structured
+`NamespaceTransitionTarget`. The return signature is corrected to retain that
+shared type. The priority #940 joint build must rerun before any compile or
+lint success is claimed.
