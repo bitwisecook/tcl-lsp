@@ -37,9 +37,11 @@ At the 2026-11-04 19:22 checkpoint, the frozen #2441 diagnostic-only classifier
 has passed its combined compiler unit/integration no-run build (384.17 s).
 The two new integration tests both fail on their first Tcl 8.4 assertion,
 still missing `x`; the prepared 75 rows are not a passing result. New owner
-fixtures also stop before testing the predicate because their statement
-selector assumes one CFG statement where two retain the same offset. The
-three existing owner controls pass. Remaining frozen regressions are running.
+fixtures also stop before testing the predicate: their ordinary-statement
+filter selects zero invocation tokens. The later bounded stage audit corrected
+the initial duplicate-offset explanation: the original vector is marked
+`EvaluatedArguments`, with a companion `IterationBindings` statement. The
+three existing owner controls pass. Completed regressions are recorded below.
 Production Clippy failed on two unchanged `command_binding.rs` functions,
 `walk_logical_called_source` and `walk_logical_namespace_source`, for
 `too_many_lines`; no lint suppression was added. The diagnostic classifier

@@ -85,3 +85,16 @@ or Clippy: the namespace helper declared `String` for the structured
 `NamespaceTransitionTarget`. The return signature is corrected to retain that
 shared type. The priority #940 joint build must rerun before any compile or
 lint success is claimed.
+
+#940 phase8, 19:53 UTC: the corrected compiler unit/integration no-run build
+passes at `6c97a1cdc54ab089f6a4c9e7086177c7106ec531` plus private patch
+`89d75e8f0100e49c055525d6dd12d7ca025851e61752f285ed438cde5c8ddd5a`.
+The genuine fixed-count increment/list cycle reports exactly one conditional
+S102 through both the direct projection and `run_all_checks`, with no action
+authority, across Tcl 8.4–9.1. Provenance/refusal runtimes are still running.
+Production Clippy fails three style findings: the candidate's 102-line
+`representation_plan`, unchanged `retain_logical_callback_candidates`, and
+an unchanged nonminimal boolean in `registry_invocation.rs`. Corrections are
+in progress. The original conditional-lappend report remains unsupported;
+native LSP S102 delivery and full release gates are unverified. This is a
+scoped positive control, not a #940 fix claim.
