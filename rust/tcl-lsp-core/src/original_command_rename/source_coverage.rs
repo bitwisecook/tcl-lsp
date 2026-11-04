@@ -1893,7 +1893,7 @@ mod tests {
     }
 
     #[test]
-    fn inherited_header_refuses_genuine_physical_reference_divergence() {
+    fn inherited_header_refuses_uncovered_namespace_eval_in_physical_body() {
         let fixture = Fixture::new(
             "namespace eval ::ns {}; proc ::ns::helper {} {return PREFIX}; source child.tcl; proc run {} {return VALUE}",
             "proc helper {} {return CHILD}; proc caller {} {namespace eval ::ns {helper}}",
@@ -1914,40 +1914,15 @@ mod tests {
                 views,
             )
             .unwrap()
-            .expect("same genuine inherited declaration header");
-            let physical = super::super::original_command_rename_edits(
-                &[selected.physical()],
-                &identity,
-                "updated_helper",
-            )
-            .expect("standalone child declaration and its fallback reference");
-            let coverage =
-                SourceCoverage::capture(selected.documents(), selected.identity(), &worlds, views)
-                    .unwrap();
-            let inherited = super::super::original_command_rename_units_with_source_coverage(
-                selected.documents(),
-                selected.identity(),
-                b"updated_helper",
-                &worlds,
-                Some(&coverage),
-                Some(selected.publication()),
-            )
-            .expect("completed cut keeps the namespace helper independently owned");
-            assert_eq!(physical.len(), 2);
+            .expect("actual inherited declaration header");
             assert_eq!(
-                inherited
-                    .iter()
-                    .filter(|edit| edit.uri == "file:///child.tcl")
-                    .count(),
-                1,
-            );
-            assert_eq!(
-                super::super::require_selected_physical_edits(
-                    &physical,
-                    &inherited,
-                    "file:///child.tcl",
+                super::super::original_command_rename_edits(
+                    &[selected.physical()],
+                    &identity,
+                    "updated_helper",
                 ),
                 Err(OriginalCommandRenameRefusal::IncompleteCoverage),
+                "the standalone namespace eval has no complete source coverage",
             );
             assert_eq!(
                 super::super::original_command_rename_edits_with_selected_source_view(
@@ -1960,6 +1935,70 @@ mod tests {
                     views,
                 ),
                 Err(OriginalCommandRenameRefusal::IncompleteCoverage),
+            );
+        });
+    }
+
+    #[test]
+    fn selected_physical_agreement_refuses_omitted_real_reference_edit() {
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {return VALUE}",
+            "proc helper {} {return VALUE}; proc caller {} {helper}",
+        );
+        let documents = fixture.documents();
+        let identity = inherited_child_identity(&fixture);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            let selected = OriginalInheritedDeclarationSelection::capture(
+                &documents,
+                &identity,
+                "file:///child.tcl",
+                5,
+                &worlds,
+                views,
+            )
+            .unwrap()
+            .expect("actual inherited declaration header");
+            let physical = super::super::original_command_rename_edits(
+                &[selected.physical()],
+                &identity,
+                "updated_helper",
+            )
+            .expect("complete actual physical plan");
+            let coverage =
+                SourceCoverage::capture(selected.documents(), selected.identity(), &worlds, views)
+                    .expect("actual complete cut coverage");
+            let mut inherited = super::super::original_command_rename_units_with_source_coverage(
+                selected.documents(),
+                selected.identity(),
+                b"updated_helper",
+                &worlds,
+                Some(&coverage),
+                Some(selected.publication()),
+            )
+            .expect("complete actual inherited plan");
+            assert_eq!(physical.len(), 2);
+            assert_eq!(
+                super::super::require_selected_physical_edits(
+                    &physical,
+                    &inherited,
+                    "file:///child.tcl"
+                ),
+                Ok(())
+            );
+            // Deliberately omit one actual issued edit to test the agreement guard;
+            // this does not assert that the actual owners diverged.
+            inherited.pop().expect("actual issued inherited edit");
+            assert_eq!(
+                super::super::require_selected_physical_edits(
+                    &physical,
+                    &inherited,
+                    "file:///child.tcl"
+                ),
+                Err(OriginalCommandRenameRefusal::IncompleteCoverage)
             );
         });
     }
