@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 03:39 UTC. This is the active snapshot; historical results certify only their recorded source and inputs.
+Updated 04 November 2026, 03:46 UTC. This is the active snapshot; historical results certify only their recorded source and inputs.
 
 ## Scope and release verdict
 
@@ -55,3 +55,9 @@ Source-specific external-reporter results, including #2505 and existing baseline
 4. Prepare release review only after required acceptance. Before merge remove temporary state/process narratives repository-wide per AGENTS, preserving reproducible oracle evidence. Development pushes authorise no merge/tag/release.
 
 Root owns Main and shared Cargo target, one heavy Cargo job. Sol6.1 and Terra6.1 use narrow private copies for implementation/review. Private drafts and archives stay local; the earlier archive-export rejection was not bypassed. [Outstanding work](outstanding/README.md) mirrors this snapshot.
+
+Remote `1dc8e40b0` is merged after independent review. It retries source-view refresh/final navigation reads and waits for indexed settlement publication without weakening currency or semantic refusal. Its reported16/16 immediate-reference results remain source-specific, not merged acceptance. Review found nested retry budgets (potentially40×40), no new deterministic contention test and an unretried compute-owner read; a private bounded-attempt follow-up is being prepared. This is a mitigation, not a proven fix for the final-main failure.
+
+Fresh pre-merge native `cc2f4ef884acb88ee243e0fd66ef70860b15b9ef7f4266aa878b3fa3d0ef3f1a` builds all-features with matching source/generated seals. Its unchanged matrix passes15/15 original and17/19 mandatory targeted checks; full final-main closed definition and closed-method source hover fail. All custody seals match, overall exit1 is preserved at `/tmp/source-hover-acceptance-layout-current/receipt.json`. It includes autoload activation, but no post-activation installed-vector/startup execution occurred yet; subsequent remote/hover code requires another native build.
+
+The03:40 publication attempt failed503. Retry fetched new remote `1dc8e40b0` and refused divergent publication until coordinator review/merge; no force push. The resulting publication gap is real.

@@ -30083,7 +30083,20 @@ impl Backend {
                 })?;
             return Err(DocumentSourceUnavailable::ConditionalAdvice { uri });
         };
-        let guard = self.rehoming_gate.lock().await;
+        let mut guard = self.rehoming_gate.lock().await;
+        // The settled views reach the workspace index in the publication that
+        // follows them; wait a bounded time for it rather than refusing.
+        for _ in 1..readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_ATTEMPTS {
+            if self.original_source_view_settlement_views_are_indexed(&settlement) {
+                break;
+            }
+            drop(guard);
+            crate::rt::sleep(
+                readonly_reference_reports::source_views::SOURCE_VIEW_CONTENTION_BACKOFF,
+            )
+            .await;
+            guard = self.rehoming_gate.lock().await;
+        }
         if !self.original_source_view_settlement_views_are_indexed(&settlement) {
             let uri = self
                 .workspace_index

@@ -12,3 +12,5 @@ Updated 04 November 2026, 03:39 UTC. The [current snapshot](../current-state.md)
 | Release gates | Full current cross-file/reference/edit, E2E/compatibility/browser/WASM/WASI/editor, proof/drift, performance/cancellation/memory, packaging, rust-check and prep-pr remain open. |
 
 Separate VM/BIG-IP feature work is deferred; linked dependencies and mandatory gates remain in scope. Source advice grants no Native execution or completion authority. Temporary state/process documents must be removed before merge under AGENTS, preserving oracle evidence.
+
+Pre-merge native cc2f matrix:15/15 original,17/19 mandatory; new closed-method source hover failure retained alongside final-main definition failure. Remote navigation contention mitigation is merged with retry-budget/compute-read validation debt; no merged acceptance.03:40 publication503 then remote divergence required reviewed merge.
