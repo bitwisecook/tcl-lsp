@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 10:33 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
+Updated 04 November 2026, 10:53 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
 
 ## Scope and release verdict
 
@@ -8,7 +8,7 @@ Updated 04 November 2026, 10:33 UTC. This is the active snapshot. Every result i
 
 The shallow checkout is `/workspace/tcl-lsp-partial`, branch `work`, origin `https://github.com/bitwisecook/tcl-lsp.git`; it remains a shallow repository. The user authorises reviewed development pushes before green tests. Root owns Main/scratch/the shared Cargo target; agents prepare narrow private files. The five-minute publisher fetches and normally merges clean concurrent remote changes without force or product-WIP adoption; conflicts pause for review. Incoming product fixes from the separate issue sweep are integrated, not counted as naming acceptance.
 
-Publication remains interrupted, not continuously successful. The live publisher is PID266752 (`/workspace/tmp/lsp-publication/pid`), configured for five-minute checkpoints with immediate retries for transient GitHub ref/server failures. Last recorded success is10:30:43.102982UTC, HEAD `2c8ec9378955974a81f3746fbfb2da7f653731fb`;10:20 exhausted three attempts with GitHub500, then10:25 and10:30 succeeded. The real09:16–09:40 gap combined concurrent divergence and disk exhaustion from automatic Git repacking; subsequent server/ref errors also interrupted publication. Hash-recorded cleanup removed only unpublished/unindexed orphan temporary packs; all named packs/refs/source/results were preserved, and named packs have unique coverage so none was deduplicated. Automatic repacking is locally disabled; shallow history is retained. `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`, `/tmp/lsp-git-gc-recovery-0932.json`, `/tmp/lsp-git-gc-recovery-0937.json` and `/workspace/tmp/lsp-git-pack-audit-0940/audit.json` bind actual outcomes. A successful checkpoint certifies no tests or uninterrupted cadence.
+Publication remains interrupted, not continuously successful. The10:33 local observation recorded publisher PID266752 (`/workspace/tmp/lsp-publication/pid`), configured for five-minute checkpoints with immediate retries for transient GitHub ref/server failures. Last recorded success is10:30:43.102982UTC, HEAD `2c8ec9378955974a81f3746fbfb2da7f653731fb`;10:20 exhausted three attempts with GitHub500, then10:25 and10:30 succeeded. The real09:16–09:40 gap combined concurrent divergence and disk exhaustion from automatic Git repacking; subsequent server/ref errors also interrupted publication. Hash-recorded cleanup removed only unpublished/unindexed orphan temporary packs; all named packs/refs/source/results were preserved, and named packs have unique coverage so none was deduplicated. Automatic repacking is locally disabled; shallow history is retained. `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`, `/tmp/lsp-git-gc-recovery-0932.json`, `/tmp/lsp-git-gc-recovery-0937.json` and `/workspace/tmp/lsp-git-pack-audit-0940/audit.json` bind actual outcomes. A successful checkpoint certifies no tests or uninterrupted cadence.
 
 ## Current implementation and unresolved behavior
 
@@ -41,6 +41,15 @@ Current integration checks remain incomplete. ClippyV19 exits101 with41 emitted 
 Relative receipt paths above are under `/workspace/tmp/lsp-merged-cohort/`. Bounded custody covers enumerated source/configuration, known literal/runtime fixtures and observed generated outputs. Reused dependencies, external toolchain/cache and undiscovered indirect inputs are not a hermetic provenance claim. Verified compressed preservation permits raw artifact retirement; preservation is not validation.
 
 ## CI and required host acceptance
+
+### Validation refresh at 10:52 UTC
+
+The requested validation is **incomplete**. The managed execution workspace failed to provision during container creation with `gateway_unavailable`/HTTP503; a later executor capability query also failed. No fresh local build, lint, proof recount, `make rust-check`, `make prep-pr` or editor-host test ran in this attempt. Prior local PIDs and publisher liveness observations above are historical, not confirmation of a running process after this failure.
+
+The [validation report](validation-report-20261104T1052Z.json) records independently read full terminal CI logs. Both host checkout logs bind exact `45c90293f70389a1c3dfa261948123d9d09cbd61`. Browser's original symbol and tclIndex definition requests return `null`, and its original rename aborts with `incomplete-original-command-coverage`. Its separate web-extension smoke passes without passing the naming proof. WASI passes22 unit tests, then its original rename aborts with `unknown-completed-command-world`. Separate synthetic reply captures reproduce those failures and do not replace the original outcomes. Native job126508474951 remains in progress at the report observation; pinned nextest installation/verification and selection passed, but terminal test counts are unavailable and active-job log retrieval returns404.
+
+Observed branch head `e19c0acaa4834c74af177d4e1667bdcddc9480d7` is newer than that CI source. Neither older host logs nor this blocked local attempt validates it. No audit count, product source, assertion, budget or acceptance verdict was changed, and no CI was dispatched or cancelled. Restore the workspace, bind current immutable source/dependencies, repeat the pending gates and recheck native CI before claiming completion.
+
 
 Newest [LSP host validation41810555166](https://github.com/bitwisecook/tcl-lsp/actions/runs/41810555166) targets exact `45c90293f70389a1c3dfa261948123d9d09cbd61`, created09:53:32. Read-only10:33 full4-job metadata:1success/2failure/1active. Native is running its tests; browser fails its Node exercise and WASI its build/exercise step. These are job/step states only: this refresh has not read their terminal logs and claims no narrower cause or passing aggregate. The run predates `5ca4b7dde` formal-name metadata and cannot validate it.
 
