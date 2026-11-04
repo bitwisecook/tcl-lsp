@@ -71,7 +71,6 @@ if {[array size seen] != 1044} {
 set summary [open $summary_path wb]
 fconfigure $summary -translation lf -encoding ascii
 puts $summary "input=$input"
-puts $summary "envelope_sha256_external=RECORD_WITH_SHA256SUM"
 puts $summary "export_rc=$export_rc"
 puts $summary "export_result_hex=[hex $export_result]"
 puts $summary "context=$context"

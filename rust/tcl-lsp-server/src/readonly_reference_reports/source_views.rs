@@ -14,7 +14,8 @@ pub(crate) use symbol_sources::{WorkspaceSymbolSourceView, WorkspaceSymbolSource
 
 use super::{
     Arc, Backend, DocumentSourceResult, ReadonlySourceDocument, ReadonlySourceState,
-    WorkspaceSymbolFreshInput, WorkspaceSymbolSourceAnalysis, original_readonly_analysis_matches_input,
+    WorkspaceSymbolFreshInput, WorkspaceSymbolSourceAnalysis,
+    original_readonly_analysis_matches_input,
 };
 use std::collections::{HashMap, HashSet};
 use tcl_compiler::auto_path_eval::{
@@ -4391,7 +4392,10 @@ impl Backend {
             let Some(document) = self.read_document(&uri).await? else {
                 return Ok(None);
             };
-            let Some(owner) = self.capture_workspace_symbol_analysis(&uri, &document).await? else {
+            let Some(owner) = self
+                .capture_workspace_symbol_analysis(&uri, &document)
+                .await?
+            else {
                 return Ok(None);
             };
             let Some(admission) = document.path_admission.clone() else {
@@ -4405,7 +4409,12 @@ impl Backend {
                 return Ok(None);
             };
             providers.push(ConditionalAutoloadProvider {
-                source: ConditionalAutoloadProviderSource { uri, source, admission, publication },
+                source: ConditionalAutoloadProviderSource {
+                    uri,
+                    source,
+                    admission,
+                    publication,
+                },
                 owner,
             });
         }

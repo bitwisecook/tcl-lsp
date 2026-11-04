@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import runpy
 import subprocess
 import sys
 import tempfile
@@ -26,19 +25,6 @@ SPEC.loader.exec_module(migration)
 
 
 class EvidenceMigrationTests(unittest.TestCase):
-    def test_historical_build_display_keeps_non_digest_facts(self) -> None:
-        helpers = runpy.run_path(
-            str(SCRIPT.with_name("update-name-resolution-proof-index.py"))
-        )
-        cleaned = helpers["historical_build"](
-            "binary_sha256=" + "a" * 64 + "; compile_exit=0; Tcl build 8.6"
-        )
-        self.assertEqual(cleaned, "compile_exit=0; Tcl build 8.6")
-        headers = "headers=[{'path': 'tcl.h', 'sha256': '" + "b" * 64 + "'}]; exit=0"
-        self.assertEqual(
-            helpers["historical_build"](headers), "headers=[{'path': 'tcl.h'}]; exit=0"
-        )
-
     def test_retired_proof_index_does_not_write_legacy_records(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -91,6 +77,25 @@ class EvidenceMigrationTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("Checked 1 Tcl execution evidence file", result.stdout)
+
+    def test_legacy_inventory_option_cannot_write_an_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT.with_name("check-name-resolution-proofs.py")),
+                    "--root",
+                    str(root),
+                    "--write-inventory",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("inventory and structural audit are retired", result.stderr)
+            self.assertEqual(list(root.iterdir()), [])
 
     def fixture(self, root: Path) -> tuple[dict, bytes, bytes]:
         script = 'puts "Привет\u00a0мир"\n'.encode()
