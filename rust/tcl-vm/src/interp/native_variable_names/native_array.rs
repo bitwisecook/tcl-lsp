@@ -80,7 +80,6 @@ impl Vm {
                 }
                 return Err(self.array_make_opcode_error(&original_bytes));
             }
-            self.confine_store_bytes(&name, self.current_level(), false)?;
             self.ensure_array_original_selected_opcode(&name, &resolved)
         })();
         original_names

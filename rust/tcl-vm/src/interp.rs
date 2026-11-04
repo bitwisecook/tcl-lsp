@@ -8600,20 +8600,82 @@ impl Vm {
             ))?
             .recipe();
         let input = protocol.combined_variable_input(name);
-        let inside = start != 0
-            && start == self.current_level()
-            && self
-                .var_binding_from_bytes(input.root().selected(), start)
-                .is_some_and(|binding| {
-                    matches!(binding.owner, VarTableOwner::Frame(level) | VarTableOwner::CompiledLocal { level, .. } if level == start)
-                        && self.raw_variable_binding(&binding).is_none_or(|id| {
-                            !matches!(
-                                self.var_arena.get(id).map(crate::vars::VarCell::state),
-                                Some(VarState::Link(_) | VarState::NameLink(_))
-                            )
-                        })
-                });
-        Ok(!inside)
+        Ok(self
+            .var_binding_from_bytes(input.root().selected(), start)
+            .is_none_or(|binding| self.store_binding_confined(&binding, start)))
+    }
+
+    fn store_binding_confined(&self, binding: &VarBinding, start: usize) -> bool {
+        self.limits.confined_stores
+            && !(start != 0
+                && start == self.current_level()
+                && matches!(binding.owner, VarTableOwner::Frame(level) | VarTableOwner::CompiledLocal { level, .. } if level == start)
+                && self.raw_variable_binding(binding).is_none_or(|id| {
+                    !matches!(
+                        self.var_arena.get(id).map(crate::vars::VarCell::state),
+                        Some(VarState::Link(_) | VarState::NameLink(_))
+                    )
+                }))
+    }
+
+    fn confined_store_error(name: &[u8], unset: bool) -> Completion<Value> {
+        crate::command::err_with_code(
+            [
+                if unset {
+                    b"can't unset \"".as_slice()
+                } else {
+                    b"can't set \"".as_slice()
+                },
+                name,
+                b"\": stores are confined to the activation",
+            ]
+            .concat(),
+            if unset {
+                b"TCL UNSET VARNAME".as_slice()
+            } else {
+                b"TCL WRITE VARNAME".as_slice()
+            },
+        )
+    }
+
+    fn confine_store_binding_bytes(
+        &self,
+        name: &[u8],
+        binding: &VarBinding,
+        start: usize,
+        unset: bool,
+    ) -> Result<(), Completion<Value>> {
+        if self.store_binding_confined(binding, start) {
+            return Err(Self::confined_store_error(name, unset));
+        }
+        Ok(())
+    }
+
+    fn confine_store_parts_bytes(
+        &mut self,
+        root: &[u8],
+        element: Option<&[u8]>,
+        start: usize,
+        unset: bool,
+    ) -> Result<(), Completion<Value>> {
+        if let Some(refused) = self.refused_completion() {
+            return Err(refused);
+        }
+        if !self.limits.confined_stores {
+            return Ok(());
+        }
+        let Some(protocol) = self.name_policy_protocol() else {
+            return Err(self.refuse_host_command("confined variable naming is unavailable".into()));
+        };
+        let input = protocol.recipe().separate_variable_input(root, element);
+        let binding = self.var_binding_from_bytes(input.root().selected(), start);
+        if binding
+            .as_ref()
+            .is_none_or(|binding| self.store_binding_confined(binding, start))
+        {
+            return Err(Self::confined_store_error(root, unset));
+        }
+        Ok(())
     }
 
     fn confine_store_bytes(
@@ -8624,23 +8686,7 @@ impl Vm {
     ) -> Result<(), Completion<Value>> {
         match self.store_confined_bytes(name, start) {
             Ok(false) => Ok(()),
-            Ok(true) => Err(crate::command::err_with_code(
-                [
-                    if unset {
-                        b"can't unset \"".as_slice()
-                    } else {
-                        b"can't set \"".as_slice()
-                    },
-                    name,
-                    b"\": stores are confined to the activation",
-                ]
-                .concat(),
-                if unset {
-                    b"TCL UNSET VARNAME".as_slice()
-                } else {
-                    b"TCL WRITE VARNAME".as_slice()
-                },
-            )),
+            Ok(true) => Err(Self::confined_store_error(name, unset)),
             Err(error) => Err(crate::command::completion_from_cmd_error(
                 self,
                 error.into(),
@@ -17236,6 +17282,7 @@ impl Vm {
         element: &[u8],
         complain: bool,
     ) -> Result<(), Completion<Value>> {
+        self.confine_store_parts_bytes(root, Some(element), self.current_level(), true)?;
         let resolved = self.resolve_var_parts_from_bytes(root, Some(element), self.current_level());
         let reason = resolved.as_ref().map_or("no such variable", |resolved| {
             match resolved
@@ -20541,6 +20588,15 @@ impl Vm {
         if self.observed_names.is_some() {
             return self.observed_resolved_variable(original, start).ok();
         }
+        let (binding, element) = self.select_var_from_bytes(original, start)?;
+        self.resolve_binding_var(binding, element, &mut HashSet::new())
+    }
+
+    fn select_var_from_bytes(
+        &self,
+        original: &[u8],
+        start: usize,
+    ) -> Option<(VarBinding, Option<NameBytes>)> {
         let projection = self
             .execution_name_policy()?
             .variable_input(
@@ -20550,7 +20606,7 @@ impl Vm {
             .ok()?;
         let binding = self.var_binding_from_bytes(projection.root(), start)?;
         let element = projection.element().map(tcl_core_types::NameBytes::from);
-        self.resolve_binding_var(binding, element, &mut HashSet::new())
+        Some((binding, element))
     }
 
     /// Follow each dialect's alias representation in the same storage resolver.
@@ -20563,16 +20619,25 @@ impl Vm {
         element: Option<&[u8]>,
         start: usize,
     ) -> Option<ResolvedVar> {
+        let (binding, element) = self.select_var_parts_from_bytes(root, element, start)?;
+        self.resolve_binding_var(binding, element, &mut HashSet::new())
+    }
+
+    fn select_var_parts_from_bytes(
+        &self,
+        root: &[u8],
+        element: Option<&[u8]>,
+        start: usize,
+    ) -> Option<(VarBinding, Option<NameBytes>)> {
         let parts = self
             .name_policy_protocol()?
             .recipe()
             .separate_variable_input(root, element);
         let binding = self.var_binding_from_bytes(parts.root().selected(), start)?;
-        self.resolve_binding_var(
+        Some((
             binding,
             parts.element().map(|part| NameBytes::from(part.selected())),
-            &mut HashSet::new(),
-        )
+        ))
     }
 
     fn resolve_binding_var(
@@ -21979,6 +22044,7 @@ impl Vm {
         name: &[u8],
         value: Value,
     ) -> Result<Value, Completion<Value>> {
+        self.confine_store_bytes(name, self.current_level(), false)?;
         if !self.variable_observers_active() || self.dictionary_variable_containers() {
             self.set_var_bytes(name, value.clone())?;
             return Ok(self.get_var_bytes(name).unwrap_or_else(Value::empty));
@@ -22105,6 +22171,7 @@ impl Vm {
         element: &[u8],
         value: Value,
     ) -> Result<Value, Completion<Value>> {
+        self.confine_store_parts_bytes(root, Some(element), self.current_level(), false)?;
         if !self.variable_observers_active() || self.dictionary_variable_containers() {
             self.set_array_elem_bytes_from(self.current_level(), root, element, value, true)?;
             return Ok(self
@@ -22265,10 +22332,27 @@ impl Vm {
             root: name,
             element: Some(element),
         });
-        let resolved = if key.is_some() {
-            self.resolve_var_parts_from_bytes(name, key, self.current_level())
+        let level = self.current_level();
+        let resolved = if self.observed_names.is_some() {
+            self.confine_store_bytes(name, level, false)?;
+            if key.is_some() {
+                self.resolve_var_parts_from_bytes(name, key, level)
+            } else {
+                self.resolve_var_from_bytes(name, level)
+            }
         } else {
-            self.resolve_var_from_bytes(name, self.current_level())
+            let selected = if key.is_some() {
+                self.select_var_parts_from_bytes(name, key, level)
+            } else {
+                self.select_var_from_bytes(name, level)
+            };
+            match selected {
+                Some((binding, element)) => {
+                    self.confine_store_binding_bytes(name, &binding, level, false)?;
+                    self.resolve_binding_var(binding, element, &mut HashSet::new())
+                }
+                None => None,
+            }
         }
         .ok_or_else(|| {
             self.variable_access_error_input("set", input, "parent namespace doesn't exist")
@@ -22292,7 +22376,7 @@ impl Vm {
         resolved: &ResolvedVar,
         leave_error_message: bool,
     ) -> Result<CapturedVariableUpdate, Completion<Value>> {
-        self.confine_store_bytes(name, self.current_level(), false)?;
+        self.confine_store_binding_bytes(name, &resolved.binding, self.current_level(), false)?;
         self.capture_update_cell_unchecked(name, key, resolved, leave_error_message)
     }
 
@@ -23133,6 +23217,7 @@ impl Vm {
         if let Some(refused) = self.refused_completion() {
             return Err(refused);
         }
+        self.confine_store_parts_bytes(root, Some(element), start, false)?;
         let resolved = self
             .resolve_var_parts_from_bytes(root, Some(element), start)
             .ok_or_else(|| {

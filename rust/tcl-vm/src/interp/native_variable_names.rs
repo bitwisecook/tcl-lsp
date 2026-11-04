@@ -27,6 +27,25 @@ type PreparedOriginalVariable = (
     ResolvedVar,
 );
 
+enum OriginalVariablePreparationError {
+    Lookup(Completion<Value>),
+    Confined(Completion<Value>),
+}
+
+impl From<Completion<Value>> for OriginalVariablePreparationError {
+    fn from(error: Completion<Value>) -> Self {
+        Self::Lookup(error)
+    }
+}
+
+impl OriginalVariablePreparationError {
+    fn into_completion(self) -> Completion<Value> {
+        match self {
+            Self::Lookup(error) | Self::Confined(error) => error,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct OriginalVariableLookup {
     protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
@@ -807,7 +826,7 @@ impl Vm {
         namespace: Option<tcl_core_types::NsId>,
         explicit_element: Option<&[u8]>,
         original_names: &super::native_name_consumers::OriginalNameConsumerScope,
-    ) -> Result<PreparedOriginalVariable, Completion<Value>> {
+    ) -> Result<PreparedOriginalVariable, OriginalVariablePreparationError> {
         self.retire_released_native_alias_entries();
         let dialect = self.actual_native_invocation_dialect();
         let protocol = self
@@ -835,7 +854,9 @@ impl Vm {
             && original.with_native_local_variable(|_| ()).is_none()
             && self.cache_native_original_array_name(original, protocol, dialect, original_names)?
         {
-            return self.prepare_native_original_variable_in(original, purpose, namespace);
+            return self.prepare_native_original_variable_parts_with_disposition(
+                original, purpose, namespace, None,
+            );
         }
         let (root, element) = parts.take().map_or_else(
             || {
@@ -869,6 +890,28 @@ impl Vm {
             },
             original_names,
         )?;
+        if matches!(
+            purpose,
+            NativeVariableNameLookupPurpose::Write
+                | NativeVariableNameLookupPurpose::QuietWrite
+                | NativeVariableNameLookupPurpose::IncrementRead
+                | NativeVariableNameLookupPurpose::IncrementExisting
+                | NativeVariableNameLookupPurpose::ArrayMake
+                | NativeVariableNameLookupPurpose::Unset
+                | NativeVariableNameLookupPurpose::QuietUnset
+        ) {
+            self.confine_store_binding_bytes(
+                &root_bytes,
+                &binding,
+                self.current_level(),
+                matches!(
+                    purpose,
+                    NativeVariableNameLookupPurpose::Unset
+                        | NativeVariableNameLookupPurpose::QuietUnset
+                ),
+            )
+            .map_err(OriginalVariablePreparationError::Confined)?;
+        }
         let resolved = self.ensure_native_original_root_entry(
             root.value(),
             (&root_bytes, element.as_deref()),
@@ -906,6 +949,22 @@ impl Vm {
         namespace: Option<tcl_core_types::NsId>,
         explicit_element: Option<&[u8]>,
     ) -> Result<PreparedOriginalVariable, Completion<Value>> {
+        self.prepare_native_original_variable_parts_with_disposition(
+            original,
+            purpose,
+            namespace,
+            explicit_element,
+        )
+        .map_err(OriginalVariablePreparationError::into_completion)
+    }
+
+    fn prepare_native_original_variable_parts_with_disposition(
+        &mut self,
+        original: &Value,
+        purpose: NativeVariableNameLookupPurpose,
+        namespace: Option<tcl_core_types::NsId>,
+        explicit_element: Option<&[u8]>,
+    ) -> Result<PreparedOriginalVariable, OriginalVariablePreparationError> {
         let original_names =
             crate::interp::native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
                 self, namespace,
@@ -1392,9 +1451,12 @@ impl Vm {
         let original_names =
             crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(self)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-        let reached = (|| match self
-            .prepare_native_original_variable(original, Self::original_unset_purpose(complain))
-        {
+        let reached = (|| match self.prepare_native_original_variable_parts_with_disposition(
+            original,
+            Self::original_unset_purpose(complain),
+            None,
+            None,
+        ) {
             Ok((_root, root_bytes, element, resolved)) => {
                 let observes = self
                     .trace_cell_from_resolved(&resolved)
@@ -1421,7 +1483,12 @@ impl Vm {
                 }
                 result
             }
-            Err(error) if self.refused_completion().is_some() || complain => Err(error),
+            Err(OriginalVariablePreparationError::Confined(error)) => Err(error),
+            Err(OriginalVariablePreparationError::Lookup(error))
+                if self.refused_completion().is_some() || complain =>
+            {
+                Err(error)
+            }
             Err(_) => Ok(()),
         })();
         original_names
@@ -1443,7 +1510,7 @@ impl Vm {
             let element_bytes = original_names
                 .read(self, element)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-            let selected = self.prepare_native_original_variable_parts(
+            let selected = self.prepare_native_original_variable_parts_with_disposition(
                 original,
                 Self::original_unset_purpose(complain),
                 None,
@@ -1459,7 +1526,12 @@ impl Vm {
                     spelling.push(b')');
                     self.unset_selected_original_variable(&spelling, Some(&resolved), complain)
                 }
-                Err(error) if self.refused_completion().is_some() || complain => Err(error),
+                Err(OriginalVariablePreparationError::Confined(error)) => Err(error),
+                Err(OriginalVariablePreparationError::Lookup(error))
+                    if self.refused_completion().is_some() || complain =>
+                {
+                    Err(error)
+                }
                 Err(_) => Ok(()),
             }
         })();
@@ -1903,6 +1975,139 @@ mod tests {
         assert!(vm.set_native_engine_profile(profile));
         vm.set_dialect_profile(profile);
         vm
+    }
+
+    #[test]
+    fn confined_quiet_unset_preserves_lookup_misses_and_refuses_foreign_receivers() {
+        for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut vm = actual(version);
+            vm.set_var("::seed", Value::string("old")).unwrap();
+            vm.set_array_elem("::arr", "k", Value::string("held"))
+                .unwrap();
+            vm.push_call_frame(Some("confined".into()), Vec::new());
+            vm.set_stores_confined(true);
+            for name in ["::missing_ns::x", "::missing_ns::a(k)", "absent"] {
+                vm.unset_original_c_variable(&Value::string(name), false)
+                    .unwrap_or_else(|error| panic!("{version} {name}: {error:?}"));
+            }
+            vm.unset_original_c_variable_parts(
+                &Value::string("::missing_ns::a"),
+                &Value::string("k"),
+                false,
+            )
+            .unwrap();
+            vm.set_var("local", Value::string("local")).unwrap();
+            vm.unset_original_c_variable(&Value::string("local"), false)
+                .unwrap();
+            vm.set_array_elem("local_array", "k", Value::string("local"))
+                .unwrap();
+            vm.unset_original_c_variable_parts(
+                &Value::string("local_array"),
+                &Value::string("absent"),
+                false,
+            )
+            .unwrap();
+            vm.unset_original_c_variable_parts(
+                &Value::string("local_array"),
+                &Value::string("k"),
+                false,
+            )
+            .unwrap();
+            for complain in [false, true] {
+                let error = vm
+                    .unset_original_c_variable(&Value::string("::seed"), complain)
+                    .unwrap_err();
+                assert_eq!(
+                    error.result.string_bytes().as_ref(),
+                    b"can't unset \"::seed\": stores are confined to the activation",
+                    "{version}"
+                );
+                let error = vm
+                    .unset_original_c_variable_parts(
+                        &Value::string("::arr"),
+                        &Value::string("k"),
+                        complain,
+                    )
+                    .unwrap_err();
+                assert_eq!(
+                    error.result.string_bytes().as_ref(),
+                    b"can't unset \"::arr\": stores are confined to the activation",
+                    "{version}"
+                );
+            }
+            assert_eq!(vm.get_var("::seed").unwrap().to_str().as_ref(), "old");
+            assert_eq!(
+                vm.get_array_elem("::arr", "k").unwrap().to_str().as_ref(),
+                "held"
+            );
+            assert!(
+                vm.var_binding_from_bytes(b"::missing_ns::x", vm.current_level())
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn confined_generic_capture_checks_name_link_before_following_its_local_target() {
+        let mut vm = actual("tcl9.0");
+        vm.push_call_frame(Some("confined".into()), Vec::new());
+        vm.set_var("target", Value::string("old")).unwrap();
+        vm.set_array_elem("target_array", "k", Value::string("held"))
+            .unwrap();
+        let level = vm.current_level();
+        for (alias, target, element) in [
+            ("alias", "target", None),
+            ("array_alias", "target_array", Some(b"k".as_slice())),
+        ] {
+            let binding = vm.var_binding_from_bytes(alias.as_bytes(), level).unwrap();
+            let target_binding = vm.var_binding_from_bytes(target.as_bytes(), level).unwrap();
+            vm.bind_new_var(
+                &binding,
+                super::super::Local::NameLink(crate::vars::NameLink {
+                    original_target: None,
+                    binding: target_binding,
+                    element: None,
+                }),
+            )
+            .unwrap();
+            vm.set_stores_confined(true);
+            assert!(
+                vm.capture_update_cell(alias.as_bytes(), element).is_err(),
+                "{alias}"
+            );
+            assert!(
+                vm.capture_update_cell(target.as_bytes(), element).is_ok(),
+                "{target}"
+            );
+        }
+        assert_eq!(vm.get_var("target").unwrap().to_str().as_ref(), "old");
+        assert_eq!(
+            vm.get_array_elem("target_array", "k")
+                .unwrap()
+                .to_str()
+                .as_ref(),
+            "held"
+        );
+    }
+
+    #[test]
+    fn confined_array_store_retains_the_first_host_refusal() {
+        let mut vm = actual("tcl9.0");
+        vm.push_call_frame(Some("confined".into()), Vec::new());
+        vm.set_stores_confined(true);
+        let prior = vm.refuse_host_command("terminal array write refusal".into());
+        let error = vm
+            .set_array_elem_bytes_from(vm.current_level(), b"::fresh", b"k", Value::int(1), true)
+            .unwrap_err();
+        assert_eq!(error.result.string_bytes(), prior.result.string_bytes());
+        let error = vm
+            .store_elem_result_bytes(b"::fresh", b"k", Value::int(1))
+            .unwrap_err();
+        assert_eq!(error.result.string_bytes(), prior.result.string_bytes());
+        let binding = vm
+            .var_binding_from_bytes(b"::fresh", vm.current_level())
+            .unwrap();
+        assert!(vm.raw_variable_binding(&binding).is_none());
     }
 
     struct TraceProbeOutput(Rc<RefCell<Vec<u8>>>);

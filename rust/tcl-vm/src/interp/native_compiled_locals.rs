@@ -604,6 +604,15 @@ impl Vm {
         element: Option<&[u8]>,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
+        let binding = self.compiled_local_binding(slot).ok_or_else(|| {
+            self.refuse_host_command("compiled local receiver is unavailable".into())
+        })?;
+        self.confine_store_binding_bytes(
+            binding.name.as_bytes(),
+            &binding,
+            self.current_level(),
+            true,
+        )?;
         let (name, resolved) = self.compiled_operand(slot, element)?;
         let input = element.map_or(
             tcl_syntax::naming::NativeVariableInputForm::Combined(name.as_bytes()),
@@ -658,6 +667,15 @@ impl Vm {
     }
 
     pub(crate) fn ensure_array_compiled(&mut self, slot: usize) -> Result<(), Completion<Value>> {
+        let binding = self.compiled_local_binding(slot).ok_or_else(|| {
+            self.refuse_host_command("compiled local receiver is unavailable".into())
+        })?;
+        self.confine_store_binding_bytes(
+            binding.name.as_bytes(),
+            &binding,
+            self.current_level(),
+            false,
+        )?;
         let (name, resolved) = self.compiled_operand(slot, None)?;
         self.ensure_array_original_selected_opcode(name.as_bytes(), &resolved)
     }
