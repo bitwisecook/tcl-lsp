@@ -81,6 +81,15 @@ It constrains the pending typed-stage repair to preserve argument evaluation
 and real unknown callees. The new 100-row compiler regression matrix and two
 actual-CFG controls are unbuilt; no #2441 fix is claimed yet.
 
+The 20:23 checkpoint retains [public stage baseline controls](../rust/tcl-compiler/tests/data/w210-empty-loop-exact-source/stage-baseline/README.md).
+They confirm the loop-only opaque-name contribution and a genuine unseen-call
+contrast, while both nested word-effect controls are already quiet. All 138
+emitted baseline libraries stay unchanged. The narrow IR-stage patch is
+reviewed and awaits its cached compiler allocation after the priority S102 and
+database jobs. The evidence-format check passes 1,647 current records; that is
+a metadata check, not a compiler test result. No caller resolver, source graph
+or Native admission edit is part of the pending repair.
+
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
 
 A separate [36-process binding control audit](../rust/tcl-compiler/tests/data/binding-diagnostic-controls-2026-11-04/README.md)
