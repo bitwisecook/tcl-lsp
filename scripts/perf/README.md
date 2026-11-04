@@ -53,6 +53,7 @@ python3 report.py
 | `bench.py` | Runs the 15-check suite against one binary, samples RSS/CPU every 250 ms, writes `results/<version>.json`. |
 | `report.py` | Turns `results/*.json` into three SVGs plus `summary.md`. Stdlib only, byte-for-byte deterministic. |
 | `sweep.sh` | Benchmarks every version in the manifest, in order, on one machine and one harness revision. Use it rather than looping `bench.py` by hand, and re-run it whole whenever the check set changes. |
+| `dialect_pair_bench.py` | One binary, one corpus, one fresh server per forced dialect (`--dialect jim --dialect tcl8.6`): time to first tokens, open → tokens and → diagnostics, edit → tokens, RSS. Not part of the release check set; see [spectcl-compiled-surface-plan.md](../../docs/design/registry/spectcl-compiled-surface-plan.md). |
 
 `results/`, `graphs/` and `comparisons/` are committed — they are the record.
 `corpus/`, `servers/`, `.stage/` and `.build/` are generated and ignored.
