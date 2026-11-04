@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 4 November 2026, 19:42 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
+Updated 4 November 2026, 20:15 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
 
 ## Scope, ownership and release verdict
 
@@ -8,7 +8,7 @@ Updated 4 November 2026, 19:42 UTC. Results apply only to recorded source, input
 
 Main is the shallow `/workspace/tcl-lsp-partial` checkout on `work`, origin `https://github.com/bitwisecook/tcl-lsp.git`. Root owns Main, scratch `/tmp/optimiser-settings-work`, shared target and builds. Five-minute development syncs may precede green tests: fetch, normally merge clean changes, push without force or WIP adoption; conflicts require review. Issue-sweep integration is not naming acceptance.
 
-Publication last succeeded at 2026-11-04T19:37:59.176567+00:00, head `b373be3aa1a77423bea46e89a25d749a15ec7227`. GitHub authentication failed again at about 19:40 UTC: gh returns HTTP 401 and Git cannot authenticate. Reconnection is requested; local work continues, the five-minute publisher keeps its scheduled retries, and no newer successful fetch/push is claimed. Exact outcomes: `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release exists.
+Publication last succeeded at 2026-11-04T20:13:09.192870+00:00, head `93c965c245b30e4cd80d69d431b9d2b0be4b1f3d`. Credentials are reconnected and five-minute fetch/merge/push has resumed. The status-only merge conflict was resolved with both current naming results and incoming lint notes retained. Exact outcomes: `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release exists.
 
 ## Current execution and failures
 
@@ -22,7 +22,13 @@ An additional diagnostic against the same actual Core27 ELF runs 12 existing con
 
 Registry9 builds successfully in 4 minutes 42 seconds, then refuses before all tests on 20 newly discovered `rust/tcl-vm/tests/data/native_procedure_recompile/*.txt` inputs absent from preseal. Zero Registry controls run; parent prebuild acceptance remains false. A separate diagnostic against the emitted executable and actual input closure now passes **9/9**, including channel conditions/refusals, Return grammar, namespace policy bridge and Registry identity/cache controls. Post-build custody passes; parent prebuild custody and current-Main acceptance remain permanently false. `registry-nine-postbuild-diagnostic-v1/result.json.gz`. `registry-channel-namespace-current-v1/result.json.gz`.
 
-Current Server V16 diagnostic builds successfully in 7 minutes 14 seconds with one unused-constant warning in a private test probe, then starts all 47 prevalidated controls/probes. Its first 15 mandatory controls pass; remaining 16 mandatory controls and 16 probes are pending. The source includes declared test-only overlays, all workspace manifests and actual Registry9 input closure. Later Main changes are sticky currency loss; this is no final strict-lint or release acceptance. `server-current-minimal-v16-registry-closure/`.
+Server V16 completes **27/31 mandatory controls** and **8/16 passing probe processes**; observational exit success is not semantic acceptance. Four mandatory autoload/provider controls fail. Both settled Backend variable/regex probes fail; Core regex succeeds but the Server method route preempts it. All captured custody checks pass and all three Scratch overlays restore; Main drift prevents current-source acceptance. Build succeeds in7m14 with one unused constant warning in a private probe. `server-current-minimal-v16-registry-closure/result.json.gz`.
+
+Reviewed repairs are adopted, awaiting execution: unindexed autoload providers use the existing complete readonly source owner, without manufacturing DB/index entries; Server pattern fallback retains conditional operand metadata and rejects exact indexed class/procedure/object occupation under the same current lease. Variable-source behavior at cursor6 versus original7 remains under diagnosis. Compiler47 v1 stops before tests on a cooperative-checkpoint return-type error and restores its overlay; the one-line correction is adopted. Later preseal retries record a missing historical cache and source changes from remote; they run no tests. A fresh isolated retry is being prepared with publication excluded through initial capture. `compiler-channel-namespace-47-diagnostic-v1/result.json.gz`; `compiler-channel-namespace-47-diagnostic-v2/result.json.gz`.
+
+WASI fresh analysis now has an adopted typed cooperative-interruption path and16 new fixed controls, all unexecuted. The Driver retains sole input ownership, distinguishes complete routing from partial draining, gives exit/EOF priority over retries, and prevents stopped or nested interrupted analysis from returning or caching a complete result. Atomic parsing/lowering/SSA and other inline jobs remain outside that guarantee. Original4,000-call/60ms/30s/12-run workload is unchanged; no actual WASI fix is claimed. Native transport-feature split is adopted for a separate27-test host unit run, not prior Wasmtime acceptance.
+
+Latest host CI [41900212246](https://github.com/bitwisecook/tcl-lsp/actions/runs/41900212246), exact `03880e9474ecb3d04a5a3a79162499ae2cdcc98c`, was dispatched successfully and remains pending validation. It predates the cooperative and unindexed-provider repairs.
 
 Receipt paths below are relative to `/workspace/tmp/lsp-merged-cohort/` unless absolute. Captured pins do not seal topology or undiscovered runtime/toolchain inputs.
 
