@@ -4458,19 +4458,18 @@ pub(super) fn logical_source_registry_words(
         .original_logical_source_name_advice_input()
         != Some(input)
         || !realm.matches_resolved_analysis_input(input)
-        || !realm.matches_original_source_image(
-            &tcl_lexer::SourceImage::document(source),
-            input.lexer_config(),
-        )
     {
         return None;
     }
+    // Retain the same complete bytes/channel/configuration check without
+    // allocating, hashing and indexing another whole Document image per query.
+    let image = retained_document_image(source, realm, input.lexer_config())?;
     let context = input.context_registry();
     let words =
         source_transition_registry_words(source, input.lexer_config(), realm, &context, segment)
             .or_else(|| {
                 let mut tokens = crate::ir::CommandTokens::from_segmented(
-                    &tcl_lexer::SourceMap::new(source),
+                    &tcl_lexer::SourceMap::from_image(&image),
                     input.lexer_config(),
                     segment,
                 );
