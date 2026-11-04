@@ -5,7 +5,6 @@
 """Parse exact-context NHO captures without discarding repeats or missing chunks."""
 
 import argparse
-import hashlib
 import json
 import re
 from collections import defaultdict
@@ -25,7 +24,7 @@ def parse_capture(paths, context, run_id=None, root=ROOT):
         path = (path if path.is_absolute() else root / path).resolve()
         name = path.relative_to(root).as_posix()
         data = path.read_bytes()
-        sources.append({"path": name, "sha256": hashlib.sha256(data).hexdigest()})
+        sources.append({"path": name})
         for line_number, raw_line in enumerate(data.splitlines(), 1):
             marker = raw_line.find(b"NHO|")
             if marker < 0:

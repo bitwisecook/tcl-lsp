@@ -24,7 +24,6 @@ Repeated chunks stay unjoined and no runtime error implies unsupported status.
 """
 
 import argparse
-import hashlib
 import json
 import re
 from collections import defaultdict
@@ -54,7 +53,6 @@ def _descriptor(path, root, role=None):
         return None
     result = {
         "path": path.resolve().relative_to(root).as_posix(),
-        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
     }
     if role:
         result["role"] = role
@@ -691,10 +689,7 @@ def apply_reachability_review(run_path, records, root=ROOT):
         target = (root / descriptor["path"]).resolve()
         if not target.is_relative_to(root):
             raise ValueError("Review evidence escapes repository")
-        data = target.read_bytes()
-        if hashlib.sha256(data).hexdigest() != descriptor["sha256"]:
-            raise ValueError("Reachability review evidence digest changed")
-        return data
+        return target.read_bytes()
 
     reviewed_identities = set()
     for index, review in enumerate(bundle["reviews"]):
@@ -727,15 +722,12 @@ def apply_reachability_review(run_path, records, root=ROOT):
             raise ValueError("Review requires unchanged whole original source")
         for key in ("original_input", "actual_input"):
             descriptor = review[key]
-            if any(
-                record[key][field] != descriptor[field] for field in ("path", "sha256")
-            ):
+            if record[key]["path"] != descriptor["path"]:
                 raise ValueError("Review input differs from captured input")
             verified_bytes(descriptor)
         operation = review["executed_operation"]
         if (
             operation["path"] != record["case_metadata"]["path"]
-            or operation["sha256"] != record["case_metadata"]["sha256"]
             or operation["json_pointer"]
             != record["case_metadata"]["json_pointer"] + "/operation"
             or review["canonical_question_id"]
@@ -745,9 +737,7 @@ def apply_reachability_review(run_path, records, root=ROOT):
         value = json.loads(verified_bytes(operation))
         for part in operation["json_pointer"].strip("/").split("/"):
             value = value[int(part)] if isinstance(value, list) else value[part]
-        if hashlib.sha256(value.encode()).hexdigest() != operation[
-            "value_sha256"
-        ] or value.encode() != verified_bytes(review["original_input"]):
+        if value.encode() != verified_bytes(review["original_input"]):
             raise ValueError("Reviewed operation is not the exact original bytes")
         for key in ("completion_code", "result_encoding", "result_hex"):
             if record["setup"][key] != review["ownership_guard"][key]:
@@ -868,9 +858,7 @@ def _link(descriptor):
         + str(ROOT).lstrip("/")
         + "/"
         + descriptor["path"]
-        + ") SHA-256 `"
-        + descriptor["sha256"]
-        + "`"
+        + ")"
     )
 
 

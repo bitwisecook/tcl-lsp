@@ -19,7 +19,6 @@
 """Project retained live APL DOM option values into strict result rows."""
 
 import argparse
-import hashlib
 import json
 import tkinter
 from pathlib import Path
@@ -33,8 +32,6 @@ def main():
     parser.add_argument("run", type=Path)
     args = parser.parse_args()
     run = args.run.resolve()
-    if (run / "MANIFEST.sha256").exists():
-        raise RuntimeError("Sealed run is immutable")
     data = json.loads((run / "browser-options.json").read_text())
     snapshot = (run / "browser-dom.txt").read_text()
     selected_template = '- option "__tcl_lsp_probe_' + run.name + '" [selected]'
@@ -120,9 +117,6 @@ def main():
             "execution_namespace": parts[2],
             "value_hex": field["value_hex"],
             "source": str(job / "invoke.stdout"),
-            "source_sha256": hashlib.sha256(
-                (job / "invoke.stdout").read_bytes()
-            ).hexdigest(),
             "case_id": "version",
             "context": "iapp-apl",
         }

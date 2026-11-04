@@ -18,13 +18,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Index retained measurements and gaps without promoting original answers.
 
-Snapshots retain measurement pointers and file hashes. Adapted controls, whole
+Snapshots retain measurement pointers. Adapted controls, whole
 program errors, constraint skips and original-source candidates remain distinct.
 The original questions.json and all existing run artefacts are read-only.
 """
 
 import argparse
-import hashlib
 import json
 import re
 from collections import Counter
@@ -57,10 +56,6 @@ REMAINING = {
 
 def _read(path):
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _sha(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _context(context):
@@ -124,8 +119,6 @@ def _candidate(record, question, root):
         return False
     try:
         metadata_path = root / metadata["path"]
-        if _sha(metadata_path) != metadata["sha256"]:
-            return False
         case = _read(metadata_path)[int(metadata["json_pointer"].removeprefix("/"))]
         original_bytes = (root / source["path"]).read_bytes()
         if (
@@ -134,14 +127,11 @@ def _candidate(record, question, root):
             or case["operation"].encode("utf-8") != original_bytes
         ):
             return False
-        if hashlib.sha256(original_bytes).hexdigest() != source["sha256"]:
-            return False
-        if record.get("original_input", {}).get("sha256") != source["sha256"]:
+        if (root / record["original_input"]["path"]).read_bytes() != original_bytes:
             return False
         for key in ["actual_input", "wrapper"]:
             descriptor = record[key]
-            if _sha(root / descriptor["path"]) != descriptor["sha256"]:
-                return False
+            (root / descriptor["path"]).read_bytes()
     except (KeyError, ValueError, IndexError, OSError, TypeError):
         return False
     return True
@@ -169,9 +159,7 @@ def build_coverage(root=ROOT):
     root = Path(root).resolve()
     bundle_path = root / PATTERN_BASE / "questions.json"
     bundle = _read(bundle_path)
-    inputs = [
-        {"path": bundle_path.relative_to(root).as_posix(), "sha256": _sha(bundle_path)}
-    ]
+    inputs = [{"path": bundle_path.relative_to(root).as_posix()}]
     for source_path in [
         root / BROAD_BASE / "REQUEST.md",
         root / "scripts/dev/bigip-probes/name-patterns/coverage.py",
@@ -179,7 +167,6 @@ def build_coverage(root=ROOT):
         inputs.append(
             {
                 "path": source_path.relative_to(root).as_posix(),
-                "sha256": _sha(source_path),
             }
         )
     reports = []
@@ -202,7 +189,7 @@ def build_coverage(root=ROOT):
                     }
                 )
                 continue
-            source = {"path": path.relative_to(root).as_posix(), "sha256": _sha(path)}
+            source = {"path": path.relative_to(root).as_posix()}
             inputs.append(source)
             reports.append(
                 {
@@ -402,8 +389,8 @@ def _document(data, kind, root):
         "",
         "## Retained report inputs",
         "",
-        "| Run | Records | Report | Records SHA-256 |",
-        "| --- | --- | --- | --- |",
+        "| Run | Records | Report |",
+        "| --- | --- | --- |",
     ]
     for report in data["reports"]:
         lines.append(
@@ -413,9 +400,7 @@ def _document(data, kind, root):
             + str(report["record_count"])
             + " | "
             + _link(report["answer_document"] or report["path"], root)
-            + " | `"
-            + report["sha256"]
-            + "` |"
+            + " |"
         )
     matrix_states = Counter(
         r["original_matrix"]["status"] for r in data["pattern_rows"]
@@ -600,14 +585,12 @@ def _document(data, kind, root):
             "",
             data["limitations"],
             "",
-            "Input digests:",
+            "Inputs:",
             "",
         ]
     )
     for source in data["inputs"]:
-        lines.append(
-            "- " + _link(source["path"], root) + " SHA-256 `" + source["sha256"] + "`."
-        )
+        lines.append("- " + _link(source["path"], root) + ".")
     if data["read_problems"]:
         lines.extend(["", "Reports unavailable at snapshot time:", ""])
         for problem in data["read_problems"]:

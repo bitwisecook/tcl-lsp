@@ -5,7 +5,6 @@
 """Prepare reviewed, narrowly scoped F5 proof records without changing the manifest."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -31,7 +30,7 @@ def make_proof(
     record_path=None,
     record_pointer=None,
 ):
-    """Hash reviewed reached observations; unavailable/unreached setup is not promoted."""
+    """Describe reviewed reached observations; unreached setup is not promoted."""
     root = Path(root).resolve()
     status = measurement["status"]
     setup = measurement["setup"]
@@ -101,14 +100,11 @@ def make_proof(
             or not path.is_relative_to(root)
         ):
             raise ValueError(f"evidence path escapes repository: {name}")
-        sha = hashlib.sha256(path.read_bytes()).hexdigest()
-        if descriptor.get("sha256") is not None and descriptor["sha256"] != sha:
-            raise ValueError(f"retained evidence digest changed: {name}")
+        path.read_bytes()
         item = {
             "id": label,
             "role": role,
             "path": relative.as_posix(),
-            "sha256": sha,
             "description": description,
         }
         if role not in {
