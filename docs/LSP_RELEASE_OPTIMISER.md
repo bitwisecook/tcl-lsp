@@ -194,3 +194,10 @@ The exact draft is `/tmp/lsp-2384-selected-loop.patch`.
 The optional #2218 required-Jim test branch was type-checked by this successful
 no-run build. Its original three-test implementation proof remains the frozen
 `c47d83bda` run; no equivalent #2218 runtime suite was repeated.
+
+
+An ENOSPC failure interrupted the first sync attempt. The draft was then
+integrated as `d1a433d31` after stopped build caches were cleared. The complete pre-ENOSPC baseline binary is preserved at
+`/tmp/lsp-2384-frozen-993a908ff.test`. No Rust verification ran after ENOSPC;
+the next candidate check must rebuild the isolated target cleanly. The
+eligibility check now rejects non-loop schemas before copying their operands.

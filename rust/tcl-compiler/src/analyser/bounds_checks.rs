@@ -624,21 +624,24 @@ pub(super) fn original_loop_termination_candidate(
         return None;
     }
     let input = analysis.resolved_input.as_ref()?;
-    let (args, tokens, _) = original.source_arguments()?;
-    let shape = original
+    let (shape, args, tokens) = original
         .with_schema(|schema| {
-            let (roles, complete) = schema.authored_source_argument_roles();
             if !schema
                 .semantics
                 .traits
                 .contains(tcl_registry::Traits::HAS_LOOP_BODY)
-                || !complete
+            {
+                return None;
+            }
+            let (roles, complete) = schema.authored_source_argument_roles();
+            if !complete
                 || schema
                     .argument_count_for_arity()
                     .is_none_or(|count| !schema.semantics.arity.accepts(count))
             {
                 return None;
             }
+            let (args, tokens, _) = original.source_arguments()?;
             let roles = roles
                 .into_iter()
                 .map(|(index, role)| {
@@ -654,7 +657,7 @@ pub(super) fn original_loop_termination_candidate(
                 &args,
                 original.context().commands().profile(),
             );
-            Some(shape)
+            Some((shape, args, tokens))
         })
         .flatten()?;
     let config = input.lexer_config();
