@@ -3299,13 +3299,18 @@ mod opaque_script_authoring_tests {
             0
         );
         let image = SourceImage::document(&source);
-        let content = authoring
+        let body_content = authoring
             .region
             .content_for_authoring(&image, config, &context)
             .unwrap();
         let structure = SourceStructure::capture(&source, Some(&analysis), config).unwrap();
-        assert!(!structure.scripts.iter().any(|(span, _)| *span == content));
-        assert_opaque_member_purposes(&source, &analysis, cursor, content);
+        assert!(
+            !structure
+                .scripts
+                .iter()
+                .any(|(span, _)| *span == body_content)
+        );
+        assert_opaque_member_purposes(&source, &analysis, cursor, body_content);
         let changed = source.replace("baseline", "changed_");
         assert!(
             authoring
@@ -3353,7 +3358,7 @@ mod opaque_script_authoring_tests {
         source: &str,
         analysis: &AnalysisResult,
         cursor: u32,
-        content: Span,
+        body_content: Span,
     ) {
         use tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body_at;
         use tcl_compiler::registry_invocation::{
@@ -3391,13 +3396,16 @@ mod opaque_script_authoring_tests {
                 .unwrap(),
             vec![&original[1]]
         );
-        assert!(
+        assert_eq!(
             members
                 .argument_words_for_role(original, ArgRole::Body)
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [&tcl_lexer::NativeWord; 0]
         );
-        assert!(members.checked_script_bodies(original).unwrap().is_empty());
+        assert_eq!(
+            members.checked_script_bodies(original).unwrap(),
+            [] as [tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody; 0]
+        );
         assert!(matches!(
             members.script_body_disposition(&context, original),
             MemberDisposition::CompleteMember(bodies)
@@ -3409,7 +3417,7 @@ mod opaque_script_authoring_tests {
         assert_eq!(opaque.len(), 1);
         assert_eq!(
             opaque[0].content_for_authoring(&image, config, &context),
-            Some(content)
+            Some(body_content)
         );
         // Non-block rows retain their member role, without a block descriptor.
         assert!(
@@ -3427,27 +3435,30 @@ mod opaque_script_authoring_tests {
                 .iter()
                 .any(|body| body.content_span() == parent.content_span())
         );
-        assert!(syntax.iter().all(|body| body.content_span() != content));
+        assert!(
+            syntax
+                .iter()
+                .all(|body| body.content_span() != body_content)
+        );
         assert!(
             words
                 .source_script_bodies_for(&context, OriginalSourceScriptPurpose::Syntax)
                 .iter()
-                .all(|body| body.content_span() != content)
+                .all(|body| body.content_span() != body_content)
         );
-        assert!(
-            words
-                .source_script_bodies_for(
-                    &context,
-                    OriginalSourceScriptPurpose::PotentialEvaluation
-                )
-                .is_empty()
+        assert_eq!(
+            words.source_script_bodies_for(
+                &context,
+                OriginalSourceScriptPurpose::PotentialEvaluation
+            ),
+            [] as [tcl_compiler::registry_invocation::OriginalSourceScriptBody; 0]
         );
         assert!(
             words
                 .source_script_bodies_for_mutation_coverage(&context)
                 .is_none()
         );
-        assert_opaque_not_script(source, analysis, cursor, content);
+        assert_opaque_not_script(source, analysis, cursor, body_content);
     }
 
     fn assert_opaque_not_script(

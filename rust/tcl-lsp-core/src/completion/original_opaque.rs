@@ -166,16 +166,19 @@ mod tests {
                 .iter()
                 .any(|item| item.label == "set")
         );
-        assert!(query(source, position.character.get(), false).is_empty());
-        assert!(
+        assert_eq!(
+            query(source, position.character.get(), false),
+            [] as [CompletionItem; 0]
+        );
+        assert_eq!(
             query(
                 &source.replace("banner", "marker"),
                 position.character.get(),
                 true
-            )
-            .is_empty()
+            ),
+            [] as [CompletionItem; 0]
         );
         // The astral character starts at UTF16 column41;42 splits its pair.
-        assert!(query(source, 42, true).is_empty());
+        assert_eq!(query(source, 42, true), [] as [CompletionItem; 0]);
     }
 }

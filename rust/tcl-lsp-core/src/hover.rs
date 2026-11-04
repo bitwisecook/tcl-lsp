@@ -4269,20 +4269,16 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn foreign_factory_method_hover_keeps_the_source_parent() {
-        use tcl_compiler::analyser::Analyser;
-        use tcl_compiler::registry_invocation::source_structure::{
-            OriginalProjectFactoryHeaders, original_foreign_factory_bodies,
-        };
-        let library =
-            Analyser::new().analyse("oo::class create Meta {superclass ::oo::class}", "tcl9.0");
-        let header = OriginalProjectFactoryHeaders::capture(&library).unwrap();
-        let source = "Meta create Made { method go {} {return 1} }";
-        let analysis = Analyser::new().analyse(source, "tcl9.0");
-        let caller_header = OriginalProjectFactoryHeaders::capture(&analysis).unwrap();
-        let headers = [(1, header.clone()), (2, caller_header.clone())];
-        let bodies = original_foreign_factory_bodies(source, &analysis, 2, &headers);
+    fn assert_foreign_factory_method_source_parent(
+        source: &str,
+        analysis: &AnalysisResult,
+        headers: &[(
+            u64,
+            tcl_compiler::registry_invocation::source_structure::OriginalProjectFactoryHeaders,
+        )],
+    ) {
+        use tcl_compiler::registry_invocation::source_structure::original_foreign_factory_bodies;
+        let bodies = original_foreign_factory_bodies(source, analysis, 2, headers);
         let [body] = bodies.as_slice() else {
             panic!("unique foreign body");
         };
@@ -4294,6 +4290,20 @@ mod tests {
         assert_eq!(member.parent().body().caller_document(), 2);
         assert_eq!(member.parent().body().declaring_document(), 1);
         assert_eq!(member.name(), "go");
+    }
+
+    #[test]
+    fn foreign_factory_method_hover_keeps_the_source_parent() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::registry_invocation::source_structure::OriginalProjectFactoryHeaders;
+        let library =
+            Analyser::new().analyse("oo::class create Meta {superclass ::oo::class}", "tcl9.0");
+        let header = OriginalProjectFactoryHeaders::capture(&library).unwrap();
+        let source = "Meta create Made { method go {} {return 1} }";
+        let analysis = Analyser::new().analyse(source, "tcl9.0");
+        let caller_header = OriginalProjectFactoryHeaders::capture(&analysis).unwrap();
+        let headers = [(1, header.clone()), (2, caller_header.clone())];
+        assert_foreign_factory_method_source_parent(source, &analysis, &headers);
         let position = u32::try_from(source.find("go").unwrap()).unwrap();
         assert!(super::may_have_foreign_factory_hover(
             source, 0, position, &analysis
