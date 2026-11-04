@@ -1662,6 +1662,22 @@ fn assert_formatter_request_edit(edits: Option<Vec<TextEdit>>, ending: &str) {
     }
 }
 
+async fn apply_formatter_request_settings(backend: &Backend, line_ending: &str) {
+    assert!(
+        backend
+            .apply_global_formatting(&serde_json::json!({
+                "formatting": {
+                    "indentSize": 2,
+                    "lineEnding": line_ending,
+                    "expandSingleLineBodies": true,
+                    "minBodyCommandsForExpansion": 1
+                }
+            }))
+            .await
+            .is_none()
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input()
 {
@@ -1682,19 +1698,7 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
         .db_set_source(&uri, source, "f5-irules".to_owned())
         .await
         .unwrap();
-    assert!(
-        backend
-            .apply_global_formatting(&serde_json::json!({
-                "formatting": {
-                    "indentSize": 2,
-                    "lineEnding": "auto",
-                    "expandSingleLineBodies": true,
-                    "minBodyCommandsForExpansion": 1
-                }
-            }))
-            .await
-            .is_none()
-    );
+    apply_formatter_request_settings(&backend, "auto").await;
     let older = backend
         .analysis_for(&uri, Arc::from(source), "f5-irules".to_owned())
         .await
@@ -1731,19 +1735,7 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     for edits in formatter_request_edits(&backend, &uri).await {
         assert_formatter_request_edit(edits, "\r\n");
     }
-    assert!(
-        backend
-            .apply_global_formatting(&serde_json::json!({
-                "formatting": {
-                    "indentSize": 2,
-                    "lineEnding": "lf",
-                    "expandSingleLineBodies": true,
-                    "minBodyCommandsForExpansion": 1
-                }
-            }))
-            .await
-            .is_none()
-    );
+    apply_formatter_request_settings(&backend, "lf").await;
     for edits in formatter_request_edits(&backend, &uri).await {
         assert_formatter_request_edit(edits, "\n");
     }

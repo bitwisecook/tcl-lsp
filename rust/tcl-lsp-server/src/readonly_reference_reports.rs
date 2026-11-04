@@ -4811,9 +4811,11 @@ mod coarse_semantic_source_tests {
             assert!(!coarse_source_is_current(&backend, &torn).await);
             let source = CoarseSemanticTokenSource::from_fresh_analysis(torn.analysis).unwrap();
             assert!(coarse_source_is_current(&backend, &source).await);
-            assert!(!super::super::configured_coarse_semantic_tokens(
-                &snapshot.text, source.analysis(),
-            ).unwrap().is_empty());
+            assert_ne!(
+                super::super::configured_coarse_semantic_tokens(&snapshot.text, source.analysis())
+                    .unwrap(),
+                [] as [u32; 0]
+            );
             advance_coarse_generation(&backend, !advance_factory).await;
             assert!(!coarse_source_is_current(&backend, &source).await);
             let old = CoarseSemanticTokenSource::from_fresh_analysis(source.analysis).unwrap();

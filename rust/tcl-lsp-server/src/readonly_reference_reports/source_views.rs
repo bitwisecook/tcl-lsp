@@ -4500,8 +4500,8 @@ mod closed_source_child_ingress_tests {
             .unwrap();
         assert!(matches!(route, std::ops::ControlFlow::Continue(())));
         let table = backend.original_source_views.lock().unwrap();
-        assert!(table.by_uri.get(&fixture.main).is_none());
-        assert!(table.by_uri.get(&parent).is_none());
+        assert!(!table.by_uri.contains_key(&fixture.main));
+        assert!(!table.by_uri.contains_key(&parent));
     }
 
     #[tokio::test]
@@ -4720,7 +4720,8 @@ mod closed_source_child_ingress_tests {
                     },
                     position: Position::new(1, 24),
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
             })
             .await
             .unwrap()

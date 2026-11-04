@@ -3862,12 +3862,7 @@ mod tests {
             let mut db = backend.db.lock().await;
             config.set_spec_pack_key(&mut *db).to(u64::MAX - 390_037);
         }
-        backend
-            .feature_toggles
-            .lock()
-            .await
-            .set
-            .insert("diagnostics".into(), false);
+        set_diagnostics_enabled(&backend, false).await;
         backend.invalidate_diag_inputs();
         for registry_at_drain in [false, true] {
             let inputs = backend
@@ -3906,12 +3901,7 @@ mod tests {
                 .await,
             Err(DiagnosticUnavailable::Context)
         ));
-        backend
-            .feature_toggles
-            .lock()
-            .await
-            .set
-            .insert("diagnostics".into(), true);
+        set_diagnostics_enabled(&backend, true).await;
         *backend.diagnostics_exclude.lock().await = vec!["*.tcl".into()];
         backend.invalidate_diag_inputs();
         for registry_at_drain in [false, true] {
@@ -3946,6 +3936,15 @@ mod tests {
             CurrentDiagnostics::Unavailable { .. }
         ));
     }
+    async fn set_diagnostics_enabled(backend: &Backend, enabled: bool) {
+        backend
+            .feature_toggles
+            .lock()
+            .await
+            .set
+            .insert("diagnostics".into(), enabled);
+    }
+
     async fn assert_policy_receipt_checks_source_and_configuration(
         backend: &Backend,
         expected: &DiagnosticSourceExpectation,

@@ -419,7 +419,13 @@ async fn current_final_edit_retains_real_source_edits_and_client_version() {
     };
     assert_eq!(edits.len(), 1);
     assert_eq!(edits[0].text_document.version, Some(3));
-    assert!(!edits[0].edits.is_empty());
+    assert_ne!(
+        edits[0].edits,
+        [] as [tower_lsp_server::ls_types::OneOf<
+            TextEdit,
+            tower_lsp_server::ls_types::AnnotatedTextEdit,
+        >; 0]
+    );
 }
 
 #[tokio::test]

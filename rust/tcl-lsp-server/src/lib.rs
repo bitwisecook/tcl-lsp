@@ -49739,7 +49739,21 @@ info exists ::N::v\uD800";
         let client = service.inner().client.clone();
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         let db_config = default_analyser_config(&db);
-        Backend::from_state(BackendState {
+        Backend::from_state(test_backend_state_over(
+            db,
+            client,
+            diagnostic_publisher,
+            db_config,
+        ))
+    }
+
+    fn test_backend_state_over(
+        db: tcl_lsp_db::TclDatabase,
+        client: Client,
+        diagnostic_publisher: Arc<DiagnosticPublisher>,
+        db_config: tcl_lsp_db::AnalyserConfig,
+    ) -> BackendState {
+        BackendState {
             client,
             diagnostic_publisher,
             document_transforms: std::sync::Mutex::new(
@@ -49841,7 +49855,7 @@ info exists ::N::v\uD800";
             live_publication_uri_generations: std::sync::Mutex::new(HashMap::new()),
             live_publication_gate: Arc::new(Mutex::new(())),
             store: Arc::new(vfs::NativeStore),
-        })
+        }
     }
 
     // Document-lifecycle + diagnostic-core internals: the
@@ -62035,7 +62049,7 @@ proc p {} {
         assert_eq!(report["kind"], "full");
         assert!(report["items"].is_array());
         let id = report["resultId"].as_str().unwrap();
-        assert!(!id.is_empty());
+        assert_ne!(id, "");
         let current = backend
             .diagnostic(doc_diag_params(&uri, Some(id)))
             .await
