@@ -117,8 +117,8 @@ impl<'a> OriginalSingleSourceCutSurvey<'a> {
         }
         // This is a private cut-scoped query surface, not an assignment to the
         // independently withheld ordinary root ledger or a Native capability.
-        let child_world =
-            bindings.completed_original_world_from_normal_state(std::sync::Arc::clone(state))?;
+        let child_world = bindings
+            .completed_original_world_from_normal_state(std::sync::Arc::new((**state).clone()))?;
         let root_world = self.completed_body_world()?;
         let slot = declaration.name().slot();
         let policy = declaration.name().policy();
