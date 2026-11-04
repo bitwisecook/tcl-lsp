@@ -113,7 +113,7 @@ Only the listed fixed scripts and recorded provider builds; ASCII source charact
 
 ## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-plain.stdout`: tcl8.4 failindex-plain original stdout

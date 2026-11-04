@@ -77,7 +77,7 @@ Only the listed fixed scripts and recorded provider builds; ASCII source charact
 
 ## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, interpreter versions and process results.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl`: Exact original lappend-recreate-receiver script, including producer and reporter order.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-lappend-recreate-receiver.stdout`: tcl8.4 lappend-recreate-receiver original stdout
