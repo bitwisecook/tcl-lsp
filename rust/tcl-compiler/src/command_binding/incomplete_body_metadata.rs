@@ -81,10 +81,18 @@ fn header_uncached(
         return None;
     }
     let plan = tcl_lexer::native_script_words_in(image.clone(), region, config).ok()?;
-    let fatal = plan.fatal_tail?;
-    let delimiter = match fatal.cut.message {
-        tcl_lexer::MISSING_QUOTE => b'"',
-        tcl_lexer::MISSING_CLOSE_BRACE => b'{',
+    header_for_cut(image, region, config, plan.fatal_tail?)
+}
+
+fn header_for_cut(
+    image: &SourceImage,
+    region: Span,
+    config: LexerConfig,
+    fatal: tcl_lexer::NativeScriptWordCut,
+) -> Option<IncompleteHeader> {
+    let delimiter = match fatal.cut.kind {
+        tcl_lexer::ParseIssueKind::MissingQuote => b'"',
+        tcl_lexer::ParseIssueKind::MissingBrace => b'{',
         _ => return None,
     };
     if fatal.cut.command != 0
@@ -564,6 +572,48 @@ fn incomplete_child_layout_advice(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn incomplete_body_recovery_uses_kind_independently_of_message() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            for source in ["proc p {} \"puts ", "proc p {} {\n    puts $value\n"] {
+                let image = SourceImage::document(source);
+                let region = Span::new(0, u32::try_from(image.len()).unwrap());
+                let fatal = tcl_lexer::native_script_words_in(image.clone(), region, config)
+                    .unwrap()
+                    .fatal_tail
+                    .unwrap();
+                let expected = header_for_cut(&image, region, config, fatal).unwrap();
+                for message in [
+                    "",
+                    "different wording with 'quotes'",
+                    tcl_lexer::MISSING_CLOSE_BRACKET,
+                ] {
+                    let mut changed = fatal;
+                    changed.cut.message = message;
+                    let observed = header_for_cut(&image, region, config, changed).unwrap();
+                    assert_eq!(observed.content, expected.content);
+                    assert_eq!(observed.tokens.words(), expected.tokens.words());
+                    assert_eq!(observed.prefix.words(), expected.prefix.words());
+                }
+                for kind in [
+                    tcl_lexer::ParseIssueKind::MissingQuote,
+                    tcl_lexer::ParseIssueKind::MissingBrace,
+                    tcl_lexer::ParseIssueKind::MissingBracket,
+                    tcl_lexer::ParseIssueKind::ExtraAfterQuote,
+                ] {
+                    if kind == fatal.cut.kind {
+                        continue;
+                    }
+                    let mut changed = fatal;
+                    changed.cut.kind = kind;
+                    assert!(header_for_cut(&image, region, config, changed).is_none());
+                }
+            }
+        }
+    }
 
     fn inspect(
         source: &str,

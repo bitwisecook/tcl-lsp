@@ -1023,14 +1023,18 @@ impl CompileService for BytecodeCompileService {
         )
         .map_err(|error| CompileError::Unsupported(error.to_string()))?;
         Ok(match segmented.fatal_tail {
-            Some((start, message, delimiter_offset)) => ScriptCommandPlan {
-                complete_prefix_len: start,
+            Some(tail) => ScriptCommandPlan {
+                complete_prefix_len: tail.command.span.start() as usize,
                 // `command_at_time_script_with_config` truncates the command
                 // list at the cut, so this is exactly the prefix's command
                 // count — zero when the *first* command is the malformed one,
                 // however much leading whitespace or comment `start` spans.
                 complete_prefix_commands: segmented.commands.len(),
-                fatal_tail: Some(fatal_tail_frame(source, start, message, delimiter_offset)),
+                fatal_tail: Some(fatal_tail_frame_bytes(
+                    source.as_bytes(),
+                    tail.command.span.start() as usize,
+                    tail.cut,
+                )),
             },
             None => ScriptCommandPlan::complete(source.len()),
         })
@@ -1115,41 +1119,31 @@ fn reject_malformed_byte_script(
 ///
 /// The cut owner retains the actual nested failure's term separately from its
 /// enclosing reporting offset. Validation checks that retained term against
-/// the original source. It cannot manufacture a missing term from a message.
-/// Whether the byte at `term` opens the construct `message` names.
+/// the original source and issue kind, independently of the guest message.
 ///
 /// C's term for an unterminated construct is the character that opened it, so
-/// the pair is self-checking. A message C reports *in place* — the
+/// the pair is self-checking. An issue C reports *in place* — the
 /// `extra characters after …` family — constrains nothing, and is accepted.
-fn term_opens_the_named_construct(source: &[u8], term: usize, message: &str) -> bool {
-    let opener = match message {
-        tcl_lexer::word_parts::MISSING_QUOTE => b'"',
-        tcl_lexer::word_parts::MISSING_CLOSE_BRACE => b'{',
-        tcl_lexer::word_parts::MISSING_CLOSE_BRACKET => b'[',
+fn term_opens_the_named_construct(
+    source: &[u8],
+    term: usize,
+    kind: tcl_lexer::ParseIssueKind,
+) -> bool {
+    let opener = match kind {
+        tcl_lexer::ParseIssueKind::MissingQuote => b'"',
+        tcl_lexer::ParseIssueKind::MissingBrace => b'{',
+        tcl_lexer::ParseIssueKind::MissingBracket => b'[',
         _ => return true,
     };
     source.get(term) == Some(&opener)
 }
 
-fn fatal_tail_frame(
-    source: &str,
-    start: usize,
-    message: String,
-    delimiter_offset: Option<u32>,
-) -> FatalTail {
-    fatal_tail_frame_bytes(source.as_bytes(), start, message, delimiter_offset)
-}
-
-fn fatal_tail_frame_bytes(
-    source: &[u8],
-    start: usize,
-    message: String,
-    delimiter_offset: Option<u32>,
-) -> FatalTail {
-    let end = delimiter_offset
+fn fatal_tail_frame_bytes(source: &[u8], start: usize, cut: tcl_lexer::ParseCut) -> FatalTail {
+    let message = cut.message.to_owned();
+    let end = Some(cut.term)
         .map(|offset| offset as usize)
         .filter(|offset| *offset >= start && *offset < source.len())
-        .filter(|offset| term_opens_the_named_construct(source, *offset, &message))
+        .filter(|offset| term_opens_the_named_construct(source, *offset, cut.kind))
         .map(|offset| offset + 1);
     let Some(end) = end else {
         return FatalTail::message_only(message);
@@ -1202,12 +1196,7 @@ fn byte_script_command_plan(
             Ok(ScriptCommandPlan {
                 complete_prefix_len: start,
                 complete_prefix_commands: cut.command,
-                fatal_tail: Some(fatal_tail_frame_bytes(
-                    source.bytes(),
-                    start,
-                    cut.message.to_owned(),
-                    Some(cut.term),
-                )),
+                fatal_tail: Some(fatal_tail_frame_bytes(source.bytes(), start, cut)),
             })
         }
         None => Ok(ScriptCommandPlan {
@@ -1229,6 +1218,8 @@ mod tests {
 
     #[test]
     fn fatal_tail_preserves_distinct_native_runtime_and_compilation_extents() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let service = BytecodeCompileService::for_profile(profile);
         let decode = |input: &str| {
             input
                 .as_bytes()
@@ -1250,8 +1241,15 @@ mod tests {
             let start = fields[2].parse::<usize>().unwrap();
             let term = fields[4].parse::<usize>().unwrap();
             let message = String::from_utf8(decode(fields[7])).unwrap();
-            let tail =
-                fatal_tail_frame_bytes(&source, start, message, Some(u32::try_from(term).unwrap()));
+            let tail = service
+                .script_command_plan_bytes_for_profile(
+                    &tcl_runtime_api::SourceImage::native(&source),
+                    profile,
+                )
+                .unwrap()
+                .fatal_tail
+                .unwrap();
+            assert_eq!(tail.message, message, "{row}");
             assert_eq!(tail.command_text, source[start..=term], "{row}");
             let end = if term + 1 == source.len() {
                 term
@@ -1273,9 +1271,56 @@ mod tests {
             compared += 1;
         }
         assert_eq!(compared, 26);
-        let unavailable = fatal_tail_frame_bytes(b"set x [bad", 0, "missing \"".into(), Some(6));
-        assert!(unavailable.compilation_command_text.is_none());
-        assert_eq!(unavailable.command_text, [] as [u8; 0]);
+    }
+
+    #[test]
+    fn fatal_tail_geometry_uses_kind_independently_of_message() {
+        let config =
+            LexerConfig::from_grammar(tcl_dialect::DialectProfile::find("tcl8.4").unwrap().grammar);
+        for source in [
+            b"set before OK\nset x \"abc".as_slice(),
+            b"set before OK\nset x {abc",
+            b"set before OK\nset x [bad",
+            b"set before OK\nset x \"\xffabc",
+        ] {
+            let image = tcl_lexer::SourceImage::native(source);
+            let script = crate::lowering::command_at_time_script_image(&image, config).unwrap();
+            let fatal = script.fatal_tail.unwrap();
+            let start = fatal.command.span.start() as usize;
+            let expected = fatal_tail_frame_bytes(source, start, fatal.cut);
+            assert_ne!(expected.command_text.len(), 0, "{source:?}");
+            for message in [
+                "",
+                "different wording with 'quotes'",
+                tcl_lexer::MISSING_PAREN,
+            ] {
+                let mut changed = fatal.cut;
+                changed.message = message;
+                let observed = fatal_tail_frame_bytes(source, start, changed);
+                assert_eq!(observed.message, message);
+                assert_eq!(observed.command_text, expected.command_text);
+                assert_eq!(
+                    observed.compilation_command_text,
+                    expected.compilation_command_text
+                );
+                assert_eq!(observed.line, expected.line);
+            }
+            for kind in [
+                tcl_lexer::ParseIssueKind::MissingQuote,
+                tcl_lexer::ParseIssueKind::MissingBrace,
+                tcl_lexer::ParseIssueKind::MissingBracket,
+            ] {
+                if kind == fatal.cut.kind {
+                    continue;
+                }
+                let mut changed = fatal.cut;
+                changed.kind = kind;
+                let unavailable = fatal_tail_frame_bytes(source, start, changed);
+                assert_eq!(unavailable.message, expected.message);
+                assert!(unavailable.compilation_command_text.is_none());
+                assert_eq!(unavailable.command_text, [] as [u8; 0]);
+            }
+        }
     }
 
     type ParseTailCase<'a> = (&'a [u8], &'a [u8], &'a [u8], u32);
@@ -1333,6 +1378,14 @@ mod tests {
                 "{source:?}"
             );
             assert_eq!(tail.line, line, "{source:?}");
+            if let Ok(text) = std::str::from_utf8(source.bytes()) {
+                let text_tail = service
+                    .script_command_plan_for_profile(text, profile)
+                    .unwrap()
+                    .fatal_tail
+                    .unwrap();
+                assert_eq!(tail, text_tail, "{source:?}");
+            }
         }
     }
 
