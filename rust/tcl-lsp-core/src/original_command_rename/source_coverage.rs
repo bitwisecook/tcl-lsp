@@ -1436,9 +1436,9 @@ mod tests {
             tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
         );
         assert!(input.has_logical_source_name_context());
-        for (source, has_point) in [
-            (namespace_source, false),
-            ("source child.tcl; proc run {} {return VALUE}", true),
+        for source in [
+            namespace_source,
+            "source child.tcl; proc run {} {return VALUE}",
         ] {
             let parent = Analyser::new()
                 .with_resolved_input(input.clone())
@@ -1449,15 +1449,9 @@ mod tests {
                 source, &parent, offset,
             ).expect("actual Logical project-source load card");
             assert!(load.matches_source(&SourceImage::document(source), &input));
-            let point = load.source_point_entry(&parent);
-            if !has_point {
-                assert!(
-                    point.is_none(),
-                    "Logical namespace ingress has no original point"
-                );
-                continue;
-            }
-            let point = point.expect("actual whole-root Logical point");
+            let point = load
+                .source_point_entry(&parent)
+                .expect("actual Logical source point");
             let child = Analyser::new()
                 .with_resolved_input(input.clone())
                 .analyse_with_source_point_entry(child_source, profile.name, &point)
