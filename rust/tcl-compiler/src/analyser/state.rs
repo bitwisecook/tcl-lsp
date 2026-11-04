@@ -2105,7 +2105,9 @@ impl Analyser {
         crate::realm::CommandBindingRealm,
         super::input::ResolvedAnalysisInput,
     ) {
-        Self::readonly_realm(input, |analyser| analyser.document_command_realm(source))
+        Self::readonly_realm(input, false, |analyser| {
+            analyser.document_command_realm(source)
+        })
     }
 
     /// The fixed package-index survey's readonly realm, with its scoped
@@ -2118,15 +2120,30 @@ impl Analyser {
         crate::realm::CommandBindingRealm,
         super::input::ResolvedAnalysisInput,
     ) {
-        Self::readonly_realm(input, |analyser| {
+        Self::readonly_realm(input, false, |analyser| {
             analyser
                 .package_index_survey_realm(source)
                 .unwrap_or_else(|| analyser.document_command_realm(source))
         })
     }
 
+    /// Select exactly the standalone structural consumer's pre-walk realm and
+    /// settings. No source walk, diagnostics or analysis projection is made.
+    pub(crate) fn readonly_standalone_structure_realm(
+        source: &str,
+        input: super::input::ResolvedAnalysisInput,
+    ) -> (
+        crate::realm::CommandBindingRealm,
+        super::input::ResolvedAnalysisInput,
+    ) {
+        Self::readonly_realm(input, true, |analyser| {
+            analyser.document_command_realm(source)
+        })
+    }
+
     fn readonly_realm(
         input: super::input::ResolvedAnalysisInput,
+        structure_only: bool,
         realm: impl FnOnce(&Self) -> crate::realm::CommandBindingRealm,
     ) -> (
         crate::realm::CommandBindingRealm,
@@ -2134,6 +2151,7 @@ impl Analyser {
     ) {
         let profile = input.analyser_profile();
         let mut analyser = Self::new().with_resolved_input(input);
+        analyser.structure_only = structure_only;
         analyser.resolve_walk_environment(profile.name);
         analyser.registry = Some(analyser.profile_registry());
         let realm = realm(&analyser);

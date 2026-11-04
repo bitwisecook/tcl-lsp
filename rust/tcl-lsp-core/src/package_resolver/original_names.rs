@@ -1019,7 +1019,7 @@ fn survey_index_entries_from_source(
                 loader_context,
                 config,
             );
-            let source = tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(content, input);
+            let source = tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture_standalone_structure(content, input);
             Some(IndexSurveyContext::Source(Box::new(source)))
         },
     )
@@ -1121,7 +1121,7 @@ fn survey_index_entries_using(
             continue;
         };
         let Some(schema) = captured.words(content, command) else {
-            if fresh {
+            if fresh && filenames.registration_abstention(words).is_none() {
                 return None;
             }
             continue;
@@ -1145,11 +1145,22 @@ fn survey_index_entries_using(
         if input.variable_root() != Some(b"auto_index".as_slice()) {
             continue;
         }
-        let Some(file) = filenames.filename(&words[2], index_dir) else {
-            if fresh {
-                return None;
+        let file = if fresh {
+            match filenames.survey_filename(&words[2], index_dir) {
+                index_loader::IndexFilenameSurvey::Filename(file) => file,
+                index_loader::IndexFilenameSurvey::NoContribution(certificate)
+                    if certificate.matches_current_query(&words[2], index_dir) =>
+                {
+                    continue;
+                }
+                index_loader::IndexFilenameSurvey::NoContribution(_)
+                | index_loader::IndexFilenameSurvey::Unavailable => return None,
             }
-            continue;
+        } else {
+            let Some(file) = filenames.filename(&words[2], index_dir) else {
+                continue;
+            };
+            file
         };
         entries.push(OriginalAutoIndexRegistration { input, file });
     }
@@ -1182,6 +1193,73 @@ fn append_legacy_index_registrations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn autoload_multirow_source_abstention_matches_full_registration_consumer() {
+        let two_rows = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\n";
+        let with_tail = format!(
+            "{two_rows}set auto_index(c) [list source [file join $dir c.tcl]]\nif {{[namespace exists ::tcl::unsupported]}} {{\n    set auto_index(timerate) {{namespace import ::tcl::unsupported::timerate}}\n}}\n"
+        );
+        let encoded = with_tail.replace("list source [", "list source -encoding utf-8 [");
+        let blt = "set auto_index(a) [list source $dir/graph.tcl]\nset auto_index(b) [list source $dir/graph.tcl]\nset auto_index(c) [list source $dir/graph.tcl]\n";
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
+            let policy = NamePolicyProtocol::authored_tcl(version);
+            let directory = Path::new("/library");
+            let records = |entries: &[OriginalAutoIndexRegistration]| {
+                entries
+                    .iter()
+                    .map(|entry| (entry.input.clone(), entry.file.clone()))
+                    .collect::<Vec<_>>()
+            };
+            for source in [
+                two_rows,
+                with_tail.as_str(),
+                blt,
+                "set auto_index(a) [list source a.tcl]\nset auto_index(b) [list source b.tcl]\n",
+            ] {
+                let fresh = survey_index_entries_from_source(source, directory, config, policy)
+                    .expect("multirow source prerequisite must not enter the full analyser");
+                let full = survey_index_entries_with(
+                    source,
+                    directory,
+                    config,
+                    policy,
+                    crate::source_structure::analyse_autoload_registration_structure,
+                );
+                assert_eq!(records(&fresh), records(&full), "{version:?}: {source}");
+            }
+            let fresh =
+                survey_index_entries_from_source(two_rows, directory, config, policy).unwrap();
+            assert_eq!(
+                fresh.len(),
+                1,
+                "the old consumer retains its absent later source schema: {version:?}"
+            );
+            let full = survey_index_entries_with(
+                &encoded,
+                directory,
+                config,
+                policy,
+                crate::source_structure::analyse_autoload_registration_structure,
+            );
+            if version == tcl_dialect::TclVersion::V8_4 {
+                assert!(
+                    survey_index_entries_from_source(&encoded, directory, config, policy).is_none(),
+                    "unsupported source encoding keeps the full fallback"
+                );
+            } else {
+                let fresh = survey_index_entries_from_source(&encoded, directory, config, policy)
+                    .expect("encoded multirow source prerequisite");
+                assert_eq!(records(&fresh), records(&full), "{version:?}");
+            }
+            assert_eq!(
+                records(&survey_index_entries(&encoded, directory, config, policy)),
+                records(&full)
+            );
+        }
+    }
+
     #[test]
     fn autoload_source_context_matches_full_registration_consumer() {
         for version in tcl_dialect::TclVersion::ALL {

@@ -422,6 +422,7 @@ impl OriginalPackageIndexSourceSurvey {
             image: image.clone(),
             input: self.source.input.clone(),
             realm,
+            purpose: super::OriginalRegistryCapturePurpose::PackageSurvey,
         }))
     }
 

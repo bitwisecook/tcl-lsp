@@ -7,6 +7,10 @@
 use std::path::{Path, PathBuf};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::registry_invocation::source_structure::{
+    OriginalSourceRegistryContext, OriginalStandaloneSchemaAbstention,
+    OriginalStandaloneSchemaAbstentions,
+};
+use tcl_compiler::registry_invocation::source_structure::{
     original_single_source_command_substitution,
     original_single_source_command_substitution_in_plan, source_registry_words_at,
 };
@@ -17,6 +21,32 @@ pub(in crate::package_resolver) struct IndexLoader<'a> {
     source: &'a str,
     config: tcl_lexer::LexerConfig,
     input: LoaderInput<'a>,
+    abstentions: std::cell::OnceCell<Option<OriginalStandaloneSchemaAbstentions<'a>>>,
+    missing_schema: std::cell::RefCell<Option<OriginalStandaloneSchemaAbstention<'a>>>,
+}
+
+pub(super) enum IndexFilenameSurvey<'a> {
+    Filename(PathBuf),
+    NoContribution(IndexFilenameNoContribution<'a>),
+    Unavailable,
+}
+
+pub(super) struct IndexFilenameNoContribution<'a> {
+    schema: OriginalStandaloneSchemaAbstention<'a>,
+    source: &'a str,
+    context: &'a OriginalSourceRegistryContext,
+    loader: NativeWord,
+    directory: PathBuf,
+}
+
+impl IndexFilenameNoContribution<'_> {
+    pub(super) fn matches_current_query(&self, loader: &NativeWord, directory: &Path) -> bool {
+        self.loader == *loader
+            && self.directory == directory
+            && self
+                .schema
+                .matches_source_context(self.source, self.context)
+    }
 }
 
 enum LoaderInput<'a> {
@@ -43,6 +73,8 @@ impl<'a> IndexLoader<'a> {
                 source,
                 config: input.lexer_config(),
                 input: LoaderInput::Original(analysis),
+                abstentions: std::cell::OnceCell::new(),
+                missing_schema: std::cell::RefCell::new(None),
             })
     }
 
@@ -54,6 +86,8 @@ impl<'a> IndexLoader<'a> {
             source,
             config: context.editing_input().lexer_config(),
             input: LoaderInput::OriginalSource(context),
+            abstentions: std::cell::OnceCell::new(),
+            missing_schema: std::cell::RefCell::new(None),
         })
     }
 
@@ -73,7 +107,17 @@ impl<'a> IndexLoader<'a> {
             LoaderInput::Original(analysis) => {
                 source_registry_words_at(self.source, analysis, offset)
             }
-            LoaderInput::OriginalSource(source) => source.registration_words_at(offset),
+            LoaderInput::OriginalSource(source) => {
+                let words = source.registration_words_at(offset);
+                if words.is_none()
+                    && let Some(survey) = self
+                        .abstentions
+                        .get_or_init(|| source.standalone_schema_abstentions())
+                {
+                    self.missing_schema.replace(survey.at(offset));
+                }
+                words
+            }
             LoaderInput::Standalone => None,
         }
     }
@@ -87,7 +131,64 @@ impl<'a> IndexLoader<'a> {
             source,
             config,
             input: LoaderInput::Standalone,
+            abstentions: std::cell::OnceCell::new(),
+            missing_schema: std::cell::RefCell::new(None),
         }
+    }
+
+    pub(super) fn registration_abstention(
+        &self,
+        words: &[NativeWord],
+    ) -> Option<OriginalStandaloneSchemaAbstention<'a>> {
+        let LoaderInput::OriginalSource(source) = self.input else {
+            return None;
+        };
+        let survey = self
+            .abstentions
+            .get_or_init(|| source.standalone_schema_abstentions())
+            .as_ref()?;
+        let certificate = survey.at(words.first()?.span().start())?;
+        (certificate.matches_source_context(self.source, source)
+            && certificate.original_words() == words)
+            .then_some(certificate)
+    }
+
+    /// The source schema certificate is bound to this exact loader/directory
+    /// query. Other missing path/layout/grammar proofs retain the general path.
+    pub(super) fn survey_filename(
+        &self,
+        loader: &NativeWord,
+        directory: &Path,
+    ) -> IndexFilenameSurvey<'a> {
+        self.missing_schema.borrow_mut().take();
+        if let Some(file) = self.filename(loader, directory) {
+            return IndexFilenameSurvey::Filename(file);
+        }
+        let Some(schema) = self.missing_schema.borrow_mut().take() else {
+            return IndexFilenameSurvey::Unavailable;
+        };
+        let LoaderInput::OriginalSource(context) = self.input else {
+            return IndexFilenameSurvey::Unavailable;
+        };
+        let Some(first) = schema.original_words().first() else {
+            return IndexFilenameSurvey::Unavailable;
+        };
+        let Some(last) = schema.original_words().last() else {
+            return IndexFilenameSurvey::Unavailable;
+        };
+        if !schema.matches_source_context(self.source, context)
+            || first.span().start() <= loader.span().start()
+            || last.span().end() > loader.span().end()
+        {
+            return IndexFilenameSurvey::Unavailable;
+        }
+        IndexFilenameSurvey::NoContribution(IndexFilenameNoContribution {
+            schema,
+            source: self.source,
+            context,
+            loader: loader.clone(),
+            directory: directory.to_path_buf(),
+        })
     }
 
     pub(in crate::package_resolver) fn filename(
@@ -755,6 +856,84 @@ mod selected_source_form_tests {
                     .source_filename(&plan.commands[0].words, WordOrigin::LoaderValue, directory)
                     .is_none(),
                 "{source}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod abstention_tests {
+    use super::*;
+
+    #[test]
+    fn source_filename_abstention_keeps_exact_query_and_directory() {
+        let source = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\n";
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+            let generation = crate::context_for_dialect_profile(profile);
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(
+                    generation
+                        .with_command_store(generation.commands().snapshot().shared_registry()),
+                ),
+                config,
+            );
+            let context =
+                OriginalSourceRegistryContext::capture_standalone_structure(source, input);
+            let loader = IndexLoader::from_source_context(source, &context).unwrap();
+            let plan = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let directory = Path::new("/library");
+            let first = &plan.commands[0].words[2];
+            let second = &plan.commands[1].words[2];
+            assert!(
+                matches!(
+                    loader.survey_filename(first, directory),
+                    IndexFilenameSurvey::Filename(_)
+                ),
+                "{version:?}"
+            );
+            let IndexFilenameSurvey::NoContribution(certificate) =
+                loader.survey_filename(second, directory)
+            else {
+                panic!("exact source abstention prerequisite: {version:?}")
+            };
+            assert!(certificate.matches_current_query(second, directory));
+            assert!(!certificate.matches_current_query(first, directory));
+            assert!(!certificate.matches_current_query(second, Path::new("/other")));
+            assert!(
+                matches!(
+                    loader.survey_filename(&plan.commands[1].words[1], directory),
+                    IndexFilenameSurvey::Unavailable
+                ),
+                "a failed literal loader query cannot inherit a prior certificate"
+            );
+            assert!(
+                matches!(
+                    loader.survey_filename(first, directory),
+                    IndexFilenameSurvey::Filename(_)
+                ),
+                "an earlier abstention cannot suppress a valid loader"
+            );
+            let native = tcl_lexer::native_script_words_in(
+                SourceImage::from_bytes(source.as_bytes(), tcl_lexer::SourceChannel::NativeValue),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(
+                matches!(
+                    loader.survey_filename(&native.commands[1].words[2], directory),
+                    IndexFilenameSurvey::Unavailable
+                ),
+                "a previous query cannot donate its certificate to another channel"
             );
         }
     }

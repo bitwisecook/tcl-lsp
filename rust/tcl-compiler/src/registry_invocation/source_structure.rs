@@ -7,6 +7,11 @@
 mod original_body_syntax;
 pub use original_body_syntax::OriginalBodySyntaxInventory;
 
+mod registration_abstention;
+pub use registration_abstention::{
+    OriginalStandaloneSchemaAbstention, OriginalStandaloneSchemaAbstentions,
+};
+
 mod package_target_survey;
 pub use package_target_survey::{
     OriginalPackageIndexAdvertisement, OriginalPackageIndexControl,
@@ -362,6 +367,13 @@ pub fn source_declared_command_words(
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OriginalRegistryCapturePurpose {
+    General,
+    PackageSurvey,
+    StandaloneStructure,
+}
+
 /// Fresh readonly source grammar with its own complete editing input and
 /// original source interpretation. Conditional applicability cannot supply
 /// execution, complete reference coverage, native entry or rename permission.
@@ -372,6 +384,7 @@ pub struct OriginalSourceRegistryContext {
     image: tcl_lexer::SourceImage,
     input: crate::analyser::ResolvedAnalysisInput,
     realm: crate::realm::CommandBindingRealm,
+    purpose: OriginalRegistryCapturePurpose,
 }
 impl OriginalSourceRegistryContext {
     /// Capture an independently selected fresh source context. This never
@@ -384,6 +397,24 @@ impl OriginalSourceRegistryContext {
             image: tcl_lexer::SourceImage::document(source),
             input,
             realm,
+            purpose: OriginalRegistryCapturePurpose::General,
+        }
+    }
+
+    /// Capture the ordinary standalone structural consumer's exact pre-walk
+    /// input, settings and immutable realm, without producing an AnalysisResult.
+    #[must_use]
+    pub fn capture_standalone_structure(
+        source: &str,
+        input: crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        let (realm, input) =
+            crate::analyser::Analyser::readonly_standalone_structure_realm(source, input);
+        Self {
+            image: tcl_lexer::SourceImage::document(source),
+            input,
+            realm,
+            purpose: OriginalRegistryCapturePurpose::StandaloneStructure,
         }
     }
 
@@ -399,6 +430,7 @@ impl OriginalSourceRegistryContext {
             image: tcl_lexer::SourceImage::document(source),
             input,
             realm,
+            purpose: OriginalRegistryCapturePurpose::PackageSurvey,
         }
     }
 

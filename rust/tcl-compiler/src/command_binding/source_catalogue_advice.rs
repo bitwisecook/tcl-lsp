@@ -157,6 +157,12 @@ fn trace_receiver_catalogue(binding: &SourceInvocationBinding, stage: &str, avai
 }
 
 impl SourceInvocationBinding {
+    /// The standalone structural walk cannot retain conditional catalogue
+    /// metadata without an original layout observation at this same site.
+    pub(crate) fn original_catalogue_source_layout_is_absent(&self) -> bool {
+        self.declaration_layout_observations.is_none()
+    }
+
     /// Original declaration observations supply their own policy and namespace.
     /// A missing reached lookup cannot be repaired from a reporting label.
     pub(crate) fn original_catalogue_source_candidate_from_tokens(
