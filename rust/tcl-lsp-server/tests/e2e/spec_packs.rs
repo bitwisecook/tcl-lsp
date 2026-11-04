@@ -303,6 +303,27 @@ fn pack_environment_roles_survive_document_edits() {
             );
         }
         lsp.close_document(&uri);
+        lsp.open_document_lang(&uri, &source, "tcl", 3);
+        let reopened =
+            lsp.await_diagnostics_version(&uri, Some(3), std::time::Duration::from_secs(30));
+        assert!(
+            !reopened.iter().any(|diagnostic| {
+                diagnostic["code"] == "W123"
+                    && diagnostic["message"].as_str().is_some_and(|message| {
+                        message.contains("myblock") || message.contains("other")
+                    })
+            }),
+            "pack commands became unknown when {name} reopened: {reopened:#?}"
+        );
+        let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
+        assert!(
+            tokens.iter().any(|token| token.line == line
+                && token.char == 8
+                && token.length == 3
+                && legend[usize::try_from(token.ttype).unwrap()] == "function"),
+            "nested set lost its function token when {name} reopened: {tokens:?}"
+        );
+        lsp.close_document(&uri);
     }
     let _ = std::fs::remove_dir_all(&root);
 }
