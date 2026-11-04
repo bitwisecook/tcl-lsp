@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 11:10 UTC. Not release-ready.** The LSP and its transitive libraries remain the priority. Core's fresh parent build0 is source-custody-rejected after remote spec_packs.rs drift; its separate diagnostic13/14 semantic passes include genuine two-file/result/formal positives, with a divergence fixture prerequisite still failing. Reviewed test correction bfcea1534 is adopted; Corev3 is prepared, not accepted. KernelV8 sealed11/11 passes. RMWv7 Engine4/6 fails despite containment14/14/Jim1/1; adopted3588c3393 is under RMWv8 execution. Local execution is restored after the preserved10:52 gateway failure; CI Native remains active at11:08 without terminal counts. Publication has genuine interruptions. Final host, lint/proof/drift, performance and packaging gates remain incomplete. [Current state](current-state.md) binds exact evidence; no PR/release exists. Older dated material below is historical, not current acceptance.
+**ACTIVE — 04 November 2026, 11:34 UTC. Not release-ready.** CoreV3 fresh0/all15semantic+1observation pass captured source, but overall exit1 final Main spec_packs drift rejects custody; Corev4 dependency-closure harness is pending review. RMWv8 freshEngine0 is similarly rejected, with separate4/6 diagnostic exposing error-global/dict cleanup failures; adopted38abcef90+4VM controls await reviewed RMWv10. New trace/lease/host-isolation changes and ServerV7 remain unvalidated beyond stated syntax checks. ClippyV20 failed2diagnostics;09cada7e8 repairs them and V21 is running, not passed; fmt11:17 predates later edits. CI traces/active Native do not establish final acceptance. Global2171 pre-correction errors remain unrecounted;20 Python-binding work is private. [Current state](current-state.md) owns exact limits and interrupted publisher receipts. No PR/release exists; older dated material below is historical.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,18 +61,16 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Preserve recorded Compiler6/6, KernelV8 11/11 and CoreV3 autoload11/11 plus
-   installed15/15. Correct the divergence fixture's genuine namespace-positive
-   prerequisite and run prepared Corev3 on sealed current merged inputs.
-   Diagnostic13/14 from the custody-rejected parent is not acceptance. Then
-   validate current Server13, names-only formal UI/providers and actual native
-   two-file edits with complete positive/refusal guards; no lookup/frame or
-   physical authority may be inferred from source association alone.
-2. Run prepared RMWv8 against adopted3588c3393 when resources permit. Preserve
-   RMWv7's real global array-set/unset failures and repeat Engine6,
-   containment14 and Jim1 without weakening cell/budget guards. Earlier
-   passing hooks or software diagnostics do not establish a sandbox/host pass.
-   Separate VM/BIG-IP features stay deferred; linked regressions remain critical.
+1. Review Corev4 dependency-closure rules: tested inputs are fatal on change,
+   scratch remains immutable, unrelated Main drift is recorded. Repeat all15
+   semantic controls on fresh sealed inputs; captured-source CoreV3 passes do
+   not waive its custody rejection. Complete ServerV7's17+observation, byte
+   lease/decoder, formal UI/provider and actual native two-file controls.
+2. Review and execute prepared RMWv11's28tests/15jobs against adopted38abcef90, including
+   four new VM controls. Preserve RMWv8's error-global/dict-cleanup failures
+   and all confinement/budget guards. Run actual hosts with original mixed
+   negative preserved and isolated positive last; syntax is not host acceptance.
+   Separate VM/BIGIP features stay deferred; linked regressions remain critical.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected
    baseline/candidate inventories; unknown, skipped, cancelled and unreached
