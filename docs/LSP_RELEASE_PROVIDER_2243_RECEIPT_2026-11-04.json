@@ -1,0 +1,192 @@
+{
+  "issue": 2243,
+  "issue_state": "open; exact-fixture analysis coverage blocker; no product repair",
+  "tested_source_base": "448eda47ebd3541f9691f69c5b68edff066bb5f8",
+  "tested_source_sha256": {
+    "Cargo.lock": "63cec0b406d8e4afd6d70033b279ff15b7e9b819a61f02cd14ebe3d7ac2424d4",
+    "rust/tcl-lsp-db/Cargo.toml": "e30b1f15296cccabc37762dabb4aadc1bf92d3f29ff3cc3be9d7af19136173dc",
+    "rust/tcl-lsp-db/tests/compiler_check_corpus.rs": "f56cc10b789389de67fb8755886b1b9360fae3c3088afd565f10312c5be43f43",
+    "rust/tcl-test-support/src/fixed_corpus.rs": "2ede9af46c33f8c3fff4370269758d9dcaee7d66e0382d1f7aa726fc254640fa",
+    "rust/tcl-test-support/data/tcllib-2.0-imap4.sha256": "7a384dcf6b914e1b39a7c5ed37521d82e0644dc91e34476c69263915ea281597",
+    "scripts/dev/rust-test-binary-shard.sh": "04e87908e0d1ea5eb2fc173388a8d5e58690c7ec410f775043ed1cb1f0f6d238",
+    "rust/tcl-lsp-db/src/lib.rs": "a6e72d0379f0f00ee638a9bd28369692a33a67598ff0c2957f40a8ed9871d169",
+    "rust/tcl-compiler/src/taint.rs": "dacc3225307ed50223da929bf152ff4a1d77db730438835f2f80eba660911530",
+    "rust/tcl-compiler/src/ssa.rs": "62de08d1b3f099cbcaf29069db67b947be06c4a842065e4b96a4d90d9553e9e8"
+  },
+  "fixture": {
+    "upstream": "tcltk/tcllib tag tcllib-2-0, modules/imap4/imap4.tcl",
+    "sha256": "5837f0296ab3a8efe67d4a385ea7da722099abcc406937141589d75628154b66",
+    "byte_offsets_for_reported_argc_reads": [
+      [
+        43921,
+        43926
+      ],
+      [
+        43960,
+        43965
+      ]
+    ],
+    "admission": "FixedCorpusSource::read fails on missing or mismatched bytes; CI shard 2 runs the existing pinned Tcllib bootstrap",
+    "refusal_controls": [
+      {
+        "case": "missing TCLLIB_2_0_DIR fixture",
+        "result": "expected test failure, exit 101",
+        "log": "/tmp/lsp-2243-admission-missing.log"
+      },
+      {
+        "case": "altered IMAP4 source bytes",
+        "result": "expected test failure, exit 101",
+        "log": "/tmp/lsp-2243-admission-different.log"
+      }
+    ]
+  },
+  "build": {
+    "command": "python3 /tmp/lsp-heavy-build.py cargo test --locked -j 1 -p tcl-lsp-db --test compiler_check_corpus --no-run",
+    "result": "passed",
+    "log": "/tmp/lsp-2243-db-build.log"
+  },
+  "binary": {
+    "sha256": "dd469583026f7d83ad28c94dc07d8d6eaea8e00611a7210473e60a9b2c59952b",
+    "preserved_path": "/tmp/lsp-2243-compiler-check-corpus-bin"
+  },
+  "controls": {
+    "command": "/tmp/lsp-2243-compiler-check-corpus-bin --exact compiler_check_memo_matches_uncached_argc_t100_controls --nocapture",
+    "result": "1 passed; 0 failed",
+    "assertions": [
+      "shared registry: argc initially bound in Tcl 8.6 with no startup read taint",
+      "startup argc numeric comparison emits no T100",
+      "gets stdin into x emits x T100",
+      "gets stdin into argc emits argc T100",
+      "unset argc then gets stdin into argc emits argc T100",
+      "memo and uncached checks and optimisations agree for every fixed control"
+    ],
+    "log": "/tmp/lsp-2243-argc-controls.log"
+  },
+  "imap4": {
+    "command": "/tmp/lsp-2243-compiler-check-corpus-bin --exact compiler_check_memo_matches_uncached_imap4_argc --nocapture",
+    "result": "24/24 fresh quiet-parity processes passed on the earlier binary; later nonvacuity audit failed, so these runs do not establish coverage of the reported reads",
+    "assertions": [
+      "fixed source digest and both reported argc byte extents match",
+      "memo and uncached T100 diagnostics agree on the completed report",
+      "no reported T100 has argc as its structured subject",
+      "all returned checks, optimisations and taint replay reports agree",
+      "these earlier assertions did not establish actual source/SSA coverage at either reported argc read"
+    ],
+    "repeat_manifest": "/tmp/lsp-2243-imap4-repeats.json",
+    "first_log": "/tmp/lsp-2243-imap4-parity-first.log"
+  },
+  "native_reference": [
+    "../evidence/tcl/lsp-2243-argc-stdin-startup.md",
+    "../evidence/tcl/lsp-2243-argc-unset-rebind-stdin.md"
+  ],
+  "scope": "The historical intermittent mismatch did not recur in the bounded quiet-parity sample. The later exact-source nonvacuity audit shows that the checked provider returns zero checks with no procedure-lattice execution and cannot retain the first reported argc read. Quiet parity therefore does not establish a fix or source coverage. No compiler behaviour was changed.",
+  "full_rust_check": "not run; central release gate pending",
+  "full_prep_pr": "not run; central release gate pending",
+  "static_checks": {
+    "rustfmt_two_changed_rust_files": "passed",
+    "cargo_metadata_locked_no_deps": "passed",
+    "shell_syntax": "passed",
+    "ci_shard_2_bootstrap_stub": "passed; pinned Tcllib bootstrap invoked before mock Cargo nextest; /tmp/lsp-2243-nonvacuity-shard2.log",
+    "check_tcl_evidence": "passed; 1391 evidence files, 17 tests, OK; /tmp/lsp-2243-nonvacuity-evidence-gate.log",
+    "git_diff_check": "passed"
+  },
+  "nonvacuity_audit": {
+    "tested_source_base": "ad4335a83992de1b674fc74baf243e3cd100a46c",
+    "source_seal": "/tmp/lsp-2243-nonvacuity-build-seal.txt",
+    "tested_source_sha256": {
+      "/tmp/lsp-2243-nonvacuity-build-source.patch": "9965b8120340e7566bc2c709b4ddc78982bd1008ecac7c04bae5daa5381a7723",
+      "Cargo.lock": "63cec0b406d8e4afd6d70033b279ff15b7e9b819a61f02cd14ebe3d7ac2424d4",
+      "rust/tcl-lsp-db/Cargo.toml": "e30b1f15296cccabc37762dabb4aadc1bf92d3f29ff3cc3be9d7af19136173dc",
+      "rust/tcl-lsp-db/src/lib.rs": "a1f93014ad336a53549e770bd14d25208600eac57259c2373b356b2bd84276b9",
+      "rust/tcl-lsp-db/tests/compiler_check_corpus.rs": "eb75943d357877f9f5c774e0b12ac96380d140839c6bd95ca1cbfb806bf2ab6a",
+      "rust/tcl-test-support/src/fixed_corpus.rs": "2ede9af46c33f8c3fff4370269758d9dcaee7d66e0382d1f7aa726fc254640fa",
+      "rust/tcl-test-support/data/tcllib-2.0-imap4.sha256": "7a384dcf6b914e1b39a7c5ed37521d82e0644dc91e34476c69263915ea281597",
+      "scripts/dev/rust-test-binary-shard.sh": "0f37491a75fba6a70cd4fa5bd8e38be56d22f5865bbd7b6dc13b98492d53f2b9",
+      "rust/tcl-compiler/src/ssa.rs": "62de08d1b3f099cbcaf29069db67b947be06c4a842065e4b96a4d90d9553e9e8",
+      "rust/tcl-compiler/src/taint.rs": "dacc3225307ed50223da929bf152ff4a1d77db730438835f2f80eba660911530",
+      "tmp/tcllib-2.0/modules/imap4/imap4.tcl": "5837f0296ab3a8efe67d4a385ea7da722099abcc406937141589d75628154b66"
+    },
+    "build": {
+      "command": "python3 /tmp/lsp-heavy-build.py cargo test --locked -j 1 -p tcl-lsp-db --lib --test compiler_check_corpus --no-run",
+      "exit_status": 0,
+      "log": "/tmp/lsp-2243-nonvacuity-build.log"
+    },
+    "binaries": [
+      {
+        "path": "/tmp/lsp-2243-nonvacuity-db-bin",
+        "sha256": "d8a4c30a48486b233d64224ec1f53aa2575a833233090b2dba545aa0317bd624"
+      },
+      {
+        "path": "/tmp/lsp-2243-nonvacuity-corpus-bin",
+        "sha256": "da156c1cc8851f0ae7d5d0060de36e4bb47f2dbdac41896a20e55cfe2c3dd219"
+      }
+    ],
+    "source_owner_test": {
+      "command": "/tmp/lsp-2243-nonvacuity-db-bin --exact tests::imap4_argc_reads_have_the_diagnostic_solve_ssa_owner_2243 --nocapture",
+      "exit_status": 101,
+      "log": "/tmp/lsp-2243-nonvacuity-ssa.log",
+      "observed": {
+        "checked_provider_available": true,
+        "checks": 0,
+        "top_level_complexity_guarded": false,
+        "top_level_has_opaque_native_accesses": false,
+        "taint_replays_complete": true,
+        "original_source_read_at_43921_43926": "None; assertion fails",
+        "original_source_read_at_43960_43965": "not reached after the first assertion failure"
+      }
+    },
+    "memo_counter_test": {
+      "command": "/tmp/lsp-2243-nonvacuity-corpus-bin --exact compiler_check_memo_matches_uncached_imap4_argc --nocapture",
+      "exit_status": 101,
+      "log": "/tmp/lsp-2243-nonvacuity-imap4.log",
+      "document_taint_solve_executions": 1,
+      "function_lattice_executions": 0,
+      "warm_report_reuse": "not reached after the missing lattice activity assertion"
+    },
+    "active_controls": {
+      "command": "/tmp/lsp-2243-nonvacuity-corpus-bin --exact compiler_check_memo_matches_uncached_argc_t100_controls --nocapture",
+      "exit_status": 0,
+      "log": "/tmp/lsp-2243-nonvacuity-controls.log"
+    },
+    "existing_trace": {
+      "command": "TCL_LSP_TRACE_SOURCE_PHASES=1 TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE=1 /tmp/lsp-2243-nonvacuity-db-bin --exact tests::imap4_argc_reads_have_the_diagnostic_solve_ssa_owner_2243 --nocapture",
+      "exit_status": 101,
+      "log": "/tmp/lsp-2243-nonvacuity-phases.log",
+      "procedures": 0,
+      "functions": 1,
+      "blocks": 2,
+      "statements": 13,
+      "invocation_projection": [
+        {
+          "offset": 2661,
+          "source": "package require Tcl 8.5 9",
+          "targets": 1,
+          "unknown": false
+        },
+        {
+          "offset": 2687,
+          "source": "package provide imap4 0.5.5",
+          "targets": 0,
+          "unknown": true
+        },
+        {
+          "offset": 2716,
+          "source": "namespace eval imap4",
+          "targets": 0,
+          "unknown": true
+        },
+        {
+          "offset": 43652,
+          "source": "if {[info script] eq $argv0}",
+          "targets": 0,
+          "unknown": true
+        }
+      ]
+    },
+    "conclusion": "The current complete file loses command-table knowledge after the first package invocation. The reported argc reads are inside an outer if whose target is unknown. The first exact read is not retained by the actual diagnostic solve; the second remains untested in this audit. No cache-key or argc-taint repair is justified by quiet parity.",
+    "required_gates": "rust-check and prep-pr not run; the two diagnostic assertions failed and are archived outside active CI tests. The active-test cleanup has formatting and diff checks only; it has not been rebuilt.",
+    "archive": "../experiments/name-handling/lsp-2243-coverage/README.md",
+    "active_test_cleanup": "Removed the failing ownership/activity probes and the blanket clean-argc assertion from active CI. The remaining exact-source test compares checked memo/uncached report values only; active taint controls remain separate. No assertion treats missing source coverage as desired behaviour.",
+    "archived_ci_shard_4_bootstrap_stub": "passed for the archived DB-lib source-owner probe; final active bootstrap selection requires shard 2 only"
+  }
+}

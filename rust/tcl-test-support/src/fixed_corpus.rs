@@ -45,6 +45,14 @@ pub const TCLLIB_2_0_CHANNEL_CAT: FixedCorpusFixture = FixedCorpusFixture {
     sha256: fixed_sha256(include_str!("../data/tcllib-2.0-cat.sha256")),
 };
 
+/// The original IMAP4 source that exposed memoised compiler-check drift.
+pub const TCLLIB_2_0_IMAP4: FixedCorpusFixture = FixedCorpusFixture {
+    release: "Tcllib 2.0 (tcllib-2-0)",
+    origin: "https://github.com/tcltk/tcllib/blob/tcllib-2-0/modules/imap4/imap4.tcl",
+    relative_path: "modules/imap4/imap4.tcl",
+    sha256: fixed_sha256(include_str!("../data/tcllib-2.0-imap4.sha256")),
+};
+
 // The bootstrap verifier and this typed fixture share one expected byte digest.
 const fn fixed_sha256(text: &str) -> [u8; 32] {
     let bytes = text.as_bytes();

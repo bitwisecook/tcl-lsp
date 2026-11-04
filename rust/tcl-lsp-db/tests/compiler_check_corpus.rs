@@ -38,8 +38,9 @@ use std::path::{Path, PathBuf};
 use salsa::Setter as _;
 use tcl_lsp_db::{
     AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
-    compiler_check_diagnostics_uncached,
+    compiler_check_diagnostics_if_available, compiler_check_diagnostics_uncached,
 };
+use tcl_test_support::fixed_corpus::{FixedCorpusSource, TCLLIB_2_0_IMAP4};
 
 mod common;
 use common::Progress;
@@ -111,6 +112,96 @@ fn compiler_check_memo_matches_uncached_graphops() {
         got.optimisations, want.optimisations,
         "graphops optimisations diverge (memo vs uncached)"
     );
+}
+
+/// Compare returned reports for the exact #2243 input. Agreement alone does
+/// not establish source-read coverage; the separate audit records that limit.
+#[test]
+fn compiler_check_memo_matches_uncached_imap4_argc() {
+    use tcl_compiler::compiler_checks::DiagCode;
+
+    let dialect = "tcl8.6";
+    let corpus = std::env::var_os("TCLLIB_2_0_DIR")
+        .map_or_else(|| repo_root().join("tmp/tcllib-2.0"), PathBuf::from);
+    let held = FixedCorpusSource::read(&corpus, &TCLLIB_2_0_IMAP4)
+        .expect("#2243 requires the pinned Tcllib 2.0 IMAP4 input");
+    let src = String::from_utf8(held.bytes().to_vec()).expect("Tcllib IMAP4 source is UTF-8");
+    assert_eq!(src.as_bytes().get(43_921..43_926), Some(&b"$argc"[..]));
+    assert_eq!(src.as_bytes().get(43_960..43_965), Some(&b"$argc"[..]));
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
+    let got = compiler_check_diagnostics_if_available(&db, file, default_config(&db))
+        .expect("the pinned IMAP4 document must complete the checked provider");
+    let registry = db.registry(dialect);
+    let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
+    let got_t100: Vec<_> = got
+        .checks
+        .iter()
+        .filter(|check| check.code == DiagCode::T100)
+        .collect();
+    let want_t100: Vec<_> = want
+        .checks
+        .iter()
+        .filter(|check| check.code == DiagCode::T100)
+        .collect();
+    assert_eq!(got_t100, want_t100, "imap4 T100s diverge");
+    assert_eq!(got.checks, want.checks, "imap4 checks diverge");
+    assert_eq!(
+        got.optimisations, want.optimisations,
+        "imap4 optimisations diverge"
+    );
+    assert_eq!(
+        got.taint_replays, want.taint_replays,
+        "imap4 replays diverge"
+    );
+}
+
+#[test]
+fn compiler_check_memo_matches_uncached_argc_t100_controls() {
+    use tcl_compiler::compiler_checks::DiagCode;
+
+    let dialect = "tcl8.6";
+    let profile = tcl_lsp_core::stated_profile_for_dialect(dialect);
+    let surface = tcl_registry::special_vars::surface_query_for_profile(profile);
+    assert!(tcl_registry::special_vars::is_initially_bound(
+        "argc",
+        Some(surface)
+    ));
+    assert!(
+        tcl_registry::special_vars::special_var("argc")
+            .is_some_and(|spec| spec.read_taint.is_none())
+    );
+
+    let quiet = "if {$argc > 3} {\n for {set i 3} {$i<$argc} {incr i} { puts $i }\n}\n";
+    let positive = "proc p {} {\n set x [gets stdin]\n if {$x + 1 > 5} {puts big}\n}\n";
+    let rebound = "set argc [gets stdin]\nif {$argc > 3} {puts big}\n";
+    let unset_rebound = "unset argc\nset argc [gets stdin]\nif {$argc > 3} {puts big}\n";
+    for (src, expected_subject) in [
+        (quiet, None),
+        (positive, Some("x")),
+        (rebound, Some("argc")),
+        (unset_rebound, Some("argc")),
+    ] {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
+        let got = memo_checked(&db, file, dialect, src);
+        match expected_subject {
+            Some(name) => assert!(
+                got.checks.iter().any(|check| {
+                    check.code == DiagCode::T100
+                        && check
+                            .taint_subject
+                            .as_ref()
+                            .is_some_and(|subject| subject.variable() == name)
+                }),
+                "missing T100 for {name}: {src}"
+            ),
+            None => assert!(
+                got.checks.iter().all(|check| check.code != DiagCode::T100),
+                "unexpected T100: {src}"
+            ),
+        }
+    }
 }
 
 /// Focused regression for the per-function check memo:

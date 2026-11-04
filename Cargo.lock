@@ -4597,6 +4597,7 @@ dependencies = [
  "tcl-runtime-api",
  "tcl-spectcl",
  "tcl-syntax",
+ "tcl-test-support",
  "tcl-vm",
 ]
 
