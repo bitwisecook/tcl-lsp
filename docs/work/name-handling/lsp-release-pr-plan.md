@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 05:24 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP feature work is deferred. No PR or release exists. [Current state](current-state.md) records exact published checkpoints, execution and blockers. The dated observations below are historical, not a current validation recount.
+**ACTIVE — 04 November 2026, 05:50 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP feature work is deferred. No PR or release exists. [Current state](current-state.md) records exact published checkpoints, execution and blockers. The dated observations below are historical, not a current validation recount.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,9 +61,13 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Complete current Compiler/Core proof controls, the typed source-publication
-   producer repair and actual first-request navigation/hover. Preserve genuine
-   absence, stale input, unrelated-scope and full reference-inventory guards.
+1. Complete current Compiler/Core proof controls. Preserve the typed
+   source-publication repair's 7/7 Main/scratch-equal Server controls, including
+   actual first-request definition and partial hover, and verify them through
+   the current default-feature native binary `7287fc0deff6`. Its sealed build
+   and protocol15/15+mandatory20/20 are complete; startup/packaging acceptance is still pending. Preserve
+   genuine absence, stale input, unrelated-scope and full reference-inventory
+   guards.
 2. Complete linked hook confinement tests and supported SpecTcl execution,
    package/index vectors and cross-file lifecycle/configuration/retirement
    controls. Separate VM/BIG-IP feature development remains deferred; linked

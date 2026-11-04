@@ -23,8 +23,8 @@ A language server for Tcl with multi-editor support.
 </p>
 
 The server is a native Rust binary (`tcl-lsp-server`). It speaks LSP over
-stdio, so it works with any LSP client. (The VS Code extension always launches
-the bundled `tcl-lsp-server` binary.)
+stdio, so it works with any LSP client. The VS Code extension supports
+[native, WASI and browser hosts](#vs-code).
 
 ## Contents
 

@@ -1,22 +1,23 @@
 # Naming issue catalogue and acceptance
 
-The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. These remain to be implemented. Examined requirements and original/provider provenance questions remain separate.
+The retained source/role audit covered **110,709 tracked baseline paths**, with source-bound annexes and zero unexamined paths in that audit. Its reconciled catalogue recorded **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. It separately recorded **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes** in that historical inventory. These are not a current implementation backlog or completion count. [current-state.md](current-state.md) records current adoption, source-bound validation and remaining acceptance. Examined requirements and original/provider provenance questions remain separate.
 
 [#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286) stays OPEN. Its unchanged original selector ran first in M12 and passed in 71.841791191 seconds within the original 180-second budget. This does not close the complete issue acceptance, other naming consumers or required negative/import/shared-read/refusal obligations. Preserve both original `$absent` expectations and original init/Tcltest/support pairings.
 
 The read-only metadata snapshot is 449 exact issues as of 2026-10-15 11:06:53 UTC (97 OPEN / 352 CLOSED):346 prior catalogue IDs plus 103 search hits, not every repository issue. Scope classification of 103 hits is 53 direct naming, 27 semantic dependencies, 9 validation infrastructure, 5 presentation/documentation, 4 generated editor projection, 2 adjacent non-naming and 3 insufficient-detail. See [exact metadata](audit-next-issues.json). The final portable audit retains record-level classification SHA256 `dba7b4a179a25dd318bc034e380ee9c04c6e144931ad1be41c9b85a3e20a4444`. Three of 13 additional narrow mappings have source-verified selectors; 10 selector mappings and current issue execution acceptance remain unfinished. No GitHub state changed in this audit.
 
-Latest executed ordinary M12 is frozen to `c9e826a23972590699a87d248c43a957858831ee23`: **1,546 controls; 1,133 PASS, 410 FAIL, one TIMEOUT, two NOT_ACCEPTED_RUN_COUNT**. All 1,491 predecessors remain, with four gains, zero prior-PASS regressions and zero drops. The 55 additions are 53 PASS and two FAIL. Seven original EPERM aborts and their exact successful permission repairs remain separate. Two nested Host raw-exit-zero runs remain rejected by the unchanged single-run guard. Its fresh single-job build produced 23 test binaries with zero compiler errors in 678.804699595 seconds. No newer execution follows from this audit.
+The historical ordinary M12 cohort is frozen to `c9e826a23972590699a87d248c43a957858831ee23`: **1,546 controls; 1,133 PASS, 410 FAIL, one TIMEOUT, two NOT_ACCEPTED_RUN_COUNT**. All 1,491 predecessors remain, with four gains, zero prior-PASS regressions and zero drops. The 55 additions are 53 PASS and two FAIL. Seven original EPERM aborts and their exact successful permission repairs remain separate. Two nested Host raw-exit-zero runs remain rejected by the unchanged single-run guard. Its fresh single-job build produced 23 test binaries with zero compiler errors in 678.804699595 seconds. This audit does not recount newer execution; current source-bound results are recorded in [current-state.md](current-state.md).
 
-The retained catalogue below preserves reported requirements, closed regressions and dated bounded evidence. Older source-specific results do not accept the current branch. Complete current migration work is in [the final catalogue](repository-consumer-audit-final.json).
+The retained catalogue below preserves reported requirements, closed regressions and dated bounded evidence. Older source-specific results do not accept the current branch. The [final catalogue](repository-consumer-audit-final.json) retains the audited requirements; current work and acceptance are recorded in [current-state.md](current-state.md).
 
 ## External-reporter issue sweep — 3 November 2026
 
-Every open issue not opened by the maintainer was reproduced on `work` (18
-issues; #2021 is handled separately and excluded). "Reproduces on `work`"
-means the reported shape still fails on this tree before the change; a
-regression test names the issue number. GitHub state is unchanged: none is
-closed until the shipping gates pass.
+The 3 November sweep assessed 18 then-open issues not opened by the maintainer
+on its recorded `work` sources; #2021 was handled separately and excluded.
+"Reproduces on `work`" means the reported shape failed on that recorded tree
+before the change; a regression test names the issue number. The outcomes
+below remain historical source-specific evidence, including non-reproductions.
+The sweep changed no GitHub issue state and grants no current shipping acceptance.
 
 | Issue | Reproduced on `work` | Change and naming owner used | Regression evidence | Remaining |
 | --- | --- | --- | --- | --- |
