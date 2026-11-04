@@ -46,7 +46,6 @@ program, the example says so.
 | Issue | Program | The rule it breaks |
 |---|---|---|
 | [#2439](https://github.com/bitwisecook/tcl-lsp/issues/2439) | § O110, O111, O116, the proc-level summaries, *Completion paths* (under `--dialect tcl8.4`), W201, and the literal-only option checks | `tcl opt`'s summary lists the rewrites it applied; it lists O100 and O102 forwards the text does not carry |
-| [#2440](https://github.com/bitwisecook/tcl-lsp/issues/2440) | § W121: `set m 255.0.255.0` inside `when CLIENT_ACCEPTED { … }` | a finding is anchored once, at a span that holds what it reports; W121 reports the literal mask again at the enclosing body's `{` |
 | [#2441](https://github.com/bitwisecook/tcl-lsp/issues/2441) | § *Bounded-loop enumeration*: `foreach x {} {}` then `puts $x` | a read of a place the existence rung holds unbound is a read before set: I230 decides `[info exists x]` there from the fact, and W210 does not report the read |
 
 ## Optimisations
@@ -864,7 +863,7 @@ program spells `10.0.0.256`, so its W124 is at the `append`.
 
 ```tcl
 when CLIENT_ACCEPTED {
-  set m 255.0.255.0        ;# W121 here, at the read of `$m`, and again at the body's `{` (#2440)
+  set m 255.0.255.0        ;# W121 here and at the read of `$m`
   if {[IP::addr [IP::client_addr] mask $m] eq "10.0.0.0"} { reject }
 }
 ```
@@ -882,9 +881,8 @@ lattice proves (§ *W127, W137, …* below): the `$m` in the `IP::addr` call
 the condition makes is the mask the cell update proves, so the computed
 mask is reported at its use as the literal one is. The literal is reported
 at the `set` too, by the check over the word itself; no word of the second
-program spells the computed mask. The finding at the `when` body's `{` in
-the first program repeats the literal's
-([#2440](https://github.com/bitwisecook/tcl-lsp/issues/2440)).
+program spells the computed mask. Enclosing script-body words are not scanned
+as mask values.
 
 ### W233 · division by a provably zero divisor
 

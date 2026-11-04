@@ -2318,6 +2318,26 @@ fn e003_not_emitted_for_leading_switches() {
 }
 
 #[test]
+fn socket_server_form_counts_only_its_port_as_positional() {
+    assert!(
+        !has_code("socket -server accept 1234", "tcl8.6", "E002"),
+        "the server callback is the value of -server; only the port is positional"
+    );
+    assert!(
+        has_code("socket -server accept", "tcl8.6", "E002"),
+        "the server form still requires its port"
+    );
+    assert!(
+        !has_code("socket example.com 80", "tcl8.6", "E002"),
+        "the client form still accepts host and port"
+    );
+    assert!(
+        has_code("socket example.com", "tcl8.6", "E002"),
+        "the client form still requires both host and port"
+    );
+}
+
+#[test]
 fn e003_not_emitted_for_value_taking_leading_option() {
     // `-start` consumes a value word, so
     // `regsub -start 0 $exp $str $sub out` is `-start` + its value +

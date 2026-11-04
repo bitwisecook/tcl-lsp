@@ -264,7 +264,7 @@ fn apply_subcommand_floor(target: &mut crate::SubCommand, shipped: &crate::SubCo
 }
 
 /// The compiler-facing fields a form can override.
-fn apply_form_floor(target: &mut crate::CommandForm, shipped: &crate::CommandForm) {
+fn apply_form_floor(target: &mut crate::forms::CommandForm, shipped: &crate::forms::CommandForm) {
     take_shipped(&mut target.lowering_hook, shipped.lowering_hook);
     take_shipped(&mut target.codegen_hook, shipped.codegen_hook);
     take_shipped(&mut target.semantic_operation, shipped.semantic_operation);
@@ -275,7 +275,7 @@ fn apply_form_floor(target: &mut crate::CommandForm, shipped: &crate::CommandFor
 /// A changed arity may still overlap a shipped call shape, which retains the
 /// shipped operation for that route. Forms without a literal selector are
 /// distinguished by their arity and inherited surface.
-fn same_form_route(left: &crate::CommandForm, right: &crate::CommandForm) -> bool {
+fn same_form_route(left: &crate::forms::CommandForm, right: &crate::forms::CommandForm) -> bool {
     left.literal_argument_prefix == right.literal_argument_prefix
         && left.surface == right.surface
         && left.arity.min <= right.arity.max

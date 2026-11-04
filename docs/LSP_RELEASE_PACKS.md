@@ -15,7 +15,7 @@ Updated 4 November 2026. Branch: `work`. Test execution remains pending where no
 | #2138 | Existing implementation documented; focused compiler check pending | `dialect-stubs.md` documents all seven flags and their consumers; `DocumentCommandSurface` carries declared traits and side effects. |
 | #2259 | Pending audit | Check role support for variable-cell names in `upvar` and `namespace upvar`, and whether role-driven rename and semantic-token consumers use it. |
 | #2303 | Pending audit | Verify discovery follows installed dependency symlinks without broadening workspace traversal. |
-| #2309 | Pending audit | Reproduce the `socket -server` arity case and check the registry form/option model. |
+| #2309 | Fix drafted; execution pending | `socket_.rs` declares client and server invocation forms separately. `rust/tcl-compiler/src/analyser/diagnostics/tests.rs::socket_server_form_counts_only_its_port_as_positional` checks valid and missing-operand client/server shapes. |
 | #2365 | Pending audit | Check diagnostics for stub directives outside an active stub block; current docs still say these directives are ignored. |
 | #2366 | Pending audit | Compare document stubs passed to `tcl opt` with `tcl diag` and the LSP compilation-unit inputs. |
 | #2372 | Pending audit | Compare the W210 KCS claim about `info vars` / `catch {set _ $X}` with analyser behavior and the SCCP contract. |
@@ -27,4 +27,4 @@ Updated 4 November 2026. Branch: `work`. Test execution remains pending where no
 
 ## Verification
 
-A fresh E2E build was started for #2181, then stopped at the coordinator's request to keep concurrent builds within the machine's memory budget. Before network access was enabled, a second attempt could not fetch `inventory`; no product test ran. Re-run the focused tests after the coordinator opens a build slot.
+A fresh E2E build was started for #2181, then stopped at the coordinator's request to keep concurrent builds within the machine's memory budget. The #2299 and #2270 test invocations were also stopped when their dependency graph began compiling `tcl-compiler`; neither reached a test result. Re-run the focused tests after the coordinator opens a build slot.

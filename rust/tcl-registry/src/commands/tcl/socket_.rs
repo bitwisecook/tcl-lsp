@@ -95,6 +95,23 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
+const INVOCATION_FORMS: &[CommandForm] = &[
+    CommandForm {
+        name: "client",
+        arity: Arity::exact(2),
+        ..CommandForm::DEFAULT
+    },
+    CommandForm {
+        name: "server",
+        // `-server command` is an option and its value, not positional argv.
+        // After that pair the server form needs one positional port; the
+        // client form still needs host and port.
+        arity: Arity::exact(1),
+        literal_argument_prefix: Some(crate::forms::LiteralArgumentPrefix::exact(&["-server"])),
+        ..CommandForm::DEFAULT
+    },
+];
+
 /// Command spec for `socket`.
 ///
 /// The core option surface (`-myaddr`/`-myport`/`-async` for client
@@ -164,6 +181,7 @@ pub fn spec() -> CommandSpec {
             | Traits::TAINT_SOURCE
             | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(2),
+        command_forms: INVOCATION_FORMS,
         return_type: Some(TclType::Channel),
         side_effects: &[SideEffect {
             target: SideEffectTarget::NetworkIo,
