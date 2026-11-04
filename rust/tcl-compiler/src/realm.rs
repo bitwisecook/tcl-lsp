@@ -1768,7 +1768,7 @@ mod tests {
         );
         assert_eq!(
             map.resolve("::format", outside),
-            RealmBinding::Command("::format")
+            RealmBinding::Command("format")
         );
     }
 
