@@ -107,7 +107,22 @@ The two compiler candidates have fixed-input metamorphic controls for unchanged
 kind with changed/empty/quote-containing messages, and changed kind with
 unchanged messages. Existing native C8.4 parse-context fixtures are retained and
 now exercise the actual byte-plan entry point, including exact native text.
-The controls are prepared but **not compiled or run** at this checkpoint;
-the shared compiler queue is reserved for higher-priority work. Formatting and
-`git diff --check` pass. Full push gates remain unrun. No issue comment or
-closure was made by this lane.
+The first compiler-lib no-run found one test adapter error (`&Vec<u8>` instead
+of a byte slice), corrected without a production change. The corrected no-run
+passed at `2197c67d0b2eb8330750460eb1f3e072a72effb9` plus the sealed local
+candidate. Seven exact tests then ran directly outside the build lock:
+**six passed, one failed, zero ignored**. The six passes include the complete
+six-environment incomplete-body message/kind control, all 26 C8.4 context rows,
+byte/text plan parity and three retained body-recovery/currency controls.
+
+The native-frame control's opaque `0xff` fixture incorrectly obtained its cut
+through the UTF-8-only segmenter and failed with unavailable source geometry.
+The fixture remains in place; test preparation now uses the actual
+`native_script_words_in` byte owner. That final test adapter correction is
+**not yet compiled or run**. The production candidate remains local pending
+the focused controls. Formatting, `git diff --check` and the 219-site literal
+include preflight pass. Targeted Clippy and full push gates remain unrun.
+Exact source hashes, the failed build and the 6/1 runtime record are retained
+in `/tmp/lsp-2426-evidence.json`; the runtime log is
+`/tmp/lsp-2426-first-focused-unit.log`. No issue comment or closure was made by
+this lane.
