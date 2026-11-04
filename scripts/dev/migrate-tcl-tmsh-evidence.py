@@ -36,6 +36,9 @@ def question(record: dict) -> str | None:
         return QUESTIONS[identity]
     if identity in CORPUS_QUESTIONS:
         return CORPUS_QUESTIONS[identity]
+    question_id = record.get("question_id", "")
+    if question_id in CORPUS_QUESTIONS:
+        return CORPUS_QUESTIONS[question_id]
     if identity == "version":
         return "Which Tcl version and execution namespace are available in this tmsh context, so that observations from this context can be scoped correctly?"
     match = re.match(r"(F5-N\d\d)", str(record.get("question_id") or ""))
