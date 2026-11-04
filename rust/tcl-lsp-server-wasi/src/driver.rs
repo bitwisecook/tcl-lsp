@@ -207,7 +207,7 @@ fn trace_lifecycle_row(rows: &LifecycleTraceRows, stage: &str) {
     let limit = if terminal { 160 } else { 128 };
     if let Ok(row) = rows
         .emitted
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |row| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |row| {
             (row < limit).then_some(row + 1)
         })
     {
@@ -219,7 +219,7 @@ fn trace_lifecycle_row(rows: &LifecycleTraceRows, stage: &str) {
     } else {
         let _ = rows
             .dropped
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |dropped| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |dropped| {
                 Some(dropped.saturating_add(1))
             });
     }

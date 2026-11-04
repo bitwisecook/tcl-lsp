@@ -228,6 +228,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/lsp-wasi-diagnostics"
+          # Failure capture must never execute a module retained from an older build.
+          rm -f -- rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.sources.sha256
           make lsp-server-wasi-test 2>&1 | tee "$RUNNER_TEMP/lsp-wasi-diagnostics/wasi-test.log"
       - name: Capture synthetic WASI replies after failure
         if: ${{ failure() }}
@@ -242,6 +244,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lsp-wasi-diagnostics"
           wasmtime --version > "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-runtime.txt"
           getconf CLK_TCK >> "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-runtime.txt"
+          if [[ ! -s rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm || ! -s rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.sources.sha256 ]]; then
+            printf '%s\n' '{"runtime_executed":false,"reason":"fresh-sealed-wasi-module-unavailable"}' > "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-unavailable.json"
+            echo 'WASI lifecycle capture unavailable: no fresh sealed module; runtime was not started.'
+            exit 1
+          fi
           sha256sum rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.sources.sha256 > "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-module.before.sha256"
           trap 'sha256sum rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.sources.sha256 > "$RUNNER_TEMP/lsp-wasi-diagnostics/lifecycle-module.after.sha256"' EXIT
           node rust/tcl-lsp-server-wasi/test/e2e.mjs 2>&1 | tee "$RUNNER_TEMP/lsp-wasi-diagnostics/reply-capture.log"

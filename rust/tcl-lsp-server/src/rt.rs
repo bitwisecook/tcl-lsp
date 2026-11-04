@@ -613,7 +613,7 @@ mod wasi {
         let trace = if std::env::var("TCL_LSP_WASI_LIFECYCLE_TRACE").is_ok_and(|value| value == "1")
         {
             TRACE_CALLS
-                .fetch_update(
+                .try_update(
                     std::sync::atomic::Ordering::Relaxed,
                     std::sync::atomic::Ordering::Relaxed,
                     |call| (call < 32).then_some(call + 1),
