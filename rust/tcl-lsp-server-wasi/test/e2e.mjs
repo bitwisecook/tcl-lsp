@@ -57,8 +57,8 @@
 
 import { spawn } from "node:child_process";
 import { writeSync } from "node:fs";
-import { runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
-import { cp, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { HOST_NAMING_SOURCE, runMixedNamingHostRefusal, runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
+import { cp, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
@@ -451,7 +451,7 @@ async function mainSession() {
         `${data.length / 5} tokens`,
     );
 
-    await runNamingHostProof(session, `file://${ROOT}/host-naming.tcl`, check, undefined, REPLY_BUDGET_MS);
+    await runMixedNamingHostRefusal(session, `file://${ROOT}/host-naming.tcl`, check, "unknown-completed-command-world", undefined, REPLY_BUDGET_MS);
 
     // ---- (4) clean shutdown and exit --------------------------------------
     const shutdown = await session.request("shutdown", null);
@@ -730,6 +730,31 @@ async function cacheWritableSession() {
     }
 }
 
+async function isolatedNamingSession() {
+    const scratch = await mkdtemp(join(tmpdir(), "tcl-lsp-wasi-naming-"));
+    let session;
+    try {
+        const path = join(scratch, "host-naming.tcl");
+        await writeFile(path, HOST_NAMING_SOURCE);
+        session = new Session({ preopen: scratch });
+        const initialized = await session.request("initialize", initializeParams(), STARTUP_BUDGET_MS);
+        check("isolated naming host initializes", initialized?.error === undefined);
+        session.notify("initialized", {});
+        const ready = await until(() => session.logs.some((line) => line.includes("initialised")), REPLY_BUDGET_MS);
+        check("isolated naming host completes ordinary configuration", Boolean(ready));
+        await runNamingHostProof(session, `file://${ROOT}/host-naming.tcl`, check, (_uri, source) => writeFile(path, source), REPLY_BUDGET_MS);
+        const shutdown = await session.request("shutdown", null);
+        check("isolated naming host shuts down", shutdown?.error === undefined);
+        session.notify("exit", null);
+        const code = await Promise.race([session.exited, sleep(30_000).then(() => "timeout")]);
+        check("isolated naming host exits cleanly", code === 0, `exit status ${code}`);
+        return session;
+    } finally {
+        if (session && session.exitCode === null) session.kill();
+        await rm(scratch, { recursive: true, force: true });
+    }
+}
+
 async function main() {
     console.log(`module: ${modulePath}`);
     const first = await mainSession();
@@ -741,10 +766,12 @@ async function main() {
     await exitClosingStdinSession();
     console.log("");
     const fourth = await cacheWritableSession();
+    console.log("");
+    const naming = await isolatedNamingSession();
 
     console.log("");
     console.log(`${results.length - failures}/${results.length} checks passed`);
-    for (const session of [first, second, third, fourth]) {
+    for (const session of [first, second, third, fourth, naming]) {
         if (session.stderr.trim()) {
             console.log("server stderr:");
             for (const line of session.stderr.trim().split("\n").slice(0, 10)) {

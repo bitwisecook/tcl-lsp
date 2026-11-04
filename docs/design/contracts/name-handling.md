@@ -4084,6 +4084,15 @@ back to body containment. Parsing/allocation costs remain unmeasured.
 
 ### Conditional source worlds for editor collisions
 
+A complete command rename checks every current indexed or open participating
+source document for a completed collision world. A positive same-document
+reference or definition does not complete an unrelated participant. Host protocol
+coverage uses a fresh session and source store containing only the complete
+naming fixture for its positive rename; the ordinary application workspace
+separately retains its structured refusal when an execution or source scope
+remains unclosed. Isolation changes the test's input inventory, not the rename
+planner's authority or its unknown-world refusal.
+
 A source continuation may supply a completed modeled collision world only from
 its genuine whole-input ordered Normal outcome and the same retained prefix
 analysis owner, complete input/configuration, restored source origin and frame.

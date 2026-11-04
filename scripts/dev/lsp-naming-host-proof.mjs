@@ -90,9 +90,9 @@ function applyCapturedEdit(edit, uri, source) {
     return result;
 }
 
-/** Run once after the host's ordinary startup/scan readiness has completed. */
-export async function runNamingHostProof(session, uri, check, publish = () => {}, budgetMs = 30_000) {
-    async function request(method, params, deadline) {
+/** Capture one real host session; every answer keeps the same source owner. */
+export function createNamingHostFixture(session, uri, publish = () => {}, budgetMs = 30_000) {
+    async function response(method, params, deadline) {
         const remaining = deadline - Date.now();
         assert(remaining > 0, `${method} exceeded the host reply budget`);
         let timer;
@@ -101,12 +101,17 @@ export async function runNamingHostProof(session, uri, check, publish = () => {}
                 session.request(method, params, remaining),
                 new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${method} timed out`)), remaining); }),
             ]);
-            assert(response && response.error === undefined, `${method} failed: ${JSON.stringify(response)}`);
+            assert(response && typeof response === "object", `${method} returned no response`);
             assert(Date.now() < deadline, `${method} exceeded the host reply budget`);
-            return response.result;
+            return response;
         } finally {
             clearTimeout(timer);
         }
+    }
+    async function request(method, params, deadline) {
+        const reply = await response(method, params, deadline);
+        assert(reply.error === undefined, `${method} failed: ${JSON.stringify(reply)}`);
+        return reply.result;
     }
     async function completed(source, version) {
         const deadline = Date.now() + budgetMs;
@@ -139,12 +144,44 @@ export async function runNamingHostProof(session, uri, check, publish = () => {}
         assertTargets(definition, references, uri, source, name);
         return position;
     }
-    await publish(uri, HOST_NAMING_SOURCE);
-    session.notify("textDocument/didOpen", {
-        textDocument: { uri, languageId: "tcl", version: 1, text: HOST_NAMING_SOURCE },
-    });
-    await completed(HOST_NAMING_SOURCE, 1);
-    const position = await targets(HOST_NAMING_SOURCE, "host_old");
+    async function open() {
+        await publish(uri, HOST_NAMING_SOURCE);
+        session.notify("textDocument/didOpen", {
+            textDocument: { uri, languageId: "tcl", version: 1, text: HOST_NAMING_SOURCE },
+        });
+        await completed(HOST_NAMING_SOURCE, 1);
+        return targets(HOST_NAMING_SOURCE, "host_old");
+    }
+    async function refuse(position, code) {
+        const reasons = {
+            "unknown-completed-command-world": "a completed original command world is unavailable for collision coverage",
+            "incomplete-original-command-coverage": "the complete source contains an executable region or command selection without original coverage",
+        };
+        assert(Object.hasOwn(reasons, code));
+        const reply = await response("textDocument/rename", {
+            textDocument: { uri }, position, newName: "host_new",
+        }, Date.now() + budgetMs);
+        console.log(`HOST_NAMING_REFUSAL ${JSON.stringify({ uri, expectedCode: code, response: reply })}`);
+        assert.equal(reply.error?.code, -32602);
+        assert.equal(reply.error.data?.code, code);
+        assert.equal(reply.error.data?.reason, reasons[code]);
+        assert(reply.result == null, "an incomplete workspace never receives an edit grant");
+    }
+    return { request, completed, targets, open, refuse };
+}
+
+/** The ordinary mixed workspace keeps its own complete-rename refusal. */
+export async function runMixedNamingHostRefusal(session, uri, check, code, publish = () => {}, budgetMs = 30_000) {
+    const fixture = createNamingHostFixture(session, uri, publish, budgetMs);
+    const position = await fixture.open();
+    await fixture.refuse(position, code);
+    check("mixed-workspace naming retains its structured complete-rename refusal", true);
+}
+
+/** Use a fresh real session/store whose only source is this complete fixture. */
+export async function runNamingHostProof(session, uri, check, publish = () => {}, budgetMs = 30_000) {
+    const { request, completed, targets, open } = createNamingHostFixture(session, uri, publish, budgetMs);
+    const position = await open();
     const edit = await request("textDocument/rename", {
         textDocument: { uri }, position, newName: "host_new",
     }, Date.now() + budgetMs);

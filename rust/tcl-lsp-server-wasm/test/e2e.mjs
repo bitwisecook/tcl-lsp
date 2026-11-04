@@ -29,7 +29,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
+import { HOST_NAMING_SOURCE, runMixedNamingHostRefusal, runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { runInThisContext } from "node:vm";
@@ -327,6 +327,27 @@ function describeHover(hover) {
  * the scan. A pass here means the whole-workspace paths read the store, not
  * just the single-document ones.
  */
+async function isolatedNamingSession(wasmBindgen) {
+    const session = new Session(wasmBindgen.LspWorker);
+    const uri = "file:///naming/host-naming.tcl";
+    session.worker.vfs_upsert(uri, HOST_NAMING_SOURCE);
+    check("isolated naming store contains only its complete source", session.worker.vfs_len() === 1);
+    const initialized = await session.request("initialize", {
+        processId: null,
+        rootUri: "file:///naming",
+        workspaceFolders: [{ uri: "file:///naming", name: "naming" }],
+        capabilities: clientCapabilities(),
+    });
+    check("isolated naming worker initializes", initialized?.error === undefined);
+    session.notify("initialized", {});
+    const scanLine = await until(() => session.logs.find((line) => line.includes("workspace_folders_scan")));
+    check("isolated naming worker completes its real store scan", /files=1\b/.test(scanLine ?? ""), scanLine ?? "no scan log line");
+    await runNamingHostProof(session, uri, check, (target, source) => session.worker.vfs_upsert(target, source));
+    const shutdown = await session.request("shutdown", null);
+    check("isolated naming worker shuts down", shutdown?.error === undefined);
+    return session.logs;
+}
+
 async function workspaceSession(wasmBindgen) {
     const session = new Session(wasmBindgen.LspWorker);
 
@@ -435,7 +456,7 @@ async function workspaceSession(wasmBindgen) {
         JSON.stringify({ uris: autoUris, response: autoDef }),
     );
 
-    await runNamingHostProof(session, "file:///ws/host-naming.tcl", check, (uri, source) => session.worker.vfs_upsert(uri, source));
+    await runMixedNamingHostRefusal(session, "file:///ws/host-naming.tcl", check, "incomplete-original-command-coverage", (uri, source) => session.worker.vfs_upsert(uri, source));
 
     const shutdown = await session.request("shutdown", null);
     check("the workspace session shuts down", shutdown.error === undefined);
@@ -708,6 +729,7 @@ async function main() {
 
     const workspaceLogs = await workspaceSession(wasmBindgen);
     const primedLogs = await primedShippedPacksSession(wasmBindgen);
+    const namingLogs = await isolatedNamingSession(wasmBindgen);
 
     console.log("");
     console.log(`${results.length - failures}/${results.length} checks passed`);
@@ -718,6 +740,8 @@ async function main() {
     // The workspace session's log is where the scan and pack-load evidence
     // lives, so print it in full when something failed.
     if (failures > 0) {
+        console.log(`isolated naming session log lines: ${namingLogs.length}`);
+        for (const line of namingLogs) console.log(`   > ${line}`);
         console.log(`workspace session log lines: ${workspaceLogs.length}`);
         for (const line of workspaceLogs) console.log(`   > ${line}`);
         console.log(`primed-packs session log lines: ${primedLogs.length}`);
