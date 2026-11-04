@@ -172,3 +172,15 @@ Binary-scan cached NaN and literal NaN agree within each tested form. This is
 bounded native evidence, not a universal getter rule or a passing compiler fix.
 The prepared production matrix now has 60 diagnostic checks and 70 unchanged
 published-completion refusals; candidate compilation remains queued by priority.
+
+The canonical draft's fresh clean build emitted an integration executable. All
+60 W210 checks pass, including the exact report, unsafe/distinct-cell controls
+and the final genuine-read span. Its 70-result check is red: 30 final-store
+values become available and match native outcomes. The existing
+`SourceNormalResult` contract is conditional on Normal alternatives and grants
+neither a physical object nor totality; separate admission/totality gates and
+whole-expression values require review before revising that blanket invariant.
+Exact frozen inputs, patch and failed/passing receipts are in
+[`w210-short-circuit-canonical-attempt`](../rust/tcl-compiler/tests/data/w210-short-circuit-canonical-attempt/README.md).
+The draft remains uncommitted. Five missing authentic sparse unit fixtures are
+restored for the next private-model retry; full gates remain pending.
