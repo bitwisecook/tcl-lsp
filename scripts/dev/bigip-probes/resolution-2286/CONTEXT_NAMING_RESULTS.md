@@ -1,5 +1,7 @@
 # BIG-IP context-specific naming measurements
 
+> This historical summary is development material. Recovered scripts, questions, assumptions and results are recorded in the [per-script Tcl evidence](../../../../evidence/tcl/).
+
 These are measured results from the active standalone BIG-IP lab appliance.
 TMM iRules, tmsh CLI scripts, iApp implementation Tcl, iApp presentation/APL,
 and iCall are reported separately. Standalone `tclsh` was not used as a
@@ -57,30 +59,9 @@ and [decoded result index](evidence/r2286_20261006naming/decoded-results.json).
 
 ## Source and byte provenance
 
-All payload and wrapper files were generated as ASCII with LF line endings and
-contained no literal NUL or non-ASCII configuration-source byte. Runtime NUL
-and non-ASCII values were reconstructed with `binary format H*`; `%c` results
-were kept distinct from binary-produced bytes. Every archive was transferred
-without text conversion and every file passed appliance-side `sha256sum -c`
-before loading.
-
-| Run | Purpose | Fixture archive SHA-256 | Manifest SHA-256 |
-| --- | --- | --- | --- |
-| `r2286p` | Complete primary matrix and lifecycle controls | `aa0dc6c5e5676d7ce0cab68476f7661a25da1c14de1bd3790d9432e147500592` | `0c7021b00ecceae4911f482e92c7e53071b6d531c02fbd60b2e58ed74e003268` |
-| `r2286q` | Chunked exact event results and same-run HTTP controls | `d6082f475115dd934f7b6cbaac13028d7c943a11316de8dbcdb331a4c01a0dfd` | `b089b08b415927d9f44134edb14edb5e349e2492ceff0adb4c952cf72e233025` |
-| `r2286r` | Corrected qualified scalar/array reuse control | `2df978fc390ed5ac466442a787732320159c16e005ea739cee11f6d074e9ce1f` | `829e33f4953529050f7ebe9852711d824527a6f09885bf46a462efc1cda1ed7f` |
-| `r2286s` | Portable non-TMM array trace controls | `1705dfb475667046394dd2549e80abb07ceed1b3a6ee167de8d615127a2adc45` | `701004ce03235b412f508adfe77e6bfe5495b533b85bf20c2681959b07df351a` |
-| `r2286t` | Counted-input, relocated/multiple-NUL array-root and index controls | `d99260e95dce1bac6834937430c4daa411f5a5a35406b78db423d5bf652eb076` | `d90eab3752e3582ef94d846148596b94024ff8ca7de423f02744e35abec23d18` |
-
-The final generator SHA-256 is
-`3c638e13bd0ecfae6ba623964b5e22e3f19c5e175f88264680d1704858314637`;
-the decoder SHA-256 is
-`2a4a20c13c10dcf8ac8d9a60dac8e7df8b82b36e47a3ca0cbb45a19fb4ed9b5c`.
-The counted-boundary decoder SHA-256 is
-`75135f15399e85c793f660aeaf76ae23b7570a94fad005e0de1f75068ca68f09`.
-The complete per-file wrapper, payload, hex-dump, size, and context hashes are
-inside the retained manifests. The local evidence inventory is
-[SHA256SUMS.local](evidence/r2286_20261006naming/SHA256SUMS.local).
+The retained payload and wrapper sources use ASCII and LF. Runtime NUL and
+non-ASCII values were constructed at runtime. The linked per-script evidence
+shows the exact payload and records the scope of each captured result.
 
 ## Result matrix
 
@@ -89,53 +70,53 @@ rejection is stated. `tmsh`, `iApp`, and `iCall` mean an executed tmsh CLI
 script, executed iApp implementation action, and delivered triggered-iCall
 event respectively. Object creation alone was not counted as execution.
 
-| Case | Payload SHA-256 | Reached contexts | Measured result |
-| --- | --- | --- | --- |
-| `nul_counted_last` | `e0b822bffae6a874bdd51c320ca72d446d6016219f9fe4d2258428bc16c458ea` | HTTP_REQUEST, tmsh, iApp, iCall | `A` and `A 00 42` names coexisted; `upvar` mutated only the counted name; unsetting the counted name preserved the plain name. Exact result bytes matched in all four contexts. |
-| `nul_plain_last` | `42bbb29d837a8aa3c5051bb3ba5388c4fcccfe4cb645ad90e0ed4e5e83a4e96c` | HTTP_REQUEST, tmsh, iApp, iCall | Reverse write order did not alias either scalar name. Exact result bytes matched. |
-| `nul_plain_unset_first` | `0953c937a7409680a7bcf30575f23c77aa3691052083c5726df7bc57c3482dd7` | HTTP_REQUEST, tmsh, iApp, iCall | Unsetting `A` left `A 00 42` and its linked value intact. Exact result bytes matched. |
-| `nul_array_root` | `3f9483f0320860df7ebf1e53b170a3ecb702d00e4ed160066294baae86a92fd3` | HTTP_REQUEST; canonical tmsh/iApp/iCall reached a trace error | In TMM, roots ending `41` and `41 00 42` were distinct arrays. In non-TMM contexts the required trace callback called unavailable `TMM::cmp_group`, so traced writes/reads failed; those failures are not array-identity results. |
-| `nul_array_index` | `bcce048b7c48239695680c3b2dab7d15fd4f256bfcbd3a8d292c1f185b58e64f` | HTTP_REQUEST; canonical tmsh/iApp/iCall reached a trace error | In TMM, indexes `41` and `41 00 42` were distinct elements. The canonical non-TMM boundary is the same trace-command failure. |
-| `nul_array_root_portable` | `8fa234686f7534a4961585b9138d994f1d2016a8a81f6c456bb1f0abd8bc1654` | HTTP_REQUEST, tmsh, iApp, iCall | Separately hashed callback-only repair. All contexts returned result SHA-256 `bdc8a515be08639361b95f5ca92bdfbb8647121baecab7e6739a85a269d29610`: roots stayed distinct through write, read, `upvar`, and unset. |
-| `nul_array_index_portable` | `27444ad7e4c3ffa8e72c8655f4b562a53fc362982b2ae3b41bf35297fc6b014d` | HTTP_REQUEST, tmsh, iApp, iCall | All contexts returned result SHA-256 `8f17dec9408761ab1945644e8a2e0cb050360eb34a28b810141bba8fce5f225f`: indexes stayed distinct through write, read, `upvar`, and unset. |
-| `unicode_format_forward` | `eb4bfb8ce812be154cb9892ac8db4b29d147584f70b5bd4199b34de47af025ec` | HTTP_REQUEST, tmsh, iApp, iCall | `%c 233` produced byte `e9`; `e` plus `%c 769` produced `65 01`. Both names remained distinct. TMM lacked `encoding`; non-TMM `encoding convertto utf-8` succeeded. |
-| `unicode_format_reverse` | `0cb94a67bbb36bf90514f916426085c99bfc87d68cc1e791b532843ac59b2cb2` | HTTP_REQUEST, tmsh, iApp, iCall | Reverse write/unset order preserved the same two cells and the same context-specific `encoding` boundary. |
-| `unicode_bytes_forward` | `628ab017aa64f1daad41f08ebcf68b8b4489866376911b0b2e92b293f266a1a9` | HTTP_REQUEST, tmsh, iApp, iCall | Binary suffixes `c3 a9` and `65 cc 81` were distinct variable names. |
-| `unicode_bytes_reverse` | `4635c663d565e650093ea2e2700bbf5d113505d9f91c54666300e15a045a2bb4` | HTTP_REQUEST, tmsh, iApp, iCall | Reverse write/unset order did not change byte identity. |
-| `unicode_cross_producer` | `038f507380651e55a7fcd3357518af08666e4df03d3a9db9f3272c3f6dcdf73e` | HTTP_REQUEST, tmsh, iApp, iCall | `e9`, `c3a9`, `6501`, and `65cc81` were four independent names. Mutation and unset never crossed producer boundaries. Exact result bytes matched all contexts. |
-| `commands_format` | `c081aec8ce405a772f28ddd0dceb43df46fcbe8d4807c906c9414721b4d0ae4e` | HTTP_REQUEST, tmsh, iApp, iCall | Dynamic namespace/proc creation, lookup, call, rename, new-name call, and cleanup succeeded for `e9` and `6501`. Old lookup became empty after rename. |
-| `commands_bytes` | `1d50a4ee970a1e63516638e7b5357ed560b79fca2172656703619c369c774426` | HTTP_REQUEST, tmsh, iApp, iCall | The same operations succeeded independently for `c3a9` and `65cc81`. |
-| `commands_cross_producer` | `730e9e5f8bc1870c8c486f12cb70abd8cd9b80b91603466b36906e8beed33af3` | HTTP_REQUEST, tmsh, iApp, iCall | Format- and binary-produced namespaces/procs coexisted and returned different values; renaming the binary-produced proc did not affect the format-produced proc. Exact result bytes matched all contexts. |
-| `lexical_format_unbraced` | `5671de6fbceeeb8ce9cdb9f3e71d231e017a139fe5d13b9c896e4c40a3d9a054` | HTTP_REQUEST, tmsh, iApp, iCall | Context divergence: TMM stopped before `e9`; non-TMM consumed `e9` as part of the unbraced variable token. Both stopped before `01`. |
-| `lexical_format_braced` | `7e18ff40d18e12b6ef7b3eafa9c4a908f17fc99baabecc401e4d82f5e15f074b` | HTTP_REQUEST, tmsh, iApp, iCall | Braced substitution consumed the complete raw name in every context. Exact result bytes matched. |
-| `lexical_bytes_unbraced` | `dad5e4137cc43b66963ed3de844df11f15449dd9f987c07f214ce3730a5c81ba` | HTTP_REQUEST, tmsh, iApp, iCall | Context divergence: TMM stopped before `c3`/`cc`; non-TMM consumed the first byte (`c3` or `cc`) and stopped before the following byte. |
-| `lexical_bytes_braced` | `9276abe9114ec4e88a73316f69156453a0f7f1641962bd1e586aefe6d96c7ed3` | HTTP_REQUEST, tmsh, iApp, iCall | Braced substitution consumed all `c3a9`/`65cc81` bytes in every context. Exact result bytes matched. |
-| `lexical_clean` | `dca3e393ff7a0ef0c79bf089f66f82af1cc7974c83dbed957a6e4ee60f944b03` | HTTP_REQUEST, tmsh, iApp, iCall | Clean discriminator confirmed the lexical differences below without a second variable-name lookup. |
-| `qualified_nul` corrected control | `cc5dbe00fd442bf974984a9280652a3b394404693d2ed05141586bcf932043f5` | HTTP_REQUEST, tmsh, iApp, iCall | Qualified scalar roots, array roots, and indexes containing `00 42` remained distinct. Results differed only because `namespace current` was `::script` in tmsh and `::` in the other three contexts. |
-| `environment` | `4104a95c3dfaa82b6316d46718ef5bf67296b60e9e83e259738e2a3c8343f692` | HTTP_REQUEST, tmsh, iApp, iCall | Every context reported Tcl 8.4.6 / package Tcl 8.4. TMM lacked `encoding` and exposed the iRule command set; non-TMM contexts exposed Tcl/file/process commands instead. |
-| `counted_input_boundaries` | `f1925eaf85382d68115f842ddccf108249de9f696efde04c66fbbaa31ea74a26` | HTTP_REQUEST | The request's exact source loaded and ran 32 times on every TMM. Short, long and relocated scalar prefixes remained distinct from the corresponding names containing two NULs. The one-line LTM result was truncated, as expected. |
-| `counted_input_capture` | `1276bb8c7b70846a0362ff4ef31f7d3c0de6cd0a2719b98e143f2bbf8473afa8` | HTTP_REQUEST | Separately hashed capture-only repair returned the complete `rows` bytes. All 128 bodies were identical; decoded result SHA-256 `2b23a649a4650089e07d22c0d9e9982054e1e4a22728e719f754f93e0e93ba90`. |
-| `array_root_boundaries` | `c89668f9995f180c6ddf853b8401be186f662938e52438aecfd1207136430585` | HTTP_REQUEST | Empty, short, long, relocated, colon-bearing and qualified roots, including leading/middle/two-NUL variants, retained exact bytes through both write/unset orders, reads, `upvar` and traces. A root spelling containing parentheses was syntax-bearing and is a counterexample, not root-identity evidence. |
-| `array_index_boundaries` | `b428f284ae19cce77e0c019dc5bca3b50e6f2cbf510238bcae3e0eb8746db01f` | HTTP_REQUEST | Empty and punctuation-bearing indexes plus leading/middle/two-NUL variants retained exact bytes through both orders, reads, `upvar`, unset and trace callbacks. Decoded result SHA-256 `4a38c357ffbe63b8e53e1fdb1338fdd621725fdd81855ce3c54633970240d0b4`. |
+| Case | Reached contexts | Measured result |
+| --- | --- | --- |
+| [`nul_counted_last`](../../../../evidence/tcl/bigip-r2286p-nul-counted-last.md) | HTTP_REQUEST, tmsh, iApp, iCall | `A` and `A 00 42` names coexisted; `upvar` mutated only the counted name; unsetting the counted name preserved the plain name. Exact result bytes matched in all four contexts. |
+| [`nul_plain_last`](../../../../evidence/tcl/bigip-r2286p-nul-plain-last.md) | HTTP_REQUEST, tmsh, iApp, iCall | Reverse write order did not alias either scalar name. Exact result bytes matched. |
+| [`nul_plain_unset_first`](../../../../evidence/tcl/bigip-r2286p-nul-plain-unset-first.md) | HTTP_REQUEST, tmsh, iApp, iCall | Unsetting `A` left `A 00 42` and its linked value intact. Exact result bytes matched. |
+| [`nul_array_root`](../../../../evidence/tcl/bigip-r2286p-nul-array-root.md) | HTTP_REQUEST; canonical tmsh/iApp/iCall reached a trace error | In TMM, roots ending `41` and `41 00 42` were distinct arrays. In non-TMM contexts the required trace callback called unavailable `TMM::cmp_group`, so traced writes/reads failed; those failures are not array-identity results. |
+| [`nul_array_index`](../../../../evidence/tcl/bigip-r2286p-nul-array-index.md) | HTTP_REQUEST; canonical tmsh/iApp/iCall reached a trace error | In TMM, indexes `41` and `41 00 42` were distinct elements. The canonical non-TMM boundary is the same trace-command failure. |
+| [`nul_array_root_portable`](../../../../evidence/tcl/bigip-r2286s-nul-array-root-portable.md) | HTTP_REQUEST, tmsh, iApp, iCall | In the isolated root rerun and the non-TMM contexts, roots stayed distinct through write, read, `upvar`, and unset. |
+| [`nul_array_index_portable`](../../../../evidence/tcl/bigip-r2286s-nul-array-index-portable.md) | HTTP_REQUEST, tmsh, iApp, iCall | In the recorded index runs, indexes stayed distinct through write, read, `upvar`, and unset. |
+| [`unicode_format_forward`](../../../../evidence/tcl/bigip-r2286p-unicode-format-forward.md) | HTTP_REQUEST, tmsh, iApp, iCall | `%c 233` produced byte `e9`; `e` plus `%c 769` produced `65 01`. Both names remained distinct. TMM lacked `encoding`; non-TMM `encoding convertto utf-8` succeeded. |
+| [`unicode_format_reverse`](../../../../evidence/tcl/bigip-r2286p-unicode-format-reverse.md) | HTTP_REQUEST, tmsh, iApp, iCall | Reverse write/unset order preserved the same two cells and the same context-specific `encoding` boundary. |
+| [`unicode_bytes_forward`](../../../../evidence/tcl/bigip-r2286p-unicode-bytes-forward.md) | HTTP_REQUEST, tmsh, iApp, iCall | Binary suffixes `c3 a9` and `65 cc 81` were distinct variable names. |
+| [`unicode_bytes_reverse`](../../../../evidence/tcl/bigip-r2286p-unicode-bytes-reverse.md) | HTTP_REQUEST, tmsh, iApp, iCall | Reverse write/unset order did not change byte identity. |
+| [`unicode_cross_producer`](../../../../evidence/tcl/bigip-r2286p-unicode-cross-producer.md) | HTTP_REQUEST, tmsh, iApp, iCall | `e9`, `c3a9`, `6501`, and `65cc81` were four independent names. Mutation and unset never crossed producer boundaries. Exact result bytes matched all contexts. |
+| [`commands_format`](../../../../evidence/tcl/bigip-r2286p-commands-format.md) | HTTP_REQUEST, tmsh, iApp, iCall | Dynamic namespace/proc creation, lookup, call, rename, new-name call, and cleanup succeeded for `e9` and `6501`. Old lookup became empty after rename. |
+| [`commands_bytes`](../../../../evidence/tcl/bigip-r2286p-commands-bytes.md) | HTTP_REQUEST, tmsh, iApp, iCall | The same operations succeeded independently for `c3a9` and `65cc81`. |
+| [`commands_cross_producer`](../../../../evidence/tcl/bigip-r2286p-commands-cross-producer.md) | HTTP_REQUEST, tmsh, iApp, iCall | Format- and binary-produced namespaces/procs coexisted and returned different values; renaming the binary-produced proc did not affect the format-produced proc. Exact result bytes matched all contexts. |
+| [`lexical_format_unbraced`](../../../../evidence/tcl/bigip-r2286p-lexical-format-unbraced.md) | HTTP_REQUEST, tmsh, iApp, iCall | Context divergence: TMM stopped before `e9`; non-TMM consumed `e9` as part of the unbraced variable token. Both stopped before `01`. |
+| [`lexical_format_braced`](../../../../evidence/tcl/bigip-r2286p-lexical-format-braced.md) | HTTP_REQUEST, tmsh, iApp, iCall | Braced substitution consumed the complete raw name in every context. Exact result bytes matched. |
+| [`lexical_bytes_unbraced`](../../../../evidence/tcl/bigip-r2286p-lexical-bytes-unbraced.md) | HTTP_REQUEST, tmsh, iApp, iCall | Context divergence: TMM stopped before `c3`/`cc`; non-TMM consumed the first byte (`c3` or `cc`) and stopped before the following byte. |
+| [`lexical_bytes_braced`](../../../../evidence/tcl/bigip-r2286p-lexical-bytes-braced.md) | HTTP_REQUEST, tmsh, iApp, iCall | Braced substitution consumed all `c3a9`/`65cc81` bytes in every context. Exact result bytes matched. |
+| [`lexical_clean`](../../../../evidence/tcl/bigip-r2286p-lexical-clean.md) | HTTP_REQUEST, tmsh, iApp, iCall | Clean discriminator confirmed the lexical differences below without a second variable-name lookup. |
+| [`qualified_nul`](../../../../evidence/tcl/bigip-r2286r-qualified-nul.md) corrected control | HTTP_REQUEST, tmsh, iApp, iCall | Qualified scalar roots, array roots, and indexes containing `00 42` remained distinct. Results differed only because `namespace current` was `::script` in tmsh and `::` in the other three contexts. |
+| [`environment`](../../../../evidence/tcl/bigip-r2286p-environment.md) | HTTP_REQUEST, tmsh, iApp, iCall | Every context reported Tcl 8.4.6 / package Tcl 8.4. TMM lacked `encoding` and exposed the iRule command set; non-TMM contexts exposed Tcl/file/process commands instead. |
+| [`counted_input_boundaries`](../../../../evidence/tcl/bigip-r2286t-counted-input-boundaries.md) | HTTP_REQUEST | The request's exact source loaded and ran 32 times on every TMM. Short, long and relocated scalar prefixes remained distinct from the corresponding names containing two NULs. The one-line LTM result was truncated, as expected. |
+| [`counted_input_capture`](../../../../evidence/tcl/bigip-r2286t-counted-input-capture.md) | HTTP_REQUEST | The capture-only repair returned the complete `rows` bytes; all 128 bodies were identical. |
+| [`array_root_boundaries`](../../../../evidence/tcl/bigip-r2286t-array-root-boundaries.md) | HTTP_REQUEST | Empty, short, long, relocated, colon-bearing and qualified roots, including leading/middle/two-NUL variants, retained exact bytes through both write/unset orders, reads, `upvar` and traces. A root spelling containing parentheses was syntax-bearing and is a counterexample, not root-identity evidence. |
+| [`array_index_boundaries`](../../../../evidence/tcl/bigip-r2286t-array-index-boundaries.md) | HTTP_REQUEST | Empty and punctuation-bearing indexes plus leading/middle/two-NUL variants retained exact bytes through both orders, reads, `upvar`, unset and trace callbacks. |
 
-The complete result hex, result SHA-256, Latin-1 lossless list projection,
+The complete result hex, Latin-1 lossless list projection,
 context equality groups, loader output, trace tuples, and raw response-body hex
 are in [decoded-results.json](evidence/r2286_20261006naming/decoded-results.json).
 
 ## TMM event comparison
 
 Run `r2286q` used an identical payload for HTTP_REQUEST, CLIENT_ACCEPTED, and
-RULE_INIT. The separately hashed event wrappers caught identity lookup and
+RULE_INIT. The event wrappers caught identity lookup and
 emitted 400-hex-character chunks so the complete result survived the
 1,024-byte LTM log-line limit. Each chunk set was complete and internally
 consistent.
 
-| Case | Payload SHA-256 | CLIENT_ACCEPTED wrapper SHA-256 | RULE_INIT wrapper SHA-256 | Exact result SHA-256 |
-| --- | --- | --- | --- | --- |
-| `nul_counted_last` | `c6d687f237c239600f5bd1cf76e16d371f584eea315f1338fceecb14149a64e9` | `0fe823726a6ccf0840813af84b19a2d9429c1ed44594be07e116de3b3c92f531` | `4ff8e64ebd4aebc3c0d7e5b5a9d691e4c2940c2d67129d618f12639a33cd4b57` | `85e71e85003bea2934299cf3e46e90a2b4e57e20c9549c8855cc37bc8ffb7791` |
-| `nul_array_root` | `1a942ef715ac1b9655a3c34098864fa1f87a9feeb129d9afd95dba545de75fd0` | `8d898a8af4855ddb7ee2a8ffb7e9cb2625c441880bc826eeaee662dead58bf73` | `091175fdd12a532453f5798d007bc8f86f57f8f8958765222c5578eb817f1db3` | `9fd64024074015b88b07c7f74f57a5fbeec34a68a10fc2e4bfb9cf688539d010` |
-| `nul_array_index` | `8e0c4f79d9213ef60f1b8725af64b25ef1cad809a06aa99643290dd04a1d7cf6` | `d2fb9f041c1f3ca4522a9f1e49ab5b5bce73ed46fce8ba3dbea218e55b104677` | `2f394939762fd3ad24eb534b751b5fd6b65c7e636fa19cf9076f9e5b72692007` | `d211a7cd9096ddee008b44997a4fe46c54a2255ec0f0e1171e513524e6ca548a` |
-| `lexical_clean` | `7a55589049588f9bb5ddbe36b944c41b2294374942c348a969dfa56e65db543f` | `acd357e9b65459331a2c72a47b8300e5104975ade9e38ff317e7ca97e3dd8180` | `2cfed0047b594547dfee3e5dddb253559a4f50d1bfb2e4c2fdb031bf22a51090` | `2508dc8a3f13c4d8401bb3d7564de443dd64cf4233354a96e37f0fbd007d7128` |
+| Case |
+| --- |
+| [`nul_counted_last`](../../../../evidence/tcl/bigip-r2286q-nul-counted-last.md) |
+| [`nul_array_root`](../../../../evidence/tcl/bigip-r2286q-nul-array-root.md) |
+| [`nul_array_index`](../../../../evidence/tcl/bigip-r2286q-nul-array-index.md) |
+| [`lexical_clean`](../../../../evidence/tcl/bigip-r2286q-lexical-clean.md) |
 
 For every row, HTTP_REQUEST, 128 CLIENT_ACCEPTED executions, and four
 RULE_INIT executions returned byte-identical results. CLIENT_ACCEPTED reached
@@ -186,20 +167,15 @@ Run `r2286t` used a fresh VIP on port 18121 and backend port 18120. Its baseline
 forwarded 128 requests to `192.0.2.201`, where the server observed SNAT peer
 `192.0.2.10` 128 times. Response headers proved 32 baseline connections on
 each actual TMM. The exact counted-input source from the request matched the
-Markdown code block byte-for-byte: 1,791 ASCII/LF bytes, no CR or NUL, SHA-256
-`f1925eaf85382d68115f842ddccf108249de9f696efde04c66fbbaa31ea74a26`.
-Its complete rule wrapper SHA-256 was
-`35e634c49b43015e589dc4ab441a1e178319ceb58ef7d7b9977330c46b154033`.
+Markdown code block byte-for-byte: 1,791 ASCII/LF bytes, no CR or NUL.
 
 The exact rule loaded with dynamic-name warnings and returned `OK` on all 128
 requests. The first 128 consecutive exact-rule markers in the continuous LTM
 capture contained 32 observations from each of TMM units 0, 1, 2 and 3. Its
 single log record was longer than the appliance's retained line, so it cannot
-be the source of complete row bytes. The separately hashed capture form changed
+be the source of complete row bytes. The separate capture form changed
 only the response step: it hex-encoded the already-computed `rows` value into
-the HTTP body and added the TMM header. Its source/wrapper SHA-256 values were
-`1276bb8c7b70846a0362ff4ef31f7d3c0de6cd0a2719b98e143f2bbf8473afa8`
-and `361c2c5644f48cda56f328e974026aa4efa4f4d086a6f7d98e99a2ae7b8bc2e9`.
+the HTTP body and added the TMM header.
 All 128 full results were byte-identical across the four TMMs.
 
 | Input domain | Exact measured HTTP_REQUEST result |
@@ -218,9 +194,7 @@ case below, every write/read/upvar succeeded in both orders. Unsetting either
 plain or counted root preserved the other value. Direct trace callbacks
 received the complete root bytes and index `6b`; the alias write reported root
 hex `726f6f745f616c696173` (`root_alias`), keeping selected identity separate
-from callback spelling. All 128 response bodies had outer catch 0 and decoded
-result SHA-256
-`c79a936c910e9d3f82dab00670f3a0eefe8f939410d994f2f2374b8eb6be3885`.
+from callback spelling. All 128 response bodies had outer catch 0 and identical decoded results.
 
 The parentheses-root row is an important counterexample. The control appended
 `(k)` to root spelling `root(k)`. The resulting `root(k)(k)` was parsed as a
@@ -268,7 +242,7 @@ line 38: [variable reference used where variable name expected][$input]
 ```
 
 The array-root and array-index wrappers loaded without warnings. Complete raw
-rows, exact error bytes, response hashes, trace tuples and per-TMM equality are
+rows, exact error bytes, trace tuples and per-TMM equality are
 in the [counted-boundary decoded results](evidence/r2286_20261006naming/r2286t-decoded-results.json).
 
 ## Namespaces, procedures, rename, and command lookup
@@ -299,7 +273,7 @@ Syntax Error:(/var/tmp/r2286p-fixtures-v2/icall-lifecycles/periodic.conf at line
 ```
 
 The rejected spelling was `first-occurrence now+2s`; it was not treated as a
-runtime result. A separately hashed documented schedule omitted
+runtime result. A separate documented schedule omitted
 `first-occurrence`, used `interval 5` and `last-occurrence now+1m`, loaded, and
 executed three times (15 payload markers). It was then set inactive and
 deleted. The perpetual handler loaded inactive, was explicitly started,
@@ -338,8 +312,6 @@ python3 "$PROBES/generate-context-naming-controls.py" \
   --vip 192.0.2.10 --vip-port 18111 \
   --backend 192.0.2.201 --backend-port 18110 \
   --source-commit 834329e46013c24f8c38b23e740524049c2a1e68
-
-(cd /tmp/r2286x-fixtures && sha256sum -c SHA256SUMS)
 
 # Start the raw LTM capture before creating any rule, partition, pool, or VIP.
 tail -n 0 -F /var/log/ltm > /var/tmp/r2286x-ltm-raw.log &
@@ -412,7 +384,6 @@ Retained evidence bundle:
 - [Counted-boundary raw traffic/backend evidence](evidence/r2286_20261006naming/r2286t-dev-evidence.tgz)
 - [Counted-boundary exact fixtures](evidence/r2286_20261006naming/r2286t-fixtures.tgz)
 - [Counted-boundary decoded results](evidence/r2286_20261006naming/r2286t-decoded-results.json)
-- [Complete local SHA-256 inventory](evidence/r2286_20261006naming/SHA256SUMS.local)
 
 Two non-authoritative traffic records are retained rather than hidden:
 `r2286s` portable-index's first phase had two client-side `EADDRINUSE` bind
