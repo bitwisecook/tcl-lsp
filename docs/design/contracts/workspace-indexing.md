@@ -446,7 +446,11 @@ change another file's answer retains the necessary whole-workspace cost.
    database it would get from a real tree. `scan_path` / `scan_tree` remain as
    `NativeStore` wrappers over `scan_path_in` / `scan_tree_in` for native
    callers. See
-   [lsp-source-store.md](lsp-source-store.md).
+   [lsp-source-store.md](lsp-source-store.md). Native `tclIndex` surveys
+   run up to two independent Tcl-release analyses concurrently. Each retains
+   its own grammar and naming policy; results are installed in release order,
+   while the caller owns the rescan memo and rechecks file existence. WASM and
+   failed worker creation use serial surveys.
 8. The scan's file budget is a **setting**, not a constant.
    `tclLsp.workspaceScan.maxFiles` (INI `[workspaceScan] max_files`,
    default `WORKSPACE_SCAN_FILE_CAP` = 2000) bounds
