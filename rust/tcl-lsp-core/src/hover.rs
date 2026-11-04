@@ -876,7 +876,10 @@ enum PositionHover {
 /// Embedded pattern and format advice from the retained source inventory.
 /// All source domains keep their exact source, configuration and context seal;
 /// missing original operands do not enable a nominal compatibility walker.
-fn registry_pattern_format_hover(
+/// The result describes a retained source operand, never a method or runtime
+/// binding. Hosts must preserve their stronger workspace selection and leases.
+#[must_use]
+pub fn registry_pattern_format_hover(
     source: &str,
     line: u32,
     character: u32,
@@ -890,12 +893,86 @@ fn registry_pattern_format_hover(
     original_pattern_format_hover(source, analysis, registry, cursor)
 }
 
+/// Conditional embedded-language source advice with stronger indexed command
+/// occupation preserved. The same retained catalogue owns the path alternatives,
+/// residual conditions, selected schema and original operand; no runtime absence
+/// or method binding follows from an empty indexed match.
+#[must_use]
+pub fn registry_pattern_format_hover_in_workspace(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    index: &crate::workspace_index::WorkspaceIndex,
+) -> Option<Hover> {
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let mut hover = original_pattern_format_hover_with_workspace(
+        source,
+        analysis,
+        registry,
+        cursor,
+        Some(index),
+    )?;
+    hover.value.push_str("\n\nPattern syntax applies if this is the expected command implementation.");
+    Some(hover)
+}
+
 /// Readonly embedded-language advice from the same original effective argv.
 fn original_pattern_format_hover(
     source: &str,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     cursor: u32,
+) -> Option<Hover> {
+    original_pattern_format_hover_with_workspace(source, analysis, registry, cursor, None)
+}
+
+fn original_pattern_workspace_allowed(
+    words: &crate::original_invocation::OriginalRegistryWords,
+    index: &crate::workspace_index::WorkspaceIndex,
+) -> Option<()> {
+    use tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource;
+    let OriginalRegistrySource::Conditional(metadata) = &words.source else {
+        return None;
+    };
+    let paths = metadata.possible_source_command_paths();
+    if paths.is_empty() || paths.iter().any(Vec::is_empty) {
+        return None;
+    }
+    let policy = metadata.original_head().name_input().policy();
+    let occupied = index
+        .original_command_publications()
+        .map(|(_, publication)| (publication.slot(), publication.policy()))
+        .chain(
+            index
+                .original_class_source_candidates()
+                .map(|(_, _, slot, policy)| (slot, policy)),
+        )
+        .chain(
+            index
+                .original_procedure_source_candidates()
+                .map(|(_, _, slot, policy)| (slot, policy)),
+        )
+        .any(|(slot, occupied_policy)| {
+            occupied_policy == policy && paths.iter().any(|path| path.contains(slot))
+        });
+    if occupied {
+        return None;
+    }
+    // The original catalogue has already refused unbounded namespace paths
+    // and nonunanimous descriptor rows. All its applicability/holder/lookup
+    // obligations remain on this same metadata; none is discharged here.
+    Some(())
+}
+
+fn original_pattern_format_hover_with_workspace(
+    source: &str,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    cursor: u32,
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
 ) -> Option<Hover> {
     let context = analysis.resolved_input.as_ref()?.context_registry();
     if registry.snapshot().semantic_key() != context.commands().snapshot().semantic_key() {
@@ -906,6 +983,9 @@ fn original_pattern_format_hover(
         .into_iter()
         .filter(|(command, _)| command.span.start() <= cursor && cursor <= command.span.end())
         .min_by_key(|(command, _)| command.span.end() - command.span.start())?;
+    if let Some(index) = workspace {
+        original_pattern_workspace_allowed(&words, index)?;
+    }
     // naming.core.original-pattern-retained-context
     // docs/design/analysis/name-resolution-proofs/original-pattern-retained-context.md
     let mut proven_unit = None;

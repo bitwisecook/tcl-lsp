@@ -49,6 +49,14 @@ impl OriginalConditionalRegistryMetadata {
     pub const fn original_namespace(&self) -> &SignatureNamespaceScope {
         self.catalogue.original_namespace()
     }
+    /// Every ordered source-coordinate alternative retained by this exact
+    /// catalogue candidate. These paths and the accompanying obligations do
+    /// not prove runtime lookup, namespace entry or workspace absence.
+    #[must_use]
+    pub fn possible_source_command_paths(&self) -> &[Vec<tcl_core_types::ByteCommandSlot>] {
+        self.catalogue.paths()
+    }
+
     /// Actual full analysis availability and package context.
     #[must_use]
     pub const fn context(&self) -> &ResolvedContext {
