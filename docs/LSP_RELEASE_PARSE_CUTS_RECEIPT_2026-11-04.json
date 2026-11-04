@@ -51,5 +51,11 @@
     "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
   },
   "workspace_rust_check_and_prep_pr": "pending; focused verification does not certify release gates",
-  "issue_comment": "https://github.com/bitwisecook/tcl-lsp/issues/2436#issuecomment-6630162759"
+  "issue_comment": "https://github.com/bitwisecook/tcl-lsp/issues/2436#issuecomment-6630162759",
+  "targeted_clippy": {
+    "command": "cargo clippy --offline -p tcl-lexer -p tcl-compiler --lib -- -D warnings",
+    "source_head": "c80aa092d (plus documentation-only 767bb6897)",
+    "result": "pass",
+    "final_output": "    Finished `dev` profile [unoptimized] target(s) in 1m 14s"
+  }
 }
