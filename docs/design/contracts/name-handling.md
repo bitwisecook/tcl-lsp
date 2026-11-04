@@ -211,6 +211,11 @@ region in every incomplete scope. Each selected interpretation must retain its
 actual declaration metadata; the final publication rejoins the same current
 physical ancestry and complete input. No partial schema fallback, reference
 coverage or completion authority follows.
+A refused publication lease marks only its affected root for recapture, retaining
+its required-source debt and granting no leased IDs, completion or partial scope.
+Definition and hover retry their required URI closure within the existing bound;
+unrelated current scopes remain available. Reference inventories and aggregate
+index/world completion refuse while any producer awaits recapture.
 Positive original source cards or inherited interpretations select this route.
 Declining it supplies no absence or completion fact to independently guarded
 ordinary hover providers.
