@@ -103,6 +103,24 @@ impl<'a> TaintSourceContext<'a> {
         self.config
     }
 
+    /// Retained entry for classifying an incoming physical global address.
+    /// Availability and standalone source policy cannot supply this origin.
+    pub(super) fn incoming_native_global_context(
+        self,
+    ) -> Option<(
+        &'a tcl_runtime_api::NativeCompilationEntry,
+        &'static DialectProfile,
+    )> {
+        let input = self.metadata?.source_analysis_input()?;
+        let module = self.module?;
+        if module.source_entry.unknown_entry {
+            return None;
+        }
+        let entry = module.source_entry.native_entry.as_deref()?;
+        let profile = input.unit_profile();
+        (entry.profile == profile.cache_key()).then_some((entry, profile))
+    }
+
     pub(crate) fn for_input(
         registry: &CommandRegistry,
         input: Option<&'a ResolvedAnalysisInput>,

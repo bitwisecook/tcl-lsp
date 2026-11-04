@@ -82,6 +82,24 @@ pub enum VariableCellKey {
         index: NameBytes,
     },
 }
+
+/// An original incoming root-global address, retaining any element key.
+/// This supplies no bound-variable, incoming-value or successful-read fact.
+pub(crate) struct IncomingRootGlobalCell<'a> {
+    cell: &'a VariableCellKey,
+    name: &'a NameBytes,
+}
+
+impl IncomingRootGlobalCell<'_> {
+    pub(crate) const fn name(&self) -> &NameBytes {
+        self.name
+    }
+
+    pub(crate) const fn is_element(&self) -> bool {
+        matches!(self.cell, VariableCellKey::Element { .. })
+    }
+}
+
 // A diagnostic label is never accepted as a retained byte key.
 fn byte_label(name: &NameBytes) -> String {
     name.try_utf8()
@@ -89,6 +107,31 @@ fn byte_label(name: &NameBytes) -> String {
 }
 
 impl VariableCellKey {
+    /// Select an incoming global only in its retained native entry's root.
+    /// Elements keep their own cell identity; recreated lifetimes and symbolic
+    /// or foreign storage never acquire incoming provenance from their labels.
+    pub(crate) fn incoming_root_global(
+        &self,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Option<IncomingRootGlobalCell<'_>> {
+        if !entry.closed {
+            return None;
+        }
+        let mut root = self;
+        while let Self::Element { cell, .. } = root {
+            root = cell;
+        }
+        let Self::Namespace { identity, simple } = root else {
+            return None;
+        };
+        identity
+            .is_native_root_in_entry(entry)
+            .then_some(IncomingRootGlobalCell {
+                cell: self,
+                name: simple,
+            })
+    }
+
     /// Compatibility spelling only; never a lookup or equality proof.
     #[must_use]
     pub fn compatibility_name(&self) -> String {

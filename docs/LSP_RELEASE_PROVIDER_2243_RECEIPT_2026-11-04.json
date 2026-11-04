@@ -227,11 +227,13 @@
   },
   "independent_seed_audit": {
     "record": "../experiments/name-handling/lsp-2243-coverage/seed-audit/README.md",
-    "processes": 18,
+    "processes": 21,
     "all_processes_exit_zero": true,
     "reproduced": "Genuine top-level native-root argv/env incoming seed loses independent provenance when a reachable global-writer seed is inserted first; qualified-only argv is not seeded",
     "diagnostic_limit": "T100 still emits through independently unknown represented contents; no missing-diagnostic or #2243 cause is established",
     "exact_corpus_limit": "Both exact IMAP4 argc reads remain unavailable in the public native-entry probe",
-    "repair_status": "Not implemented or built in this checkpoint"
+    "repair_status": "Independent shared-cell/provenance repair verified: production Clippy and compiler lib no-run exited 0, followed by 12 counted controls in 6 processes. Exact #2243 coverage remains unavailable.",
+    "repair_record": "../experiments/name-handling/lsp-2243-coverage/seed-repair/receipt.json",
+    "repair_binary_sha256": "b8fab38db77645ebf5691d00af8c38da105fcfd2f16bf33348a73128e21069fb"
   }
 }

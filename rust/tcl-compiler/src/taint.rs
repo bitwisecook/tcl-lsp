@@ -2593,7 +2593,7 @@ pub(crate) fn propagate_taints(
         cfg,
         interproc,
         param_taints,
-        (registry, dialect),
+        registry,
         source,
     );
     seed_original_script_unknown_taints(&mut taints, ssa);
@@ -2748,10 +2748,7 @@ fn seed_entry_taints(
     cfg: &CfgFunction,
     interproc: Option<&InterproceduralAnalysis>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
-    (registry, dialect): (
-        &CommandRegistry,
-        Option<&'static tcl_dialect::DialectProfile>,
-    ),
+    registry: &CommandRegistry,
     source: TaintSourceContext<'_>,
 ) {
     // Seed entry taints for tainted parameters (interprocedural solve).
@@ -2789,38 +2786,35 @@ fn seed_entry_taints(
         }
     }
 
-    // Interpreter-provided external-input globals (`env`, `argv`, `argv0`) are
-    // taint sources: their version-0 (external) read is attacker-influenced.
-    // The set is dialect-aware — the restricted iRules interpreter provides
-    // none of them — and sourced from the registry's special variables, a
-    // pack-declared one included. A later local `set env …` writes a higher
-    // SSA version, so a read that resolves to the local (version > 0) is
-    // unaffected; shadowing falls out of the SSA versioning, not a check here.
-    for spec in registry.special_vars_for_dialect(Some(
-        tcl_registry::special_vars::surface_query_for_profile(dialect),
-    )) {
+    // Registry-declared external inputs colour only their original physical
+    // root-global cells. Display aliases and array labels cannot select them.
+    let Some((entry, profile)) = source.incoming_native_global_context() else {
+        // Missing physical origin contributes no seed. Authored formals and
+        // unknown SCRIPT contents retain their independent transfers.
+        return;
+    };
+    let surface = Some(profile.surface_query());
+    for (symbol, cell) in ssa.cell_symbols() {
+        let Some(global) = cell.incoming_root_global(entry) else {
+            continue;
+        };
+        let Ok(name) = global.name().try_utf8() else {
+            continue;
+        };
+        let Some(spec) = registry.special_var_in_dialect(name, surface) else {
+            continue;
+        };
+        if global.is_element() && spec.kind != tcl_registry::special_vars::SpecialVarKind::Array {
+            continue;
+        }
         let Some(colour) = spec.read_taint else {
             continue;
         };
-        if let Some(sym) = ssa.var_symbol(spec.name) {
-            taints
-                .entry((sym, 0))
-                .or_insert_with(|| TaintLattice::from_colours(reg_colour(colour)));
-        }
-        // Per-element SSA: `$env(PATH)` reads its own `env(PATH)` symbol —
-        // every constant-keyed element of a tainted special array carries
-        // the source colour at version 0 too.
-        for name in ssa.var_names() {
-            if name.len() > spec.name.len()
-                && name.starts_with(spec.name)
-                && name.as_bytes()[spec.name.len()] == b'('
-                && let Some(sym) = ssa.var_symbol(name)
-            {
-                taints
-                    .entry((sym, 0))
-                    .or_insert_with(|| TaintLattice::from_colours(reg_colour(colour)));
-            }
-        }
+        let incoming = TaintLattice::from_colours(reg_colour(colour));
+        taints
+            .entry((symbol, 0))
+            .and_modify(|value| *value = value.join(incoming))
+            .or_insert(incoming);
     }
 }
 
@@ -11182,6 +11176,295 @@ mod tests {
         assert!(!c.is_tainted());
         let t = TaintLattice::tainted();
         assert!(t.is_tainted());
+    }
+
+    fn incoming_global_unit(
+        source: &str,
+        context: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) -> (tcl_vm::Vm, crate::compilation_unit::CompilationUnit) {
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(context),
+            config,
+        );
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+            registry,
+            &input,
+            config,
+            Some(profile),
+        );
+        entry.native_entry = Some(std::sync::Arc::new(native));
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (owner, unit)
+    }
+
+    #[test]
+    fn incoming_external_globals_keep_physical_identity_and_independent_provenance() {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        for (source, spelling, name, element) in [
+            ("expr {$argv + 1}", "$argv", "argv", false),
+            (
+                "proc writer {} {set ::state 1}; expr {$argv + 1}; writer",
+                "$argv",
+                "argv",
+                false,
+            ),
+            (
+                "expr {$env(PATH) + 1}; proc writer {} {set ::state 1}; writer",
+                "$env(PATH)",
+                "env",
+                true,
+            ),
+            ("expr {$::argv + 1}", "$::argv", "argv", false),
+            (
+                "upvar #0 argv argc; expr {$argc + 1}",
+                "$argc",
+                "argv",
+                false,
+            ),
+        ] {
+            let (_owner, unit) = incoming_global_unit(source, &context);
+            let unit = unit.with_interprocedural(registry, Some(profile));
+            let start = u32::try_from(source.find(spelling).unwrap()).unwrap();
+            let span = Span::new(start, start + u32::try_from(spelling.len()).unwrap());
+            let read = crate::ssa::original_source_read_at_unit(&unit, span, registry)
+                .expect("actual retained top-level read");
+            assert!(std::ptr::eq(read.function(), &unit.top_level));
+            let cell = read.function().ssa.cell_key(read.symbol()).unwrap();
+            let global = cell
+                .incoming_root_global(unit.ir_module.source_entry.native_entry.as_deref().unwrap())
+                .expect("same-entry incoming root-global cell");
+            assert_eq!(global.name().as_bytes(), name.as_bytes());
+            assert_eq!(global.is_element(), element);
+            let solved = crate::taint_interproc::solve_interprocedural_taints(
+                &unit,
+                registry,
+                Some(profile),
+            );
+            let incoming = solved.top_taints[&(read.symbol(), 0)];
+            assert!(incoming.is_tainted(), "{source}: {incoming:?}");
+            assert!(
+                !incoming.is_conservative_global_seed_only(),
+                "independent external source was lost: {source}: {incoming:?}"
+            );
+            // Unknown represented contents remain a separate warning source.
+            assert!(
+                find_taint_warnings_for_cu(&unit, registry, Some(profile))
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::T100 && warning.span == span)
+            );
+        }
+    }
+
+    #[test]
+    fn incoming_global_projection_refuses_foreign_nonroot_and_recreated_storage() {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let source = "expr {$argv + 1}";
+        let (_owner, unit) = incoming_global_unit(source, &context);
+        let read = crate::ssa::original_source_read_at_unit(&unit, Span::new(6, 11), registry)
+            .expect("actual retained incoming read");
+        let cell = read.function().ssa.cell_key(read.symbol()).unwrap();
+        let entry = unit.ir_module.source_entry.native_entry.as_deref().unwrap();
+        let (_foreign_owner, foreign) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
+        assert!(cell.incoming_root_global(&foreign).is_none());
+        // Refusal-only wrappers around the genuine cell issue no SSA or lifetime proof.
+        let recreated = crate::var_resolve::VariableCellKey::Lifetime {
+            source: 1,
+            cell: Box::new(cell.clone()),
+        };
+        assert!(recreated.incoming_root_global(entry).is_none());
+        let member = crate::var_resolve::VariableCellKey::Element {
+            cell: Box::new(recreated),
+            index: "key".into(),
+        };
+        assert!(member.incoming_root_global(entry).is_none());
+        assert!(
+            crate::var_resolve::VariableCellKey::Authored("argv".to_owned())
+                .incoming_root_global(entry)
+                .is_none()
+        );
+        let source =
+            "namespace eval box {variable argv}; upvar #0 box::argv argc; expr {$argc + 1}";
+        let (_owner, unit) = incoming_global_unit(source, &context);
+        let start = u32::try_from(source.find("$argc").unwrap()).unwrap();
+        let read =
+            crate::ssa::original_source_read_at_unit(&unit, Span::new(start, start + 5), registry)
+                .expect("actual retained non-root read");
+        assert!(
+            read.function()
+                .ssa
+                .cell_key(read.symbol())
+                .unwrap()
+                .incoming_root_global(unit.ir_module.source_entry.native_entry.as_deref().unwrap())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn incoming_external_globals_use_retained_availability_and_entry() {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let (_owner, unit) = incoming_global_unit("expr {$argv + 1}", &context);
+        let read = crate::ssa::original_source_read_at_unit(&unit, Span::new(6, 11), registry)
+            .expect("actual retained incoming read");
+        let mut missing_origin = HashMap::new();
+        seed_entry_taints(
+            &mut missing_origin,
+            &unit.top_level.ssa,
+            &unit.top_level.cfg,
+            None,
+            None,
+            registry,
+            TaintSourceContext::for_function(registry, &unit.top_level),
+        );
+        assert!(!missing_origin.contains_key(&(read.symbol(), 0)));
+        let retained =
+            TaintSourceContext::for_module_function(registry, &unit.ir_module, &unit.top_level);
+        for separate_dialect in [None, Some(tcl_dialect::DialectProfile::irules())] {
+            let mut context = retained;
+            context.dialect = separate_dialect;
+            let mut incoming = HashMap::new();
+            seed_entry_taints(
+                &mut incoming,
+                &unit.top_level.ssa,
+                &unit.top_level.cfg,
+                None,
+                None,
+                registry,
+                context,
+            );
+            assert!(incoming[&(read.symbol(), 0)].is_tainted());
+        }
+        let mut unavailable = retained;
+        unavailable.metadata = None;
+        assert!(unavailable.incoming_native_global_context().is_none());
+        assert!(
+            TaintSourceContext::standalone(registry, Some(profile))
+                .incoming_native_global_context()
+                .is_none()
+        );
+        let mut detached = unit.clone();
+        detached.ir_module.source_entry.native_entry = None;
+        assert!(
+            TaintSourceContext::for_module_function(
+                registry,
+                &detached.ir_module,
+                &detached.top_level,
+            )
+            .incoming_native_global_context()
+            .is_none()
+        );
+        detached.ir_module.source_entry = unit.ir_module.source_entry.clone();
+        detached.ir_module.source_entry.unknown_entry = true;
+        assert!(
+            TaintSourceContext::for_module_function(
+                registry,
+                &detached.ir_module,
+                &detached.top_level,
+            )
+            .incoming_native_global_context()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn incoming_global_metadata_cannot_replace_genuine_formal_or_gets_sources() {
+        let context =
+            crate::environment_ingress::resolve_environment("tcl8.6").default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let (_owner, unit) = incoming_global_unit("proc p {argv} {expr {$argv + 1}}", &context);
+        let (function, symbol) = unit
+            .all_body_function_units()
+            .find_map(|function| {
+                function.ssa.cell_symbols().find_map(|(symbol, cell)| {
+                    matches!(cell, crate::var_resolve::VariableCellKey::Activation { simple, .. }
+                        if simple.as_bytes() == b"argv")
+                    .then_some((function, symbol))
+                })
+            })
+            .expect("genuine retained formal cell; no exact diagnostic read is claimed");
+        let source = TaintSourceContext::for_module_function(registry, &unit.ir_module, function);
+        let mut clean = HashMap::new();
+        seed_entry_taints(
+            &mut clean,
+            &function.ssa,
+            &function.cfg,
+            None,
+            None,
+            registry,
+            source,
+        );
+        assert!(!clean.contains_key(&(symbol, 0)));
+        let mut explicit = HashMap::new();
+        seed_entry_taints(
+            &mut explicit,
+            &function.ssa,
+            &function.cfg,
+            None,
+            Some(&HashMap::from([(
+                "argv".to_owned(),
+                TaintLattice::tainted(),
+            )])),
+            registry,
+            source,
+        );
+        assert!(explicit[&(symbol, 0)].is_tainted());
+        assert!(!explicit[&(symbol, 0)].is_conservative_global_seed_only());
+
+        for (source, spelling) in [
+            ("set argc [gets stdin]; expr {$argc + 1}", "$argc"),
+            (
+                "set argv SAFE; unset argv; set argv [gets stdin]; expr {$argv + 1}",
+                "$argv",
+            ),
+        ] {
+            let (_owner, unit) = incoming_global_unit(source, &context);
+            let unit = unit.with_interprocedural(registry, Some(profile));
+            let start = u32::try_from(source.find(spelling).unwrap()).unwrap();
+            let read = crate::ssa::original_source_read_at_unit(
+                &unit,
+                Span::new(start, start + u32::try_from(spelling.len()).unwrap()),
+                registry,
+            )
+            .expect("actual retained gets/rebind read");
+            let version = read.version().expect("represented later contents");
+            assert!(version > 0);
+            let solved = crate::taint_interproc::solve_interprocedural_taints(
+                &unit,
+                registry,
+                Some(profile),
+            );
+            let value = solved.top_taints[&(read.symbol(), version)];
+            assert!(value.is_tainted());
+            assert!(!value.is_conservative_global_seed_only());
+        }
     }
 
     #[test]
