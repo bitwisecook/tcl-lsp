@@ -100,6 +100,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 ## Q&A
 
+- [kcs-qa-does-a-class-outline-prove-method-dispatch.md](kcs-qa-does-a-class-outline-prove-method-dispatch.md)
+  — why written class and method declarations can appear while a method jump
+  or rename remains unavailable.
 - [kcs-qa-when-must-tclvm-recompile-runtime-bytecode.md](kcs-qa-when-must-tclvm-recompile-runtime-bytecode.md)
   — when embedders can reuse TclVM bytecode after a dialect-profile or compile-
   service replacement, and why live activations fail closed.

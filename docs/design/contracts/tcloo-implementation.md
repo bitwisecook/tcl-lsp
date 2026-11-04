@@ -185,9 +185,35 @@ Three conditions bound it, and each abstains rather than guessing:
   in the frame, or a qualified or array name and the variable is omitted, so
   reassignment, branch joins and parameters abstain without a target.
 
-A class system whose definer the analyser does not model records no `ClassDef`
-at all, so none of this is reachable in such a file however well-formed its
-callbacks are — `::clay::define` is the corpus example (#1956).
+A source class inventory supplies written declarations independently of these
+callback-entry requirements. Clay's class inventory therefore does not settle
+the separate `my connect` navigation gap in Tcllib HTTPD (#1956).
+
+### Clay source inventory
+
+The uncompiled draft's Tcllib `clay::define` descriptor selects its `name script` form through an
+exact-arity `CommandForm`. The form supplies `Name` and `Body` roles; the
+provider inventory producer reads those ordinals from the existing original
+conditional Registry metadata. Full original argv, input, registry generation,
+namespace coordinates, and shadow barriers remain with that owner. Expanded,
+computed, replaced, or missing original selections supply no substitute header.
+
+`DefinerFamily::Clay` selects the shared definition-body producer.
+`CLAY_GRAMMAR` routes members through `MemberEffect`, retaining original method
+names, parameters, and bodies only for audited lowercase `method` forwarding.
+Clay's constructor, destructor, and generated-method operations do not preserve
+those bodies and supply no such member metadata. The namespace policy comes
+from `MemberCurrentNamespace`, shared with the existing method-body walker.
+
+Class and method records use provider source-name advice and `SourceValue`
+member names. Inheritance and member coverage stay incomplete. The grammar
+supplies no installed dispatcher, manufacturer, native class or receiver entry,
+or rename permission. The signature scanner does not infer a factory from this
+inventory. Package descriptors describe applicability, not package loading.
+The exact HTTPD corpus assertion requires the original server header and
+`connect` name, parameter, and body sites; an empty report cannot satisfy it.
+The current validation status remains in the
+[provider audit](../../LSP_RELEASE_PROVIDERS.md).
 
 ### LSP analysis layer (`rust/tcl-compiler/src/analyser/`)
 
@@ -401,8 +427,9 @@ Reference results captured from real tclsh 8.4–9.0 are queryable via the
 | `rust/tcl-lsp-core/src/oo_dispatch.rs` | In-document dispatch entry + effective export state |
 | `rust/tcl-lsp-core/src/workspace_index.rs` | Cross-file dispatch chain (same fold, workspace records) |
 | `rust/tcl-compiler/src/analyser/oo.rs` | Static OO analysis (class/method extraction) |
+| `rust/tcl-compiler/src/analyser/provider_definition.rs` | Draft provider source inventory, without installation or receiver entry |
 | `rust/tcl-compiler/src/analyser/class_hierarchy.rs` | Owner-aware hierarchy index + one-hop class resolution |
-| `rust/tcl-registry/src/definer.rs` | Definer body grammars (TclOO / snit / itcl as data) |
+| `rust/tcl-registry/src/definer.rs` | Definer body grammars (TclOO / snit / itcl and the Clay draft as data) |
 | `rust/tcl-lsp-core/src/oo_body.rs` | Shared member walker (folding, semantic tokens) |
 
 ### Original forward prefixes

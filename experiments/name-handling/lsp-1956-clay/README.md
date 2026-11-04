@@ -2,8 +2,8 @@
 
 The exact Tcllib 2.0 HTTPD file has no class symbols in the held native server,
 although native Tcl loads its server class and `connect` method. This is an
-audit and proposed source-metadata seam; no repair or passing regression is
-claimed yet. #2243 remains a separate, parked coverage blocker.
+audit and an uncompiled source-inventory draft; no verified repair or passing
+regression is claimed yet. #2243 remains a separate, parked coverage blocker.
 
 The [audit receipt](audit-receipt.json) pins the files. `clay/clay.tcl` has
 SHA-256 `150b48a3ddf4916cca5e182ce05274773ddcc3bc296c9b1e6f8c4d9afd1c49b0`;
@@ -23,7 +23,12 @@ parameters, and preserve the plain lowercase method's authored parameters and
 body. Repeated `define` adds a method while retaining the reported namespace.
 An uppercase method is unexported; a constructor body is rewritten. Tcl 8.4
 and 8.5 cannot load this Clay release. Jim stops at the probe's unsupported
-`glob -types` setup, so its Clay operations are untested.
+`glob -types` setup, so its Clay operations are untested in that capture.
+The [portable follow-up](../../../evidence/tcl/lsp-1956-clay-package-loading.md)
+uses exact known module paths. It reaches Jim's Clay header and records its
+multi-requirement `package require` error. This Tcl 8.5 host reports neither
+`::oo::class` nor an installed TclOO package; no claim is made about other
+Tcl 8.5 hosts with that extension.
 
 The [baseline probe](baseline-probe.py) uses the existing native server from
 clean source `cab14d1a4fe76da7e88eb5225b9533408d35e95b`, before the independent
@@ -37,7 +42,7 @@ return null even for the TclOO control. That route cannot become a claimed
 Clay success by assuming an entered receiver. The server exits 0.
 
 The native registry's `commands/tcllib` pack owns these library descriptors;
-bundled SpecTcl packs own the EDA vendor libraries. There is no Clay descriptor
+bundled SpecTcl packs own the EDA vendor libraries. The audited baseline has no Clay descriptor
 or grammar. `DefinitionBodyGrammar` already owns member roles/effects, and
 `DefinerFamily` selects the analyser's existing family walkers.
 `original_provider_class_name`, `retain_original_provider_class` and
@@ -45,7 +50,7 @@ or grammar. `DefinitionBodyGrammar` already owns member roles/effects, and
 of handler execution. A provider family uses `SourceValue` member names;
 Native TclOO method entry remains a separate naming purpose.
 
-The proposed minimal change is a `clay::define` descriptor and a Clay family
+The uncompiled draft adds a `clay::define` descriptor and a Clay family
 grammar, with a family-gated source-inventory handler using the shared body,
 member and original-name owners. Only the exact `name script` form receives a
 definition body; inline or expanded forms retain generic handling. Plain
@@ -63,3 +68,20 @@ braced/escaped names and namespace placement must use existing name owners;
 computed or expanded names must not gain navigation authority. Native dispatch,
 factory execution and rename remain independently selected. No Cargo,
 `make rust-check` or `make prep-pr` has run for this audit.
+
+The reviewed implementation uses existing exact-arity `CommandForm` data and
+resolved `Name`/`Body` roles. The original conditional Registry metadata owns
+full source argv, namespace coordinates, registry/input identity, and shadow
+barriers. Four compiler controls, two registry controls, two language-server
+outline/authority controls, and one exact HTTPD corpus test are authored but
+unrun. The corpus test uses `FixedCorpusSource` and the current Tcllib bootstrap
+contract; missing or changed bytes fail setup. The input remains upstream
+Tcllib source with its original copyright and licence; no vendored file was
+rewritten. See the [generated-file plan](generated-file-plan.md) for the pending
+refresh and gate obligations. Full `rust-check` and `prep-pr` remain unrun.
+
+The original Tcllib `license.terms` has SHA-256
+`38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c`.
+The fixture pin links the original upstream file; no AGPL header is added to
+those upstream bytes. The portable native follow-up reaches Jim package loading
+without an unsupported glob option and records the actual header rejection.

@@ -1,6 +1,6 @@
 {
   "issue": 1956,
-  "status": "Open; source audit and source-boundary proposal pending review. No implementation or Cargo run.",
+  "status": "Open; narrow source-inventory draft passed root static review, compilation and runtime tests unrun. Receiver navigation remains separate.",
   "fixture_sha256": {
     "tmp/tcllib-2.0/modules/clay/clay.tcl": "150b48a3ddf4916cca5e182ce05274773ddcc3bc296c9b1e6f8c4d9afd1c49b0",
     "tmp/tcllib-2.0/modules/clay/pkgIndex.tcl": "8dc14eb23d620462cb19009ccff7e6ce980731250c9c5dfede2b6960823e5aec",
@@ -17,9 +17,38 @@
     "tcl_evidence_format": {
       "command": "python3 scripts/dev/check-tcl-evidence.py",
       "actual_exit": 0,
-      "files": 1648
+      "files": 1649
     },
     "baseline_probe_py_compile": 0,
-    "git_diff_check": 0
+    "git_diff_check": 0,
+    "make_check_tcl_evidence": {
+      "actual_exit": 0,
+      "tee_exit": 0,
+      "files": 1649,
+      "python_tests": 23
+    }
+  },
+  "portable_native_record": "../../../evidence/tcl/lsp-1956-clay-package-loading.md",
+  "authored_tests": {
+    "compiler": 4,
+    "registry": 2,
+    "language_server_core": 2,
+    "exact_httpd_corpus": 1,
+    "runtime_status": "Not run"
+  },
+  "static_reviewed_patch_sha256": "8c78d150d179987e3d1621aab3cd76777662d8b5489927b1a68cdea9620d4fdb",
+  "upstream_licence": {
+    "origin": "https://github.com/tcltk/tcllib/blob/tcllib-2-0/license.terms",
+    "sha256": "38e1f556213f4008cfd280457af57c76a1fe043dc026ece1c704c09b5f6e865c",
+    "fixture_bytes_modified": false
+  },
+  "generated_file_plan": "generated-file-plan.md",
+  "current_source_patch_sha256": "afaf71a8b637ecb0bf3374fe73495bf28e507fe47050e9136f7d9edc31b4b1cc",
+  "current_source_patch_record": "/workspace/tcl-lsp/tmp/lsp-verified-artifacts/1956/candidate-draft-v2/source.patch",
+  "source_draft_custody": {
+    "stash": "eedae9ee8555c0bcef38dec209a43dedaa310b33",
+    "published": false,
+    "source_patch_sha256": "afaf71a8b637ecb0bf3374fe73495bf28e507fe47050e9136f7d9edc31b4b1cc",
+    "reason": "Private until allocated compiler/runtime verification; documentation/evidence checkpoint only."
   }
 }

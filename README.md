@@ -730,6 +730,13 @@ externally unexported method resolves nowhere (as in C Tcl), and
 per-object `oo::objdefine` methods resolve per receiver binding, so
 same-named locals in different procs never collide.
 
+Clay source class and ordinary method inventory is being verified on `work`.
+Its outline declarations do not establish an entered object or a safe rename.
+Clay's transformed and generated members remain incomplete, and the HTTPD
+`my connect` jump is still under investigation in
+[#1956](https://github.com/bitwisecook/tcl-lsp/issues/1956). See
+[the outline and method-jump boundary](docs/kcs/kcs-qa-does-a-class-outline-prove-method-dispatch.md).
+
 Namespace variables navigate across files too. `$::tomato::version` jumps
 to — and hovers, and finds references for — the `variable version` inside
 whichever file's `namespace eval tomato { … }` declares it, in either
