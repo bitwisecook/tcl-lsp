@@ -179,7 +179,8 @@ redefinition.
     about the *frame*: `has_runtime_selected_frames()` reports it, and a
     consumer folding **inside** such a body (the O129 `TclOO` frame constant)
     must abstain on it, because a receiver-local command can shadow any head
-    the body names. It is deliberately **not** folded into `dynamic`: a
+    the body names. This deliberately includes the natural `[self class]`
+    spelling: its lexical fallback is not proof of the receiver-local target. It is deliberately **not** folded into `dynamic`: a
     receiver namespace cannot change what a name resolves to in a namespace
     this scan *can* spell, so the top level and every procedure keep their
     folds. What does carry past the frame is a binding *change* made from it

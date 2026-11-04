@@ -63,6 +63,12 @@ puts 5
   package's command counts the same way: `proc base32::encode`, or `proc
   encode` inside `namespace eval base32`, is the command every caller runs,
   so `[base32::encode abc]` is never folded to the package's answer there.
+- A method's `[self class]` remains unchanged when relative command names
+  could resolve in the receiver's namespace. A receiver-local command can
+  shadow `self`; the declaring class alone does not prove its target.
+- Folding within a quoted word preserves the boundaries of backslash escapes.
+  A result that would extend a preceding hexadecimal, Unicode or octal escape
+  stays as a command substitution.
 - A command substitution that is a whole word is folded whole or not at all:
   where its route declines (`[string match -nocase {a]€} {€a}]`, whose
   case-folding over `€` the route does not answer), the word stays as

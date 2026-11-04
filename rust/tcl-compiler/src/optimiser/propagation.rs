@@ -1173,6 +1173,9 @@ fn oo_frame_for(
     mutations: &crate::command_binding::ModuleCommandMutations,
     world: &crate::command_binding::OriginalCompletedCommandWorld,
 ) -> Option<OoFrame> {
+    // Relative `self` can be shadowed in a receiver-selected namespace.
+    // The natural `[self class]` spelling deliberately remains unchanged
+    // until the original command target is proved for that method frame.
     if mutations.has_runtime_selected_frames() || method.kind == crate::ir::MethodKind::ClassMethod
     {
         return None;
