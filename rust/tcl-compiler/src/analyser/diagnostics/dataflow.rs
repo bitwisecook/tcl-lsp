@@ -175,13 +175,21 @@ fn header_fact(
     fu: &crate::compilation_unit::FunctionUnit,
     span: tcl_lexer::Span,
 ) -> Option<HeaderFact> {
+    let (_, node) = held_loop(fu, span)?;
+    let crate::cfg::Terminator::Goto { target, .. } =
+        fu.cfg.blocks.get(&node.start)?.terminator.as_ref()?
+    else {
+        return None;
+    };
+    // A rotated for retains its source condition on the latch. Its first
+    // test is the synthetic header reached after the initialisation script.
+    let header = fu.cfg.block_name(*target);
     let branch = fu
         .diagnostic_value_facts()
         .constant_branches()
         .iter()
         .find(|branch| {
-            branch.kind == crate::sccp::BranchFactKind::Applied
-                && branch.span.map(|found| fu.abs_span(found)) == Some(span)
+            branch.kind == crate::sccp::BranchFactKind::Applied && branch.block == header
         })?;
     if !branch.value {
         return Some(HeaderFact::Never);
