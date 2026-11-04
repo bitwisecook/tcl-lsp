@@ -4,7 +4,7 @@ Updated 4 November 2026. Branch: `work`. The LSP is not yet release-ready.
 
 User priority update: the conditional-list S102 follow-up in #940 takes priority.
 The user permits evidence comments and closure only for verified fixed issues
-authored by bitwisecook. The seven issues #2254, #2255, #2334, #2351, #2434, #2436 and #2440
+authored by bitwisecook. The eight issues #2218, #2254, #2255, #2334, #2351, #2434, #2436 and #2440
 were verified, commented and closed. All 20 other-reporter issues remain open;
 their current assessment is in [LSP_RELEASE_EXTERNAL.md](LSP_RELEASE_EXTERNAL.md).
 
@@ -38,6 +38,7 @@ All naming changes use the shared naming owners. Tcl parsing must use the existi
 - The shared Jim reference is deliberately refreshed to verified upstream HEAD `82fb4d0caf90240d94352a31fcbd16adf52658a7` (3 November 2026), now built with revision-bearing patchlevel `0.84-10-g82fb4d0`. The earlier release-only patchlevel could not satisfy the shared reference validator. The official provisioning helper and the nested parse-cut oracle tests pass with the refreshed build.
 - #2436 was closed after its [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2436#issuecomment-6630162759) was posted and fetched back. The [bounded receipt](LSP_RELEASE_PARSE_CUTS_RECEIPT_2026-11-04.json) records the exact harness, results and six source hashes.
 - Targeted production Clippy for `tcl-lexer` and `tcl-compiler` passes with `-D warnings` at `c80aa092d`; this also includes the pushed #2218 optimiser guard. Full workspace gates remain separate and pending.
+- #2218 was fixed in `c47d83bda`: retained O115 return/argument normalisation now obeys the shared module command-trust owner. Three focused tests pass, with eight positive and eight negative cases plus equivalent original/rewritten execution on all five Tcl releases and Jim `82fb4d0`. The [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2218#issuecomment-6630388414) was fetched back before closure.
 - Coordinator #2129: the registry already has a `SOURCE_ENCODING` admissibility axis and declines non-ASCII text where the target’s source reader is unknown. Full explicit encoding-profile/decode provenance support still requires assessment; conservative folding alone does not complete the issue.
 - Coordinator #2426: current diagnostics retain typed subjects, and Core includes changed-wording/quoting transport controls. Repository-wide envelope and drift-gate acceptance remain unverified.
 - Large design/audit issues #1655, #1710, #1712, #1714 and #2426 require explicit assessment; no blanket completion is claimed.
