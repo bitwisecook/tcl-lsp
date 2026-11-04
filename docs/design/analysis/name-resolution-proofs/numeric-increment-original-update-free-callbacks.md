@@ -97,7 +97,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### jim
 
-Status: `observed`. Version: Jim0.84 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=d8a772110953228a99da8ffe68c8083b47bc7789d9541ab75f07aaaca796bf1e; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Jim_Obj updateString/freeIntRep reached by direct or alias incr; callbacks enabled only during entered source.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim0.84 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Jim_Obj updateString/freeIntRep reached by direct or alias incr; callbacks enabled only during entered source.. Dialect: Jim Tcl.
 
 Exact relevant original rows:
 

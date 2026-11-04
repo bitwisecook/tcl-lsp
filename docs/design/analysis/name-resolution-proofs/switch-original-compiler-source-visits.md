@@ -22,31 +22,31 @@ Five C releases, six exact bodies in probe.c, result bytes and counted local lay
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Recorded executable SHA-256 d3cbdef99d2541a1141608d5dd0dd7aa7602cd9caf32560849459cd46d88635d. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 6}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Recorded executable SHA-256 fda03e8724f2a3f0566c8d9c74d6f7ec100f66322941ced10ac48e3f366718bb. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 6}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Recorded executable SHA-256 68eda92f609918b888c1fafb84ce186fb847c134df87635e01d5937073511096. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 6}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Recorded executable SHA-256 7a19a5dc6e0bd94edbd386943800f7b8d5fe84c996f3a894ba853cc2e6600e07. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 6}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Recorded executable SHA-256 4b2d1cdbd797092eed4977dcbcc3e42ec741d260d102b73552f0dfe04fde1029. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 6}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 

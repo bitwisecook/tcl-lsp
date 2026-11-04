@@ -22,37 +22,37 @@ One fixed ASCII source-file CLI script in each of five actual C releases and cur
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
 
 Exact decoded OBSERVATION result: 1 {can't read "::a(k)": no such element in array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
 
 Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
 
 Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
 
 Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
 
 Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Jim Tcl.
 
 Trace SETUP catch code 1 returns invalid command name "trace". No OBSERVATION row exists, so member recreation, new read execution and old increment completion are unanswered.
 

@@ -22,37 +22,37 @@ Six fresh selected executable processes, fixed ASCII LF source-file input, caugh
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Selected executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
+Status: `unsupported`. Version: 8.4.20. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
 
 This fresh stock CLI reports oo::class absent and an explicit unavailable row. No package or extension load was attempted and no constructor lifecycle operation ran; this is not a claim that every embedding of this interpreter family lacks TclOO.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Selected executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
+Status: `unsupported`. Version: 8.5.19. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
 
 This fresh stock CLI reports oo::class absent and an explicit unavailable row. No package or extension load was attempted and no constructor lifecycle operation ran; this is not a claim that every embedding of this interpreter family lacks TclOO.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Selected executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
 
 The exact31 rows show own empty/empty-malformed constructor removal and acceptance of counts0..3; space/comment a b bodies accept only2; malformed-space definition fails. After own empty removal, the superclass a b constructor still accepts only2. All remaining caught wrong-count operations report TCL WRONGARGS. Outer process code0 and empty stderr are retained separately.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Selected executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
 
 The exact31 rows show own empty/empty-malformed constructor removal and acceptance of counts0..3; space/comment a b bodies accept only2; malformed-space definition fails. After own empty removal, the superclass a b constructor still accepts only2. All remaining caught wrong-count operations report TCL WRONGARGS. Outer process code0 and empty stderr are retained separately.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Selected executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
 
 The exact31 rows show own empty/empty-malformed constructor removal and acceptance of counts0..3; space/comment a b bodies accept only2; malformed-space definition fails. After own empty removal, the superclass a b constructor still accepts only2. All remaining caught wrong-count operations report TCL WRONGARGS. Outer process code0 and empty stderr are retained separately.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Selected executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: Jim Tcl.
 
 This fresh stock CLI reports oo::class absent and an explicit unavailable row. No package or extension load was attempted and no constructor lifecycle operation ran; this is not a claim that every embedding of this interpreter family lacks TclOO.
 

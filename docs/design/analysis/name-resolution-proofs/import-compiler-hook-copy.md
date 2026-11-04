@@ -22,7 +22,7 @@ Exact private C Command.compileProc and Interp.compileEpoch observer after compl
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: binary_sha256=996d24a53c8585d75f2c0b9d532d76d1d0376d8fd8737c9610acd25d32d0749a; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
 
 Exact event snapshots:
 
@@ -35,7 +35,7 @@ delete_source	0	0	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible s
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: binary_sha256=31b39cad2e990f95e96678f95c71e76e09b8a702e175ace4784546364873297f; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
 
 Exact event snapshots:
 
@@ -56,7 +56,7 @@ delete_source	0	13	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: binary_sha256=e95c73f4907354ac36a87cde10f8b0a4c199ab5bda497fd6929803c72a630d97; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
 
 Exact event snapshots:
 
@@ -77,7 +77,7 @@ delete_source	0	28	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: binary_sha256=a8713802ec9c6210dc42bd85f19dc66fc300e5edc15dd1067fcae922cb203e40; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
 
 Exact event snapshots:
 
@@ -98,7 +98,7 @@ delete_source	0	31	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: binary_sha256=7c9fd0ed1953f8abe1c69c1a772e3834fa7cfa9e33c1b1927f11b8a58ed4b083; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc; compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
 
 Exact event snapshots:
 

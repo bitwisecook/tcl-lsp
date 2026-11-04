@@ -22,7 +22,7 @@ Seven exact C8.4 public Tcl_EvalObjv TCL_EVAL_GLOBAL definition/call controls in
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Original observer SHA256 3d545e3f98fd336f8545b219d6df996131dc562e4ee1c827a88157dc6675427a; static library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; process0/empty stderr. Header/compiler/configure attribution unrecorded.. Channel: Original counted Tcl_EvalObjv TCL_EVAL_GLOBAL; result-before-error-global metadata getter sequence.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Original observer; static library; process0/empty stderr. Header/compiler/configure attribution unrecorded.. Channel: Original counted Tcl_EvalObjv TCL_EVAL_GLOBAL; result-before-error-global metadata getter sequence.. Dialect: C Tcl.
 
 Original case/definition-code/call-code/name-hex/body-hex/result-hex/errorInfo-hex/errorCode-hex:
 

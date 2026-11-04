@@ -28,25 +28,25 @@ No native observation for this precise question and provider is attached; no res
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Recorded executable SHA-256 117ba3ef167ec291b69269042870a83fec1df0a869099a928e7b555e8023a554. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Recorded executable SHA-256 aa07fe779c2d16a249d58c35272a5630bec9e140d511feffa53b92168a5e276f. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Recorded executable SHA-256 1b2dd37eee08fe98b225612edb6de3aeb47f50f750f2c8153aab687f226429a3. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Recorded executable SHA-256 d2cc70e4d9cc029dfbc1e8b3e6563281632354fadcad06787ba249624d10b865. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 

@@ -52,7 +52,7 @@ No execution of this precise question on this provider is attached. Other interp
 
 ### jim
 
-Status: `observed`. Version: not queried; original source/library identities retained. Build: Original linked library SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; probe executable SHA256 9b704d15aa2e0e146cb9dc811971944ce725cb415f1ecf930e8fa0de5dec50c1. Channel: Direct jim_regcomp/jim_regexec calls with original native C string pattern/subject arrays.. Dialect: Jim regexp engine.
+Status: `observed`. Version: not queried; original source/library identities retained. Build: Original linked library; probe executable. Channel: Direct jim_regcomp/jim_regexec calls with original native C string pattern/subject arrays.. Dialect: Jim regexp engine.
 
 The retained programs.txt contains thirty pattern indices under each of flags 0, 2, 4, 8 and 32, for 150 blocks. Compile codes: 120 code 0; five each of 8, 19, 13, 16, 18 and 10. Successful blocks include integer programs and eight subject rows. Build exit 0 is recorded, but per-block process status and runtime patch/UTF configuration queries are not retained.
 

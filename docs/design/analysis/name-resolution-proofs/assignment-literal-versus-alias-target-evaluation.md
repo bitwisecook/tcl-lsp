@@ -30,37 +30,37 @@ The helper receives a manually supplied recipe/context and actual source words; 
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Original shell ELF SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `unsupported`. Version: 8.4.20. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
 
 Actual available query is zero, all four controls explicitly unavailable; no lassign invocation.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original shell ELF SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
 
 Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original shell ELF SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
 
 Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original shell ELF SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
 
 Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original shell ELF SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
 
 Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Original shell ELF SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Jim Tcl.
 
 Literal and native alias both evaluate the later target before stores: absent first errors/no targets; old first succeeds with first=one, old=two, one absent. The independent v1 Tcl-style interp-alias setup exits1 before any case.
 

@@ -26,7 +26,7 @@ These added source definitions have no execution outcome attached. This question
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=f6c2d5474513d9fcf2815e979c937c5eef654b4a4fe904b2ab61e7cf075e0985; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -109,7 +109,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=97fcdd8f8ccbc1554b4bd60a22b2b3ba34f3953375ca2874c77f847fa89a0471; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -192,7 +192,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=fd96f16f3efdff984208353aeeeb3189e1e5fdede01703e0906aa62fd1da2840; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -275,7 +275,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=eef7eb516f19d8f3dba4a8dff9c6b0b60533d559a4900c61a45c10ee0fd43e3b; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -358,7 +358,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=c41de2520ae76ddb4f163e60893b0e5edfa95f63f68e780c22f52d2ea43484b2; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -441,7 +441,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### jim
 
-Status: `observed`. Version: Jim 0.84 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=0ccae23480ee8894ab47f7a4c7106ba934808647a7d0a28b940f202b901c4514; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original Jim String getter in custom native callback followed by Jim_Eval; explicit errorCode variable seed, no C primitive snapshot.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim 0.84 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original Jim String getter in custom native callback followed by Jim_Eval; explicit errorCode variable seed, no C primitive snapshot.. Dialect: Jim Tcl.
 
 Exact relevant original rows:
 

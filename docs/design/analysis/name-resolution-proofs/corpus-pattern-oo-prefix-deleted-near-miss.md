@@ -22,31 +22,31 @@ One retained authored oo-prefix-deleted-near-miss reduction across real C Tcl 8.
 
 ### tcl8.4
 
-Status: `not-tested`. Version: 8.4.20. Build: Real C binary SHA-256 04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85; canonical upstream tag core-8-4-20. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
+Status: `not-tested`. Version: 8.4.20. Build: Real C binary; canonical upstream tag core-8-4-20. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
 
 Intended lookup was not reached: setup completion code 1; setup result "invalid command name \"oo::class\""; lookup_code not-run. No lookup, teardown or implementation-equivalence answer is supplied. This stock setup failure does not establish all extension/package contexts are unavailable.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: 8.5.19. Build: Real C binary SHA-256 46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961; canonical upstream tag core-8-5-19. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
+Status: `not-tested`. Version: 8.5.19. Build: Real C binary; canonical upstream tag core-8-5-19. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
 
 Intended lookup was not reached: setup completion code 1; setup result "invalid command name \"oo::class\""; lookup_code not-run. No lookup, teardown or implementation-equivalence answer is supplied. This stock setup failure does not establish all extension/package contexts are unavailable.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Real C binary SHA-256 b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c; canonical upstream tag core-8-6-18. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Real C binary; canonical upstream tag core-8-6-18. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
 
 Setup completed with code 0. Actual lookup completion code 0; result "1"; errorCode "". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Real C binary SHA-256 cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965; canonical upstream tag core-9-0-4. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Real C binary; canonical upstream tag core-9-0-4. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
 
 Setup completed with code 0. Actual lookup completion code 0; result "1"; errorCode "". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Real C binary SHA-256 cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7; canonical upstream tag core-9-1-0. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Real C binary; canonical upstream tag core-9-1-0. Build flags and source-build correspondence are not recorded.. Channel: ASCII authored probe encoded into retained catch wrapper, fresh matching real C interpreter; setup and lookup captured separately. Tcltest is loaded only by the Tcltest lifecycle reduction.. Dialect: Tcl.
 
 Setup completed with code 0. Actual lookup completion code 0; result "1"; errorCode "". The complete recorded return options/errorInfo remain in the raw capture. This is only the reached lookup result.
 

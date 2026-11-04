@@ -22,37 +22,37 @@ Three exact ASCII LF sources consist of a counted number of identical foreach x 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual cc -std=c99 driver compilation exits0; captured executable SHA-256 05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18 with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
+Status: `observed`. Version: 8.4.20. Build: Actual cc -std=c99 driver compilation exits0; captured executable with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
 
 All three exact original nested sources at depths 32, 128, 300 return code0 with empty counted result. All three external case processes exit 0 with empty stderr; complete VERSION/ORIGINAL rows remain unchanged. Finite public completions do not establish private inline/bytecode/stack state, a general safe host nesting limit or a Rust pass.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual cc -std=c99 driver compilation exits0; captured executable SHA-256 293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
+Status: `observed`. Version: 8.5.19. Build: Actual cc -std=c99 driver compilation exits0; captured executable with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
 
 All three exact original nested sources at depths 32, 128, 300 return code0 with empty counted result. All three external case processes exit 0 with empty stderr; complete VERSION/ORIGINAL rows remain unchanged. Finite public completions do not establish private inline/bytecode/stack state, a general safe host nesting limit or a Rust pass.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual cc -std=c99 driver compilation exits0; captured executable SHA-256 f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56 with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
+Status: `observed`. Version: 8.6.18. Build: Actual cc -std=c99 driver compilation exits0; captured executable with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
 
 All three exact original nested sources at depths 32, 128, 300 return code0 with empty counted result. All three external case processes exit 0 with empty stderr; complete VERSION/ORIGINAL rows remain unchanged. Finite public completions do not establish private inline/bytecode/stack state, a general safe host nesting limit or a Rust pass.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual cc -std=c99 driver compilation exits0; captured executable SHA-256 b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
+Status: `observed`. Version: 9.0.4. Build: Actual cc -std=c99 driver compilation exits0; captured executable with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
 
 All three exact original nested sources at depths 32, 128, 300 return code0 with empty counted result. All three external case processes exit 0 with empty stderr; complete VERSION/ORIGINAL rows remain unchanged. Finite public completions do not establish private inline/bytecode/stack state, a general safe host nesting limit or a Rust pass.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual cc -std=c99 driver compilation exits0; captured executable SHA-256 1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528 with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
+Status: `observed`. Version: 9.1.0. Build: Actual cc -std=c99 driver compilation exits0; captured executable with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
 
 All three exact original nested sources at depths 32, 128, 300 return code0 with empty counted result. All three external case processes exit 0 with empty stderr; complete VERSION/ORIGINAL rows remain unchanged. Finite public completions do not establish private inline/bytecode/stack state, a general safe host nesting limit or a Rust pass.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual cc -std=c99 driver compilation exits0; captured executable SHA-256 6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16 with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual cc -std=c99 driver compilation exits0; captured executable with full compiler/link command, executable/static-library/header/Makefile/source pins rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0) or Jim core/static extensions and counted Jim_EvalObj; unchanged independent prelude/original sources. Dialect: Original nested foreach source under selected provider.
 
 All three exact original nested sources at depths 32, 128, 300 return code0 with empty counted result. All three external case processes exit 0 with empty stderr; complete VERSION/ORIGINAL rows remain unchanged. Finite public completions do not establish private inline/bytecode/stack state, a general safe host nesting limit or a Rust pass.
 

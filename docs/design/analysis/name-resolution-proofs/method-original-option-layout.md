@@ -22,37 +22,37 @@ Both retained probe variants: public Tcl_NewStringObj(pointer,count)/Tcl_EvalObj
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual executable SHA-256 88490db57f6ea1fbd36ee38b3de7de556d090e93bef8c88f924a40eecb6e965c; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `unsupported`. Version: 8.4.20. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
 
 The startup query reports this version and the actual OO command query is empty; no OO argv or private body is executed.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Actual executable SHA-256 7c98303f2c0ff9d974c62a726c84563de34a996857a158c8e2c1244f68824d1e; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `unsupported`. Version: 8.5.19. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
 
 The startup query reports this version and the actual OO command query is empty; no OO argv or private body is executed.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA-256 ae81ffd9b36fe978eb7f1a5314b295fe0fb1a3f843ef7e0dc42eeeab45bdd0a9; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
 
 Every four-operand method form rejects with wrong-argument usage; option-free dashed formal/name controls succeed and external same-object Hidden rejects. The private worker controls reject as unavailable.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA-256 90317b32ab6c0da84b6daf0e7570399be4a0020b1d1d05b39edbc4a10dd00096; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
 
 Original -private/-p/raw-zero option forms succeed, remain absent from the -private roster, reject external calls and return OK via the declaring method. Encoded C080 and -- reject; -export calls externally, -unexport only internally. The option-free data controls succeed.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA-256 176c6db17857a57e651b78c2872af7dd66daf673dd0e1d01c5c14007573d51db; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
 
 Original -private/-p/raw-zero option forms succeed, remain absent from the -private roster, reject external calls and return OK via the declaring method. Encoded C080 and -- reject; -export calls externally, -unexport only internally. The option-free data controls succeed.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA-256 74716add74e406783e11369cf71511af5570ce9b0a3acff56f7ad8057764bde6; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: ASCII NUL-terminated startup and OO-availability source passed to Jim_Eval; no Jim OO operand vector executes.. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: ASCII NUL-terminated startup and OO-availability source passed to Jim_Eval; no Jim OO operand vector executes.. Dialect: Jim Tcl.
 
 The startup query reports this version and the actual OO command query is empty; no OO argv or private body is executed.
 

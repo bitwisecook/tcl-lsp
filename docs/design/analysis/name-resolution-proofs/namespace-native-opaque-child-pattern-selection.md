@@ -22,7 +22,7 @@ Five C builds each create ::raw-FF and its ::child-FD namespace via native APIs.
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; observer SHA256 6d7a18408c72664ab371f1ba75c92f16b7333d0196b5d2d46152f0610fc1bf98; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Header; library; observer; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
 
 Selected original label/code/result-primary/result-hex rows:
 
@@ -35,7 +35,7 @@ Whole original stream bytes agree with the original recorded log digest; no new 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: Header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; observer SHA256 86d55c4084ffc39abb037b25a792349e65f0009370a2b8d58639a95d984f4bc7; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: Header; library; observer; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
 
 Selected original label/code/result-primary/result-hex rows:
 
@@ -48,7 +48,7 @@ Whole original stream bytes agree with the original recorded log digest; no new 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: Header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; observer SHA256 846d5e517e64dd3e1427f6ad5d903f836859ee32e5b1ed78e6179e44d2b2d76c; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: Header; library; observer; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
 
 Selected original label/code/result-primary/result-hex rows:
 
@@ -61,7 +61,7 @@ Whole original stream bytes agree with the original recorded log digest; no new 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: Header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; observer SHA256 d1edfd8cb6830c739fbd64c4a65dbddd11214c0f8115b8bf3e3a7aa91b1b59de; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: Header; library; observer; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
 
 Selected original label/code/result-primary/result-hex rows:
 
@@ -74,7 +74,7 @@ Whole original stream bytes agree with the original recorded log digest; no new 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: Header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; observer SHA256 2b75e84772094e42f761bcfa60bf52605ca5e42712e79d1c8169a34699503f49; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: Header; library; observer; compile/process0. Compiler version/configure flags unrecorded.. Channel: Native namespace creation and original object-vector children query with flags0; original result primary followed by counted result getter.. Dialect: C Tcl.
 
 Selected original label/code/result-primary/result-hex rows:
 

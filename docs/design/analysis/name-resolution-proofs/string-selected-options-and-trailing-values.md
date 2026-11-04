@@ -22,37 +22,37 @@ Six fixed ASCII source-file argv forms per provider, constructed by Tcl list and
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Selected executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20. Build: Selected executable. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
 
 All six fixed forms return catch code 0. The baseline selected -nocase, its selected-prefix shortening, two literal trailing -nocase values, and selected -length 3 control return ASCII 1. Changing a trailing data value from -nocase to -n returns ASCII 0 in both corrupt-tail controls. The original complete stdout records the actual version and result hex; outer exit is 0 and stderr is empty.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Selected executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19. Build: Selected executable. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
 
 All six fixed forms return catch code 0. The baseline selected -nocase, its selected-prefix shortening, two literal trailing -nocase values, and selected -length 3 control return ASCII 1. Changing a trailing data value from -nocase to -n returns ASCII 0 in both corrupt-tail controls. The original complete stdout records the actual version and result hex; outer exit is 0 and stderr is empty.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Selected executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18. Build: Selected executable. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
 
 All six fixed forms return catch code 0. The baseline selected -nocase, its selected-prefix shortening, two literal trailing -nocase values, and selected -length 3 control return ASCII 1. Changing a trailing data value from -nocase to -n returns ASCII 0 in both corrupt-tail controls. The original complete stdout records the actual version and result hex; outer exit is 0 and stderr is empty.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Selected executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4. Build: Selected executable. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
 
 All six fixed forms return catch code 0. The baseline selected -nocase, its selected-prefix shortening, two literal trailing -nocase values, and selected -length 3 control return ASCII 1. Changing a trailing data value from -nocase to -n returns ASCII 0 in both corrupt-tail controls. The original complete stdout records the actual version and result hex; outer exit is 0 and stderr is empty.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Selected executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0. Build: Selected executable. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: C Tcl.
 
 All six fixed forms return catch code 0. The baseline selected -nocase, its selected-prefix shortening, two literal trailing -nocase values, and selected -length 3 control return ASCII 1. Changing a trailing data value from -nocase to -n returns ASCII 0 in both corrupt-tail controls. The original complete stdout records the actual version and result hex; outer exit is 0 and stderr is empty.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected executable. Required header/library/build/source SHA joins are recorded in this provider receipt; compiler and configure/UTF options are not independently interpreted.. Channel: ASCII source-file CLI; Tcl-list quoted exact whole argv through uplevel #0. Dialect: Jim Tcl.
 
 All six fixed forms return catch code 0. The baseline selected -nocase, its selected-prefix shortening, two literal trailing -nocase values, and selected -length 3 control return ASCII 1. Changing a trailing data value from -nocase to -n returns ASCII 0 in both corrupt-tail controls. The original complete stdout records the actual version and result hex; outer exit is 0 and stderr is empty.
 

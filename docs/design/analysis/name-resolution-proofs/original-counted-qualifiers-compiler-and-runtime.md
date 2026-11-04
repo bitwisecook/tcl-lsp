@@ -22,37 +22,37 @@ Exactly twenty fixed counted String inputs, two actual object-vector call forms,
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Executable SHA-256 3b7498af95001e443137e237b47102404e55fce18390e292d87ec9728fe5b475; header SHA-256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; linked library SHA-256 532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
 
 Direct and procedure calls have the same CString results and strip preceding colon runs. Nonempty results are String-primary through Tcl_AppendToObj; empty results are NULL. Raw00 stops the direct scan; raw FF and D800/D801 prefix bytes stay distinct. No C8.6 Qualifiers compiler is claimed.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Executable SHA-256 0051da4515166db28ce73df9ef5823589e508442084727cdbd1348de779e1281; header SHA-256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; linked library SHA-256 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
 
 Direct and procedure calls have the same CString results and strip preceding colon runs. Fresh byte results remain NULL-primary. Raw00 stops the scan; raw FF and D800/D801 prefix bytes stay distinct. No C8.6 Qualifiers compiler is claimed.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Executable SHA-256 fc40b2374d83caf49648af88141de65cbee7ec476dddabbb99bb2eaf933a22b1; header SHA-256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; linked library SHA-256 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
 
 The genuine procedure compiles last-find, decrement/index/colon-equality backward loop, then range. Compiled raw00 prefix becomes aC080 and FF prefix becomes C3BF through counted Unicode; direct raw00 returns empty and FF stays FF. D800/D801 prefixes remain distinct. C strips preceding colon runs. Nonempty compiled result and subject are String-primary; empty result is NULL. Direct fresh result stays NULL-primary.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Executable SHA-256 baebbc2353564cbb3388c9c03423b87924aed1996ea9615e36273e67899ffd49; header SHA-256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; linked library SHA-256 dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
 
 The genuine procedure compiles last-find, decrement/index/colon-equality backward loop, then range. Compiled raw00 prefix becomes aC080 and FF prefix becomes C3BF through counted Unicode; direct raw00 returns empty and FF stays FF. D800/D801 prefixes remain distinct. C strips preceding colon runs. Nonempty compiled result and subject are String-primary; empty result is NULL. Direct fresh result stays NULL-primary.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Executable SHA-256 4a2ea8aa712476d943486d7d7a8c1bccefbb78fd1fb06190d958370e1565fb15; header SHA-256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; linked library SHA-256 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
 
 The genuine procedure compiles last-find, decrement/index/colon-equality backward loop, then range. Compiled raw00 prefix becomes aC080 and FF prefix becomes C3BF through counted Unicode; direct raw00 returns empty and FF stays FF. D800/D801 prefixes remain distinct. C strips preceding colon runs. Nonempty compiled result and subject are String-primary; empty result is NULL. Direct fresh result stays NULL-primary.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Executable SHA-256 beb1f1774455c5e279ab822ff018831cc5882f934f2ea4bf07aff55c5b764ec5; header SHA-256 d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; linked library SHA-256 a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Jim Tcl.
 
 Direct and procedure calls have equal fresh NULL-primary results. Jim retains preceding colons: :::a returns one colon, :::: returns two and a::::b returns a::. Raw00 stops the qualifier scan. Raw FF and D800/D801 prefixes remain exact. The D row records no C Qualifiers compiler.
 

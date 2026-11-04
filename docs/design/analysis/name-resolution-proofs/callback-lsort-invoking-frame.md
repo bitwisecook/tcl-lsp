@@ -22,37 +22,37 @@ Exact retained ASCII source file executed by C Tcl8.4.20, 8.5.19, 8.6.18, 9.0.4,
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Selected native executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; launcher SHA-256 b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Selected native executable; launcher. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
 
 lsort 0 {b a} {A 1 ::A}
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Selected native executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; launcher SHA-256 6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Selected native executable; launcher. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
 
 lsort 0 {b a} {A 1 ::A}
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Selected native executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; launcher SHA-256 2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Selected native executable; launcher. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
 
 lsort 0 {b a} {A 1 ::A}
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Selected native executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; launcher SHA-256 f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Selected native executable; launcher. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
 
 lsort 0 {b a} {A 1 ::A}
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Selected native executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; launcher SHA-256 c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Selected native executable; launcher. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Tcl.
 
 lsort 0 {b a} {A 1 ::A}
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected native executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; launcher SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected native executable; launcher. Configure/compiler flags are not recorded for this capture.. Channel: ASCII source file through selected native CLI. Dialect: Jim Tcl.
 
 lsort 0 {b a} {A 1 ::A}
 

@@ -22,37 +22,37 @@ Exact ASCII source strings evaluated in a fresh interpreter per mode and case, f
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable SHA256 da5ff6a82c77e5e2459a2d3b0bf006667667f5b658f6716471715f6e4acbf308; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual executable; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
 
 Both actual C modes select the replacement custom handler for both source cases: custom marker1, builtin marker0, command-table result if saved.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable SHA256 4a29cb2905698f1f4d18784510ec20bdecbffc696f68d404b349cd695b934930; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual executable; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
 
 Both actual C modes select the replacement custom handler for both source cases: custom marker1, builtin marker0, command-table result if saved.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA256 cf07c855ee57ddbbe9547e294c67b11ffb537dd8e166f53c877aa365ec4276d7; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
 
 Both actual C modes select the replacement custom handler for both source cases: custom marker1, builtin marker0, command-table result if saved.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA256 bce0211f3fe6e82fa9c7635f1563f9f72b5aadd2e9fdcc8362a018553df04688; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
 
 Both actual C modes select the replacement custom handler for both source cases: custom marker1, builtin marker0, command-table result if saved.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA256 e079cd275751e7e5a100ec2157e3dcc7bf5c1479aa7ff2a69ab42bd0c6047fdf; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Tcl_EvalEx with explicit flags0 and TCL_EVAL_DIRECT; independent ASCII post-evaluation queries.. Dialect: Tcl.
 
 Both actual C modes select the replacement custom handler for both source cases: custom marker1, builtin marker0, command-table result if saved.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA256 4ab94466217e20118deebf0d5fcdd14cc98488bb1accbfe8bf27ed4a62e0fa5f; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Jim_Eval; independent ASCII post-evaluation queries. No Jim Direct recipe.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact compile argv, public header/library/build/source hashes and process streams remain in the original provider receipt.. Channel: Original ASCII source passed to Jim_Eval; independent ASCII post-evaluation queries. No Jim Direct recipe.. Dialect: Jim Tcl.
 
 Jim_Eval selects the replacement custom handler for both source cases: custom marker1, builtin marker0, command-table result if saved. A Jim TCL_EVAL_DIRECT recipe is unavailable and was not tested.
 

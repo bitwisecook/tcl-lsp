@@ -22,7 +22,7 @@ Five independently counted original names per provider: v (76), ::N::v (3a3a4e3a
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Recorded compiler SHA256 a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f, linked library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011, compiled observer SHA256 6aa0d19570609f7669dcea730aa34c9031f441f5752eb08e63917ac97272dd5f; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20. Build: Recorded compiler, linked library, compiled observer; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
 
 Exact original observer windows, name ordinals0 through4:
 
@@ -57,7 +57,7 @@ The observer process exits0 with empty stderr. The actual selected command compl
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Recorded compiler SHA256 a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f, linked library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df, compiled observer SHA256 1dcff07afb1e78d775e0df19bb634c336e2767a0f57bd6fa9ddf8135ea553234; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19. Build: Recorded compiler, linked library, compiled observer; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
 
 Exact original observer windows, name ordinals0 through4:
 
@@ -92,7 +92,7 @@ The observer process exits0 with empty stderr. The actual selected command compl
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Recorded compiler SHA256 a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f, linked library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6, compiled observer SHA256 f711fc1720af01d4bf465122ebaf8dba864956640686c29c5fcab252f7f5b19b; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18. Build: Recorded compiler, linked library, compiled observer; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
 
 Exact original observer windows, name ordinals0 through4:
 
@@ -127,7 +127,7 @@ The observer process exits0 with empty stderr. The actual selected command compl
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Recorded compiler SHA256 a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f, linked library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04, compiled observer SHA256 8cce5abcea20b8c3c855f5443bd5d6040cddb41e64711f62027b8e1892c943e5; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4. Build: Recorded compiler, linked library, compiled observer; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
 
 Exact original observer windows, name ordinals0 through4:
 
@@ -162,7 +162,7 @@ The observer process exits0 with empty stderr. The actual selected command compl
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Recorded compiler SHA256 a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f, linked library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33, compiled observer SHA256 f5e681778af376a0257c112d5335b919789073b0146f3c8f39570a434db8bbef; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0. Build: Recorded compiler, linked library, compiled observer; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: C Tcl.
 
 Exact original observer windows, name ordinals0 through4:
 
@@ -197,7 +197,7 @@ The observer process exits0 with empty stderr. The actual selected command compl
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Recorded compiler SHA256 a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f, linked library SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff, compiled observer SHA256 0ef8e59239f27a4c7519f873cdbe921747a76319aae916766aecf81246b656fa; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Recorded compiler, linked library, compiled observer; full consumed-header hashes and successful compiler/dependency/launch receipts are retained. Provider configure flags are not recorded here; Jim's full revision and UTF build configuration are not queried by this observer.. Channel: Counted original string objects passed through public direct original-object argv evaluation; private primary/reference/resident fields are sampled. Bootstrap only uses NUL-terminated ASCII source.. Dialect: Jim Tcl.
 
 Exact original observer windows, name ordinals0 through4:
 

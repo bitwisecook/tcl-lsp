@@ -22,7 +22,7 @@ Selected cases [2] from ten exact direct original object-vector commands per pro
 
 ### tcl8.4
 
-Status: `observed`. Version: tcl8.4; exact launched patchlevel not queried by this probe. Build: library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=c57c0b8ed17ff800234a1d331b9555e90b77725b488330d35090aa5c0e3a6864; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
+Status: `observed`. Version: tcl8.4; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
 
 Exact selected S/R rows. S fields are case/sequence/window; variable-root,value-root,first-name,first-member,body,current-cell headers (primary,refs,resident,backing refs); cell==member; interpreter result header. R fields are case/guest code/result hex.
 
@@ -38,7 +38,7 @@ R	2	0
 
 ### tcl8.5
 
-Status: `observed`. Version: tcl8.5; exact launched patchlevel not queried by this probe. Build: library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=ef65f168ca2e4baa6676414f0261a2f27a1b553439b6d5f884cb895f93f28619; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
+Status: `observed`. Version: tcl8.5; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
 
 Exact selected S/R rows. S fields are case/sequence/window; variable-root,value-root,first-name,first-member,body,current-cell headers (primary,refs,resident,backing refs); cell==member; interpreter result header. R fields are case/guest code/result hex.
 
@@ -54,7 +54,7 @@ R	2	0
 
 ### tcl8.6
 
-Status: `observed`. Version: tcl8.6; exact launched patchlevel not queried by this probe. Build: library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=932e366c8f0fcd37de889c45adba7a67d3fb07a4b8d679e15b16a5b8c9fdf234; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
+Status: `observed`. Version: tcl8.6; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
 
 Exact selected S/R rows. S fields are case/sequence/window; variable-root,value-root,first-name,first-member,body,current-cell headers (primary,refs,resident,backing refs); cell==member; interpreter result header. R fields are case/guest code/result hex.
 
@@ -70,7 +70,7 @@ R	2	0
 
 ### tcl9.0
 
-Status: `observed`. Version: tcl9.0; exact launched patchlevel not queried by this probe. Build: library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=979fdd36ef05810130a8b44fccaaf7444434d82988eb80ee42396fdb653da32c; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
+Status: `observed`. Version: tcl9.0; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
 
 Exact selected S/R rows. S fields are case/sequence/window; variable-root,value-root,first-name,first-member,body,current-cell headers (primary,refs,resident,backing refs); cell==member; interpreter result header. R fields are case/guest code/result hex.
 
@@ -86,7 +86,7 @@ R	2	0
 
 ### tcl9.1
 
-Status: `observed`. Version: tcl9.1; exact launched patchlevel not queried by this probe. Build: library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=7f76b4f8e359ea0a472f5dfd27f88cc8924f77ec2b46ac708bf3f405f0d4d1b9; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
+Status: `observed`. Version: tcl9.1; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: C Tcl.
 
 Exact selected S/R rows. S fields are case/sequence/window; variable-root,value-root,first-name,first-member,body,current-cell headers (primary,refs,resident,backing refs); cell==member; interpreter result header. R fields are case/guest code/result hex.
 
@@ -102,7 +102,7 @@ R	2	0
 
 ### jim
 
-Status: `observed`. Version: Jim capture; patchlevel, revision and UTF configuration unrecorded. Build: library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; binary_sha256=3a8e584b0528ded18c1d2e5bc5769c42ca46afb3f709bab2a8356b8fd0c87f01; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim capture; patchlevel, revision and UTF configuration unrecorded. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original String/List objects via public object-vector evaluator; private header snapshots before result-string getter.. Dialect: Jim Tcl.
 
 Exact selected S/R rows. S fields are case/sequence/window; variable-root,value-root,first-name,first-member,body,current-cell headers (primary,refs,resident,backing refs); cell==member; interpreter result header. R fields are case/guest code/result hex.
 

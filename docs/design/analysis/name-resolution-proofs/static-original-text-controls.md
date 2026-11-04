@@ -22,37 +22,37 @@ Six exact ASCII source strings, one fresh interpreter per case and source mode. 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable SHA256 6bec4e1a6434767d23ed394e318d698c1e48624bdce3742b63bdbd605d8ccf53; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable SHA256 c7b86ae09bb3e359b8c867a33596da504f492c585d04c723c2f1ed6663bf0557; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA256 2ff440ec91c368d02c247047c5250ac4d9b2a324e3eb505a241657d41316bb9f; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA256 748487f4596b45b0b52739eb367d9f132db2983706dbad31125f55572479c7f1; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA256 00a916351cc8083646bf7e3c2cbe2922ebaeaeae3307a2865e29f5119ee1da81; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA256 181ed865516f2eeebba364d622328e51325d482ed4fcc213c7001502d8f797dd; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Jim_Eval; no C Direct recipe. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Jim_Eval; no C Direct recipe. Dialect: Jim Tcl.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The Jim C Direct control is unavailable.
 

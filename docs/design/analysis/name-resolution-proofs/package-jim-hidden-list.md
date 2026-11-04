@@ -52,7 +52,7 @@ No observation for this exact question.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; compiler, configure/UTF flags and linked dependencies are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected executable; compiler, configure/UTF flags and linked dependencies are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: Jim Tcl.
 
 Exact stdout:
 

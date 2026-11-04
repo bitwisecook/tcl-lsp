@@ -22,31 +22,31 @@ Exactly six constructor/representation states, one unshared Tcl_AppendToObj(obj,
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Executable SHA-256 b1a4510fd6c50bf4e49095039c78f43bab9caef584361b5edf2a250d35daa41e; header SHA-256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; library SHA-256 532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Executable; header; library. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
 
 NULL and int primaries become String before the empty return; String/Unicode primary and original counted bytes remain intact.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Executable SHA-256 95bb26cf55fc650825751b942ff05fc8aaf4fbb3e8dd724ec2df6f7621c07cf3; header SHA-256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; library SHA-256 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Executable; header; library. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
 
 NULL and int primaries become String before the empty return; String/Unicode primary and original counted bytes remain intact.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Executable SHA-256 29e4494f674eb8eeef3ae533c05a8d6cad1ac404a5bd0908af77823adcdef385; header SHA-256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; library SHA-256 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Executable; header; library. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
 
 NULL and int primaries remain unchanged across the empty return; String/Unicode primary and original counted bytes remain intact.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Executable SHA-256 9fcbe5d4b83b4d6cc76332435bd868315930530d47efb72fa2f680015b827c22; header SHA-256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; library SHA-256 dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Executable; header; library. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
 
 NULL and int primaries remain unchanged across the empty return; String/Unicode primary and original counted bytes remain intact.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Executable SHA-256 dc0a372b4f7c461f743aa9e7e86ac5252e84f97e8041f58449b2fe279e19df1c; header SHA-256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; library SHA-256 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Executable; header; library. Channel: Direct unshared original native objects; zero-length counted append; exact header observations and later counted getter hex. Dialect: Tcl.
 
 NULL and int primaries remain unchanged across the empty return; String/Unicode primary and original counted bytes remain intact.
 

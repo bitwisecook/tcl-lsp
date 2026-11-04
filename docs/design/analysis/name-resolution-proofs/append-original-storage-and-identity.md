@@ -22,37 +22,37 @@ Original objects are constructed by compiled public C/Jim APIs and passed throug
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (manifest release association; probe does not query runtime patchlevel). Build: binary_sha256=e8bf674dfe66dcd687f1622ab95d36c2814b8afef22dc0589a62462248c3ae52; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl8.4.
+Status: `observed`. Version: 8.4.20 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl8.4.
 
 189 cases with routes {"ordinary": 90, "self-alias": 9, "shared-destination": 90}; all retained completion fields are 0. Example full projection rows: [["dest-missing-source-integer","ordinary","int","0","missing","0","int","0","int","0","1","0","0","1","1","0","35"],["dest-pure-ba-source-pure-ba","ordinary","bytearray","0","bytearray","0","bytearray","1","string","1","0","0","0","1","0","0","c3bfc080c3bfc080"]]. The complete native log/process-status capture is unavailable; only these hash-matched projections are claimed.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (manifest release association; probe does not query runtime patchlevel). Build: binary_sha256=581dff2777b501d838635bc611978192101d123ae596ea967d73e395e6c41778; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl8.5.
+Status: `observed`. Version: 8.5.19 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl8.5.
 
 189 cases with routes {"ordinary": 90, "self-alias": 9, "shared-destination": 90}; all retained completion fields are 0. Example full projection rows: [["dest-missing-source-integer","ordinary","int","0","missing","0","int","0","int","0","1","0","0","1","1","0","35"],["dest-pure-ba-source-pure-ba","ordinary","bytearray","0","bytearray","0","bytearray","1","string","1","0","0","0","1","0","0","c3bfc080c3bfc080"]]. The complete native log/process-status capture is unavailable; only these hash-matched projections are claimed.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (manifest release association; probe does not query runtime patchlevel). Build: binary_sha256=e8edbc2bef689e349a6942eb5213bd2d76d9906d3796e01c2b62eca4aecf5cab; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl8.6.
+Status: `observed`. Version: 8.6.18 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl8.6.
 
 189 cases with routes {"ordinary": 90, "self-alias": 9, "shared-destination": 90}; all retained completion fields are 0. Example full projection rows: [["dest-missing-source-integer","ordinary","int","0","missing","0","int","0","int","0","1","0","0","1","1","0","35"],["dest-pure-ba-source-pure-ba","ordinary","bytearray","0","bytearray","0","bytearray","0","bytearray","0","0","0","0","1","0","0","c3bfc080c3bfc080"]]. The complete native log/process-status capture is unavailable; only these hash-matched projections are claimed.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (manifest release association; probe does not query runtime patchlevel). Build: binary_sha256=980e6ea9860ffd6eada7c709969dab995585766909c18da4f352d39f8375bcf0; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl9.0.
+Status: `observed`. Version: 9.0.4 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl9.0.
 
 189 cases with routes {"ordinary": 90, "self-alias": 9, "shared-destination": 90}; all retained completion fields are 0. Example full projection rows: [["dest-missing-source-integer","ordinary","int","0","missing","0","int","0","int","0","1","0","0","1","1","0","35"],["dest-pure-ba-source-pure-ba","ordinary","bytearray","0","bytearray","0","bytearray","0","bytearray","0","0","0","0","1","0","0","c3bfc080c3bfc080"]]. The complete native log/process-status capture is unavailable; only these hash-matched projections are claimed.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (manifest release association; probe does not query runtime patchlevel). Build: binary_sha256=4753c0fdbd540a4b4cb30aeab87824b6c0098e3c3d0db02985de1d6a38b915cb; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl9.1.
+Status: `observed`. Version: 9.1.0 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: tcl9.1.
 
 189 cases with routes {"ordinary": 90, "self-alias": 9, "shared-destination": 90}; all retained completion fields are 0. Example full projection rows: [["dest-missing-source-integer","ordinary","int","0","missing","0","int","0","int","0","1","0","0","1","1","0","35"],["dest-pure-ba-source-pure-ba","ordinary","bytearray","0","bytearray","0","bytearray","0","bytearray","0","0","0","0","1","0","0","c3bfc080c3bfc080"]]. The complete native log/process-status capture is unavailable; only these hash-matched projections are claimed.
 
 ### jim
 
-Status: `observed`. Version: Jim (patchlevel/revision not recorded by this probe). Build: binary_sha256=84d76226e1097bd995a86e3f40fbe14f7a61ad7ecb982e658a19b5c9af79f529; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: jim.
+Status: `observed`. Version: Jim (patchlevel/revision not recorded by this probe). Build: See historical references.. Channel: compiled public original-object argv; before/after physical samples precede result rendering. Dialect: jim.
 
 90 cases with routes {"ordinary": 42, "self-alias": 6, "shared-destination": 42}; all retained completion fields are 0. Example full projection rows: [["dest-missing-source-integer","ordinary","int","0","missing","0","int","1","string","1","0","0","0","1","0","0","35"]]. The complete native log/process-status capture is unavailable; only these hash-matched projections are claimed.
 

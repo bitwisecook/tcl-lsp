@@ -22,7 +22,7 @@ Sixty original ASCII scripts evaluated by counted C/Jim object entry points in f
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: binary_sha256=35c3c0a8727935bf8e58d39946b907ba0385d4003d36f9f5220cc34e157881bc; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Completed rows record outer code and the inner code/result/d/other/log tuple; reported errors are preserved.
 
@@ -91,7 +91,7 @@ Completed rows record outer code and the inner code/result/d/other/log tuple; re
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: binary_sha256=1d497488b75341feafdb48c82ae648a0aa43db0be606ed9fe8c27b6ac098fceb; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Completed rows record outer code and the inner code/result/d/other/log tuple; reported errors are preserved.
 
@@ -159,7 +159,7 @@ Signal/nonzero controls excluded from completed rows: [{"case": "compiled-set-re
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: binary_sha256=3d5132fcfa0e09fb2418db5e0ff8a787be89485897e76ff783cbe04d49221464; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Completed rows record outer code and the inner code/result/d/other/log tuple; reported errors are preserved.
 
@@ -226,7 +226,7 @@ Signal/nonzero controls excluded from completed rows: [{"case": "compiled-set-re
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: binary_sha256=d2fa9e1db663eaa8d58d88ef1ded1b8383cc9a1ba1b935fae286ef82cd21245c; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Completed rows record outer code and the inner code/result/d/other/log tuple; reported errors are preserved.
 
@@ -293,7 +293,7 @@ Signal/nonzero controls excluded from completed rows: [{"case": "compiled-set-re
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: binary_sha256=5dee747ef25ebfa154280a04905936fee0789fab12f798ebe34ae93ee4fdce32; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Completed rows record outer code and the inner code/result/d/other/log tuple; reported errors are preserved.
 
@@ -360,7 +360,7 @@ Signal/nonzero controls excluded from completed rows: [{"case": "compiled-set-re
 
 ### jim
 
-Status: `observed`. Version: not recorded (manifest label Jim). Build: binary_sha256=f1af81b53069339ab5e92ee7130804c40a21950bc6a53911479c838907d216b1; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Jim Tcl.
+Status: `observed`. Version: not recorded (manifest label Jim). Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Jim Tcl.
 
 Completed rows record outer code and the inner code/result/d/other/log tuple; reported errors are preserved.
 

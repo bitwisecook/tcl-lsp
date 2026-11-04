@@ -28,25 +28,25 @@ This control is excluded by the probe compile-time release branch. Retained stdo
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association). Build: Archive SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; observer SHA256 4d519ae937d111e3a3270237308c59244c9c18afadfd04541868c7bb5a3decef; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association). Build: Archive; observer; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
 
 compiled-collision	collision collision ::a:
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association). Build: Archive SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; observer SHA256 252cc3c7bab48634f55c4a8cc949827f0772598d75ce9bd5dddefea7d1d4a415; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association). Build: Archive; observer; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
 
 compiled-collision	collision collision ::a:
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association). Build: Archive SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; observer SHA256 b3273d652d241b7e04bf74636d70a879d98599c28322d94934a9da0e61799a1e; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association). Build: Archive; observer; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
 
 compiled-collision	collision collision ::a:
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association). Build: Archive SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; observer SHA256 7cee62fef0c8f49e3f6509414d1a68483533a2071ff53dad19490755d8184d08; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association). Build: Archive; observer; process0, empty stderr. Compiler/configure/header identity and full launched patchlevel unrecorded.. Channel: Native ensemble compiler/mapping and original Tcl_Eval procedure call; cached control uses independently selected private command primary.. Dialect: C Tcl.
 
 compiled-collision	collision collision ::a:
 

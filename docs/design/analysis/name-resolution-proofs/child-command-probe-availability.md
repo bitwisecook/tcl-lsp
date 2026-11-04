@@ -22,37 +22,37 @@ Exact counted ASCII source passed to Tcl_EvalEx or original Jim_NewStringObj/Jim
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable SHA256 509624f56dea942795cd07b532ea4613cd0363997110bcfd30985424b2ffc013 linked to library SHA256 532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47 and header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual executable linked to library and header; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
 
 Every probe compiled and exited0. All retained Jim C-shaped interp source controls returned error1/wrong # args: should be "interp"; the C public child-allocation API was explicitly not tested in Jim. All five C operations were actually attempted, including expected lookup and deleted-interpreter errors. These availability answers prove no native class/OO/compiler/cache capability or Rust parity.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable SHA256 41a74a750080e2791043e268b93669648560ddf9aa2725980106f78d1b4f34b3 linked to library SHA256 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc and header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual executable linked to library and header; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
 
 Every probe compiled and exited0. All retained Jim C-shaped interp source controls returned error1/wrong # args: should be "interp"; the C public child-allocation API was explicitly not tested in Jim. All five C operations were actually attempted, including expected lookup and deleted-interpreter errors. These availability answers prove no native class/OO/compiler/cache capability or Rust parity.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA256 f0538fc24be66e978ea8415681f801cce18ab296144df4bfe2e4cda86e506071 linked to library SHA256 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb and header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable linked to library and header; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
 
 Every probe compiled and exited0. All retained Jim C-shaped interp source controls returned error1/wrong # args: should be "interp"; the C public child-allocation API was explicitly not tested in Jim. All five C operations were actually attempted, including expected lookup and deleted-interpreter errors. These availability answers prove no native class/OO/compiler/cache capability or Rust parity.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA256 785e48c945aab19ea93ade52750dabf662265ba78c1b3a8f8a62997589eb5496 linked to library SHA256 dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4 and header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable linked to library and header; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
 
 Every probe compiled and exited0. All retained Jim C-shaped interp source controls returned error1/wrong # args: should be "interp"; the C public child-allocation API was explicitly not tested in Jim. All five C operations were actually attempted, including expected lookup and deleted-interpreter errors. These availability answers prove no native class/OO/compiler/cache capability or Rust parity.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA256 9c84565330cbb35ae4b38b92e5d3caf11c5815a720f2a16ca8a3ebb361eb29de linked to library SHA256 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db and header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable linked to library and header; compiled/exited0.. Channel: Counted ASCII Tcl_EvalEx source plus separately preserved C public child API control. Dialect: Tcl.
 
 Every probe compiled and exited0. All retained Jim C-shaped interp source controls returned error1/wrong # args: should be "interp"; the C public child-allocation API was explicitly not tested in Jim. All five C operations were actually attempted, including expected lookup and deleted-interpreter errors. These availability answers prove no native class/OO/compiler/cache capability or Rust parity.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA256 fd015db448138b2bdfe3a5375caf4694ec48ca3851042ba63f6043333384431a linked to library SHA256 a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da and header SHA256 d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; compiled/exited0.. Channel: Original counted Jim string object passed to Jim_EvalObj; C API explicitly not tested. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable linked to library and header; compiled/exited0.. Channel: Original counted Jim string object passed to Jim_EvalObj; C API explicitly not tested. Dialect: Jim Tcl.
 
 Actual C-shaped interp source controls each return1/wrong # args: should be "interp". The C public active-allocation API is explicitly not tested; no corresponding child behavior is inferred.
 

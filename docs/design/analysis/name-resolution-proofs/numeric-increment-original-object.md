@@ -28,7 +28,7 @@ No native observation of this exact question is attached for this provider.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=b4b26a1cdfd5d5e655b48dc4e1b2d4f529c8370fca6959bcc426673b3ec05f2e; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -55,7 +55,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=930b231ed072a1916e8455f78e98a1e04726bc24ee48abc35c6475f70268ee9c; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -82,7 +82,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=c259ab335104219b487f98405f2502f49e76967e0ce62d41fa69b46100c66e65; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -109,7 +109,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=8be0e1b72aaed33b4871ad2e17ccda82ad394780fd0aeef02695376e3df6a360; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
 
 Exact relevant original rows:
 

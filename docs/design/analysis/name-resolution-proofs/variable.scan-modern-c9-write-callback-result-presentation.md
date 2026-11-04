@@ -40,7 +40,7 @@ No observation for this question.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Static native library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe SHA256 60936b9cd47a9bca3ab26ece5a9f9a88e318c8ae5ff9904bf89ca931150b1766. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
 
 Exact captured transcript:
 
@@ -48,7 +48,7 @@ Exact captured transcript:
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Static native library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe SHA256 9179c2e12a5a136ce5da04fbdec684d16c475c8bc9b6f98a68c3b0b125e7318b. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
 
 Exact captured transcript:
 

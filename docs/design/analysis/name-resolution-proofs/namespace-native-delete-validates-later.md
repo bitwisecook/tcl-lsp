@@ -22,7 +22,7 @@ Eight original C object-vector deletion controls per release, flags0, each in a 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; full runtime patchlevel unqueried). Build: Header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; private-header SHA256 f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a; library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; observer SHA256 b6d6d0be27c3c8f673e488a4d7c26b4f1359d334285e2126055550f8e2b544b2; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -33,7 +33,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; full runtime patchlevel unqueried). Build: Header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; private-header SHA256 72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa; library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; observer SHA256 248ce14ac0d86c23bbb7ad6f1ada5592410b5d47c4b01b82cda043451505bf6d; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -44,7 +44,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; full runtime patchlevel unqueried). Build: Header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; private-header SHA256 e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e; library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; observer SHA256 4846caf0a95f8cc91ca7500885fa21ad0dc5360f1f94e1912fd89912df86f16d; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -55,7 +55,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; full runtime patchlevel unqueried). Build: Header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; private-header SHA256 f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053; library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; observer SHA256 50610157fcc5c32892ea68cd6acc55806d6e549b847dec009e511c79c632d1cf; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -66,7 +66,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; full runtime patchlevel unqueried). Build: Header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; private-header SHA256 fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc; library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; observer SHA256 b807ec8f32e09c3bc3de915758428e1dbc7bfea96cdfda508f59e94b657c8822; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 

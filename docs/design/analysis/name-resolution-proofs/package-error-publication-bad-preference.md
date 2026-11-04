@@ -22,7 +22,7 @@ Only the exact script strings, seeded global errorCode, captured selected execut
 
 ### tcl8.4
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.4. Build: Executable SHA-256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.4. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
 
 Exact script: "set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode"
 
@@ -32,7 +32,7 @@ Original process exit: 0; stderr: "".
 
 ### tcl8.5
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.5. Build: Executable SHA-256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.5. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
 
 Exact script: "set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode"
 
@@ -42,7 +42,7 @@ Original process exit: 0; stderr: "".
 
 ### tcl8.6
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.6. Build: Executable SHA-256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.6. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
 
 Exact script: "set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode"
 
@@ -52,7 +52,7 @@ Original process exit: 0; stderr: "".
 
 ### tcl9.0
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl9.0. Build: Executable SHA-256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl9.0. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
 
 Exact script: "set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode"
 
@@ -62,7 +62,7 @@ Original process exit: 0; stderr: "".
 
 ### tcl9.1
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl9.1. Build: Executable SHA-256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl9.1. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
 
 Exact script: "set ::errorCode SEED; catch {package prefer bad} m; list $m $::errorCode"
 

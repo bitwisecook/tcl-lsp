@@ -22,37 +22,37 @@ Six fixed declaration/primary arrangements (plain, raw zero, qualifier-after-zer
 
 ### tcl8.4
 
-Status: `not-tested`. Version: 8.4.20. Build: Actual executable SHA256 eab6a1a03b47e6b2eb864d67b9a84d7478dd7b3233a5bd97bffb58f6c152c2ff; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `not-tested`. Version: 8.4.20. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
 
 Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: 8.5.19. Build: Actual executable SHA256 97f9da400f3e8a3101acb93e046586278ff17750345925668421cd4951bfc8bb; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `not-tested`. Version: 8.5.19. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
 
 Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA256 18ce6fb3d479bf22364b8f9a43c3fb4604f0811d5cc096724ad1cd8c5e396f98; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
 
 Legacy Tcl_Eval raw-zero report leaf is 6b; EvalEx and object-vector leaf are 6b007461696c.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA256 b4392c79823d600b58213f4b0f8bba51e8eba7de8d075806c2cd324cb4e4be6b; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
 
 All three raw-zero report leaves are 6b007461696c.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA256 cf17f9d47b36183f64068dc69a39bd653b95c1c470ffc9e77e1cdbe45d628fa6; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
 
 All three raw-zero report leaves are 6b007461696c.
 
 ### jim
 
-Status: `not-tested`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA256 a949f19cd5443db661617c44a2cd057be0d666de21a9d28b2bef728ba16cd7bf; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Jim Tcl.
+Status: `not-tested`. Version: 0.84-9-g5bac7c9. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Jim Tcl.
 
 Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 

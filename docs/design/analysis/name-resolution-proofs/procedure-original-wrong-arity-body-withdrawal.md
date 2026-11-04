@@ -22,7 +22,7 @@ Exact ASCII shell program with catch/list/puts observer, two defined bodies and 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4 (original capture association; full launched patchlevel unqueried). Build: sha256=551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
+Status: `observed`. Version: 8.4 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
 
 ```text
 valid_wrongarity 1 {wrong # args: should be "q x"} BEFORE
@@ -33,7 +33,7 @@ Native shell source execution; original invocation argv/input-channel (stdin or 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5 (original capture association; full launched patchlevel unqueried). Build: sha256=7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
+Status: `observed`. Version: 8.5 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
 
 ```text
 valid_wrongarity 1 {wrong # args: should be "q x"} BEFORE
@@ -44,7 +44,7 @@ Native shell source execution; original invocation argv/input-channel (stdin or 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6 (original capture association; full launched patchlevel unqueried). Build: sha256=0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
+Status: `observed`. Version: 8.6 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
 
 ```text
 valid_wrongarity 1 {wrong # args: should be "q x"} BEFORE
@@ -55,7 +55,7 @@ Native shell source execution; original invocation argv/input-channel (stdin or 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0 (original capture association; full launched patchlevel unqueried). Build: sha256=cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
+Status: `observed`. Version: 9.0 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
 
 ```text
 valid_wrongarity 1 {wrong # args: should be "q x"} BEFORE
@@ -66,7 +66,7 @@ Native shell source execution; original invocation argv/input-channel (stdin or 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1 (original capture association; full launched patchlevel unqueried). Build: sha256=d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
+Status: `observed`. Version: 9.1 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
 
 ```text
 valid_wrongarity 1 {wrong # args: should be "q x"} BEFORE
@@ -77,7 +77,7 @@ Native shell source execution; original invocation argv/input-channel (stdin or 
 
 ### jim
 
-Status: `observed`. Version: Jim (original patchlevel/revision/configuration unqueried). Build: sha256=d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
+Status: `observed`. Version: Jim (original patchlevel/revision/configuration unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected reached presenter lines:
 
 ```text
 valid_wrongarity 1 {wrong # args: should be "q x"} BEFORE

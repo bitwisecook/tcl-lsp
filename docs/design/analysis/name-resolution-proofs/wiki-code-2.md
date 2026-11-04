@@ -22,31 +22,31 @@ Only retained authored test cases wiki-code-2 in stock C Tcl 8.4.20/8.5.19/8.6.1
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Recorded real C executable SHA-256 04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85; upstream tag core-8-4-20. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.2.11 test harness; binary/startup hashes retained.. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Recorded real C executable; upstream tag core-8-4-20. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.2.11 test harness; binary/startup hashes retained.. Dialect: Tcl.
 
 wiki-code-2 PASSED: actual result matched retained -result namespace.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Recorded real C executable SHA-256 46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961; upstream tag core-8-5-19. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.3.8 test harness; binary/startup hashes retained.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Recorded real C executable; upstream tag core-8-5-19. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.3.8 test harness; binary/startup hashes retained.. Dialect: Tcl.
 
 wiki-code-2 PASSED: actual result matched retained -result namespace.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Recorded real C executable SHA-256 b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c; upstream tag core-8-6-18. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.5.11 test harness; binary/startup hashes retained.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Recorded real C executable; upstream tag core-8-6-18. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.5.11 test harness; binary/startup hashes retained.. Dialect: Tcl.
 
 wiki-code-2 PASSED: actual result matched retained -result namespace.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Recorded real C executable SHA-256 cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965; upstream tag core-9-0-4. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.5.11 test harness; binary/startup hashes retained.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Recorded real C executable; upstream tag core-9-0-4. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.5.11 test harness; binary/startup hashes retained.. Dialect: Tcl.
 
 wiki-code-2 PASSED: actual result matched retained -result namespace.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Recorded real C executable SHA-256 cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7; upstream tag core-9-1-0. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.6.0 test harness; binary/startup hashes retained.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Recorded real C executable; upstream tag core-9-1-0. Build flags and source-build correspondence are not recorded.. Channel: Authored Tcl script in fresh child interpreter; matching real init.tcl and Tcltest 2.6.0 test harness; binary/startup hashes retained.. Dialect: Tcl.
 
 wiki-code-2 PASSED: actual result matched retained -result namespace.
 

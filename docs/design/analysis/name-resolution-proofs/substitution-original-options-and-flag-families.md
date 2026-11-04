@@ -22,37 +22,37 @@ Original counted option objects through Tcl_NewStringObj/Tcl_EvalObjv or Jim_New
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual linked executable SHA-256 dec5a1145666fc09a8dbc88d4e578a8217c0cac944609e98437d2e5f07afacea. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun switch.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual linked executable SHA-256 ea84d60c6082d53500b319e7b3332e66abeb320c6f8f3c148af8ffdde7c2c9ba. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun switch.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual linked executable SHA-256 d5d21b3296d1dba64a270e49ba8a8a4e891782b3ee707702764975edbd90439e. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun option.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual linked executable SHA-256 2f739dd46af4d5d49e65dfa02b56075bf0ddb2457b5a085f5ab0bd12f41ad219. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun option.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual linked executable SHA-256 8a0c3677a2f31d3250cf000fb647b03ee67adbc84d06f0d6894224ea42aeb7bf. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. All three positive options accepted; mixed families rejected; six-entry option diagnostic.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual linked executable SHA-256 0517736ce44f158e8dd505ee9c8ce5f592942800aa34f549a54d32fe2e757019. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Jim_EvalObjVector; ASCII Jim_Eval setup/version source.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Jim_EvalObjVector; ASCII Jim_Eval setup/version source.. Dialect: Jim Tcl.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun option.
 

@@ -22,37 +22,37 @@ Six fixed declaration/primary arrangements (plain, raw zero, qualifier-after-zer
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual executable SHA256 ca8d707d7628349fa854ff57472f3c840d7a475cd00a44cc6fb978b0caab99c1; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
+Status: `unsupported`. Version: 8.4.20. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
 
 Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Actual executable SHA256 b242053a7acf493e590c73839189cda0ce9055c1ea73d2e6fe40e66868cf560b; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
+Status: `unsupported`. Version: 8.5.19. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
 
 Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA256 a0de997a410ae30c96aa29b7a2df1eed015cb954a2d3cf4b41fc8436c0174b4d; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
 
 Declaration and resident raw-zero key header length6 and full bytes 6b007461696c are retained with same-original/stored-declaration equality flags.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA256 9ca65c401f5347a75b4a74569f54e39103ce1d8adabc794936f26e09c32c3ce7; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
 
 Declaration and resident raw-zero key header length6 and full bytes 6b007461696c are retained with same-original/stored-declaration equality flags.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA256 d74ae94b8c225377586bcf9c89635d7e527450265a727b06e647b13357c42088; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Tcl.
 
 Declaration and resident raw-zero key header length6 and full bytes 6b007461696c are retained with same-original/stored-declaration equality flags.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA256 c27128e0e4a8ff9e1c64664595376c355125593aedfb36773804e50c72596392; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Configured private-header C snapshots of actual stored declaration and object namespace hash key before/after public reporter; no new getter in existing-byte/header window.. Dialect: Jim Tcl.
 
 Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 

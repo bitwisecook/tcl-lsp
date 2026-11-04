@@ -22,7 +22,7 @@ Fourteen exact native byte arrays passed directly to public C character APIs, in
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=c687ffcada782d2ca85ec61f922129773c9c263f846eedba3d74eb0a936da204; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -47,7 +47,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=555da224d66004868ca3e3c95cf12e9af794f8726fa52301dc9d3e0985008adb; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -72,7 +72,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=acc9768e9bb101b5a99e7738d42d2b374505ff2cc222a8cc2a2e896d143ef69c; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -97,7 +97,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=b10513118f673c9ca9c855b005e22367f1d4c211d5371058992c76f404f1e6d6; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
 
 Exact relevant original rows:
 
@@ -122,7 +122,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=031b08c9fec2cef84f570f5569bec6b1719bd09345d8a3c98800ee4f0d58af36; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_UtfToUniChar, isolated Tcl_UniCharToUtf and Tcl_UtfPrev APIs over retained native byte arrays.. Dialect: C Tcl.
 
 Exact relevant original rows:
 

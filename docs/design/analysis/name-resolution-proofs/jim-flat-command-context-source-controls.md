@@ -52,7 +52,7 @@ No native interpreter observation establishes this Rust source-advice invariant.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Jim Tcl.
 
 OBSERVATION catch code 0 returns exactly {} n {child::q p} p {::n::child::q ::n::p} ::n::absent LOCAL INNER ::n::p. Actual queried patchlevel is 0.84-9-g5bac7c9; outer process status is 0 and stderr is empty. The receipt input_channel text mentions scalar trace callbacks, but the retained probe and boundary field identify this flat namespace script; the original receipt bytes are unchanged.
 

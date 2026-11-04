@@ -22,7 +22,7 @@ Five C release associations with original Tcl_EvalEx counted source. The Syntax 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (Runtime capture association); Syntax8.4 only; full launched patchlevels unqueried. Build: Runtime original observer SHA256 03bf2af50be51d7a9c7760a01c6c25bba0519c8bff147ba4754bc346a6d2e0c4 and archive SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011. Separate Syntax driver SHA256 4da9875515935c7079297c214bf8174242c3ebe2654064fc26a64dcc63196b92 and archive SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (Runtime capture association); Syntax8.4 only; full launched patchlevels unqueried. Build: Runtime original observer and archive. Separate Syntax driver and archive. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
 
 Direct-output stream:
 
@@ -44,7 +44,7 @@ Original programs and observer assumptions remain separate.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (Runtime capture association); Syntax8.5 only; full launched patchlevels unqueried. Build: Runtime original observer SHA256 69cb3b0b02418fe33d414cc0e89d424aed4dd35e8dfa86f36d3f22b6cd64b1df and archive SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df. Separate Syntax driver SHA256 61f1cc83c541e3e4474d5b5397f29998eb3443fcf46b43b5e20cfe05a0955607 and archive SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (Runtime capture association); Syntax8.5 only; full launched patchlevels unqueried. Build: Runtime original observer and archive. Separate Syntax driver and archive. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
 
 Direct-output stream:
 
@@ -66,7 +66,7 @@ Original programs and observer assumptions remain separate.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (Runtime capture association); Syntax8.6 only; full launched patchlevels unqueried. Build: Runtime original observer SHA256 95e72b2b226a5bc2da91f415588f86b00e58bb4e3a32d18b90faf6841f99e4e4 and archive SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6. Separate Syntax driver SHA256 93aeb8d04a7b7c8d33fab7be1065ab551cf57e1f103e3e28209b25ab8f7baddb and archive SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (Runtime capture association); Syntax8.6 only; full launched patchlevels unqueried. Build: Runtime original observer and archive. Separate Syntax driver and archive. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
 
 Direct-output stream:
 
@@ -88,7 +88,7 @@ Original programs and observer assumptions remain separate.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (Runtime capture association); Syntax9.0 only; full launched patchlevels unqueried. Build: Runtime original observer SHA256 7da959c6f9f4c9c04cf113fac0846a41d9a70f353584451bab9b20537be36a22 and archive SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04. Separate Syntax driver SHA256 c0bbf57a19f7e1c17cd2600d9d4a00f4ecae7ae86dd56ac40b9409dba98c8b0e and archive SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (Runtime capture association); Syntax9.0 only; full launched patchlevels unqueried. Build: Runtime original observer and archive. Separate Syntax driver and archive. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
 
 Direct-output stream:
 
@@ -110,7 +110,7 @@ Original programs and observer assumptions remain separate.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (Runtime capture association); Syntax9.1 only; full launched patchlevels unqueried. Build: Runtime original observer SHA256 dbfe9edd5b7611d49a9c2f3da50fe418ee8a2c94bb0dfc057b406a15bbcaa8ef and archive SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33. Separate Syntax driver SHA256 de35afb57f0da3378851542d5c7e9d2327b27296028e550daeb06efc77287cc9 and archive SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (Runtime capture association); Syntax9.1 only; full launched patchlevels unqueried. Build: Runtime original observer and archive. Separate Syntax driver and archive. Compiler/configure and full launched patchlevel unqueried.. Channel: Original counted Tcl_EvalEx source; separate direct stdout versus code/count-result-hex presenter.. Dialect: C Tcl.
 
 Direct-output stream:
 

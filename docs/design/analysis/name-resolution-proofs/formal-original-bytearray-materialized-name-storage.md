@@ -22,7 +22,7 @@ Selected pure-bytearray rows from the retained observer-safe formal probe:24 ful
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=b0f14f8000fa4d9901e3fb61926ea76f7fa7eccf005fbdc2da2303339f49cec2; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
 
 Exact selected definition/invocation rows with result, error-code/info and return-options hex. Jim revision recorded in this receipt: None.
 
@@ -43,7 +43,7 @@ Exact selected definition/invocation rows with result, error-code/info and retur
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=13b66883b7d7b7eb01e982b57c303ac69edaad8d076502617c09db09c553c442; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
 
 Exact selected definition/invocation rows with result, error-code/info and return-options hex. Jim revision recorded in this receipt: None.
 
@@ -64,7 +64,7 @@ Exact selected definition/invocation rows with result, error-code/info and retur
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=efdc88a254984ca377fd6098ce6ef4b2ce1c1f98fe2919c6c104ec642079ec9c; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
 
 Exact selected definition/invocation rows with result, error-code/info and return-options hex. Jim revision recorded in this receipt: None.
 
@@ -85,7 +85,7 @@ Exact selected definition/invocation rows with result, error-code/info and retur
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=e1fb9749b9ef0c62f96dcc4ba7ad71ba07c46e18a2baff2b1d237b9d053f2189; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
 
 Exact selected definition/invocation rows with result, error-code/info and return-options hex. Jim revision recorded in this receipt: None.
 
@@ -106,7 +106,7 @@ Exact selected definition/invocation rows with result, error-code/info and retur
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=f7b76f574e8264dfe42c866b8bf069f397c8f8e34f718ff978e6b29b8cb339b1; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted String or pure Bytearray formal name inside real List argv; public Tcl_EvalObjv(TCL_EVAL_GLOBAL) or Jim_EvalObjVector.. Dialect: C Tcl.
 
 Exact selected definition/invocation rows with result, error-code/info and return-options hex. Jim revision recorded in this receipt: None.
 

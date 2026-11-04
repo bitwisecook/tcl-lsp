@@ -22,37 +22,37 @@ Fixed independently authored UTF-8 CLI script controls in a fresh native process
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Executed shell SHA-256 b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Executed shell; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
 
 file legacy_watched_original: exit 0, stdout 'OBSERVED\n1\n', stderr ''. file legacy_watched_naive: exit 0, stdout '1\n', stderr ''. The receipt retains the executed version output, exact shell SHA, source SHA, exit and both raw streams. Native configure flags, linked-library attribution and compiler version are not recorded by this shell experiment; no independently captured build identity is borrowed.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Executed shell SHA-256 6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Executed shell; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
 
 file legacy_watched_original: exit 0, stdout 'OBSERVED\n1\n', stderr ''. file legacy_watched_naive: exit 0, stdout '1\n', stderr ''. The receipt retains the executed version output, exact shell SHA, source SHA, exit and both raw streams. Native configure flags, linked-library attribution and compiler version are not recorded by this shell experiment; no independently captured build identity is borrowed.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Executed shell SHA-256 2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Executed shell; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
 
 file legacy_watched_original: exit 0, stdout 'OBSERVED\n1\n', stderr ''. file legacy_watched_naive: exit 0, stdout '1\n', stderr ''. The receipt retains the executed version output, exact shell SHA, source SHA, exit and both raw streams. Native configure flags, linked-library attribution and compiler version are not recorded by this shell experiment; no independently captured build identity is borrowed.
 
 ### tcl9.0
 
-Status: `unsupported`. Version: 9.0.4. Build: Executed shell SHA-256 f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
+Status: `unsupported`. Version: 9.0.4. Build: Executed shell; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
 
 file legacy_watched_original: exit 0, stdout 'UNAVAILABLE\nbad option "variable": must be add, info, or remove\n', stderr ''. file legacy_watched_naive: exit 0, stdout 'UNAVAILABLE\nbad option "variable": must be add, info, or remove\n', stderr ''. The receipt retains the executed version output, exact shell SHA, source SHA, exit and both raw streams. Native configure flags, linked-library attribution and compiler version are not recorded by this shell experiment; no independently captured build identity is borrowed.
 
 ### tcl9.1
 
-Status: `unsupported`. Version: 9.1.0. Build: Executed shell SHA-256 c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
+Status: `unsupported`. Version: 9.1.0. Build: Executed shell; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Tcl.
 
 file legacy_watched_original: exit 0, stdout 'UNAVAILABLE\nbad option "variable": must be add, info, or remove\n', stderr ''. file legacy_watched_naive: exit 0, stdout 'UNAVAILABLE\nbad option "variable": must be add, info, or remove\n', stderr ''. The receipt retains the executed version output, exact shell SHA, source SHA, exit and both raw streams. Native configure flags, linked-library attribution and compiler version are not recorded by this shell experiment; no independently captured build identity is borrowed.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Executed shell SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Executed shell; configure/compiler/library metadata not recorded for this experiment.. Channel: UTF-8 file script passed as the public shell argv filename. Dialect: Jim Tcl.
 
 file legacy_watched_original: exit 0, stdout 'UNAVAILABLE\ninvalid command name "trace"\n', stderr ''. file legacy_watched_naive: exit 0, stdout 'UNAVAILABLE\ninvalid command name "trace"\n', stderr ''. The receipt retains the executed version output, exact shell SHA, source SHA, exit and both raw streams. Native configure flags, linked-library attribution and compiler version are not recorded by this shell experiment; no independently captured build identity is borrowed.
 

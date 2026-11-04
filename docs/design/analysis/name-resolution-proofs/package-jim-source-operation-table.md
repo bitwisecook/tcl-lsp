@@ -52,7 +52,7 @@ No observation for this question.
 
 ### jim
 
-Status: `inspected`. Version: not recorded. Build: Exact retained source snapshot SHA-256 6fcb3e656f0ed649912e2734a5a8271a34fae248a7b808418576904accc19632; source release, revision, configuration and source-to-binary mapping unrecorded. Channel: Offline full-source bytes with LF-counted table excerpt. Dialect: Jim Tcl.
+Status: `inspected`. Version: not recorded. Build: Exact retained source snapshot; source release, revision, configuration and source-to-binary mapping unrecorded. Channel: Offline full-source bytes with LF-counted table excerpt. Dialect: Jim Tcl.
 
 The complete selected package_command_table declares forget (1..unbounded), provide (1..2), require (1..2), list (0) and names (0). list and names both use package_cmd_names; only list carries JIM_MODFLAG_HIDDEN. The table ends with its NULL sentinel and contains no ifneeded operation. This source inspection supplies no process outcome or source-to-binary proof.
 

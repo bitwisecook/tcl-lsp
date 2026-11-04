@@ -22,37 +22,37 @@ Complete v2/v3 public C original-object probes with ASCII setup plus ff, eda080 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual probe executable SHA-256 e0eb871dc216faa2d8d144b7de65341657b7c7e4b13f907a5173909d4a4657f7; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
 
 Plain and raw-zero suffix w register write; C080 and ff fail byte-exactly; initial raw zero yields modern empty operation-list error.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual probe executable SHA-256 00f4f9f3c90f57e134da8dfb6d1d9f0d37d353e76e5854f88ee47b12641ac31f; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
 
 Plain and raw-zero suffix w register write; C080 and ff fail byte-exactly; initial raw zero yields modern empty operation-list error.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual probe executable SHA-256 15a2f964f29869af37504da2aa6980fcd1b3a64c183992d9894cd69222fcc759; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
 
 Plain and raw-zero suffix w register write; C080 and ff fail byte-exactly; initial raw zero yields modern empty operation-list error.
 
 ### tcl9.0
 
-Status: `unsupported`. Version: 9.0.4. Build: Actual probe executable SHA-256 9aac75925255a53e2ad858c3996db3e78e8d9fe61e868e3e91bec1bf03ecda63; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
+Status: `unsupported`. Version: 9.0.4. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
 
 Legacy variable and vinfo are rejected as retired options.
 
 ### tcl9.1
 
-Status: `unsupported`. Version: 9.1.0. Build: Actual probe executable SHA-256 09a61d2fb42ee2112efe02f57b1af88c4e1a47b9e51d479e9aa29dbfa6b58282; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
+Status: `unsupported`. Version: 9.1.0. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
 
 Legacy variable and vinfo are rejected as retired options.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual probe executable SHA-256 ce8739719e7104799b5d524c57c22e89ff99ea6a2367cb7c136fded79939ee58; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: ASCII NUL-terminated source passed to Jim_Eval. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: ASCII NUL-terminated source passed to Jim_Eval. Dialect: Jim Tcl.
 
 The actual trace command is unavailable: invalid command name trace.
 

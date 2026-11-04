@@ -22,7 +22,7 @@ Five C release runs for this exact independent mode. The source retains declarat
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (original capture association; full launched patchlevel unqueried). Build: library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=dd7022e962d3dee3fa9ec1119f69ba96bdfcac8d608ab0dc2d6a0b1605ce5262; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
+Status: `observed`. Version: 8.4.20 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
 
 ```text
 S|2|defined|1|1|1|1|1|none|1|none|1|1|none|-1|0|-1|1|0
@@ -40,7 +40,7 @@ ASCII Tcl_EvalEx plus original Tcl_EvalObjv flags0; private live native Proc/Cal
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (original capture association; full launched patchlevel unqueried). Build: library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=4a6b86dd8246f045785205a865e874fcc9d0e6a5bd0b040e78fde2d1da2e10a5; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
+Status: `observed`. Version: 8.5.19 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
 
 ```text
 S|2|defined|1|1|1|1|1|none|1|none|1|1|none|-1|0|-1|1|3
@@ -58,7 +58,7 @@ ASCII Tcl_EvalEx plus original Tcl_EvalObjv flags0; private live native Proc/Cal
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (original capture association; full launched patchlevel unqueried). Build: library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=fb9af2daceb502152cb40ce753df19c3a397a058823b30b31f220e4d2b72524a; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
+Status: `observed`. Version: 8.6.18 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
 
 ```text
 S|2|defined|1|1|1|1|1|none|1|none|1|1|none|-1|0|-1|1|17
@@ -76,7 +76,7 @@ ASCII Tcl_EvalEx plus original Tcl_EvalObjv flags0; private live native Proc/Cal
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (original capture association; full launched patchlevel unqueried). Build: library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=48fc46e306458a52be3b4c754922292397bfb2b4a9d413f7d12f2e67400086f6; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
+Status: `observed`. Version: 9.0.4 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
 
 ```text
 S|2|defined|1|1|1|1|1|none|1|none|1|1|none|-1|0|-1|1|20
@@ -94,7 +94,7 @@ ASCII Tcl_EvalEx plus original Tcl_EvalObjv flags0; private live native Proc/Cal
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (original capture association; full launched patchlevel unqueried). Build: library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=6ab8269ea42c18c73b8e888891890ac93a5d3e8693524712a25c23a6687593ba; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
+Status: `observed`. Version: 9.1.0 (original capture association; full launched patchlevel unqueried). Build: exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact original S/R rows:
 
 ```text
 S|2|defined|1|1|1|1|1|none|1|none|1|1|none|-1|0|-1|1|24

@@ -28,25 +28,25 @@ No execution of this precise question on this provider is attached. Other interp
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (recorded build label; runtime query not retained). Build: Original library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 8fce5d637533517944149880f3a6db15e7337793ad71ebd91cd26e5cc49cf15c. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
 
 Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (recorded build label; runtime query not retained). Build: Original library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 9e397a137587a4dbfda5d803c5077f7b709ef4218996ccafe56f632f67a2d1d7. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
 
 Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (recorded build label; runtime query not retained). Build: Original library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 adfad5badfb0d97e896003476009b819ce776bb1214f98f88d4107c6cddbd298. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
 
 Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (recorded build label; runtime query not retained). Build: Original library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 bf7eecafa1a871669181c6d4bf587dde3cc2687f27829851a23dfedcb4be000b. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
 
 Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
 

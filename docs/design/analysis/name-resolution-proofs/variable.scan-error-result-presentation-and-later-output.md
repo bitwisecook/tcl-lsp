@@ -22,7 +22,7 @@ Three fixed scripts/provider, C84-91 public evaluation plus private result-heade
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Static native library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe SHA256 e2bdf9ced144bb07e8e7956d09ea288c6b3c925ce1c3955e4efa8abb62c54228. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
 
 Exact captured transcript:
 
@@ -30,7 +30,7 @@ Exact captured transcript:
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Static native library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe SHA256 f437c0e0b0f122b3feb3cfa1ad621348b14498ce45a508972caf971260bed15f. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
 
 Exact captured transcript:
 
@@ -38,7 +38,7 @@ Exact captured transcript:
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Static native library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe SHA256 ec04db8fbebd996fac0caee301ccdf77e51cdfe3a071157646dd0e0d295a0526. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
 
 Exact captured transcript:
 
@@ -46,7 +46,7 @@ Exact captured transcript:
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Static native library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe SHA256 786d5e386b4a4b656f52d5afe441c62b9e622de5efd7bbe05dad113a0fc6c133. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
 
 Exact captured transcript:
 
@@ -54,7 +54,7 @@ Exact captured transcript:
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Static native library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe SHA256 8b206d9fc4d0b1facca6a59e64ceda20286c0f69c5580b1a8182017018252d39. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
 
 Exact captured transcript:
 

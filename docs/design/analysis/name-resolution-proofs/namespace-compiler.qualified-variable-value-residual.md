@@ -22,7 +22,7 @@ Five fixed original ASCII procedure bodies, called before observing private comp
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association). Build: Observer SHA256 7acc2013cffc8ef9c711919c86289d0f7d185ed1c862acba45907053e04ef667; archive SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; native header SHA256 f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
 
 Selected complete original rows:
 
@@ -34,7 +34,7 @@ Repeated equal list bytes identify distinct literal-table positions, not observe
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association). Build: Observer SHA256 72fa34cc2d04bbb899dab037d284d162bc97c7dc54e3a964c98ee12a2366697e; archive SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; native header SHA256 72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
 
 Selected complete original rows:
 
@@ -46,7 +46,7 @@ Repeated equal list bytes identify distinct literal-table positions, not observe
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association). Build: Observer SHA256 e30fe08ee5288755107a47ae6dc5396ceebbcc47a2e757bbc92b28246fc2ccc5; archive SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; native header SHA256 e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
 
 Selected complete original rows:
 
@@ -58,7 +58,7 @@ Repeated equal list bytes identify distinct literal-table positions, not observe
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association). Build: Observer SHA256 ec492835c26665c4b7e741906d8364ef134305e139c78460810907c22575eb98; archive SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; native header SHA256 f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
 
 Selected complete original rows:
 
@@ -70,7 +70,7 @@ Repeated equal list bytes identify distinct literal-table positions, not observe
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association). Build: Observer SHA256 4a1d2999d0343b413e835dae3a100d0f1b76d03208b8e9740af14945093900ae; archive SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; native header SHA256 fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
 
 Selected complete original rows:
 

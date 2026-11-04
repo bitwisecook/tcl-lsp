@@ -22,7 +22,7 @@ One complete fixed ASCII script in a fresh native shell process, with recorded s
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Selected executable SHA-256 b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
 
 The observed stdout is:
 
@@ -35,7 +35,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Selected executable SHA-256 6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
 
 The observed stdout is:
 
@@ -48,7 +48,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Selected executable SHA-256 2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
 
 The observed stdout is:
 
@@ -61,7 +61,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Selected executable SHA-256 f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
 
 The observed stdout is:
 
@@ -74,7 +74,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Selected executable SHA-256 c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
 
 The observed stdout is:
 
@@ -87,7 +87,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Selected executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: Jim Tcl.
 
 The observed stdout is:
 

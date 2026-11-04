@@ -22,7 +22,7 @@ Selected input IDs [3, 4, 5, 8] from nine exact original String index constructo
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=ad897754dfa6d3c67ca85b73c268b35ddbaefde7a3755cc7f925219eb73014b6; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
 
 Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
 
@@ -35,7 +35,7 @@ Exact selected rows in the manifest9-column order: case/guest code/original inde
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=1412d6c3443166176d687f2eb0302ec7fe474a898166641acb2b51d8eaf0695d; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
 
 Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
 
@@ -48,7 +48,7 @@ Exact selected rows in the manifest9-column order: case/guest code/original inde
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=f56526a05c262fee6fec769fc7547e7762f4cced0b2acc6525826e9a0901b795; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
 
 Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
 
@@ -61,7 +61,7 @@ Exact selected rows in the manifest9-column order: case/guest code/original inde
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=d156829db5204640b866f50463a296a8ec838f1c4b3507d003a843f67b8c582d; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
 
 Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
 
@@ -74,7 +74,7 @@ Exact selected rows in the manifest9-column order: case/guest code/original inde
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=c24f35feeaeb5221a085e1dfdbd46bfdc952cba8af7a035997feac1855f3f705; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
 
 Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
 

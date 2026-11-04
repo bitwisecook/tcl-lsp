@@ -26,37 +26,37 @@ Current direct test attributes and real module parents attach these source/API c
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual executable SHA-256 0e17bb07b75c45530bb681665917eb4d23e27a004b0c93149fc395b16ce5fdae; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `unsupported`. Version: 8.4.20. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
 
 Actual OO command query is empty; no TclOO member vector executes.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Actual executable SHA-256 033288f5975075c036b506dcded54ba2a02aa99c8f0c241b1b427941a24f3ecc; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `unsupported`. Version: 8.5.19. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
 
 Actual OO command query is empty; no TclOO member vector executes.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA-256 8385b7c911059e6de2176e9c9974a715c8fdba90e3e364209898e21039e7ea8e; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
 
 Matching raw-zero static object access stays STATIC after dynamic write; fresh dynamicread fails. Plain/FF/surrogate static reader changes to DYNAMIC after dynamic write. Prefix-only declaration and qualification-after-zero source controls do not link the compiled full name. The raw-zero object-vars presenter clips at zero.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA-256 6f36c8cece0fea2bb47b8f5d531c0a3ff08d762619492a96131f748f56b72126; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
 
 Matching raw-zero static object access stays STATIC after dynamic write; fresh dynamicread fails. Plain/FF/surrogate static reader changes to DYNAMIC after dynamic write. Prefix-only declaration and qualification-after-zero source controls do not link the compiled full name. The raw-zero object-vars presenter retains all counted bytes.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA-256 b19ef9a53f24b8add9ef25219ecc9cffaa2bd9c3fa7e23a1b6f34ed061e0e59f; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
 
 Matching raw-zero static object access stays STATIC after dynamic write; fresh dynamicread fails. Plain/FF/surrogate static reader changes to DYNAMIC after dynamic write. Prefix-only declaration and qualification-after-zero source controls do not link the compiled full name. The raw-zero object-vars presenter retains all counted bytes.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA-256 39e4c0d090e5c0a76672b61b99510fdd3974cbf4eaadca10da0c5ba8ecd43117; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: ASCII NUL-terminated Jim_Eval startup and OO-availability query only.. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: ASCII NUL-terminated Jim_Eval startup and OO-availability query only.. Dialect: Jim Tcl.
 
 Actual OO command query is empty; no TclOO member vector executes.
 

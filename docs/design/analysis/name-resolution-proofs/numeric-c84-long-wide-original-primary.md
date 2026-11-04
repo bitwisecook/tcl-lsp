@@ -22,7 +22,7 @@ Exactly C8.4 capture with public original Int/Long/Wide/String/Double constructo
 
 ### tcl8.4
 
-Status: `observed`. Version: not queried (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=79fd606a11aaea80d59eb06777968d6243fc3323aacf732a8ed48e576bbfaf53; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj/Tcl_GetLongFromObj/Tcl_GetWideIntFromObj before original byte observer.. Dialect: C Tcl.
+Status: `observed`. Version: not queried (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj/Tcl_GetLongFromObj/Tcl_GetWideIntFromObj before original byte observer.. Dialect: C Tcl.
 
 Exact relevant original rows:
 

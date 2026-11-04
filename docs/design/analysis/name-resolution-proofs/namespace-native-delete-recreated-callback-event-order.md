@@ -22,7 +22,7 @@ One exact original scenario-3 setup per selected configured C build, including i
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (selected configured build; runtime patchlevel unqueried). Build: Original static library SHA256 532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47; public header SHA256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; configured Makefile SHA256 0fb0c580d2402093bb212ad340ea87f88822aa5844a8114e112bec4c990411b1; observer executable SHA256 c417911e76501f0841c615c7a70c43d2930410e9856e2c6c20d6d57174834b29; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (selected configured build; runtime patchlevel unqueried). Build: Original static library; public header; configured Makefile; observer executable; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
 
 Final original JSON result fields:
 
@@ -49,7 +49,7 @@ The callbackKind field identifies retire as a command DeleteProc and old_b/new_b
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (selected configured build; runtime patchlevel unqueried). Build: Original static library SHA256 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; public header SHA256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; configured Makefile SHA256 26ae775d2e4657ecfcb45421cc77c4c26170cb2a21985fbb002eb4791bc766a5; observer executable SHA256 b3ebfc4c43b3f7bd5a97bee9f2bdf233216f6e27a435d23275b419a85064b0d9; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (selected configured build; runtime patchlevel unqueried). Build: Original static library; public header; configured Makefile; observer executable; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
 
 Final original JSON result fields:
 
@@ -76,7 +76,7 @@ The callbackKind field identifies retire as a command DeleteProc and old_b/new_b
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (selected configured build; runtime patchlevel unqueried). Build: Original static library SHA256 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; public header SHA256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; configured Makefile SHA256 8afb8697cb70b90518876861086bdb43f6e31b5e96e6d8091ae7b1de33d90d7e; observer executable SHA256 75e6b0c089653bda587fc14b6d14e4ba51dc5eca2213d03ffe91350743f28862; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (selected configured build; runtime patchlevel unqueried). Build: Original static library; public header; configured Makefile; observer executable; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
 
 Final original JSON result fields:
 
@@ -103,7 +103,7 @@ The callbackKind field identifies retire as a command DeleteProc and old_b/new_b
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (selected configured build; runtime patchlevel unqueried). Build: Original static library SHA256 dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; public header SHA256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; configured Makefile SHA256 69f1915c208d66c7e38e6871c7f51c8f7be7c2138b45a5361641f9e91854fea5; observer executable SHA256 5b27e2f224fbebb18601e8ce6915892d0c61b7e6e19887abbfe61c9f68c8e5ce; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (selected configured build; runtime patchlevel unqueried). Build: Original static library; public header; configured Makefile; observer executable; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
 
 Final original JSON result fields:
 
@@ -130,7 +130,7 @@ The callbackKind field identifies retire as a command DeleteProc and old_b/new_b
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (selected configured build; runtime patchlevel unqueried). Build: Original static library SHA256 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; public header SHA256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; configured Makefile SHA256 c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1; observer executable SHA256 f4952b203f2a9d17c756c81f8905298403d24ec19b00bc12864198adff53b7ac; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (selected configured build; runtime patchlevel unqueried). Build: Original static library; public header; configured Makefile; observer executable; configured flags/private-header hashes retained. Compile/process0; stderr intentionally contains the10 measured events, not an empty-stream claim.. Channel: Four original counted Tcl_EvalObjv flags0 operands; native command DeleteProc calls native namespace deletion/creation; private nsId/lookup event observations.. Dialect: C Tcl.
 
 Final original JSON result fields:
 

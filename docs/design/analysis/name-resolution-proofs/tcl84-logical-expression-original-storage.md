@@ -22,7 +22,7 @@ C8.4-only logical84.c/logical84.tsv, pinned original source/archive/header/execu
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4 (retained corpus; patchlevel not recorded in this row). Build: Recorded executable SHA-256 0858e614f0c9e10631e9d1e9bfed024a52abb789737c4181b5dc854fca9c11ee. Channel: Original ASCII script passed to the recorded native shell.. Dialect: Tcl.
+Status: `observed`. Version: 8.4 (retained corpus; patchlevel not recorded in this row). Build: Recorded executable. Channel: Original ASCII script passed to the recorded native shell.. Dialect: Tcl.
 
 The complete original source/output is retained with process exit 0. Its exact function/diagnostic/result rows answer the scoped question; no other release is inferred.
 

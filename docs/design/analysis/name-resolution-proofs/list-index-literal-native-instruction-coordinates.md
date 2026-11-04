@@ -22,7 +22,7 @@ Selected body IDs [0, 1, 5, 6, 7, 8, 9, 10, 11, 14] from19 actual procedure bodi
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=58bf75833c2e69d22bce7ae961ce9e511e144247a2f2aa4cabbf3404b6a05182; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
 
 Selected exact original rows: case/guest code/result primary/resident/refs/result==original x/result hex/stored compiled opcode and optional immediate.
 
@@ -41,7 +41,7 @@ Selected exact original rows: case/guest code/result primary/resident/refs/resul
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=26762953019c5513eaf15de170cae4cac291c0614ff0a725d993a306bb0e2c1b; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
 
 Selected exact original rows: case/guest code/result primary/resident/refs/result==original x/result hex/stored compiled opcode and optional immediate.
 
@@ -60,7 +60,7 @@ Selected exact original rows: case/guest code/result primary/resident/refs/resul
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=a4c3e1028c6b4d77ecbe06d886621c2a9dbe7d417ad66e38cb595b0f9a37ae7a; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
 
 Selected exact original rows: case/guest code/result primary/resident/refs/result==original x/result hex/stored compiled opcode and optional immediate.
 
@@ -79,7 +79,7 @@ Selected exact original rows: case/guest code/result primary/resident/refs/resul
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=9357c6b92aaf0dad96d14ea7e42fb4d614bf87084e64b339e18466a9d34d129b; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
 
 Selected exact original rows: case/guest code/result primary/resident/refs/result==original x/result hex/stored compiled opcode and optional immediate.
 
@@ -98,7 +98,7 @@ Selected exact original rows: case/guest code/result primary/resident/refs/resul
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=6d760daca842c01f32bec078d92b26710fe190353ded05856dcdcec1ea70ed42; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original ASCII native procedure source; actual public Tcl_EvalObjv original argument headers and post-invocation bytecode listing.. Dialect: C Tcl.
 
 Selected exact original rows: case/guest code/result primary/resident/refs/result==original x/result hex/stored compiled opcode and optional immediate.
 

@@ -22,7 +22,7 @@ C84.20/C85.19/C86.18/C90.4/C91.0 private interpreter probes: fourteen original o
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: binary_sha256=8b9434ace3947879c3f530f7b77adb8bc54b5502cec9bd9a924af1864649d233; archive_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; internal_header_sha256=f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 counted 1\x00X, 9 counted #0\x00X; 10 error BODY, 11 parse error, 12 pure list script, 13 break.
 
@@ -45,7 +45,7 @@ Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 cou
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: binary_sha256=38b730c3cc2aada9cefb7627b6c184938582923bd6c6e1332a334b526827a60d; archive_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; internal_header_sha256=72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 counted 1\x00X, 9 counted #0\x00X; 10 error BODY, 11 parse error, 12 pure list script, 13 break.
 
@@ -68,7 +68,7 @@ Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 cou
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: binary_sha256=3b3ca712025bcd47a4f74eb26d907fb33f8b546b9f2ca9633078e4312db43cdb; archive_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; internal_header_sha256=e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 counted 1\x00X, 9 counted #0\x00X; 10 error BODY, 11 parse error, 12 pure list script, 13 break.
 
@@ -91,7 +91,7 @@ Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 cou
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: binary_sha256=7ce70e0eeb65af535bcc5e10cb3f87d603827231dd51df21c6290af412fec6d6; archive_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; internal_header_sha256=f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 counted 1\x00X, 9 counted #0\x00X; 10 error BODY, 11 parse error, 12 pure list script, 13 break.
 
@@ -114,7 +114,7 @@ Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 cou
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: binary_sha256=46487b03637e6716d4460bd4fa6ea422933dc4d14c058f1a2c0509c9c265bbdd; archive_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; internal_header_sha256=fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Rows use original ordinal: 0 #0, 1 0, 2 1, 3 bad, 4 +0, 5 99, 6 -1, 7 1.0, 8 counted 1\x00X, 9 counted #0\x00X; 10 error BODY, 11 parse error, 12 pure list script, 13 break.
 

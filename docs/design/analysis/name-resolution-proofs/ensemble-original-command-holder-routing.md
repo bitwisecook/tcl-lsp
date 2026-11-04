@@ -22,37 +22,37 @@ Four exact ASCII original source files share one exact independently evaluated p
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual cc -std=c99 external driver compilation exits0; executable SHA-256 05f4d331c8694eabdafe2850f6cec2ebd873ab8f28489542a3ac6b4130493c18 and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
+Status: `observed`. Version: 8.4.20. Build: Actual cc -std=c99 external driver compilation exits0; executable and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
 
 Actual stock 8.4.20 has unavailable namespace ensemble: all four exact original evaluations return code1 with its full bad-option table. Both retained-case later queries return code1 for absent ::observed. All preludes return code0/empty; no creation/dispatch result is inferred. All four case processes exit zero with empty stderr; guest errors remain measured results.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual cc -std=c99 external driver compilation exits0; executable SHA-256 293413fad21f45573888dfe20752df635b7e933df56a8a42ba31f8b7dd641e4f and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
+Status: `observed`. Version: 8.5.19. Build: Actual cc -std=c99 external driver compilation exits0; executable and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
 
 Actual stock 8.5.19 live default returns code0/::P::N 1 VALUE and relative-qualified returns code0/::P::N::q::E 1 VALUE {}. Both retained originals return code1/tried to manipulate ensemble of deleted namespace; both separate queries return code1 for absent ::observed. No retained creation or rooted dispatch succeeds in these measured cases. All four case processes exit zero with empty stderr; guest errors remain measured results.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual cc -std=c99 external driver compilation exits0; executable SHA-256 f0cd376df3769984586301045a4a46d89cf1e8d1a5dc0b9109ee67c4f9aa6f56 and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
+Status: `observed`. Version: 8.6.18. Build: Actual cc -std=c99 external driver compilation exits0; executable and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
 
 Actual stock 8.6.18 live default returns code0/::P::N 1 VALUE and relative-qualified returns code0/::P::N::q::E 1 VALUE {}. Both retained originals return code1/tried to manipulate ensemble of deleted namespace; both separate queries return code1 for absent ::observed. No retained creation or rooted dispatch succeeds in these measured cases. All four case processes exit zero with empty stderr; guest errors remain measured results.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual cc -std=c99 external driver compilation exits0; executable SHA-256 b9f2588b8239707391180b1e383f59ba3adda48bf9e18b7fae01da67ac6c43ab and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
+Status: `observed`. Version: 9.0.4. Build: Actual cc -std=c99 external driver compilation exits0; executable and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
 
 Actual stock 9.0.4 live default returns code0/::P::N 1 VALUE and relative-qualified returns code0/::P::N::q::E 1 VALUE {}. Retained default original returns code0/::P::N::N 0 {} 1 {invalid command name "::P::N"}; retained E returns code0/::P::N::E 0 {} 1 {invalid command name "::P::N::E"}. Each independent later query returns its original tuple followed by 0 0 NEW. Successful original creation completion remains distinct from failed rooted call and zero existence fields; private parent/current tokens are not observed. All four case processes exit zero with empty stderr; guest errors remain measured results.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual cc -std=c99 external driver compilation exits0; executable SHA-256 1bc81545f4ee1b52144049ec1e25ed3c5110fbc6b5269b120250cb4f655c8528 and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
+Status: `observed`. Version: 9.1.0. Build: Actual cc -std=c99 external driver compilation exits0; executable and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external full Tcl_Init/Tcl_EvalEx(flags0). Dialect: Original C Tcl API ensemble controls.
 
 Actual stock 9.1.0 live default returns code0/::P::N 1 VALUE and relative-qualified returns code0/::P::N::q::E 1 VALUE {}. Retained default original returns code0/::P::N::N 0 {} 1 {invalid command name "::P::N"}; retained E returns code0/::P::N::E 0 {} 1 {invalid command name "::P::N::E"}. Each independent later query returns its original tuple followed by 0 0 NEW. Successful original creation completion remains distinct from failed rooted call and zero existence fields; private parent/current tokens are not observed. All four case processes exit zero with empty stderr; guest errors remain measured results.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual cc -std=c99 external driver compilation exits0; executable SHA-256 6f1e064d4a3d7451d30405a106407a8b0d689c176299621a934d5a96015b3a16 and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external Jim core/static extensions and counted original Jim_EvalObj; independent prelude/original/query files. Dialect: Original Jim API source; exact C ensemble syntax has a distinct API.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual cc -std=c99 external driver compilation exits0; executable and exact compiler/link command plus static-library/header/Makefile/source pins are retained and rechecked. Compiler binary version is unrecorded.. Channel: Fresh external Jim core/static extensions and counted original Jim_EvalObj; independent prelude/original/query files. Dialect: Original Jim API source; exact C ensemble syntax has a distinct API.
 
 Actual Jim 0.84-9-g5bac7c9 all four original C namespace-ensemble syntax controls return code1 with wrong # args: should be "ensemble command ?-automap prefix?". Both retained-case queries return code1 for absent ::observed. All preludes return code0/empty. Jim own API is not substituted and no namespace-token or creation parity is inferred. All four case processes exit zero with empty stderr; guest errors remain measured results.
 

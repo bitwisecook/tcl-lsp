@@ -22,37 +22,37 @@ Seven fixed paths: counted raw-zero/encoded C080/opaque FF/D800, singleton brace
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable SHA256 614e443fc4e7d5635a1ffaf7d9a65dfdeb2823dded3fb81dea9ab4ad1fb04505; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
 
 All five C builds reject create/eval/delete with unmatched-open-brace list errors, return false from exists and retain an empty children table.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable SHA256 8a8c368e21ac4af8f22bc2786a97296f35988c82504cc7873d6166a6dbd67a02; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
 
 All five C builds reject create/eval/delete with unmatched-open-brace list errors, return false from exists and retain an empty children table.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA256 7a30ba05d5cbca5772f6ca1ad6710bd82298d61770df0235d2e6cb206e3f158a; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
 
 All five C builds reject create/eval/delete with unmatched-open-brace list errors, return false from exists and retain an empty children table.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA256 43f1f05205e0c48f580d6fcea6af72da3180df1cca55be224e5e5d66a8e8bef0; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
 
 All five C builds reject create/eval/delete with unmatched-open-brace list errors, return false from exists and retain an empty children table.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA256 412a96917933d1c27c442ec1d2204819a6b1a5a1e790bf3319dfcc9002e85521; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
 
 All five C builds reject create/eval/delete with unmatched-open-brace list errors, return false from exists and retain an empty children table.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA256 78e5a685007093131a3848b62adb97a94c2c6ae71a352af42575d3ec1f10d89e; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Jim Tcl.
 
 Named C-style path API is rejected with the original wrong-argument outcome.
 

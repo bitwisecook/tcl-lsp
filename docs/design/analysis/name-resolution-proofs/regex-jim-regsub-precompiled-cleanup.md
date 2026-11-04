@@ -52,7 +52,7 @@ No execution of this precise question on this provider is attached. Other interp
 
 ### jim
 
-Status: `observed`. Version: not queried by this probe; Jim source/library identities retained (patch/revision not queried). Build: Original libjim.a SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
+Status: `observed`. Version: not queried by this probe; Jim source/library identities retained (patch/revision not queried). Build: Original libjim.a; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
 
 Original selected native attempts: [{"case":9,"exit":-6,"stdout":"code\t0\nobject\tpattern\tregexp\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t586258\n","stderr":"free(): double free detected in tcache 2\n"}]. Process status is independent of printed command return and object rows.
 

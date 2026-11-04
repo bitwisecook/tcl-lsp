@@ -22,7 +22,7 @@ C84-91 sixty cases each: five raw00/modified00/rawFF/encodedFF/plain name famili
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: binary_sha256=113e7f96e525217bfe756c702737df1434c2ef6c12e7406078e4b701557426df; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -91,7 +91,7 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: binary_sha256=8851ed4d50d09b40bfd3a865273946f496d2e8d59ae4d8eb508db3398be0f9e4; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -160,7 +160,7 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: binary_sha256=245ecbfa7925183a259cd146dce1efa0631d77d1cb3d993fc1f01b99afe2f096; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -229,7 +229,7 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: binary_sha256=7b01bad5de07fe8879f56671ffb8e13cc752e65bc46b9cc08db8a8fb6b7e723d; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -298,7 +298,7 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: binary_sha256=f3b3e1c94ef0ea8dcd28aaf9f1acd219ed7c87ef565c7f7b1eeceab8ffbd75d1; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -367,7 +367,7 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 
 ### jim
 
-Status: `observed`. Version: not recorded (manifest label Jim). Build: binary_sha256=e25a463020da46f0a18329c3eabbebc3dcb268eaa7f4fe7a8295228463817538; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Jim Tcl.
+Status: `observed`. Version: not recorded (manifest label Jim). Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Jim Tcl.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 

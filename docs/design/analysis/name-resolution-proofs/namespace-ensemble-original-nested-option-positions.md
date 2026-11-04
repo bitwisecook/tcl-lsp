@@ -22,37 +22,37 @@ Twelve actual source-file CLI processes retain twelve queried versions and 134 l
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Original CLI executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20. Build: Original CLI executable; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
 
 The capability and all independently caught ensemble forms fail because namespace ensemble is unavailable. Capture167 skips the option body; capture168 records every fixed refusal. No option-position or bare-creation behavior is inferred for C8.4.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original CLI executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19. Build: Original CLI executable; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
 
 Create accepts options immediately. Configure consumes its required command name first, including dash-named -map and -namespace commands, then options; the fixed map queries return x ::list. Exists consumes its command name and does not scan trailing options. Bare creation and invocation succeed. The extra exists argument returns errorCode NONE. Invalid -command for configure and -namespace for create retain their distinct actual option error rosters in the streams.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original CLI executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18. Build: Original CLI executable; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
 
 Create accepts options immediately. Configure consumes its required command name first, including dash-named -map and -namespace commands, then options; the fixed map queries return x ::list. Exists consumes its command name and does not scan trailing options. Bare creation and invocation succeed. The extra exists argument returns TCL WRONGARGS. Invalid -command for configure and -namespace for create retain their distinct actual option error rosters in the streams.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original CLI executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4. Build: Original CLI executable; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
 
 Create accepts options immediately. Configure consumes its required command name first, including dash-named -map and -namespace commands, then options; the fixed map queries return x ::list. Exists consumes its command name and does not scan trailing options. Bare creation and invocation succeed. The extra exists argument returns TCL WRONGARGS. Invalid -command for configure and -namespace for create retain their distinct actual option error rosters in the streams.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original CLI executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0. Build: Original CLI executable; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: C Tcl.
 
 Create accepts options immediately. Configure consumes its required command name first, including dash-named -map and -namespace commands, then options; the fixed map queries return x ::list. Exists consumes its command name and does not scan trailing options. Bare creation and invocation succeed. The extra exists argument returns TCL WRONGARGS. Invalid -command for configure and -namespace for create retain their distinct actual option error rosters in the streams.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Original CLI executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: Jim.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Original CLI executable; exact selected SDK/header/library/build/source associations retained. This runner executes no compiler command.. Channel: Two fixed ASCII LF source-file CLI scripts; one actual interpreter process per script/provider, ordered caught source forms.. Dialect: Jim.
 
 Capture167 reports only [namespace ensemble create] is supported from exists, then skips subsequent forms. Capture168 directly records bare create code0 with r2286_nestedBare and invocation code0 with payload. C-style optioned create returns arity refusal; configure and exists return only-create-supported refusals. The ensemble surface is not wholly unavailable.
 

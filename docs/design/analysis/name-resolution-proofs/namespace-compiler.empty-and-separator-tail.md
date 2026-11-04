@@ -22,7 +22,7 @@ Twenty fixed ASCII procedure bodies are constructed by original Tcl_EvalObjEx in
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association). Build: Original observer SHA256 4fdf2b31b02239bb9a04b216a74640d1ecc0dc7634849792714ac5dfd44c179c; archive SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association). Build: Original observer; archive; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
 
 Selected original case/hook/VARIABLE/NSUPVAR/count-local table:
 
@@ -37,7 +37,7 @@ Each row remains a physical compiler observation; it does not establish a succes
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association). Build: Original observer SHA256 4c710211d0f08e69e15bd96d290a5cd6f6c3bf33e1476006c62430eb39067a1f; archive SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association). Build: Original observer; archive; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
 
 Selected original case/hook/VARIABLE/NSUPVAR/count-local table:
 
@@ -52,7 +52,7 @@ Each row remains a physical compiler observation; it does not establish a succes
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association). Build: Original observer SHA256 c628fd1fe1ba468fd27fdbf0a2576562dfbe2392539b68f34cf2e7c14e085258; archive SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association). Build: Original observer; archive; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
 
 Selected original case/hook/VARIABLE/NSUPVAR/count-local table:
 
@@ -67,7 +67,7 @@ Each row remains a physical compiler observation; it does not establish a succes
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association). Build: Original observer SHA256 98a400711e6619b10eedda15761c0c5224feab78917d49e3ed4d12afa7a3db4d; archive SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association). Build: Original observer; archive; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
 
 Selected original case/hook/VARIABLE/NSUPVAR/count-local table:
 
@@ -82,7 +82,7 @@ Each row remains a physical compiler observation; it does not establish a succes
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association). Build: Original observer SHA256 c9f85ea5dbe3b920e53518e78a3ab0cca8613e969fd236b11814c2922857bd11; archive SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association). Build: Original observer; archive; compiler/parser/private-header checksums retained in selected receipt; compile/process0. Full launched patchlevel/configure/compiler version unqueried.. Channel: Tcl_EvalObjEx source body, caught original call, private emitted opcode and counted local table inspection.. Dialect: C Tcl.
 
 Selected original case/hook/VARIABLE/NSUPVAR/count-local table:
 

@@ -22,7 +22,7 @@ Six exact processes, 38 raw lines each, element-only and whole-array removal rou
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (captured release association; launched patchlevel unqueried). Build: header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=1d7bee24290a58e692d01fd7f484b8b105140ae7519a78fa56931a90fd71cf28; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -70,7 +70,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (captured release association; launched patchlevel unqueried). Build: header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=8f0216468e8d31509cbd0313bf328d832965ef26788b9f30f9afb8cd10e4b84c; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -118,7 +118,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (captured release association; launched patchlevel unqueried). Build: header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=e705cc15a199cfe6667400ee22b6b12b7312c0d8f963983dc015d39a35094312; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -166,7 +166,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=d7e7b0beefa92716e0204dbff83bb3379d52c2c4526152f2fc9cb433db025e10; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -214,7 +214,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=54c468ec0bf3e82b77b647457cd8baba35a83cc9fef360151df3b88ac34965eb; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -262,7 +262,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### jim
 
-Status: `observed`. Version: Jim (patchlevel, revision and configuration unrecorded). Build: header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; binary_sha256=d4035f7eb637fa1b535dbd8dc739da0bc146a35921ebde0a44769b6a55b73e9d; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim (patchlevel, revision and configuration unrecorded). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C public variable APIs plus Tcl_UpVar and ASCII Tcl_EvalEx procedures; Jim original Jim_SetVariable/GetVariable/SetVariableLink and Jim_Eval with explicitly selected top frame. Private parser/header/live Var snapshots.. Dialect: Jim Tcl.
 
 Exact selected observer rows, in original column order:
 

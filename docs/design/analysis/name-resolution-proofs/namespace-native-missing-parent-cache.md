@@ -22,7 +22,7 @@ The original public C/Jim object-vector observer samples result primary before s
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; full launched patchlevel unqueried). Build: Original observer SHA256 c2596e165ed556a99ebe4eca81754e223c3618a59859bdc9127d1bf56174c284. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; full launched patchlevel unqueried). Build: Original observer. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
 
 Selected retained release/phase/code/result-primary/result-hex/input-primary/resolved rows:
 
@@ -33,7 +33,7 @@ These are the sampled fields only; absent full JSONL reference/pointer/process f
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; full launched patchlevel unqueried). Build: Original observer SHA256 65602d5cc8570b2e9c9f500d7c84e710188870661397587376a2f3e477c51dde. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; full launched patchlevel unqueried). Build: Original observer. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
 
 Selected retained release/phase/code/result-primary/result-hex/input-primary/resolved rows:
 
@@ -44,7 +44,7 @@ These are the sampled fields only; absent full JSONL reference/pointer/process f
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; full launched patchlevel unqueried). Build: Original observer SHA256 211f1c1c697ac748cd57aed54d11ba34d2d8be2ef4062da77f8fad17b485ed78. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; full launched patchlevel unqueried). Build: Original observer. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
 
 Selected retained release/phase/code/result-primary/result-hex/input-primary/resolved rows:
 
@@ -55,7 +55,7 @@ These are the sampled fields only; absent full JSONL reference/pointer/process f
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; full launched patchlevel unqueried). Build: Original observer SHA256 a67c5a796806d256ca7d8d6cef501acec8b9dfc0cd635e787993709e5f0ef2b4. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; full launched patchlevel unqueried). Build: Original observer. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
 
 Selected retained release/phase/code/result-primary/result-hex/input-primary/resolved rows:
 
@@ -66,7 +66,7 @@ These are the sampled fields only; absent full JSONL reference/pointer/process f
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; full launched patchlevel unqueried). Build: Original observer SHA256 00c256b7557f76c3b011cdf19e40d72414eb422426fba647ef434bd998c6d1e4. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; full launched patchlevel unqueried). Build: Original observer. Compiler/header/library/configure closure and process status are unrecorded in this receipt.. Channel: Original public object-vector invocation; counted result getter and private primary/resolved marker. C producer/lifecycle cases additionally use native namespace and call-frame APIs.. Dialect: C Tcl.
 
 Selected retained release/phase/code/result-primary/result-hex/input-primary/resolved rows:
 

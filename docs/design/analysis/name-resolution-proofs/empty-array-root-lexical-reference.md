@@ -26,37 +26,37 @@ This is a software source-edit geometry binding only. Original Native lexical re
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual shell executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
 
 EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual shell executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
 
 EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual shell executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
 
 EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual shell executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
 
 EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual shell executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
 
 EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual shell executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Jim Tcl.
 
 EMPTY_LEXICAL=error syntax expression (k); EMPTY_BRACED=VALUE; EMPTY_SCALAR=k VALUE; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 

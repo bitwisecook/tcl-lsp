@@ -22,7 +22,7 @@ Six fixed complete ASCII LF source-file CLI forms per actual C8.4.20/8.5.19/8.6.
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
 
 Exact original stdout:
 
@@ -40,7 +40,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
 
 Exact original stdout:
 
@@ -58,7 +58,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
 
 Exact original stdout:
 
@@ -76,7 +76,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
 
 Exact original stdout:
 
@@ -94,7 +94,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
 
 Exact original stdout:
 
@@ -112,7 +112,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Jim Tcl.
 
 Exact original stdout:
 

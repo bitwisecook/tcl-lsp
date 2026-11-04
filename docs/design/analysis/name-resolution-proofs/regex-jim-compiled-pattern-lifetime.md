@@ -52,7 +52,7 @@ No execution of this precise question on this provider is attached. Other interp
 
 ### jim
 
-Status: `observed`. Version: Jim0.84 (patch/revision not queried). Build: Original libjim.a SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim0.84 (patch/revision not queried). Build: Original libjim.a; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
 
 Original selected native attempts: [{"case":1,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\ncache\t1\nafter\tregexp\t0\t1\n","stderr":""},{"case":2,"exit":-11,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\n","stderr":""},{"case":3,"exit":-6,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nduplicate\tregexp\t1\t1\ncache\t1\n","stderr":"free(): double free detected in tcache 2\n"},{"case":8,"exit":-11,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\n","stderr":""}]. Process status is independent of printed command return and object rows.
 

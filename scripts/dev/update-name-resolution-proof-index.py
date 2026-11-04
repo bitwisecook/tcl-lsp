@@ -5,6 +5,7 @@
 """Legacy proof-record helpers retained for historical migration."""
 
 import json
+import re
 from pathlib import Path
 
 DIRECTORY = Path("docs/design/analysis/name-resolution-proofs")
@@ -68,6 +69,20 @@ def merge_classifications(root, supplied, gate):
     return len(updates)
 
 
+def historical_build(value):
+    """Keep recorded build facts without printing legacy digest values."""
+    pattern = r"(?i)\b(?:[a-z0-9_/-]+_)?sha-?256\s*(?:=|\s)\s*`?[0-9a-f]{64}`?"
+    if not re.search(pattern, value):
+        return value
+    value = re.sub(pattern, "", value)
+    value = "; ".join(part.strip(" ,") for part in value.split(";") if part.strip(" ,"))
+    value = re.sub(r"\s+,", ",", value)
+    value = re.sub(r",\s*,", ",", value)
+    value = re.sub(r"\s+\.", ".", value)
+    value = re.sub(r"\s{2,}", " ", value).strip(" ,;")
+    return value or "See historical references."
+
+
 def render(record):
     text = f"# {record['id']}\n\nKind: `{record['kind']}`\n\n"
     for heading, field in [
@@ -79,7 +94,7 @@ def render(record):
         text += f"## {heading}\n\n{record[field].rstrip()}\n\n"
     text += "## Provider answers\n\n"
     for provider in record["providers"]:
-        text += f"### {provider['id']}\n\nStatus: `{provider['status']}`. Version: {provider['version']}. Build: {provider['build']}. Channel: {provider['input_channel']}. Dialect: {provider['dialect']}.\n\n{provider['answer']}\n\n"
+        text += f"### {provider['id']}\n\nStatus: `{provider['status']}`. Version: {provider['version']}. Build: {historical_build(provider['build'])}. Channel: {provider['input_channel']}. Dialect: {provider['dialect']}.\n\n{provider['answer']}\n\n"
     text += "## Historical references\n\n"
     for item in record["evidence"]:
         selector = (

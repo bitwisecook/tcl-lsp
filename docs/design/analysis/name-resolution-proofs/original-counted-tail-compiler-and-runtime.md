@@ -22,37 +22,37 @@ Exactly ten native counted String inputs, two native object-vector call forms, s
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Executable SHA-256 a2c92d91027ad401a9493172ae166ba845e837ec17ce78bd8757a65f2934ea17; header SHA-256 824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; linked library SHA-256 532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
 
 Direct and procedure calls have the same measured CString results: raw00 a00::tail returns a; raw FF stays FF; D800/D801 stay distinct. No C8.6 Tail opcode window is claimed. Reached Tcl_AppendToObj results are String-primary, including empty suffixes from a::; an empty original CString does not reach append and leaves the NULL interpreter result.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Executable SHA-256 8b0e8ca8cc5c62462fdc5204968f062e17bd2c9e4e1979551e423adc120027cd; header SHA-256 c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; linked library SHA-256 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
 
 Direct and procedure calls have the same measured CString results: raw00 a00::tail returns a; raw FF stays FF; D800/D801 stay distinct. No C8.6 Tail opcode window is claimed. Fresh direct byte results remain NULL-primary through Tcl_NewStringObj; the counted original input remains NULL until an independently reached getter.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Executable SHA-256 1f0ea49ba28cae40769a3b851b95871fd4f156265a57c3d761bd015c490c19b3; header SHA-256 aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; linked library SHA-256 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
 
 Direct raw00 a00::tail returns a and raw FF stays FF; the compiled original procedure returns tail for raw00 and converts raw FF to C3BF through counted Unicode. D800/D801 remain distinct. Compiled subject primary becomes String; nonempty result primary is String, empty result is NULL. The captured disassembly retains the exact last-find, guarded +2 and range program.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Executable SHA-256 0bd86e91cc628c352a509b4aaff2887eaaefa62c5c3c13ea61945328f9e32ea8; header SHA-256 eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; linked library SHA-256 dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
 
 Direct raw00 a00::tail returns a and raw FF stays FF; the compiled original procedure returns tail for raw00 and converts raw FF to C3BF through counted Unicode. D800/D801 remain distinct. Compiled subject primary becomes String; nonempty result primary is String, empty result is NULL. The captured disassembly retains the exact last-find, guarded +2 and range program.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Executable SHA-256 6e53f83a6e671dc943b306bc6682bfd103b787f13b154bf9d23449049a1accba; header SHA-256 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; linked library SHA-256 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Tcl.
 
 Direct raw00 a00::tail returns a and raw FF stays FF; the compiled original procedure returns tail for raw00 and converts raw FF to C3BF through counted Unicode. D800/D801 remain distinct. Compiled subject primary becomes String; nonempty result primary is String, empty result is NULL. The captured disassembly retains the exact last-find, guarded +2 and range program.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Executable SHA-256 f4ce1ec812a7a4f8b2e7b39482addb2599555bfb6b2647557f6f91cfa62cd149; header SHA-256 d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; linked library SHA-256 a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv; separate fixed ASCII proc source; exact stdout hex of counted result/input bytes. Dialect: Jim Tcl.
 
 Direct and procedure calls retain raw FF and the distinct D800/D801 bytes. The raw00 input a00::tail is returned whole with the same original identity in both forms. No-separator, empty and single-colon inputs also retain the original identity. The D row records no C Tail compiler.
 

@@ -52,7 +52,7 @@ No execution of this precise question on this provider is attached. Other interp
 
 ### jim
 
-Status: `observed`. Version: Jim0.84 (patch/revision not queried). Build: Original libjim.a SHA256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim0.84 (patch/revision not queried). Build: Original libjim.a; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
 
 Original selected native attempts: [{"case":0,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\t61\n","stderr":""},{"case":4,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\tff\n","stderr":""},{"case":5,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\tc080\n","stderr":""},{"case":6,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\tf09f9880\n","stderr":""},{"case":7,"exit":0,"stdout":"pattern\tnone\t1\t1\ncompile\t0\n","stderr":""}]. Process status is independent of printed command return and object rows.
 

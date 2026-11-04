@@ -52,7 +52,7 @@ No native observation of this exact question is attached for this provider.
 
 ### jim
 
-Status: `observed`. Version: not queried (capture association; launched patchlevel/revision unqueried). Build: binary_sha256=8f4051cdd357af5753f610f448279f45b64b93a42d41628035d280565d5e0e3e; library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; header_sha256=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct Jim_StringToWide CString conversion with explicit base10 and errno seed; no interpreter evaluator.. Dialect: Jim Tcl.
+Status: `observed`. Version: not queried (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct Jim_StringToWide CString conversion with explicit base10 and errno seed; no interpreter evaluator.. Dialect: Jim Tcl.
 
 Exact relevant original rows:
 

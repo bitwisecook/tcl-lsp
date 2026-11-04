@@ -22,31 +22,31 @@ Five fixed original object states per C release: successful A lookup then B; fai
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=84644f2265bced1a1ac3d846f7a98fcd290ebe7bb0d38f5c5ae6c5c1c3f7e92b; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl8.4.
+Status: `observed`. Version: 8.4.20 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl8.4.
 
 Observations [case,before type,before resident,after type,target,after resident,same original pointer]: [["0","cmdName","1","cmdName","1","1","1"],["1","cmdName","1","cmdName","0","1","1"],["2","cmdName","1","cmdName","0","1","1"],["3","cmdName","1","cmdName","1","1","1"],["4","cmdName","1","cmdName","1","1","1"]].
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=ba24964a8be2930a468cd3afbd2949c287313933faa31a1f08e199a32bc5ed40; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl8.5.
+Status: `observed`. Version: 8.5.19 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl8.5.
 
 Observations [case,before type,before resident,after type,target,after resident,same original pointer]: [["0","cmdName","1","cmdName","1","1","1"],["1","cmdName","1","cmdName","0","1","1"],["2","cmdName","1","cmdName","0","1","1"],["3","cmdName","1","cmdName","1","1","1"],["4","cmdName","1","cmdName","1","1","1"]].
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=78a6c980295e929894cad539dfac81384e14f2121a8fce75ca17a05d6843c28a; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl8.6.
+Status: `observed`. Version: 8.6.18 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl8.6.
 
 Observations [case,before type,before resident,after type,target,after resident,same original pointer]: [["0","cmdName","1","cmdName","2","1","1"],["1","cmdName","1","cmdName","2","1","1"],["2","cmdName","1","cmdName","2","1","1"],["3","cmdName","1","cmdName","1","1","1"],["4","cmdName","1","cmdName","2","1","1"]].
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=ecfb078e85c63a91198cb78883db3e606a1a9b467e22a8bebc406ab510e70257; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl9.0.
+Status: `observed`. Version: 9.0.4 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl9.0.
 
 Observations [case,before type,before resident,after type,target,after resident,same original pointer]: [["0","cmdName","1","cmdName","2","1","1"],["1","none","1","cmdName","2","1","1"],["2","int","1","cmdName","2","1","1"],["3","cmdName","1","cmdName","1","1","1"],["4","cmdName","1","cmdName","2","1","1"]].
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=5840d7f0fcbf81fe56ced18b8f85f61da81aabc65facb61caa805f3b3daf149a; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl9.1.
+Status: `observed`. Version: 9.1.0 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C private original-object TclSetCmdNameObj ABI. Dialect: tcl9.1.
 
 Observations [case,before type,before resident,after type,target,after resident,same original pointer]: [["0","cmdName","1","cmdName","2","1","1"],["1","none","1","cmdName","2","1","1"],["2","int","1","cmdName","2","1","1"],["3","cmdName","1","cmdName","1","1","1"],["4","cmdName","1","cmdName","2","1","1"]].
 

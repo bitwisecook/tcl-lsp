@@ -22,7 +22,7 @@ Every tested C capture retains the exact eight combined bytes 61 72 72 28 6B 00 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (captured release association; launched patchlevel unqueried). Build: header_sha256=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=4a36721ec9cb58c5d6a5ba5490104d1fe6504947019393d61ff245e5b922cf33; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -38,7 +38,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (captured release association; launched patchlevel unqueried). Build: header_sha256=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=39e29882399f9b86abb9d72cd90623d6af44630a04afa9333977984aaab082be; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -54,7 +54,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (captured release association; launched patchlevel unqueried). Build: header_sha256=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=3687fb9bf24fb73bb96470a6b8f54bf742944a316014ef19955762b56059dfee; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -70,7 +70,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: header_sha256=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=1ede2b6aa265354a8ad549de9c2e7b1b067172820f1d5482e72d7bfe17250793; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 
@@ -86,7 +86,7 @@ Counts include the explicitly declared probe references. Unobserved fields and o
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: header_sha256=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=927411405c508cdc276aef5bf83f742cf6b4e8ff820c090b0827345ad6d990ce; compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_ObjGetVar2/Tcl_ObjSetVar2 on original counted String, Int, List and Bytearray names; Tcl_DuplicateObj and ASCII Tcl_EvalEx unset.. Dialect: C Tcl.
 
 Exact selected observer rows, in original column order:
 

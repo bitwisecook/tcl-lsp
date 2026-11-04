@@ -22,7 +22,7 @@ C8.4-only source.tcl and native84.txt with exact executable/header/implementatio
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4 (retained corpus; patchlevel not recorded in this row). Build: Recorded executable SHA-256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4. Channel: Original ASCII script passed to the recorded native shell.. Dialect: Tcl.
+Status: `observed`. Version: 8.4 (retained corpus; patchlevel not recorded in this row). Build: Recorded executable. Channel: Original ASCII script passed to the recorded native shell.. Dialect: Tcl.
 
 The complete original source/output is retained with process exit 0. Its exact function/diagnostic/result rows answer the scoped question; no other release is inferred.
 

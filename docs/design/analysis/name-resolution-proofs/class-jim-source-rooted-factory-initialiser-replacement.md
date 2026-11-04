@@ -22,37 +22,37 @@ Original fixed ASCII LF source file with two rooted authored class/procedure nam
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Exact CLI executable SHA-256 f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Version: 8.4.20. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
 
 Actual stock 8.4.20 catches package require oo rejection, exposes no class command and prints class_initialiser_scope not_applicable. All four class controls are unexecuted; no rooted factory/adoption answer or TclOO absence follows. Process exits zero with empty stderr.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Exact CLI executable SHA-256 e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Version: 8.5.19. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
 
 Actual stock 8.5.19 catches package require oo rejection, exposes no class command and prints class_initialiser_scope not_applicable. All four class controls are unexecuted; no rooted factory/adoption answer or TclOO absence follows. Process exits zero with empty stderr.
 
 ### tcl8.6
 
-Status: `unsupported`. Version: 8.6.18. Build: Exact CLI executable SHA-256 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Version: 8.6.18. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
 
 Actual stock 8.6.18 catches package require oo rejection, exposes no class command and prints class_initialiser_scope not_applicable. All four class controls are unexecuted; no rooted factory/adoption answer or TclOO absence follows. Process exits zero with empty stderr.
 
 ### tcl9.0
 
-Status: `unsupported`. Version: 9.0.4. Build: Exact CLI executable SHA-256 f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Version: 9.0.4. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
 
 Actual stock 9.0.4 catches package require oo rejection, exposes no class command and prints class_initialiser_scope not_applicable. All four class controls are unexecuted; no rooted factory/adoption answer or TclOO absence follows. Process exits zero with empty stderr.
 
 ### tcl9.1
 
-Status: `unsupported`. Version: 9.1.0. Build: Exact CLI executable SHA-256 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Version: 9.1.0. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: C Tcl stock CLI.
 
 Actual stock 9.1.0 catches package require oo rejection, exposes no class command and prints class_initialiser_scope not_applicable. All four class controls are unexecuted; no rooted factory/adoption answer or TclOO absence follows. Process exits zero with empty stderr.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable SHA-256 e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Exact ASCII LF CLI script file; public caught class/object calls and info-body equality. No object names/addresses or body contents printed. Generated two-word names retain literal leading ::; no NUL, non-ASCII or multiline escapes.. Dialect: Jim Tcl.
 
 Actual Jim 0.84-9-g5bac7c9 has oo1.0/class. Exact public rows: rooted_early_constructor 0 1 0; rooted_early_constructor_call 1 {}; rooted_early_get 0 0 0; rooted_later_constructor_call 0 {{REPLACEMENT SECOND}}. Initial constructor body query fails with code1/equalityfalse; the earlier new call fails with no constructor observations. Rooted get body changes; only the later replacement call succeeds with REPLACEMENT SECOND. No alias comparison slot or native object/cell identity is inferred.
 

@@ -22,7 +22,7 @@ Compiled public original-object callbacks sample the exact four source-order/qua
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: binary_sha256=963fcaac048ddd95a264472a372925a5ab1b6c838372268aa90de54d31f74854; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
 
 Exact relevant rows:
 
@@ -37,7 +37,7 @@ absolute	3	cmdName	1. A cmdName type is an observed primary, not proof of curren
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: binary_sha256=a59f22ac1a2f0158b42bd6455964eab239bda149a127dacc62fb8865a9df8659; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
 
 Exact relevant rows:
 
@@ -52,7 +52,7 @@ absolute	3	cmdName	1. A cmdName type is an observed primary, not proof of curren
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: binary_sha256=da5d2c067774e7af0e6752ef0a3f768e340fe1073aad20572a704917164d9dc8; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
 
 Exact relevant rows:
 
@@ -67,7 +67,7 @@ absolute	3	none	0. A cmdName type is an observed primary, not proof of current c
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: binary_sha256=e9e4a9cacd2d4384fa4e5fda3f7039ecb259524d2deba6843e4768a0afcfb022; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
 
 Exact relevant rows:
 
@@ -82,7 +82,7 @@ absolute	3	none	0. A cmdName type is an observed primary, not proof of current c
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: binary_sha256=6a06406634d07dfd3be81ebafa52e8c809075f2b1f84f62d96f75ceb3e2fb7e4; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original-object callbacks reached from ASCII Tcl_Eval procedure source.. Dialect: C Tcl.
 
 Exact relevant rows:
 

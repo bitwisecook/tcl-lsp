@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import runpy
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,15 @@ SPEC.loader.exec_module(migration)
 
 
 class EvidenceMigrationTests(unittest.TestCase):
+    def test_historical_build_display_keeps_non_digest_facts(self) -> None:
+        helpers = runpy.run_path(
+            str(SCRIPT.with_name("update-name-resolution-proof-index.py"))
+        )
+        cleaned = helpers["historical_build"](
+            "binary_sha256=" + "a" * 64 + "; compile_exit=0; Tcl build 8.6"
+        )
+        self.assertEqual(cleaned, "compile_exit=0; Tcl build 8.6")
+
     def test_retired_proof_index_does_not_write_legacy_records(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

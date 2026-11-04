@@ -52,7 +52,7 @@ This exact nested-current observation comes from the Jim-only probe branch; no r
 
 ### jim
 
-Status: `observed`. Version: Jim (patchlevel unqueried). Build: Pinned source revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; observer SHA256 c3d665bc13ac6378b50b9a35636ce6d52d30978a689682f0a1ab2880cf0e8d7d; compile/library/configure/process closure unrecorded.. Channel: Jim_EvalObj of exact ASCII nested namespace source, then original result primary and counted string getter.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim (patchlevel unqueried). Build: Pinned source revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; observer; compile/library/configure/process closure unrecorded.. Channel: Jim_EvalObj of exact ASCII nested namespace source, then original result primary and counted string getter.. Dialect: Jim Tcl.
 
 Exact retained row:
 

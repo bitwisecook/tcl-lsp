@@ -22,31 +22,31 @@ Six ASCII original Tcl_NewStringObj names per C release, each registered and res
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=935f1118e51b6011a30690b36645cf175923eb084443554fe224805f17f5d83d; library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl8.4.
+Status: `observed`. Version: 8.4.20 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl8.4.
 
 Case-order observations [code,numeric projection,after type,resident,same original pointer]: [["0","1","boolean","1","1"],["0","1","boolean","1","1"],["0","1","boolean","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"]].
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=4b372a3c7b408500eb51b52e574edd7f6e57ee21b403b52172cbf8a831c939fd; library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl8.5.
+Status: `observed`. Version: 8.5.19 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl8.5.
 
 Case-order observations [code,numeric projection,after type,resident,same original pointer]: [["0","1","int","1","1"],["0","1","double","1","1"],["0","1","booleanString","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"]].
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=9bd366a4e5524e8c5bc0609abcd8db9da65218fb09043c396fb606cb6003ad45; library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl8.6.
+Status: `observed`. Version: 8.6.18 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl8.6.
 
 Case-order observations [code,numeric projection,after type,resident,same original pointer]: [["0","1","int","1","1"],["0","1","double","1","1"],["0","1","booleanString","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"]].
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=47511a24ec7525aaa556aef37de10f7a9018c7b643513ebaf36784fdd474af0d; library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl9.0.
+Status: `observed`. Version: 9.0.4 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl9.0.
 
 Case-order observations [code,numeric projection,after type,resident,same original pointer]: [["0","1","int","1","1"],["0","1","double","1","1"],["0","1","boolean","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"]].
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (manifest release association; probe does not query runtime patchlevel). Build: elf_sha256=420e427211d56a9416e5ffa5405fcb1a5aa8a0952533fe731beab44a84d9dd43; library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl9.1.
+Status: `observed`. Version: 9.1.0 (manifest release association; probe does not query runtime patchlevel). Build: See historical references.. Channel: compiled C public original-object getter after Tcl_GetCommandFromObj. Dialect: tcl9.1.
 
 Case-order observations [code,numeric projection,after type,resident,same original pointer]: [["0","1","int","1","1"],["0","1","double","1","1"],["0","1","boolean","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"],["1","0","cmdName","1","1"]].
 

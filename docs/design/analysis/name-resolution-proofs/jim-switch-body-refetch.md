@@ -52,7 +52,7 @@ No native observation for this precise question and provider is attached; no res
 
 ### jim
 
-Status: `observed`. Version: not recorded by the refetch observer. Build: probe SHA-256 889374c48febda50eee65d5ec91dd04f447b84b4a9e89773da251554d1019e11; linked libjim.a SHA-256 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff. Channel: original host object probe; original source bytes unavailable. Dialect: Jim Tcl.
+Status: `observed`. Version: not recorded by the refetch observer. Build: probe; linked libjim.a. Channel: original host object probe; original source bytes unavailable. Dialect: Jim Tcl.
 
 The twelve retained rows include three BEFORE/AFTER_SHIMMER/AFTER_SWITCH/RESULT groups. The old body remains live under a host lease while a distinct refetched object is selected on success (MATCH), guest Error (FAILED) and noninteger OK (empty result). These are retained object-window observations; the absent original probe source prevents independent replay and does not establish arbitrary callback semantics.
 

@@ -22,37 +22,37 @@ Original explicit-count string subjects and independent numeric-escape/binary so
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual public C/Jim probe executable SHA-256 61aea1bb312fd718a670b18f073469efed397beccbf90a737cd3b6c9394efa69; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
+Status: `observed`. Version: 8.4.20. Build: Actual public C/Jim probe executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
 
 RAW_COUNTED registers scalar v; plain v fires name1 hex76 and no index; alternate raw-zero suffix selects/removes the same registration. NUMERIC_ESCAPE and BINARY00 both materialize 76c0807461696c286b29 and register element k; plain v does not fire them and raw alternate removal leaves them present. Raw original Set after plain v errors variable is not array.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual public C/Jim probe executable SHA-256 6b385b8c44237a14121465546399e559fe0ee63b44262c05d7e822b17f8d8992; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
+Status: `observed`. Version: 8.5.19. Build: Actual public C/Jim probe executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
 
 RAW_COUNTED registers scalar v; plain v fires name1 hex76 and no index; alternate raw-zero suffix selects/removes the same registration. NUMERIC_ESCAPE and BINARY00 both materialize 76c0807461696c286b29 and register element k; plain v does not fire them and raw alternate removal leaves them present. Raw original Set returns VALUE without firing that scalar trace.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual public C/Jim probe executable SHA-256 d591fc02d6b0d2e0842e653e01d70bc8ecbe0f680797141b0cd3d76f7e8e20d8; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
+Status: `observed`. Version: 8.6.18. Build: Actual public C/Jim probe executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
 
 RAW_COUNTED registers scalar v; plain v fires name1 hex76 and no index; alternate raw-zero suffix selects/removes the same registration. NUMERIC_ESCAPE and BINARY00 both materialize 76c0807461696c286b29 and register element k; plain v does not fire them and raw alternate removal leaves them present. Raw original Set returns VALUE without firing that scalar trace.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual public C/Jim probe executable SHA-256 c1c5c80dac03446897428183d1898d4f8aba68b040820e53235472737308cb91; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
+Status: `observed`. Version: 9.0.4. Build: Actual public C/Jim probe executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
 
 RAW_COUNTED registers scalar v; plain v fires name1 hex76 and no index; alternate raw-zero suffix selects/removes the same registration. NUMERIC_ESCAPE and BINARY00 both materialize 76c0807461696c286b29 and register element k; plain v does not fire them and raw alternate removal leaves them present. Raw original Set returns VALUE without firing that scalar trace.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual public C/Jim probe executable SHA-256 5801d8f730c9689e2485e17854b2ab97f9e0e54f78c942dd031c327792cda501; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
+Status: `observed`. Version: 9.1.0. Build: Actual public C/Jim probe executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Tcl.
 
 RAW_COUNTED registers scalar v; plain v fires name1 hex76 and no index; alternate raw-zero suffix selects/removes the same registration. NUMERIC_ESCAPE and BINARY00 both materialize 76c0807461696c286b29 and register element k; plain v does not fire them and raw alternate removal leaves them present. Raw original Set returns VALUE without firing that scalar trace.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual public C/Jim probe executable SHA-256 a89489ca13323bbfa54a0e5ed3c2f8e0c13ec4cedb7baff63d084dc9c9551cb8; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Jim Tcl.
+Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual public C/Jim probe executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: explicit-count Tcl_NewStringObj/Jim_NewStringObj raw subject; escaped/binary subjects produced by explicit C source calls; public object-vector trace/set/query invocations. Dialect: Jim Tcl.
 
 All three subject values materialize hex76007461696c286b29, but each trace registration returns guest error invalid command name trace; no subject-address/trigger behavior is claimed.
 

@@ -52,7 +52,7 @@ No execution of this exact Jim root-frame creation control for this provider is 
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9 (actually printed). Build: Original executable SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0; process0/empty stderr. Full build/source revision receipt unrecorded.. Channel: ASCII CLI program; stdin/file channel unrecorded.. Dialect: Jim Tcl.
+Status: `observed`. Version: 0.84-9-g5bac7c9 (actually printed). Build: Original executable; process0/empty stderr. Full build/source revision receipt unrecorded.. Channel: ASCII CLI program; stdin/file channel unrecorded.. Dialect: Jim Tcl.
 
 engine	0.84-9-g5bac7c9
 ensemble	1	namespace ensemble create: must be called within a namespace

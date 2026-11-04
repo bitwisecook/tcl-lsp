@@ -22,7 +22,7 @@ This is the distinct shimmer probe: ten exact cases ×six providers,60 guest com
 
 ### tcl8.4
 
-Status: `observed`. Version: tcl8.4; exact launched patchlevel not queried by this probe. Build: library_sha256=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; binary_sha256=81df49251726e26129fe4af3d6e8f1b908b38a89b98edad3d04d5073aa2c931c; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
+Status: `observed`. Version: tcl8.4; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
 
 Exact original shimmer stream with the same S/R column layout as the original member-role record. Explicit observer pins are included in refcounts.
 
@@ -75,7 +75,7 @@ R	9	1	666f7265616368207661726c69737420697320656d707479
 
 ### tcl8.5
 
-Status: `observed`. Version: tcl8.5; exact launched patchlevel not queried by this probe. Build: library_sha256=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; binary_sha256=f5f1b08cecec7167b2dd7e24282e40d44f3cf43cf73be15e94407842bedc5585; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
+Status: `observed`. Version: tcl8.5; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
 
 Exact original shimmer stream with the same S/R column layout as the original member-role record. Explicit observer pins are included in refcounts.
 
@@ -128,7 +128,7 @@ R	9	1	666f7265616368207661726c69737420697320656d707479
 
 ### tcl8.6
 
-Status: `observed`. Version: tcl8.6; exact launched patchlevel not queried by this probe. Build: library_sha256=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; binary_sha256=13e4f7ed80c544affe5ac18fa45cc8a50147b6de9664d46716a9ee8b29d8cf49; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
+Status: `observed`. Version: tcl8.6; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
 
 Exact original shimmer stream with the same S/R column layout as the original member-role record. Explicit observer pins are included in refcounts.
 
@@ -186,7 +186,7 @@ R	9	1	666f7265616368207661726c69737420697320656d707479
 
 ### tcl9.0
 
-Status: `observed`. Version: tcl9.0; exact launched patchlevel not queried by this probe. Build: library_sha256=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; binary_sha256=ed4d1f429f4e96e39ff969b03c47a0e43a0d7fa5719c55a2e2a1304a87bdb208; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
+Status: `observed`. Version: tcl9.0; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
 
 Exact original shimmer stream with the same S/R column layout as the original member-role record. Explicit observer pins are included in refcounts.
 
@@ -244,7 +244,7 @@ R	9	1	666f7265616368207661726c69737420697320656d707479
 
 ### tcl9.1
 
-Status: `observed`. Version: tcl9.1; exact launched patchlevel not queried by this probe. Build: library_sha256=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; binary_sha256=959f318cf5581fd3de9d4c9cc85ae3089d3a63d1e89cc56549ae502b0f80b99e; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
+Status: `observed`. Version: tcl9.1; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: C Tcl.
 
 Exact original shimmer stream with the same S/R column layout as the original member-role record. Explicit observer pins are included in refcounts.
 
@@ -302,7 +302,7 @@ R	9	1	666f7265616368207661726c69737420697320656d707479
 
 ### jim
 
-Status: `observed`. Version: Jim capture; patchlevel, revision and UTF configuration unrecorded. Build: library_sha256=75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; binary_sha256=7c1ba177b86ca8486a749f996f78aa1c0a3a55dd06d636bdc82439dc18c6cd40; compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: Jim Tcl.
+Status: `observed`. Version: Jim capture; patchlevel, revision and UTF configuration unrecorded. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original List object-vector evaluator plus actual first-body character getter; no document source rewrite.. Dialect: Jim Tcl.
 
 Exact original shimmer stream with the same S/R column layout as the original member-role record. Explicit observer pins are included in refcounts.
 

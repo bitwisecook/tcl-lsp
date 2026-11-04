@@ -22,31 +22,31 @@ Only the selected cases of this retained public C API probe and the recorded fiv
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (recorded build label; runtime version query not retained). Build: Library SHA256 d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe executable SHA256 254739d0e2469770dc8ff8d0a79abc8aa8f3e0ddc8e0d37d20a22938e8991f43; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (recorded build label; runtime version query not retained). Build: Library; probe executable; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
 
 Recorded build label 8.4.20; compile exit 0. Selected original capture windows: [{"case":3,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t1\t1\nrangebytes\tff\n","stderr":""},{"case":4,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc080\n","stderr":""},{"case":5,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t1\t1\nrangebytes\tf09f9880\n","stderr":""}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (recorded build label; runtime version query not retained). Build: Library SHA256 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe executable SHA256 174b3d5380e50f6a40d6aa40f3c4199d6ab8a04e82a5578c2a8208cd03618b2a; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (recorded build label; runtime version query not retained). Build: Library; probe executable; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
 
 Recorded build label 8.5.19; compile exit 0. Selected original capture windows: [{"case":3,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t1\t1\nrangebytes\tff\n","stderr":""},{"case":4,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc080\n","stderr":""},{"case":5,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t1\t1\nrangebytes\tf09f9880\n","stderr":""}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (recorded build label; runtime version query not retained). Build: Library SHA256 a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe executable SHA256 4a36829b28f7c202cd55a531978d1963fd4c6618c933ac7d56c8206ef4f52ac0; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (recorded build label; runtime version query not retained). Build: Library; probe executable; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
 
 Recorded build label 8.6.18; compile exit 0. Selected original capture windows: [{"case":3,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc3bf\n","stderr":""},{"case":4,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc080\n","stderr":""},{"case":5,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\teda0bdedb880\n","stderr":""}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (recorded build label; runtime version query not retained). Build: Library SHA256 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe executable SHA256 59abc79a4fcdc39cbb69e49cb6226d0de5f14ee5e3a4515ebbbbdd8b4f18e58c; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (recorded build label; runtime version query not retained). Build: Library; probe executable; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
 
 Recorded build label 9.0.4; compile exit 0. Selected original capture windows: [{"case":3,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc3bf\n","stderr":""},{"case":4,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc080\n","stderr":""},{"case":5,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tf09f9880\n","stderr":""}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (recorded build label; runtime version query not retained). Build: Library SHA256 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe executable SHA256 2a7482f87de4f8443c1798aed562002ab32848b9382905eae1bbcc32aef51001; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (recorded build label; runtime version query not retained). Build: Library; probe executable; exact header digests in original-capture.. Channel: Original public C API objects or counted Tcl_EvalEx source, selected by the attached probe case.. Dialect: C Tcl.
 
 Recorded build label 9.1.0; compile exit 0. Selected original capture windows: [{"case":3,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc3bf\n","stderr":""},{"case":4,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tc080\n","stderr":""},{"case":5,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nmatch\t1\nsubject\tstring\t1\t1\nrange\tstring\t0\t1\nrangebytes\tf09f9880\n","stderr":""}]. Abnormal process statuses establish incomplete attempts, even if earlier output is present.
 

@@ -22,7 +22,7 @@ One exact original ASCII script with four namespace origin queries per C release
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Original shell SHA256 551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
+Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
 
 Original presenter stdout:
 
@@ -33,7 +33,7 @@ Decoded result: ::p ::src::p ::src::p ::src::p.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: Original shell SHA256 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
+Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
 
 Original presenter stdout:
 
@@ -44,7 +44,7 @@ Decoded result: ::p ::src::p ::src::p ::src::p.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: Original shell SHA256 0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
+Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
 
 Original presenter stdout:
 
@@ -55,7 +55,7 @@ Decoded result: ::p ::src::p ::src::p ::src::p.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: Original shell SHA256 cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
+Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
 
 Original presenter stdout:
 
@@ -66,7 +66,7 @@ Decoded result: ::p ::src::p ::src::p ::src::p.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: Original shell SHA256 d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
+Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
 
 Original presenter stdout:
 
