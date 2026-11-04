@@ -4,7 +4,8 @@ Updated 4 November 2026. Branch: `work`. The LSP is not yet release-ready.
 
 User priority update: the conditional-list S102 follow-up in #940 takes priority.
 The user permits evidence comments and closure only for verified fixed issues
-authored by bitwisecook. The eight issues #2218, #2254, #2255, #2334, #2351, #2434, #2436 and #2440
+authored by bitwisecook. The nine issues #2218, #2254, #2255, #2334, #2351, #2365,
+#2434, #2436 and #2440
 were verified, commented and closed. All 20 other-reporter issues remain open;
 their current assessment is in [LSP_RELEASE_EXTERNAL.md](LSP_RELEASE_EXTERNAL.md).
 
@@ -39,6 +40,7 @@ All naming changes use the shared naming owners. Tcl parsing must use the existi
 - #2436 was closed after its [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2436#issuecomment-6630162759) was posted and fetched back. The [bounded receipt](LSP_RELEASE_PARSE_CUTS_RECEIPT_2026-11-04.json) records the exact harness, results and six source hashes.
 - Targeted production Clippy for `tcl-lexer` and `tcl-compiler` passes with `-D warnings` at `c80aa092d`; this also includes the pushed #2218 optimiser guard. Full workspace gates remain separate and pending.
 - #2218 was fixed in `c47d83bda`: retained O115 return/argument normalisation now obeys the shared module command-trust owner. Three focused tests pass, with eight positive and eight negative cases plus equivalent original/rewritten execution on all five Tcl releases and Jim `82fb4d0`. The [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2218#issuecomment-6630388414) was fetched back before closure.
+- #2365 was fixed in `89694c328` and `d58e2952e`: valid stub directives outside a block receive W153 while W123 remains on the unknown call. Clean analyser and Core policy tests, generated-catalogue drift checks and targeted compiler/Core Clippy pass. The new KCS page/index are included; its full index gate remains blocked by 390 unrelated sparse-checkout paths. The [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2365#issuecomment-6631444932) was fetched back before closure.
 - Coordinator #2129: the registry already has a `SOURCE_ENCODING` admissibility axis and declines non-ASCII text where the target’s source reader is unknown. Full explicit encoding-profile/decode provenance support still requires assessment; conservative folding alone does not complete the issue.
 - Coordinator #2426: current diagnostics retain typed subjects, and Core includes changed-wording/quoting transport controls. Repository-wide envelope and drift-gate acceptance remain unverified.
 - Large design/audit issues #1655, #1710, #1712, #1714 and #2426 require explicit assessment; no blanket completion is claimed.
