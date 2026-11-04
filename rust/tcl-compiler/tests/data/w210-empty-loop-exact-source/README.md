@@ -25,6 +25,9 @@ compiler rlib SHA-256
 The patch contains the verified index-subject and query-fixture corrections;
 there is no #2441 production change. `manifest.json` hashes the retained
 source, output and owner trace. The probe uses typed W210 codes and spans.
+`probe-link.original.txt` retains the exact original runner; `probe-link.py`
+has import/format corrections and makes its existing `check=False` subprocess
+behaviour explicit. These changes do not alter the Rust source or observations.
 
 ```sh
 source /tmp/lsp-release-env.sh
