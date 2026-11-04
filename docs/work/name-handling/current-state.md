@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 00:31 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
+Updated 04 November 2026, 00:49 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
 
 ## Scope and release verdict
 
@@ -139,3 +139,7 @@ V5 attempted two parallel test compilations in the one owned worktree/target. Bo
 The diagnostics suppression candidate is independently reviewed and formatted but remains private/unexecuted. It admits policy-only disabled/excluded receipts without inventing semantic input, while checking actual source publication, path/admission, text/dialect, source/configuration epochs and final physical-store currency. Ordinary enabled analysis still requires its authentic input. The existing missing-context control first proves actual Complete, then explicitly withdraws context; direct/drain suppression and stale-source/configuration controls remain required.
 
 The existing historical transport-projection disclaimer/checksum file does not implement dual evidence identity: the canonical schema/checker accepts one digest and still expects original executed bytes. A representative original/projection pair is authenticated, but restoring its original would reverse deliberate transport sanitisation. No capture is restored or digest silently refreshed. All affected files need individually verified provenance and a reviewed representation contract before this global gate can pass.
+
+V6 one-job combined build passes with pre/post source/generated correspondence. Selected **55/59 controls pass**, receipt `/workspace/tmp/lsp-merged-cohort/conditional-controls-v6/results.json.gz`. Compiler8/8, conditional Core3/3 (ASCII and supplementary Unicode), conditional Backend9/9, public opaque authoring4/4, full-consumer autoload14/14 across five releases, factory Core2/2+Backend1/1+custody3/3 and disk read/retry6/6 pass. Four failures remain: opaque test assuming a leaf ordinary invocation, computed-source test assuming a frozen Native name producer, closed-disk source reference count0/1, W150 with no declared range.
+
+The reviewed policy-source receipt fix and two truthful fixture-purpose repairs are now adopted before green tests. V6 producer probes demonstrate reported/evaluated text `first` while the authentic computed operand has no frozen producer; the corrected controls preserve that boundary and independently exercise a genuine readonly Logical formal field. This does not close positive computed Native-value/provider coverage. The ordinary Logical five-case test now explicitly checks refusal plus the separate conditional two-edit/generated-source/currentness contract; its proof wording is reconciled without evidence-hash/provider/execution renewal. This purpose evolution follows the independent new conditional positives; all five old cases still require execution on the next Core artifact. Native stdio matrix, fresh startup, full lint and required gates remain open.
