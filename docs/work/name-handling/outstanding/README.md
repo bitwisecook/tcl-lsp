@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 03:39 UTC. The [current snapshot](../current-state.md) records evidence and limits. **Not release-ready**; no PR or release exists.
+Updated 04 November 2026, 03:57 UTC. The [current snapshot](../current-state.md) records evidence and limits. **Not release-ready**; no PR or release exists.
 
 | Work | Open acceptance |
 | --- | --- |
@@ -14,3 +14,5 @@ Updated 04 November 2026, 03:39 UTC. The [current snapshot](../current-state.md)
 Separate VM/BIG-IP feature work is deferred; linked dependencies and mandatory gates remain in scope. Source advice grants no Native execution or completion authority. Temporary state/process documents must be removed before merge under AGENTS, preserving oracle evidence.
 
 Pre-merge native cc2f matrix:15/15 original,17/19 mandatory; new closed-method source hover failure retained alongside final-main definition failure. Remote navigation contention mitigation is merged with retry-budget/compute-read validation debt; no merged acceptance.03:40 publication503 then remote divergence required reviewed merge.
+
+Current activation Core build passes under one declared test overlay, but2newcontrols fail and original vector runner aborts on a namespace error before installedcases; V2 continues with prior failures pinned. Current O127 rewrite producer reproduces CI failure (one of2 Core rewrite controls fails). Local universal-package stale-WASI invalidation defect is reproduced; privatefixpending. New partialhover/retry server code still needs serverunit/native execution. No reduced proofprofile is accepted. Last inspected publisher success03:55:57.
