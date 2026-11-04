@@ -1779,7 +1779,7 @@ fn standalone_expr_becomes_expr_eval() {
 fn if_without_braces_fallback() {
     let ir = ir_for("if $x {puts ok}");
     let stmts = &ir.top_level.statements;
-    assert!(!stmts.is_empty());
+    assert_ne!(*stmts, [] as [Statement; 0]);
     let has_expected = stmts.iter().any(|s| {
         matches!(
             s,
@@ -1917,7 +1917,7 @@ fn labels_point_to_valid_offsets() {
     for (label, &off) in &fa.labels {
         // `usize` offset is inherently >= 0; assert it is within the byte span
         // and the label is non-empty so the table is meaningful.
-        assert!(!label.is_empty());
+        assert_ne!(label.as_str(), "");
         let total_bytes: usize = fa
             .instructions
             .iter()

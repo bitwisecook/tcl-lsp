@@ -1331,7 +1331,10 @@ fn actual_compiled_procedure_rejects_foreign_modified_and_retired_custody() {
     assert!(procedure.publication.is_none());
     assert!(procedure.declaration_site.is_none());
     assert_eq!(procedure.params_raw, "");
-    assert_eq!(actual.module().top_level.statements, [] as [tcl_compiler::Statement; 0]);
+    assert_eq!(
+        actual.module().top_level.statements,
+        [] as [tcl_compiler::Statement; 0]
+    );
     assert_eq!(actual.module().body_units.len(), 1);
     assert!(actual.refuses_module(foreign.module()));
     assert!(actual.refuses_foreign_entry(&foreign));
