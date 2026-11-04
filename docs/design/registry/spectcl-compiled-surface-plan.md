@@ -100,7 +100,7 @@ scan, as an editor does:
 The CLI agrees on the direction: `tcl diag` over autosetup's `lib/` takes
 35 s under `jim` and 74 s under `tcl8.6`. Analysing Jim code as Tcl 8.6
 costs twice as much as analysing it as Jim. The per-lookup numbers above
-rule out the registry query as the cause; see *Open question* below.
+rule out the registry query as the cause; see *Why `tcl8.6` analyses Jim code at half the speed of `jim`* below.
 
 ## What the code does today
 
@@ -225,9 +225,12 @@ Rules:
   every store name plus a rooted spelling and an unknown name. It runs in
   `rust-check`, and it must be green before the old path is retired from
   analysis.
-- **Fixed in passing.** `spec_for_this_registry` never applies the
-  roster, so a `jim` document admits `coroutine` through
-  `has_command_in_this_dialect`. The surface makes one answer for both.
+- **To check in passing.** `CommandRegistry::spec_for_this_registry`, behind
+  `has_command_in_this_dialect` and `method_dispatch_keyword`, goes through
+  `get_for_surface`, which does not consult the inherited-surface roster.
+  Unless the `jim` store is pre-filtered, a store-only query admits a Tcl
+  head Jim's roster omits (`coroutine`). The differential test covers it,
+  and the surface gives both paths one answer.
 
 Expected: about 600–1,500 ns becomes about 20–30 ns per lookup, and
 per-analysis name-set rebuilds disappear.
@@ -348,17 +351,97 @@ and recorded here, and keeps the existing gates green: `golden_packs`,
 
 | phase | change | gate it adds | expected effect |
 |---|---|---|---|
-| 1 | `evaluator_generation` stops building a host. The host builds lazily per pack on its first slot. UPF hooks lower to native descriptors. `could_collide` uses a bitmap. The trace env var becomes a `OnceLock`. The reload early-out on an unchanged key. One snapshot memo for every caller. | `surface_costs`: no host build on a thread that runs no pack hook | −200–450 ms off the first request on every new worker thread for every non-UPF document. −22% and −21% of the CLI floor. |
+| 1 | Interned `RegistrySemanticKey`s and a pointer fast path in `matches_registry`. `evaluator_generation` stops building a host. The host builds lazily per pack on its first slot. UPF hooks lower to native descriptors. `could_collide` uses a bitmap. The trace env var becomes a `OnceLock`. The reload early-out on an unchanged key. One snapshot memo for every caller. | `surface_costs`: no host build on a thread that runs no pack hook | −200–450 ms off the first request on every new worker thread for every non-UPF document. −22% and −21% of the CLI floor. Up to −25% of analysis instructions in both dialects. |
 | 2 | Lazy packs: manifests, triggers, per-profile overlays, per-environment `OverlayEpoch`. | A `tcl8.6` workspace evaluates no EDA pack: RSS and CPU at initialize. An EDA document still resolves its vendor commands on first open. | −1.9 s CPU and −99 MiB at startup in a workspace with no EDA document. The first-tokens path is clear of pack work. |
 | 3 | `SpecArena`, pre-parsed `VersionKey`s, `CompiledSurface`, per-document `Arc` handle, cached derived name sets. | Differential surface ≡ `resolve_spec` test. A per-lookup budget in `surface_costs`. | ~20–30 ns per lookup. No version parsing on query paths. Registry selection is an atomic load. |
 | 4 | Hook lowering pass, input inference, eager tabulation, the single warm hook VM with per-pack child interps, sandbox by construction, process-wide L2 cache and quarantine. | `hostile.tclspec` containment unchanged. A hook microbench (empty body, resolver, folder; cold, L1, L2, table). | No hook warm-up anywhere after publish. One VM's memory instead of threads × packs. Most calls answered without the VM. |
 | 5 | Optional persistent evaluated snapshot. | Cache ≡ fresh evaluation. | Workspace-pack load off the startup path entirely. |
 
-## Open question: why `tcl8.6` analyses Jim code at half the speed of `jim`
+## Work breakdown
 
-The per-lookup costs rule out registry resolution. A callgrind pair of
-`tcl diag --dialect {jim,tcl8.6} lib/help.tcl` is the next measurement.
-The suspects are the unknown-head paths a Tcl 8.6 reading of Jim code
-reaches more often: W002's cross-dialect search for a dialect that has the
-head, and the version-gate diagnostics. Its result decides whether a phase
-above absorbs the fix or the general latency work does.
+The registry rule holds throughout: a new capability is a `CommandSpec`
+field or descriptor, with its loader spelling, renderer and studio form
+moving together ([command-spec-studio.md](../contracts/command-spec-studio.md)
+§ *Parity with native specs*), never a consumer matching a command name.
+
+### Phase 1: remove the per-thread and per-load waste
+
+| change | where |
+|---|---|
+| Intern semantic keys at construction. Add a `ptr::eq` fast path on the stores. | `RegistrySemanticKey` (`tcl-registry/src/registry.rs`), `InvocationMetadataContext::matches_registry` (`tcl-compiler/src/registry_invocation/metadata_context.rs`) |
+| Return the published generation from a global atomic, never building a host. | `pack_hooks::evaluator_generation` (`tcl-registry/src/pack_hooks.rs`) |
+| Build the host per pack, on that pack's first slot, not per thread up front. Drop the eager build in the server's `with_pack_hooks`. | `hooks::ensure_thread_host` (`tcl-spectcl/src/hooks.rs`), `with_pack_hooks` (`tcl-lsp-server/src/lib.rs`) |
+| Add `OptionArity::OptionalFrom(&'static [&'static str])` and `OptionArity::OptionalUnlessDashed`, with loader spellings (`-arity optional-from {TRUE FALSE}`, `-arity optional-unless-dashed`). Rewrite UPF's 16 `-arity-hook` bodies to use them, and its `define_power_model` resolver as an `arg_role_count` row. | `tcl-registry/src/hover.rs` and every `OptionArity` reader; `tcl-spectcl/src/loader.rs`; studio form; `specs/upf.tclspec` |
+| Precompute a profile × required-package admission bitmap once per load. | `pack::could_collide` (`tcl-spectcl/src/pack.rs`) |
+| Read `TCL_LSP_TRACE_DEFERRED_WRITES_ANY` once, into a `OnceLock<bool>`. | `ResolvedContext::resolve_spec_in_realm` (`tcl-registry/src/model/context.rs`) |
+| Compare the byte-derived set key before evaluating. Route the server path and `bundled::packs` through one snapshot memo. | `bundled::load_selected_sources_in`, `cache::evaluate_pack_including`, `bundled::packs` |
+| Segment each pack file once and reuse the nested words for command bodies. | `loader::body_statements` / `loader::statements` |
+
+### Phase 2: lazy packs
+
+| change | where |
+|---|---|
+| `PackManifest`: the header facts listed in *Lazy packs*, from the static driver's first pass, and cached on disk beside the parse by `EvalSnapshotKey`. | new `tcl-spectcl/src/manifest.rs`; `loader::eval::drive_static` |
+| `PackSet` entries become `Lazy { manifest, source, evaluated: OnceLock<Pack> }`. The set key stays byte-derived. | `tcl-spectcl/src/pack.rs` |
+| Registration, routing and collision notices read manifests. | `registration::publish_pack_set`, `publish_pack_extension_routes`, `pack::collision_notices` |
+| Evaluate only the packs whose requirement set the profile admits. Build overlays by cloning the cached overlay-0 store. | `install::registry_with_packs` / `install_into`; `tcl-registry/src/cache.rs` `build_profile_store` |
+| Replace the eager per-profile loop with `ensure_profile_overlay(profile)`, called where a document's dialect resolves (open, dialect change, `package require` seen by the index). | `install_pack_overlays` / `install_reload_pack_overlays` (`tcl-lsp-server/src/lib.rs`) |
+| `OverlayEpoch` keyed per environment. `overlays_current` asks only about installed profiles. | `tcl-lsp-db/src/lib.rs`; `overlays_current` |
+| Seed the Jim surface on the first `jim` family environment, not in `initialize`. | `core_surfaces::ensure` call sites |
+
+### Phase 3: the compiled surface
+
+| change | where |
+|---|---|
+| `VersionKey` (packed, `Ord`) with a `const` parser. `SpecWindow` and `SurfaceQuery` carry keys. Version comparison on query paths becomes integer comparison. | `tcl-dialect/src/version.rs`, `tcl-dialect/src/model/authored_surface.rs` |
+| `SpecArena` / `SpecId`, interned by content hash. Loader and install go through it. | new `tcl-registry/src/arena.rs`; `loader.rs` leak site; `install_into` |
+| `CompiledSurface` built at `ContextRegistry::assemble`, holding the final answers and the derived name sets. | new `tcl-registry/src/model/compiled_surface.rs`; `assembly.rs` |
+| `resolve_spec*` answer from the surface for its own store. | `tcl-registry/src/model/context.rs` |
+| The analyser, completion and interp visibility borrow the surface's name sets instead of rebuilding them. | `analyser/state.rs` `builtin_command_names`, `recovery.rs`, `tcl-lsp-core/src/completion.rs`, `interp_visibility.rs` |
+| A document's surface `Arc` is cached under the global surface epoch. | `TclDb::registry` (`tcl-lsp-db`), `Backend::registry_for_dialect` |
+| Differential test: surface ≡ `resolve_spec_in_realm` for every environment × realm × name. | `tcl-registry/tests/` |
+
+### Phase 4: hooks
+
+| change | where |
+|---|---|
+| Hook lowering: pattern → descriptor, then compiler-IR input inference (`words` / `ctx` key / word content reads), then tabulation for `nwords ≤ 16`. Each slot is classified `Native | Tabulated | Vm`, and the class is reported in `spectcl_check` and in the studio's performance badge. | new `tcl-spectcl/src/hooks/lowering.rs`; `hooks::publish` |
+| `Vm::create_sandbox_interp(whitelist) -> InterpId`. `Vm::invoke_in(interp, token, &[&[u8]])`. Per-call budgets reset on the invoking interp. An isolation audit that child interps share no namespace, command or variable state, with a test per shared table. | `tcl-vm/src/embed.rs`, `tcl-vm/src/interp.rs`; `tcl-engine-api`, `tcl-engine-tclvm` |
+| The hook service thread: owns the `Vm` and one interp per pack, compiles every `Vm` slot at publish, serves a bounded channel, and keeps interps across generations by content hash. | new `tcl-spec-hooks/src/service.rs` |
+| L2 answer cache (sharded, process-wide), `value_start` in `ShapeKey`, a process-wide quarantine bitset, and an epoch bump per quarantine (not per thread). | `tcl-registry/src/pack_hooks.rs` |
+| Marshalling: per-slot `ctx` constants, skipping unread inputs, words as bytes, invoking by token, no result conversion. | `tcl-spec-hooks/src/host.rs`, `tcl-engine-tclvm` |
+
+If the isolation audit fails, the fallback keeps the warm, single-thread
+property: one `Vm` per pack, all owned by the same service thread and all
+built at publish. It costs one bootstrap per pack (~15 MiB measured)
+instead of one in total. Contention on the one thread is not expected
+once tabulation and L2 absorb repeated shapes. If it is measured, the
+service scales to N threads, each holding a full warm set.
+
+## Why `tcl8.6` analyses Jim code at half the speed of `jim`
+
+Callgrind of `tcl diag --dialect {jim,tcl8.6} lib/help.tcl` (autosetup,
+216 lines): 24.3 G instructions under `jim`, 47.4 G under `tcl8.6`.
+
+- **The difference is analyser work, not the registry.** About 8 G of
+  the gap is `command_binding::source_transition_advice`
+  (`AdviceInvocationContext::retain_original_procedure_body`,
+  `BodyWalk::regions`, `OriginalSourceTransitionSeed::prepare_for_query`),
+  reached through `dispatch_one_body_argument` from `foreach` and `proc`
+  bodies. A `jim` reading never reaches it. This is general analysis
+  latency, not a `SpecTcl` cost.
+- **A registry cost both dialects pay.** `RegistrySemanticKey::eq`
+  takes 6.6 G under `tcl8.6` and 5.9 G under `jim` (a quarter of the
+  whole `jim` run), all from `InvocationMetadataContext::matches_registry`.
+  The key holds every command name with its spec indices, and `eq`
+  short-circuits only on `Arc` identity. A context's store and the store
+  it is checked against are routinely equal in content and distinct in
+  allocation (the overlay store against the plain one), so every
+  invocation-metadata query compares the whole command table.
+
+  Phase 1 fixes it two ways:
+  - intern semantic keys at construction (one `Arc` per distinct key, so
+    equal keys are pointer-equal);
+  - give `matches_registry` a `ptr::eq` fast path on the stores.
+
+  Phase 3's surface identity is then an integer.
