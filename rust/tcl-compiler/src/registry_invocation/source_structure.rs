@@ -2853,7 +2853,7 @@ pub fn original_logical_source_words_at(
     // naming.core.original-package-source-action-context
     // docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md
     let config = analysis.body_lexer_config?;
-    let image = tcl_lexer::SourceImage::document(source);
+    let image = original_query_document_image(source, analysis, config);
     analysis
         .matches_original_source_image(&image, config)
         .then_some(())?;
@@ -2943,7 +2943,7 @@ pub fn source_native_procedure_body_commands(
     analysis: &AnalysisResult,
 ) -> Option<Vec<crate::command_binding::OriginalNativeProcedureBodyCommand>> {
     let input = analysis.resolved_input.as_ref()?;
-    let image = tcl_lexer::SourceImage::document(source);
+    let image = original_query_document_image(source, analysis, input.lexer_config());
     analysis
         .matches_original_source_image(&image, input.lexer_config())
         .then_some(())?;
@@ -2960,7 +2960,7 @@ pub fn source_original_procedure_calls(
     analysis: &AnalysisResult,
 ) -> Option<Vec<crate::command_binding::OriginalSourceProcedureCall>> {
     let input = analysis.resolved_input.as_ref()?;
-    let image = tcl_lexer::SourceImage::document(source);
+    let image = original_query_document_image(source, analysis, input.lexer_config());
     analysis
         .matches_original_source_image(&image, input.lexer_config())
         .then_some(())?;
@@ -2978,7 +2978,7 @@ pub fn source_original_procedure_call_at(
     offset: u32,
 ) -> Option<crate::command_binding::OriginalSourceProcedureCall> {
     let input = analysis.resolved_input.as_ref()?;
-    let image = tcl_lexer::SourceImage::document(source);
+    let image = original_query_document_image(source, analysis, input.lexer_config());
     analysis
         .matches_original_source_image(&image, input.lexer_config())
         .then_some(())?;
