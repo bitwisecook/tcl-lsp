@@ -64,3 +64,13 @@ and must retain unknown-callee, alias and mutation controls. The declaration
 graph is currently owned by the S102 work; this receipt changes no production
 code. These Rust API observations are implementation evidence, not Tcl
 execution evidence.
+
+Fresh runtime boundaries are recorded in
+[`w210-empty-foreach-caught-load-boundaries-2026-11-04.md`](../../../../../evidence/tcl/w210-empty-foreach-caught-load-boundaries-2026-11-04.md).
+The six interpreters record the same nine case outcomes: empty-loop and later
+unguarded/mutated reads fail; guarded-only, nonempty-loop, prior-binding,
+formal and by-name-writer controls return normally. The driver catches the
+load before calling the procedure, and records the exact issue script's
+actual argument bytes. `native-controls` preserves its raw byte captures.
+This does not establish a compiler repair. The independent bound-name draft
+remains uncompiled and the guarded declaration-graph work remains separate.
