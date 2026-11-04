@@ -7848,6 +7848,16 @@ impl SourceCommandBindings {
         })
     }
 
+    fn update_source_interpretation_frame(
+        state: &mut ModuleCommandBindings,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+    ) {
+        if &state.variable_frame != frame {
+            state.source_variables = source_variables_in_frame(&state.source_variables, frame);
+            state.variable_frame = frame.clone();
+        }
+    }
+
     fn analyse_source_in_frame_with_options(
         source: &str,
         image: &tcl_lexer::SourceImage,
@@ -7905,10 +7915,7 @@ impl SourceCommandBindings {
         let frame = frame.clone().with_namespace_identity(namespace_key.clone());
         // This API's supplied frame is the entry activation. It is not a
         // nested call whose final state should restore the initial model frame.
-        if state.variable_frame != frame {
-            state.source_variables = source_variables_in_frame(&state.source_variables, &frame);
-            state.variable_frame = frame.clone();
-        }
+        Self::update_source_interpretation_frame(&mut state, &frame);
         for name in options.incoming_formals {
             Arc::make_mut(&mut state.source_variables).bind_unknown_incoming(name, registry);
         }
@@ -7971,6 +7978,7 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
     ) {
+        use crate::analysis_control::{AnalysisCheckpoint, checkpoint};
         #[cfg(any(test, debug_assertions))]
         let started = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
@@ -7980,9 +7988,7 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         let mut iteration = 0_usize;
         loop {
-            if crate::analysis_control::checkpoint(
-                crate::analysis_control::AnalysisCheckpoint::Fixpoint,
-            ) {
+            if checkpoint(AnalysisCheckpoint::Fixpoint) {
                 return;
             }
             let root_count = self.deferred.len();
@@ -8015,9 +8021,7 @@ impl SourceCommandBindings {
                     root_owner_work::report("deferred-entry");
                     last_report = Some(std::time::Instant::now());
                 }
-                if crate::analysis_control::checkpoint(
-                    crate::analysis_control::AnalysisCheckpoint::Body,
-                ) {
+                if checkpoint(AnalysisCheckpoint::Body) {
                     return;
                 }
                 if self
@@ -16418,19 +16422,27 @@ impl ModuleCommandBindings {
         None
     }
 
+    fn discarded_opaque_binding_mutation(
+        module: &Module,
+        discarded: &DiscardedProcedureHistory,
+    ) -> bool {
+        discarded.opaque
+            || module.oo_evidence.unretained_executable_roots
+            || discarded
+                .modules
+                .iter()
+                .any(|module| module.oo_evidence.unretained_executable_roots)
+    }
+
     /// An IR-only caller supplies executable roots without an original source instance.
     fn analyse_retained_roots(
         module: &Module,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
     ) -> Self {
+        use crate::analysis_control::{AnalysisCheckpoint, checkpoint};
         let discarded = discarded_procedure_history(module, registry);
-        let opaque_binding_mutation = discarded.opaque
-            || module.oo_evidence.unretained_executable_roots
-            || discarded
-                .modules
-                .iter()
-                .any(|module| module.oo_evidence.unretained_executable_roots);
+        let opaque_binding_mutation = Self::discarded_opaque_binding_mutation(module, &discarded);
         let dynamic_proc_binding = module
             .independent_executable_script_roots()
             .into_iter()
@@ -16483,9 +16495,7 @@ impl ModuleCommandBindings {
         // retain intermediate states for consumer queries without feeding
         // those historical states back as executable entry states.
         loop {
-            if crate::analysis_control::checkpoint(
-                crate::analysis_control::AnalysisCheckpoint::Fixpoint,
-            ) {
+            if checkpoint(AnalysisCheckpoint::Fixpoint) {
                 return observed;
             }
             let before = live.clone();

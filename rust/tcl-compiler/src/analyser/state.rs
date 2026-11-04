@@ -2461,16 +2461,7 @@ impl Analyser {
             && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
             || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
         .then(std::time::Instant::now);
-        let trace_phase = |stage: &str| {
-            if let Some(start) = phase_start {
-                eprintln!(
-                    "ANALYSER_PHASE bytes={} stage={stage} ms={}",
-                    source.len(),
-                    start.elapsed().as_millis()
-                );
-            }
-        };
-        trace_phase("initial");
+        Self::trace_analysis_phase(phase_start, source.len(), "initial");
         self.unresolved_commands_emitted = false;
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
@@ -2515,12 +2506,12 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
-        trace_phase("realm-start");
+        Self::trace_analysis_phase(phase_start, source.len(), "realm-start");
         if checkpoint(AnalysisCheckpoint::Realm) {
             return AnalysisResult::default();
         }
         self.head_identities = self.document_command_realm_reusing(source);
-        trace_phase("realm-complete");
+        Self::trace_analysis_phase(phase_start, source.len(), "realm-complete");
         if crate::analysis_control::interrupted() {
             return AnalysisResult::default();
         }
@@ -2529,28 +2520,10 @@ impl Analyser {
             self.head_identities.original_completed_command_world();
         self.retain_original_comment_suppressions(source);
         self.record_original_formal_variables();
-        trace_phase("retained-inventory");
+        Self::trace_analysis_phase(phase_start, source.len(), "retained-inventory");
         // Precompute the iRules file-profile stack (no-op off f5-irules) so
         // the per-command IRULE1001 hint can consult it without recomputing.
-        self.compute_irules_file_profiles();
-        // Precompute newline offsets once for ``O(log N)``
-        // byte-offset → line-number lookup in
-        // ``apply_preceding_noqa`` (which runs per command and
-        // would otherwise be ``O(N)`` per call).
-        self.line_offsets = Some(compute_line_offsets(source));
-        self.cached_line_index = tcl_lexer::LineIndex::new(source);
-        self.cached_line_index_source_len = source.len();
-        // The recovery known-command universe (registry + this document's
-        // own procs/classes/aliases) — see `recovery_known_commands`. Stored
-        // on `self` so the per-command E100/E201/E202/E203 detectors below
-        // (and `apply_ghost_recovery`) consult the same set the segmenter
-        // scan-to-next recovery uses here.
-        self.recovery_known_commands = super::utils::recovery_known_commands(
-            source,
-            self.registry.as_deref().expect("registry just stashed"),
-            &self.extra_commands,
-            self.file_lexer_config(),
-        );
+        self.prepare_source_walk_indexes(source);
         let known_commands: HashSet<&str> = self.recovery_known_commands.iter().collect();
         let mut commands = crate::segmenter::segment_commands_with_recovery_and_config(
             source,
@@ -2561,7 +2534,7 @@ impl Analyser {
 
         // Ghost-token recovery (see method doc).
         let ghost_recovery_applied = self.apply_ghost_recovery(source, &mut commands);
-        trace_phase("segmented");
+        Self::trace_analysis_phase(phase_start, source.len(), "segmented");
 
         // Walk each command through the dispatcher.  The dispatcher
         // wires ``recover_stray_close_bracket``,
@@ -2575,13 +2548,13 @@ impl Analyser {
         // tier, all through the ordinary scope machinery.
         self.seed_walk_namespace(source);
         let file_env_pushed = self.seed_file_scope_env(source);
-        trace_phase("walk-start");
+        Self::trace_analysis_phase(phase_start, source.len(), "walk-start");
         let workspace_walk = super::commands::WorkspaceWalkPhases::start();
         self.walk_commands_top_level(&commands, ghost_recovery_applied);
         if let Some(trace) = workspace_walk {
             trace.finish(source.len(), self.structure_only);
         }
-        trace_phase("walk-complete");
+        Self::trace_analysis_phase(phase_start, source.len(), "walk-complete");
         if crate::analysis_control::interrupted() {
             return AnalysisResult::default();
         }
@@ -2611,7 +2584,7 @@ impl Analyser {
         // metaclass missing there is invisible to every other document.
         self.record_literal_parameter_definitions();
         self.retain_original_callback_signature_lookups(source);
-        trace_phase("parameter-definitions");
+        Self::trace_analysis_phase(phase_start, source.len(), "parameter-definitions");
         if checkpoint(AnalysisCheckpoint::Diagnostics) {
             return AnalysisResult::default();
         }
@@ -2622,15 +2595,41 @@ impl Analyser {
         } else {
             self.run_diagnostic_emitters(source);
         }
-        trace_phase("diagnostics-complete");
+        Self::trace_analysis_phase(phase_start, source.len(), "diagnostics-complete");
         if crate::analysis_control::interrupted() {
             return AnalysisResult::default();
         }
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
-        trace_phase("complete");
+        Self::trace_analysis_phase(phase_start, source.len(), "complete");
         result
+    }
+
+    fn trace_analysis_phase(
+        phase_start: Option<std::time::Instant>,
+        source_bytes: usize,
+        stage: &str,
+    ) {
+        if let Some(start) = phase_start {
+            eprintln!(
+                "ANALYSER_PHASE bytes={source_bytes} stage={stage} ms={}",
+                start.elapsed().as_millis()
+            );
+        }
+    }
+
+    fn prepare_source_walk_indexes(&mut self, source: &str) {
+        self.compute_irules_file_profiles();
+        self.line_offsets = Some(compute_line_offsets(source));
+        self.cached_line_index = tcl_lexer::LineIndex::new(source);
+        self.cached_line_index_source_len = source.len();
+        self.recovery_known_commands = super::utils::recovery_known_commands(
+            source,
+            self.registry.as_deref().expect("registry just stashed"),
+            &self.extra_commands,
+            self.file_lexer_config(),
+        );
     }
 
     fn seed_walk_namespace(&mut self, source: &str) {
@@ -3638,6 +3637,7 @@ impl Analyser {
     }
 
     pub(super) fn run_diagnostic_emitters(&mut self, source: &str) {
+        use crate::analysis_control::{AnalysisCheckpoint, checkpoint};
         let phase_start = ((cfg!(debug_assertions)
             && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
             || std::env::var_os("TCL_LSP_TRACE_WORKSPACE_SCAN").is_some())
@@ -3652,9 +3652,7 @@ impl Analyser {
             }
         };
         trace_phase("initial");
-        if crate::analysis_control::checkpoint(
-            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
-        ) {
+        if checkpoint(AnalysisCheckpoint::Diagnostics) {
             return;
         }
         // Declared package availability first: every emitter below that asks
@@ -3685,9 +3683,7 @@ impl Analyser {
         self.retain_positioned_command_definitions();
         self.publish_load_level_destructions();
         trace_phase("invocations");
-        if crate::analysis_control::checkpoint(
-            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
-        ) {
+        if checkpoint(AnalysisCheckpoint::Diagnostics) {
             return;
         }
         // Attach every namespace-qualified occurrence to the cell it names,
@@ -3696,9 +3692,7 @@ impl Analyser {
         // textually and still resolve at run time.
         self.attach_qualified_var_references();
         trace_phase("variable-references");
-        if crate::analysis_control::checkpoint(
-            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
-        ) {
+        if checkpoint(AnalysisCheckpoint::Diagnostics) {
             return;
         }
         let diag_registry = self.profile_registry();
@@ -3724,16 +3718,12 @@ impl Analyser {
         // fires when the requirement is absent, this when it is merely late.
         self.emit_package_require_ordering_hints(&diag_registry);
         trace_phase("command-diagnostics");
-        if crate::analysis_control::checkpoint(
-            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
-        ) {
+        if checkpoint(AnalysisCheckpoint::Diagnostics) {
             return;
         }
         self.emit_variable_usage_diagnostics();
         trace_phase("variable-usage");
-        if crate::analysis_control::checkpoint(
-            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
-        ) {
+        if checkpoint(AnalysisCheckpoint::Diagnostics) {
             return;
         }
         #[cfg(test)]
@@ -3754,9 +3744,7 @@ impl Analyser {
             );
         }
         trace_phase("cfg-ssa");
-        if crate::analysis_control::checkpoint(
-            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
-        ) {
+        if checkpoint(AnalysisCheckpoint::Diagnostics) {
             return;
         }
         self.flush_loop_terminations();

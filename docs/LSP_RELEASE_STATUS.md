@@ -107,3 +107,10 @@ checks are unchanged. Patch SHA-256
 `584d46440cc809c1aceffb4dd34b198cf1a7464b142542bd89fc3bca933a6f1f`;
 standalone rustfmt and diff checks pass. Production Clippy is pending a fresh
 run; no full gate result is inferred.
+
+The four upstream phase10 size findings have a mechanical correction: trace
+formatting and source-index preparation use small existing-state helpers;
+diagnostic checkpoints keep their original order; supplied-frame updates and
+the discarded-root opacity predicate retain the same typed inputs and guards.
+No lint suppression or parsing behavior is added. Standalone rustfmt and diff
+checks pass; fresh production Clippy and interruption/runtime checks are pending.
