@@ -26,7 +26,7 @@ here", so nothing fails loudly and nothing works.
 |                         | `NativeStore`           | `MemoryStore`                                                                                    |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
 | Backing                 | `std::fs`               | a `PathBuf`-keyed byte map the host fills                                                        |
-| Directories             | the real tree           | implied: a path is a directory when some stored file is under it                                 |
+| Directories             | the real tree           | implied by stored files, or explicitly admitted through `create_dir_all`                         |
 | A path it does not have | whatever `std::fs` says | `io::ErrorKind::NotFound`                                                                        |
 | URI aliasing            | none                    | a URI → path table, so a file registered under the client's spelling is found under the server's |
 
@@ -35,12 +35,28 @@ A native server built with this module behaves byte-identically to one built
 without it. Any cleverness added to it — caching, path rewriting, normalisation
 — breaks that, and the native test suite is the only thing that proves it.
 
+`SourceStore::create_dir_all` on a `MemoryStore` admits a virtual directory and
+every missing parent, including an empty workspace root. For an empty directory,
+`read_dir` returns an empty listing and metadata identifies a directory without
+adding source files. URI spelling and a selected-file census do not create directories.
+
+File/directory conflicts are refused on every mutation path: a file cannot
+replace an explicit or implied directory, and neither a file write nor directory
+creation can traverse a stored file. `try_upsert`, `try_upsert_uri_aliases`,
+`SourceStore::write` and `create_dir_all` return errors before changing bytes,
+aliases or the store revision. The compatibility `upsert` and URI-upsert wrappers
+leave the store unchanged on those errors. URI aliases and file bytes commit
+atomically, so a rejected registration does not retire the prior mapping.
+
 `MemoryStore` also issues revision-bound workspace inventory observations for
 host-backed sessions. An observation is `Missing`, `Stale`, or `Current` for one
-session/root/selection. Each upsert or removal advances the store revision; a
-complete receipt is useful only while it still matches that revision. The
-filesystem provider remains a distinct authority and does not acquire a host
-receipt or a synthetic completion claim.
+session/root/selection. Successful byte upserts and removals advance the store
+revision, as does a changed directory declaration; repeating an existing
+directory declaration does not. A change makes an existing host-reported receipt
+stale, while a complete receipt is useful only at its captured revision.
+Directory admission itself supplies no census, source absence, complete world
+or edit authority. The filesystem provider remains a distinct authority and
+does not acquire a host receipt or a synthetic completion claim.
 
 Two details of the trait are load-bearing because they encode what the call
 sites did before it existed:
@@ -170,6 +186,8 @@ Two rules govern it:
 `MemoryStore`'s implied directories are what make the walk work: upserting
 `<mount>/eda/xilinx.tclspec` makes `<mount>` and `<mount>/eda` listable with no
 declaration from the host, at any depth.
+Explicit `create_dir_all` declarations additionally retain empty directories;
+removing the last file only removes parents that were implicit.
 
 ## The host contract
 
@@ -203,13 +221,21 @@ shadow an unrelated store path. The guard tests `has_root`, not `is_absolute` �
 see the first wasm fault below for why the latter would admit exactly what it
 exists to refuse.
 
+Direct `LspWorker` hosts can declare an empty virtual workspace with
+`vfs_create_directory(uri)` before `initialize`. It uses the same strict
+`SourceStore::document_uri_path` owner as file upserts and returns `false` for an
+invalid original URI or a namespace conflict. It adds no source bytes and
+issues no inventory receipt. File and spec-pack exports also preserve namespace
+conflicts through the fallible store operations. This directory operation is
+separate from the worker's four object-message forms above.
+
 **Ordering is the host's job, and the protocol already says it:** send the
-closed-file upserts and each root's census before `initialize`, because
-`initialized` is what loads the pack set and runs the workspace scan. The census
-is recorded after the preceding byte mutations and binds the provider session,
-root, exact host selection (globs and limits), and store revision. A later byte
-mutation makes it stale until the host issues a new receipt. A file that appears
-later needs no new message shape — upsert it, reissue affected root receipts,
+closed-file upserts, any empty-root declarations and each root's census before
+`initialize`, because `initialized` is what loads the pack set and runs the workspace scan. The census
+is recorded after the preceding byte and directory mutations and binds the
+provider session, root, exact host selection (globs and limits), and store
+revision. A later byte or directory change makes it stale until the host issues
+a new receipt. A file that appears later needs no new message shape — upsert it, reissue affected root receipts,
 and post an ordinary `workspace/didChangeWatchedFiles`, the same notification
 an editor sends for a file changed outside it.
 
