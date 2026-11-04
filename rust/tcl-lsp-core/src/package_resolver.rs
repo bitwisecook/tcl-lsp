@@ -1324,6 +1324,11 @@ fn list_tcl_files(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
 mod original_names;
 pub mod reachability;
 mod registration;
+pub use original_names::index_loader::{
+    IndexFilenameNoContribution as OriginalIndexFilenameNoContribution,
+    OriginalIndexFilenameInvalidLayout, OriginalIndexFilenameSurvey,
+    survey_original_index_filename,
+};
 pub use original_names::{
     OriginalPackageFileCandidate, OriginalPackageFileCandidateKind, OriginalPackageInfo,
     PackageRequirementAdvice, PackageRequirementAdviceKey,

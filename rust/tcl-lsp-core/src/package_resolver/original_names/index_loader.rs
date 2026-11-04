@@ -7,8 +7,8 @@
 use std::path::{Path, PathBuf};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::registry_invocation::source_structure::{
-    OriginalSourceRegistryContext, OriginalStandaloneSchemaAbstention,
-    OriginalStandaloneSchemaAbstentions,
+    OriginalSourceRegistryContext, OriginalStandaloneListProjection,
+    OriginalStandaloneSchemaAbstention, OriginalStandaloneSchemaAbstentions,
 };
 use tcl_compiler::registry_invocation::source_structure::{
     original_single_source_command_substitution,
@@ -31,7 +31,9 @@ pub(super) enum IndexFilenameSurvey<'a> {
     Unavailable,
 }
 
-pub(super) struct IndexFilenameNoContribution<'a> {
+/// Missing original schema bound to one complete loader and real directory.
+#[derive(Debug)]
+pub struct IndexFilenameNoContribution<'a> {
     schema: OriginalStandaloneSchemaAbstention<'a>,
     source: &'a str,
     context: &'a OriginalSourceRegistryContext,
@@ -40,13 +42,71 @@ pub(super) struct IndexFilenameNoContribution<'a> {
 }
 
 impl IndexFilenameNoContribution<'_> {
-    pub(super) fn matches_current_query(&self, loader: &NativeWord, directory: &Path) -> bool {
+    /// This exact original loader and directory still own the query.
+    #[must_use]
+    pub fn matches_current_query(&self, loader: &NativeWord, directory: &Path) -> bool {
         self.loader == *loader
             && self.directory == directory
             && self
                 .schema
                 .matches_source_context(self.source, self.context)
     }
+}
+
+/// Invalid future file-source layout, retaining original list projection and
+/// the actual authored grammar. This grants no runtime error or file effect.
+#[derive(Debug)]
+pub struct OriginalIndexFilenameInvalidLayout<'a> {
+    projection: OriginalStandaloneListProjection<'a>,
+    layout: tcl_registry::source_file::AuthoredSourceFileLayoutAbstention,
+    source: &'a str,
+    context: &'a OriginalSourceRegistryContext,
+    loader: NativeWord,
+    directory: PathBuf,
+}
+
+impl OriginalIndexFilenameInvalidLayout<'_> {
+    /// Same complete original loader, directory, context and invalid grammar.
+    #[must_use]
+    pub fn matches_current_query(&self, loader: &NativeWord, directory: &Path) -> bool {
+        if self.loader != *loader
+            || self.directory != directory
+            || !self
+                .projection
+                .matches_source_context(self.source, self.context)
+        {
+            return false;
+        }
+        let Some(child) = original_single_source_command_substitution(loader) else {
+            return false;
+        };
+        if child.command().words.as_slice() != self.projection.original_words() {
+            return false;
+        }
+        IndexLoader::from_source_context(self.source, self.context).and_then(|query| {
+            query.with_schema(
+                self.projection.elements_if_projected(),
+                WordOrigin::LoaderValue,
+                |selected| self.layout.matches_invocation(selected),
+            )
+        }) == Some(true)
+    }
+}
+
+/// Survey one original filename with independently typed Invalid source-layout
+/// evidence. Unknown schema/grammar/path proofs retain Unavailable. Existing
+/// package extraction keeps its separate source-schema-only purpose.
+#[must_use]
+pub fn survey_original_index_filename<'a>(
+    source: &'a str,
+    context: &'a OriginalSourceRegistryContext,
+    loader: &NativeWord,
+    directory: &Path,
+) -> OriginalIndexFilenameSurvey<'a> {
+    let Some(query) = IndexLoader::from_source_context(source, context) else {
+        return OriginalIndexFilenameSurvey::Unavailable;
+    };
+    query.survey_filename_with_layout_proof(loader, directory)
 }
 
 enum LoaderInput<'a> {
@@ -189,6 +249,64 @@ impl<'a> IndexLoader<'a> {
             loader: loader.clone(),
             directory: directory.to_path_buf(),
         }))
+    }
+
+    fn survey_filename_with_layout_proof(
+        &self,
+        loader: &NativeWord,
+        directory: &Path,
+    ) -> IndexFilenameSurvey<'a> {
+        let current = self.survey_filename(loader, directory);
+        if !matches!(current, IndexFilenameSurvey::Unavailable) {
+            return current;
+        }
+        let Some(certificate) = self.invalid_layout_abstention(loader, directory) else {
+            return IndexFilenameSurvey::Unavailable;
+        };
+        IndexFilenameSurvey::InvalidLayout(certificate)
+    }
+
+    fn invalid_layout_abstention(
+        &self,
+        loader: &NativeWord,
+        directory: &Path,
+    ) -> Option<OriginalIndexFilenameInvalidLayout<'a>> {
+        let LoaderInput::OriginalSource(context) = self.input else {
+            return None;
+        };
+        if loader.image().bytes() != self.source.as_bytes()
+            || loader.image().channel() != tcl_lexer::SourceChannel::Document
+            || loader.config() != self.config
+            || loader.group().expand
+            || self.loader_value(loader, directory).is_some()
+        {
+            return None;
+        }
+        let child = original_single_source_command_substitution(loader)?;
+        let survey = self
+            .abstentions
+            .get_or_init(|| context.standalone_schema_abstentions())
+            .as_ref()?;
+        let projection =
+            survey.list_projection_at(child.command().words.first()?.span().start())?;
+        if !projection.matches_source_context(self.source, context)
+            || projection.original_words() != child.command().words.as_slice()
+        {
+            return None;
+        }
+        let layout = self.with_schema(
+            projection.elements_if_projected(),
+            WordOrigin::LoaderValue,
+            tcl_registry::ResolvedInvocation::authored_source_file_layout_abstention,
+        )??;
+        Some(OriginalIndexFilenameInvalidLayout {
+            projection,
+            layout,
+            source: self.source,
+            context,
+            loader: loader.clone(),
+            directory: directory.to_path_buf(),
+        })
     }
 
     pub(in crate::package_resolver) fn filename(
@@ -864,6 +982,132 @@ mod selected_source_form_tests {
 #[cfg(test)]
 mod abstention_tests {
     use super::*;
+
+    fn source_context(
+        source: &str,
+        version: tcl_dialect::TclVersion,
+    ) -> OriginalSourceRegistryContext {
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let generation = crate::context_for_dialect_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::new(
+                generation.with_command_store(registry.snapshot().shared_registry()),
+            ),
+            config,
+        );
+        OriginalSourceRegistryContext::capture_standalone_structure(source, input)
+    }
+
+    fn original_loader(source: &str, config: tcl_lexer::LexerConfig, row: usize) -> NativeWord {
+        tcl_lexer::native_script_words_in(
+            SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap()
+        .commands[row]
+            .words[2]
+            .clone()
+    }
+
+    #[test]
+    fn invalid_layout_receipt_keeps_original_loader_and_directory() {
+        let source = "set auto_index(a) [list source -encoding utf-8 [file join $dir a.tcl]]\nset auto_index(b) [list source -encoding utf-8 [file join $dir b.tcl]]\n";
+        let context = source_context(source, tcl_dialect::TclVersion::V8_4);
+        let config = context.editing_input().lexer_config();
+        let first = original_loader(source, config, 0);
+        let second = original_loader(source, config, 1);
+        let directory = Path::new("/library");
+        let OriginalIndexFilenameSurvey::InvalidLayout(receipt) =
+            survey_original_index_filename(source, &context, &first, directory)
+        else {
+            panic!("authenticated invalid file-layout prerequisite")
+        };
+        assert_eq!(
+            receipt.layout.grammar(),
+            tcl_registry::source_file::SourceFileGrammar::Filename
+        );
+        assert!(receipt.matches_current_query(&first, directory));
+        assert!(!receipt.matches_current_query(&second, directory));
+        assert!(!receipt.matches_current_query(&first, Path::new("/other")));
+        let native = tcl_lexer::native_script_words_in(
+            SourceImage::from_bytes(source.as_bytes(), tcl_lexer::SourceChannel::NativeValue),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert!(!receipt.matches_current_query(&native.commands[0].words[2], directory));
+        let changed_config = tcl_lexer::LexerConfig {
+            strict_quoting: !config.strict_quoting,
+            ..config
+        };
+        let changed_word = original_loader(source, changed_config, 0);
+        assert!(!receipt.matches_current_query(&changed_word, directory));
+        assert!(matches!(
+            survey_original_index_filename(source, &context, &changed_word, directory),
+            OriginalIndexFilenameSurvey::Unavailable
+        ));
+        let general =
+            OriginalSourceRegistryContext::capture(source, context.editing_input().clone());
+        assert!(matches!(
+            survey_original_index_filename(source, &general, &first, directory),
+            OriginalIndexFilenameSurvey::Unavailable
+        ));
+        let changed = format!("{source}# changed");
+        assert!(matches!(
+            survey_original_index_filename(&changed, &context, &first, directory),
+            OriginalIndexFilenameSurvey::Unavailable
+        ));
+    }
+
+    #[test]
+    fn invalid_layout_survey_preserves_unknown_path_and_constructor_refusals() {
+        for source in [
+            "set auto_index(a) [list source $missing]",
+            "set auto_index(a) [list source [file dirname $dir]]",
+            "set auto_index(a) {source -encoding utf-8 a.tcl}",
+            "set auto_index(a) [list source -encoding utf-8 a.tcl; list]",
+            "set auto_index(a) \"prefix[list source -encoding utf-8 a.tcl]\"",
+            "unavailable; set auto_index(a) [list source -encoding utf-8 a.tcl]",
+            "rename list saved; set auto_index(a) [list source -encoding utf-8 a.tcl]",
+            "interp alias {} make {} list; set auto_index(a) [make source -encoding utf-8 a.tcl]",
+        ] {
+            let context = source_context(source, tcl_dialect::TclVersion::V8_4);
+            let plan = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                context.editing_input().lexer_config(),
+            )
+            .unwrap();
+            let word = plan.commands.last().unwrap().words[2].clone();
+            assert!(
+                matches!(
+                    survey_original_index_filename(source, &context, &word, Path::new("/library")),
+                    OriginalIndexFilenameSurvey::Unavailable
+                ),
+                "{source}"
+            );
+        }
+        for source in [
+            "set auto_index(a) [list source $option utf-8 a.tcl]",
+            "set auto_index(a) [list source -encoding utf-8 $missing]",
+            "set auto_index(a) [list source {*}$unknown]",
+        ] {
+            let context = source_context(source, tcl_dialect::TclVersion::V8_5);
+            let word = original_loader(source, context.editing_input().lexer_config(), 0);
+            assert!(
+                matches!(
+                    survey_original_index_filename(source, &context, &word, Path::new("/library")),
+                    OriginalIndexFilenameSurvey::Unavailable
+                ),
+                "{source}"
+            );
+        }
+    }
 
     #[test]
     fn source_filename_abstention_keeps_exact_query_and_directory() {

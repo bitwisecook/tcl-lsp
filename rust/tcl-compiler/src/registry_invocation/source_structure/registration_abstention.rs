@@ -28,6 +28,22 @@ pub struct OriginalStandaloneSchemaAbstention<'a> {
     original: Vec<NativeWord>,
 }
 
+/// Exact written elements returned if the unchanged standalone structural
+/// consumer accepts this original invocation's list-arguments projection.
+/// This supplies no list result, runtime value, dispatch or execution proof.
+#[derive(Debug)]
+pub struct OriginalStandaloneListProjection<'a> {
+    source: &'a OriginalSourceRegistryContext,
+    original: Vec<NativeWord>,
+    elements: Vec<NativeWord>,
+}
+
+struct StandaloneOriginalQuery {
+    segment: crate::segmenter::SegmentedCommand,
+    tokens: crate::ir::CommandTokens,
+    original: Vec<NativeWord>,
+}
+
 impl OriginalSourceRegistryContext {
     /// Authenticate the complete ordinary C Tcl entry. Directives, declarations,
     /// scoped vocabularies and incomplete root roles retain the general path.
@@ -123,10 +139,7 @@ impl OriginalSourceRegistryContext {
 }
 
 impl<'a> OriginalStandaloneSchemaAbstentions<'a> {
-    /// The full consumer's additional metadata requires original catalogue
-    /// observations even if its walker supplies a source namespace separately.
-    #[must_use]
-    pub fn at(&self, offset: u32) -> Option<OriginalStandaloneSchemaAbstention<'a>> {
+    fn original_query(&self, offset: u32) -> Option<StandaloneOriginalQuery> {
         let mut remaining = MAX_COMMANDS;
         let command = substitution_command_at(&self.plan, offset, 0, &mut remaining)?;
         let config = self.source.input.lexer_config();
@@ -152,11 +165,94 @@ impl<'a> OriginalStandaloneSchemaAbstentions<'a> {
             offset,
             config,
         )?;
-        if original != command.words
-            || !tokens
-                .source_binding
-                .as_ref()?
-                .original_catalogue_source_layout_is_absent()
+        (original == command.words).then_some(StandaloneOriginalQuery {
+            segment,
+            tokens,
+            original,
+        })
+    }
+
+    /// Retain the only successful list-element vector of the ordinary full
+    /// structural consumer at this original site. Full-only Conditional
+    /// metadata can change applicability, but cannot change Written elements.
+    #[must_use]
+    pub fn list_projection_at(&self, offset: u32) -> Option<OriginalStandaloneListProjection<'a>> {
+        let query = self.original_query(offset)?;
+        let context = self.source.input.borrowed_context_registry();
+        if self
+            .source
+            .realm
+            .original_source_registry_barrier(context, &query.tokens)
+            || self
+                .source
+                .realm
+                .original_source_prefix_catalogue_advice(&self.source.input, &query.tokens)
+                .is_some()
+            || self
+                .source
+                .realm
+                .original_member_source_catalogue_advice(&self.source.input, &query.tokens)
+                .is_some()
+        {
+            return None;
+        }
+        let schema = self.source.registration_words(&query.segment)?;
+        let super::OriginalRegistrySource::Conditional(metadata) = schema.source() else {
+            return None;
+        };
+        if metadata.original_words() != query.original.as_slice()
+            || self.source.registration_words_at(offset).as_ref() != Some(&schema)
+            || schema.origins().len() != query.original.len()
+            || schema
+                .origins()
+                .iter()
+                .enumerate()
+                .any(|(ordinal, origin)| {
+                    *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+                })
+        {
+            return None;
+        }
+        let elements = schema.with_source_schema(context, |selected| {
+            selected.authored_source_list_arguments()
+        })??;
+        if elements != (0..query.original.len().checked_sub(1)?)
+            || elements.clone().any(|ordinal| {
+                schema.original_argument_word(ordinal) != query.original.get(ordinal + 1)
+            })
+        {
+            return None;
+        }
+        // Scoped source requires Str ancestry, which original_query excludes.
+        // The selected route uses this same immutable realm; Conditional here
+        // means it supplied no schema. Ordinary native metadata is present.
+        // Retained native metadata yields Conditional words or failure. Both
+        // Conditional builders validate the same original vector and retain
+        // Written(i) origins. Any successful ListArguments{from:0} projection
+        // therefore returns every original post-head word. Missing retained
+        // metadata reuses the ordinary present metadata; independent fallback
+        // prefix/member routes have separately refused above.
+        let elements = query.original.get(1..)?.to_vec();
+        Some(OriginalStandaloneListProjection {
+            source: self.source,
+            original: query.original,
+            elements,
+        })
+    }
+
+    /// The full consumer's additional metadata requires original catalogue
+    /// observations even if its walker supplies a source namespace separately.
+    #[must_use]
+    pub fn at(&self, offset: u32) -> Option<OriginalStandaloneSchemaAbstention<'a>> {
+        let StandaloneOriginalQuery {
+            segment,
+            tokens,
+            original,
+        } = self.original_query(offset)?;
+        if !tokens
+            .source_binding
+            .as_ref()?
+            .original_catalogue_source_layout_is_absent()
         {
             return None;
         }
@@ -215,6 +311,36 @@ impl OriginalStandaloneSchemaAbstention<'_> {
     #[must_use]
     pub fn original_words(&self) -> &[NativeWord] {
         &self.original
+    }
+}
+
+impl OriginalStandaloneListProjection<'_> {
+    /// Same immutable complete original source, input and structural issuer.
+    #[must_use]
+    pub fn matches_source_context(
+        &self,
+        source: &str,
+        context: &OriginalSourceRegistryContext,
+    ) -> bool {
+        std::ptr::eq(self.source, context)
+            && context.source_image().channel() == tcl_lexer::SourceChannel::Document
+            && context.source_image().bytes() == source.as_bytes()
+            && self.original.iter().all(|word| {
+                word.image() == context.source_image()
+                    && word.config() == context.editing_input().lexer_config()
+            })
+    }
+
+    /// Complete original constructor geometry, without a reached invocation.
+    #[must_use]
+    pub fn original_words(&self) -> &[NativeWord] {
+        &self.original
+    }
+
+    /// Original elements if the full consumer accepts its list projection.
+    #[must_use]
+    pub fn elements_if_projected(&self) -> &[NativeWord] {
+        &self.elements
     }
 }
 
@@ -291,6 +417,75 @@ mod tests {
             config,
         );
         OriginalSourceRegistryContext::capture_standalone_structure(source, input)
+    }
+
+    #[test]
+    fn conditional_list_projection_matches_full_written_elements() {
+        let source = TWO_ROWS.replace("list source [", "list source -encoding utf-8 [");
+        for version in tcl_dialect::TclVersion::ALL {
+            let owner = context(&source, version);
+            let survey = owner.standalone_schema_abstentions().unwrap();
+            let first = u32::try_from(source.find("[list").unwrap() + 1).unwrap();
+            let second = u32::try_from(source.rfind("[list").unwrap() + 1).unwrap();
+            let projection = survey.list_projection_at(first).unwrap();
+            assert!(projection.matches_source_context(&source, &owner));
+            assert!(!projection.matches_source_context(&format!("{source}# changed"), &owner));
+            assert!(!projection.matches_source_context(&source, &context(&source, version)));
+            assert!(survey.list_projection_at(first + 1).is_none());
+            assert!(survey.list_projection_at(second).is_none());
+            let input = owner.editing_input().clone();
+            let full = Analyser::new()
+                .with_resolved_input(input.clone())
+                .structure_only()
+                .analyse(&source, input.unit_profile().name);
+            let schema = source_registry_words_at(&source, &full, first).unwrap();
+            let elements = schema
+                .with_source_schema(input.borrowed_context_registry(), |selected| {
+                    selected.authored_source_list_arguments()
+                })
+                .flatten()
+                .unwrap()
+                .map(|ordinal| {
+                    assert_eq!(
+                        schema.origins()[ordinal + 1],
+                        crate::registry_invocation::InvocationWordOrigin::Written(ordinal + 1)
+                    );
+                    schema.original_argument_word(ordinal).unwrap().clone()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(projection.elements_if_projected(), elements, "{version:?}");
+        }
+    }
+
+    #[test]
+    fn conditional_list_projection_refuses_inert_and_nonlist_commands() {
+        let version = tcl_dialect::TclVersion::V8_4;
+        let source = format!("set body {{{TWO_ROWS}}}");
+        let owner = context(&source, version);
+        let survey = owner.standalone_schema_abstentions().unwrap();
+        let offset = u32::try_from(source.find("[list").unwrap() + 1).unwrap();
+        assert!(survey.list_projection_at(offset).is_none());
+        let owner = context(TWO_ROWS, version);
+        assert!(
+            owner
+                .standalone_schema_abstentions()
+                .unwrap()
+                .list_projection_at(0)
+                .is_none()
+        );
+        for prefix in [
+            "rename list saved; ",
+            "unavailable; ",
+            "interp alias {} make {} list; ",
+            "trace add variable dir read callback; ",
+        ] {
+            let source = format!("{prefix}{TWO_ROWS}");
+            assert!(
+                context(&source, version)
+                    .standalone_schema_abstentions()
+                    .is_none()
+            );
+        }
     }
 
     #[test]

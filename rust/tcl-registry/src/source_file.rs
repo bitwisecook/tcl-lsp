@@ -143,6 +143,68 @@ pub enum SourceFileSelection {
     Unknown,
 }
 
+/// Invalid conditional file-source argument layout for one selected authored
+/// recipe. This supplies no handler identity, raised error or file effect.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredSourceFileLayoutAbstention {
+    descriptor: crate::CanonicalCommandDescriptorKey<'static>,
+    dialect: InvocationDialect,
+    grammar: SourceFileGrammar,
+    count: usize,
+    first: Option<Vec<u8>>,
+}
+
+impl AuthoredSourceFileLayoutAbstention {
+    /// Same selected source recipe, actual dialect and original argv shape.
+    /// Registry generation and original source ownership remain caller-owned.
+    #[must_use]
+    pub fn matches_invocation(&self, invocation: &crate::ResolvedInvocation<'_, '_>) -> bool {
+        invocation.authored_source_file_layout_abstention().as_ref() == Some(self)
+    }
+
+    /// Actual source grammar that refused this exact argument shape.
+    #[must_use]
+    pub const fn grammar(&self) -> SourceFileGrammar {
+        self.grammar
+    }
+}
+
+impl crate::ResolvedInvocation<'_, '_> {
+    /// Prove Invalid source-file layout independently from missing schema,
+    /// unknown selectors and path values. Only authored syntax is observed;
+    /// runtime dispatch, errors and completed file evaluation stay unknown.
+    #[must_use]
+    pub fn authored_source_file_layout_abstention(
+        &self,
+    ) -> Option<AuthoredSourceFileLayoutAbstention> {
+        if self.semantics.body_execution
+            != Some(crate::body_execution::BodyExecutionSpec::SourceFile)
+            || !self.semantics.traits.contains(crate::Traits::SOURCES_FILE)
+            || self.semantics.argument_offset != 0
+        {
+            return None;
+        }
+        let arguments = self.words.arguments();
+        let dialect = arguments.dialect()?;
+        let grammar = dialect.source_file_grammar()?;
+        let count = arguments.exact_argv_len()?;
+        let first = arguments.get(0).and_then(|word| match word {
+            crate::InvocationWord::KnownBytes(bytes) => Some(bytes),
+            crate::InvocationWord::Literal(value) => Some(value.as_bytes()),
+            _ => None,
+        });
+        (grammar.select_original(count, first) == SourceFileSelection::Invalid).then(|| {
+            AuthoredSourceFileLayoutAbstention {
+                descriptor: self.descriptor_key(),
+                dialect,
+                grammar,
+                count,
+                first: first.map(<[u8]>::to_vec),
+            }
+        })
+    }
+}
+
 impl InvocationDialect {
     /// Audited native file grammar, without an assistance-profile fallback.
     #[must_use]
@@ -303,6 +365,99 @@ pub fn completion_route(
 mod tests {
     use super::*;
     use crate::{InvocationWord, InvocationWords};
+
+    fn inspect_layout(
+        version: TclVersion,
+        head: &str,
+        words: &[InvocationWord<'_>],
+        check: impl FnOnce(&crate::ResolvedInvocation<'_, '_>),
+    ) {
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+        let context = crate::model::ingress::static_context_for_profile(profile);
+        let resolution = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            InvocationWords::structured(InvocationWord::Literal(head), words)
+                .with_dialect(InvocationDialect::for_version(version)),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        check(&resolution.resolved().unwrap());
+    }
+
+    #[test]
+    fn authored_invalid_layout_retains_recipe_and_actual_grammar() {
+        let encoding = [
+            InvocationWord::Literal("-encoding"),
+            InvocationWord::Literal("utf-8"),
+            InvocationWord::Dynamic,
+        ];
+        for version in TclVersion::ALL {
+            inspect_layout(version, "source", &encoding, |selected| {
+                let receipt = selected.authored_source_file_layout_abstention();
+                if version == TclVersion::V8_4 {
+                    let receipt = receipt.unwrap();
+                    assert_eq!(receipt.grammar(), SourceFileGrammar::Filename);
+                    assert!(receipt.matches_invocation(selected));
+                } else {
+                    assert!(receipt.is_none(), "{version:?}");
+                }
+            });
+            for words in [
+                &[InvocationWord::Dynamic][..],
+                &[InvocationWord::Expanded][..],
+            ] {
+                inspect_layout(version, "source", words, |selected| {
+                    assert!(selected.authored_source_file_layout_abstention().is_none());
+                });
+            }
+            inspect_layout(version, "list", &encoding, |selected| {
+                assert!(selected.authored_source_file_layout_abstention().is_none());
+            });
+        }
+    }
+
+    #[test]
+    fn authored_invalid_layout_refuses_unknown_selector_and_other_query() {
+        let encoding = [
+            InvocationWord::Literal("-encoding"),
+            InvocationWord::Literal("utf-8"),
+            InvocationWord::Dynamic,
+        ];
+        let mut receipt = None;
+        inspect_layout(TclVersion::V8_4, "source", &encoding, |selected| {
+            receipt = selected.authored_source_file_layout_abstention();
+        });
+        let receipt = receipt.unwrap();
+        inspect_layout(TclVersion::V8_5, "source", &encoding, |selected| {
+            assert!(!receipt.matches_invocation(selected));
+        });
+        let dynamic = [
+            InvocationWord::Dynamic,
+            InvocationWord::Dynamic,
+            InvocationWord::Dynamic,
+        ];
+        inspect_layout(TclVersion::V8_5, "source", &dynamic, |selected| {
+            assert!(selected.authored_source_file_layout_abstention().is_none());
+        });
+        inspect_layout(TclVersion::V8_4, "source", &dynamic, |selected| {
+            assert!(!receipt.matches_invocation(selected));
+        });
+        let context = crate::model::ingress::static_context_for("tcl8.4");
+        let unknown = InvocationDialect {
+            tcl_version: None,
+            ..InvocationDialect::for_version(TclVersion::V8_4)
+        };
+        let resolution = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+            context.commands(),
+            Some(context.context()),
+            InvocationWords::structured(InvocationWord::Literal("source"), &encoding)
+                .with_dialect(unknown),
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        );
+        let selected = resolution.resolved().unwrap();
+        assert!(selected.authored_source_file_layout_abstention().is_none());
+        assert!(!receipt.matches_invocation(&selected));
+    }
 
     #[test]
     fn navigation_candidates_require_unanimous_or_selected_file_layout() {

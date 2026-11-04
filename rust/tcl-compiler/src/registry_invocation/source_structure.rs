@@ -9,7 +9,8 @@ pub use original_body_syntax::OriginalBodySyntaxInventory;
 
 mod registration_abstention;
 pub use registration_abstention::{
-    OriginalStandaloneSchemaAbstention, OriginalStandaloneSchemaAbstentions,
+    OriginalStandaloneListProjection, OriginalStandaloneSchemaAbstention,
+    OriginalStandaloneSchemaAbstentions,
 };
 
 mod package_target_survey;

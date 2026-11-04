@@ -1209,6 +1209,70 @@ fn append_legacy_index_registrations(
 mod tests {
     use super::*;
     #[test]
+    fn opt_in_invalid_filename_layout_matches_full_registration_vectors() {
+        let source = "set auto_index(a) [list source -encoding utf-8 [file join $dir a.tcl]]\nset auto_index(b) [list source -encoding utf-8 [file join $dir b.tcl]]\n";
+        let directory = Path::new("/library");
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            let policy = NamePolicyProtocol::authored_tcl(version);
+            let full = survey_index_entries_with(
+                source,
+                directory,
+                config,
+                policy,
+                crate::source_structure::analyse_autoload_registration_structure,
+            );
+            let generation = crate::context_for_dialect_profile(profile);
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+            let context = tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture_standalone_structure(
+                source, tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile,
+                    std::sync::Arc::new(generation.with_command_store(
+                        registry.snapshot().shared_registry())), config));
+            let plan = tcl_lexer::native_script_words_in(
+                SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert_eq!(plan.commands.len(), 2);
+            let first = &plan.commands[0].words[2];
+            let second = &plan.commands[1].words[2];
+            let query =
+                index_loader::survey_original_index_filename(source, &context, first, directory);
+            if version == tcl_dialect::TclVersion::V8_4 {
+                let index_loader::OriginalIndexFilenameSurvey::InvalidLayout(receipt) = query
+                else {
+                    panic!("Invalid layout prerequisite")
+                };
+                assert!(receipt.matches_current_query(first, directory));
+                assert!(
+                    full.is_empty(),
+                    "the unchanged full consumer contributes zero"
+                );
+                assert!(
+                    survey_index_entries_from_source(source, directory, config, policy).is_none(),
+                    "existing source-schema-only purpose retains full fallback"
+                );
+            } else {
+                let index_loader::OriginalIndexFilenameSurvey::Filename(file) = query else {
+                    panic!("Selected encoding filename prerequisite: {version:?}")
+                };
+                assert_eq!(full.len(), 1);
+                assert_eq!(file, full[0].file, "{version:?}");
+                assert_eq!(full[0].input.bytes(), b"a");
+            }
+            let index_loader::OriginalIndexFilenameSurvey::NoContribution(receipt) =
+                index_loader::survey_original_index_filename(source, &context, second, directory)
+            else {
+                panic!("Independent later schema abstention: {version:?}")
+            };
+            assert!(receipt.matches_current_query(second, directory));
+        }
+    }
+
+    #[test]
     fn autoload_multirow_source_abstention_matches_full_registration_consumer() {
         let two_rows = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\n";
         let with_tail = format!(
