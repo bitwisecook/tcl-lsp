@@ -29,5 +29,15 @@
     "rust": "3475cff4df4d88c73e0a287e7aeeb43e63fcf2d3"
   },
   "merge_validation_receipt": "evidence/integration/rust-2026-11-04/receipt.json",
-  "all_incoming_dependency_pins_preserved": true
+  "all_incoming_dependency_pins_preserved": true,
+  "direct_rust_push": {
+    "result": "rejected",
+    "code": "GH013",
+    "requirements": [
+      "Changes must be made through a pull request",
+      "8 of 8 required status checks are expected"
+    ]
+  },
+  "remote_checkpoint_branch": "lsp-release-stop-2026-11-04",
+  "rust_update_status": "Blocked by repository rules; integration is saved on the PR branch."
 }

@@ -26,3 +26,5 @@ existing `rust` dependency, CI and JetBrains changes; merge validation is
 recorded separately from prior product test results.
 
 The [merge receipt](../evidence/integration/rust-2026-11-04/README.md) records both parent commits, conflict decisions and eight successful lock reconciliations. Every incoming dependency pin is preserved. The verified #2131 source pins are unchanged. These checks do not certify the merged source or unfinished drafts as release-ready.
+
+GitHub rejected the direct `rust` push with GH013: a pull request and eight required status checks are mandatory. The complete integration is saved on `lsp-release-stop-2026-11-04` for that PR. No branch rule was changed or bypassed.

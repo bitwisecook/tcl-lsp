@@ -1,6 +1,6 @@
 # LSP release issue sweep
 
-Updated 4 November 2026. Final integration branch: `rust`, at the user’s stop request. The LSP is not yet release-ready.
+Updated 4 November 2026. Final integration targets `rust`; GitHub requires a PR and eight status checks, so the saved checkpoint branch is `lsp-release-stop-2026-11-04`. The LSP is not yet release-ready.
 
 The sweep stops after verified closure of [#2131](https://github.com/bitwisecook/tcl-lsp/issues/2131#issuecomment-6643420031). Shared math-result ownership and its focused compiler consumer pass; public nested-expression inference remains unverified. The user explicitly authorised pushing all current code, including unfinished development checkpoints. [The final handoff](LSP_RELEASE_STOP_HANDOFF_2026-11-04.md) distinguishes those checkpoints from verified fixes and records issue updates and pending gates.
 
