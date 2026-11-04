@@ -18,6 +18,14 @@ fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
     }
 }
 
+#[cfg(test)]
+fn trace_retained_source_preparation(offset: u32, tape: bool, native_vector: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+        trace_original_child_guard("retained.tape", Some(offset), tape);
+        trace_original_child_guard("retained.native_vector", Some(offset), native_vector);
+    }
+}
+
 fn cut_value_stage<T>(trace: bool, stage: &'static str, value: Option<T>) -> Option<T> {
     if trace {
         crate::registry_invocation::source_cut_stage(stage, value)
@@ -2235,14 +2243,11 @@ impl super::CommandBindingRealm {
             config,
         );
         #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
-            trace_original_child_guard(
-                "retained.tape",
-                Some(offset),
-                prepared.as_ref().as_ref().is_some(),
-            );
-            trace_original_child_guard("retained.native_vector", Some(offset), original.is_some());
-        }
+        trace_retained_source_preparation(
+            offset,
+            prepared.as_ref().as_ref().is_some(),
+            original.is_some(),
+        );
         let original = cut_value_stage(trace_cut, "value.native-vector", original)?;
         let advice = match cut_value_stage(trace_cut, "value.tape", prepared.as_ref().as_ref())?
             .lookup(offset)
