@@ -241,7 +241,7 @@ mod tests {
         );
         let seed = vm.authored_math.as_ref().unwrap().seed;
         vm.set_stores_confined(true);
-        for source in ["srand(9)", "srand(wrong)", "rand()"] {
+        for source in ["srand(9)", r#"srand("wrong")"#, "rand()"] {
             let completion = vm.try_eval_expr(source).unwrap();
             assert_eq!(completion.code, Code::Error, "{source}");
             assert!(
