@@ -5481,6 +5481,23 @@ mod tests {
     }
 
     #[test]
+    fn unrelated_quoted_words_have_no_format_hover() {
+        for source in ["puts \"%Y\"\n", "puts \"%d\"\n"] {
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .analyse(source, "tcl8.6")
+                .clone();
+            let column = u32::try_from(source.find('%').expect("quoted word")).unwrap();
+            let result = hover(source, 0, column, &analysis, None);
+            assert!(
+                result
+                    .as_ref()
+                    .is_none_or(|hover| !hover.value.contains("Format string")),
+                "{source:?}: {result:?}"
+            );
+        }
+    }
+
+    #[test]
     fn hover_abstains_for_local_proc_shadowing_format_command() {
         let src = "proc clock {args} { return 0 }\nclock format $time {%Y}\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
