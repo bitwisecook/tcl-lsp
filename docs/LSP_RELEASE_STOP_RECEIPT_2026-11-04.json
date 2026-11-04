@@ -39,5 +39,12 @@
     ]
   },
   "remote_checkpoint_branch": "lsp-release-stop-2026-11-04",
-  "rust_update_status": "Blocked by repository rules; integration is saved on the PR branch."
+  "rust_update_status": "PR open; direct push rejected by repository rules and auto-merge not enabled.",
+  "pull_request": "https://github.com/bitwisecook/tcl-lsp/pull/2521",
+  "auto_merge": {
+    "status": "rejected_by_automatic_approval_review",
+    "reason": "Broad PR contains unverified/unbuilt checkpoints; explicit authorisation for consequential automatic merging was not established.",
+    "enabled": false,
+    "explicit_approval_required": true
+  }
 }
