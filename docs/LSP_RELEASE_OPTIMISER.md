@@ -18,15 +18,20 @@ approved interface retains the selected handler/profile/shape and states only
 a conditional List requirement/store/result for the target container. Ordinary
 objects, unobserved storage, original source/receiver custody and successful
 handling remain separate premises; appended element representations are never
-copied to the target. The prototype remains under `/tmp` while the values
-source snapshot is frozen. Independent review added agreement between the
+copied to the target. Latest corrections remain under `/tmp` for the values lane's coordinated
+integration. Independent review added agreement between the
 selected native operation and the effective semantic operation; refusal
 fixtures include an actual selected form hiding raw extra effects. The frozen
 child is `/tmp/lsp-940-conditional_list_append.rs`, SHA-256
-`ca57e915187da0bd1494bfe220ba75cc71f1f84feb66c6a7c908dd3adc44f474`.
-Its five fixed-input Rust tests and compiler integration have not run. The
+`4fd01fa1229564283924212eddcde54c492e7ffdf93d3043b5594ab0389b7e76`.
+Its six fixed-input Rust tests and compiler integration have not run. The
 prior List requirement does not certify physical coercion of the existing
 object or justify a new append S100 finding.
+The final narrow append boundary patch also checks raw world/state absence
+and excludes NUL from definite malformed-list proof. Its added control uses an
+actual altered registry descriptor followed by an explicit public effective
+carrier reset; no ordinary constructor defect is claimed. The patch and exact
+base/new hashes are retained in `/tmp/lsp-940-append-raw-boundary.json`.
 
 The handoff manifest is `/tmp/lsp-940-conditional-list-append-manifest.json`.
 It links pinned C source reviews and four standalone Tcl execution records,
