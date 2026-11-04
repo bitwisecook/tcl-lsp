@@ -5402,7 +5402,7 @@ mod closed_source_child_ingress_tests {
         backend: Backend,
         responder: tokio::task::JoinHandle<()>,
         startup: Vec<SourceProtocolTask>,
-        serial: i32,
+        serial: i64,
     }
 
     impl SourceProtocol {

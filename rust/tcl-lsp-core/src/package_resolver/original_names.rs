@@ -1244,8 +1244,8 @@ mod tests {
         let index = index_commands_by_offset(&commands);
         assert_eq!(index.len(), 2);
         assert!(index.len() <= commands.len());
-        assert!(std::ptr::eq(index[&first], &commands[2]));
-        assert!(std::ptr::eq(index[&second], &commands[1]));
+        assert!(std::ptr::eq(index[&first], &raw const commands[2]));
+        assert!(std::ptr::eq(index[&second], &raw const commands[1]));
         for offset in [first, second, first + 1, u32::MAX] {
             let old = commands.iter().find(|command| {
                 command
