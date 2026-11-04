@@ -29,6 +29,13 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 dist="$here/dist"
 mkdir -p "$dist"
+root="$(cd "$here/../.." && pwd)"
+receipt="$dist/tcl-lsp-server-wasi.sources.sha256"
+source_before="$(mktemp)"
+trap 'rm -f "$source_before"' EXIT
+# Never retain a successful receipt across a failed or interrupted rebuild.
+rm -f "$receipt"
+bash "$root/scripts/dev/vsix-wasi-assets.sh" snapshot "$root" "$source_before"
 
 # Every analysis stack's budget — the wasip1 twin of `main.rs`'s
 # WORKER_STACK_SIZE and of the browser build's STACK_SIZE, load-bearing for the
@@ -55,6 +62,10 @@ echo "==> cargo build --target wasm32-wasip1 --release (stack ${STACK_SIZE} byte
     # target dir too. Pinning it here rather than inheriting the environment is
     # what keeps the output path below correct when the caller has exported a
     # CARGO_TARGET_DIR for the main workspace (scripts/dev/agent-build-env.sh).
+    # Content custody can detect edits whose mtimes Cargo would miss. Clean
+    # only this facade's fixed, isolated target, including host build scripts,
+    # before accepting another source/output receipt.
+    CARGO_TARGET_DIR="$here/target" cargo clean
     CARGO_TARGET_DIR="$here/target" \
     CARGO_PROFILE_RELEASE_LTO="$lto_mode" \
     RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-zstack-size=${STACK_SIZE}" \
@@ -79,6 +90,8 @@ else
     echo "    note: wasm-opt not found — shipping the unoptimised link"
     cp "$built" "$out"
 fi
+
+bash "$root/scripts/dev/vsix-wasi-assets.sh" seal "$root" "$out" "$source_before" "$receipt"
 
 echo "==> done:"
 ls -lh "$dist"

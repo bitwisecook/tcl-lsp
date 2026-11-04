@@ -142,17 +142,10 @@ SPEC_PACK_FILES := $(wildcard $(SPEC_PACK_SRC)/*.tclspec)
 # binary, linked for wasm32-wasip1 and driven over Content-Length-framed stdio
 # (`docs/design/rust/lsp-runtime-and-transports.md`).  Declared up here rather
 # than beside its build target further down because $(VSIX_FILE) names the
-# module as a *prerequisite*, and prerequisites expand when the rule is read.
+# module during staging and validates its source/output receipt first.
 LSP_SERVER_WASI_DIR    := $(ROOT)rust/tcl-lsp-server-wasi
 LSP_SERVER_WASI_MODULE := $(LSP_SERVER_WASI_DIR)/dist/tcl-lsp-server-wasi.wasm
-# The module's own sources, so the file rule further down can tell a stale
-# module from an up-to-date one.  Same `shell find` idiom as $(TS_SRCS); the
-# crate is its own workspace with its own lockfile, so its lockfile is the one
-# named here.  Declared beside the module for the same reason it is: this
-# expands where the rule is read.
-LSP_SERVER_WASI_SRCS := $(shell find $(LSP_SERVER_WASI_DIR)/src -type f 2>/dev/null) \
-	$(LSP_SERVER_WASI_DIR)/Cargo.toml $(LSP_SERVER_WASI_DIR)/Cargo.lock \
-	$(LSP_SERVER_WASI_DIR)/build-wasi.sh
+LSP_SERVER_WASI_RECEIPT := $(LSP_SERVER_WASI_DIR)/dist/tcl-lsp-server-wasi.sources.sha256
 # Where the universal VSIX stages it, relative to the extension root.  Mirrored
 # by `WASI_MODULE_RELATIVE_PATH` in editors/vscode/src/serverResolution.ts.
 VSIX_WASI_DIR := server/wasm
@@ -314,7 +307,7 @@ else
 VSIX_WEB_ASSETS_PREREQ := prepare-vsix-web-assets
 endif
 
-$(VSIX_FILE): $(VSIX_WEB_ASSETS_PREREQ) $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
+$(VSIX_FILE): $(VSIX_WEB_ASSETS_PREREQ) $(if $(VSCE_TARGET),,prepare-vsix-wasi-assets) $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -405,6 +398,7 @@ $(VSIX_FILE): $(VSIX_WEB_ASSETS_PREREQ) $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_M
 			echo "==> Staging the WASI language server ($(VSIX_WASI_DIR)/)"; \
 			mkdir -p "$(STAGE_DIR)/$(VSIX_WASI_DIR)/specs"; \
 			cp "$(LSP_SERVER_WASI_MODULE)" "$(STAGE_DIR)/$(VSIX_WASI_DIR)/"; \
+			bash $(ROOT)scripts/dev/vsix-wasi-assets.sh check "$(ROOT)" "$(STAGE_DIR)/$(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE))" "$(LSP_SERVER_WASI_RECEIPT)"; \
 			cp $(SPEC_PACK_FILES) "$(STAGE_DIR)/$(VSIX_WASI_DIR)/specs/"; \
 			echo "    $(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE)) (+ specs/)"; \
 		fi
@@ -914,7 +908,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-object-recipe-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-object-recipe-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -2191,28 +2185,18 @@ lsp-server-wasi: ## Build the LSP server as a WASI stdio program (Rust → wasm3
 		|| rustup target add wasm32-wasip1
 	bash $(LSP_SERVER_WASI_DIR)/build-wasi.sh
 
-# The universal VSIX's prerequisite on the module, as a FILE rule rather than a
-# dependency on the phony target above.  CI's `build-vsix` downloads the module
-# the `lsp-server-wasi` job already built, optimised, and signed; a phony
-# prerequisite would rebuild it there (a wasip1 toolchain plus a release LTO
-# link) on top of the download.
-#
-# The prerequisites are what keep "present ⇒ used as-is" honest.  `dist/` is
-# git-ignored, so it survives every branch switch: with no prerequisites at all
-# the documented laptop fallbacks (`make publish-vsix` / `publish-openvsx`)
-# would happily package whatever module an earlier branch left behind.  Naming
-# the crate's own sources means a source change re-links and an untouched
-# module is reused.  Note this decides only whether cargo is *consulted* — the
-# recipe's `cargo build` still fingerprints the whole dependency closure, so a
-# change under `rust/tcl-lsp-server` re-links once anything here (or `dist/`)
-# is touched.  Delete `dist/` (or run `make lsp-server-wasi`) to force a build.
-#
-# CI's direction holds: `build-vsix` checks out first and downloads second, and
-# `actions/download-artifact` extracts with `unzip-stream`, which never
-# restores the zip's stored mtimes — the module lands at download time, newer
-# than every prerequisite, so nothing re-links there.
-$(LSP_SERVER_WASI_MODULE): $(LSP_SERVER_WASI_SRCS)
-	$(MAKE) --no-print-directory lsp-server-wasi
+# A downloaded module is reusable only with its matching source/output receipt.
+# This check runs even when archive or module mtimes survive a branch switch.
+# Missing or changed inputs consult Cargo through the normal WASI builder.
+.PHONY: prepare-vsix-wasi-assets check-vsix-wasi-assets-contract
+prepare-vsix-wasi-assets:
+	@if ! bash $(ROOT)scripts/dev/vsix-wasi-assets.sh check "$(ROOT)" "$(LSP_SERVER_WASI_MODULE)" "$(LSP_SERVER_WASI_RECEIPT)"; then \
+		$(MAKE) --no-print-directory lsp-server-wasi; \
+	fi
+	@bash $(ROOT)scripts/dev/vsix-wasi-assets.sh check "$(ROOT)" "$(LSP_SERVER_WASI_MODULE)" "$(LSP_SERVER_WASI_RECEIPT)"
+
+check-vsix-wasi-assets-contract: ## Test WASI source/output reuse without building Rust
+	@bash $(ROOT)scripts/dev/test-vsix-wasi-assets.sh
 
 # The fixture directory is preopened by the harness itself (`wasmtime --dir`),
 # so the multi-file scenario reads a sourced sibling that only ever exists on

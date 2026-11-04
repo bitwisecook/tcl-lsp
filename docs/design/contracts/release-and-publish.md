@@ -211,6 +211,17 @@ not link a host libc. Their artifacts and tests remain separate CI jobs; the
 universal VSIX continues to receive its WASI module from `lsp-server-wasi`
 rather than from a Linux build leg.
 
+The WASI producer carries a source/output receipt with its module. Universal
+VSIX staging checks file contents, source membership, repository and Cargo
+configuration, compile settings and version inputs before reusing downloaded
+bytes, then checks the staged module against that receipt. Timestamp order
+alone never permits reuse. Missing or changed custody triggers a fresh build
+in the WASI facade's fixed target directory; its builder clears that isolated
+Cargo target, including host build scripts, so retained source mtimes cannot
+reseal an old binary. Compiler/toolchain installations and registry caches
+remain external build inputs; the receipt is source custody, not a hermetic
+build attestation.
+
 **Failure mode — a red `build-vsix` ancestor leaves a half-populated
 Release.**  `build-vsix` needs `lsp-server-wasi` (the universal package's
 `server/wasm/` module), `test-ext`, and `test-ext-web`, and
