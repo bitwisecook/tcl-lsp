@@ -332,6 +332,10 @@ declarations are written in.
 - [spec-packs.md](registry/spec-packs.md) — SpecTcl: the loader, discovery
   tiers, hook host, compatibility policy, version ranges, and the 2.0
   authoring rules and `environment` / `include from` vocabulary.
+- [spectcl-compiled-surface-plan.md](registry/spectcl-compiled-surface-plan.md)
+  — the measured cost of SpecTcl surfaces, packs and hooks against native
+  specs, and the plan for a compiled surface, lazy packs and one warm hook
+  VM.
 - [special-variable-registry.md](registry/special-variable-registry.md) — the
   dialect-versioned registry of interpreter-provided special variables
   (`auto_path`, `env`, `tcl_platform`, iRules `static::`) and its analyser,
