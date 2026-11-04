@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 17:17 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
+Updated 04 November 2026, 17:24 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
 
 ## Scope and release verdict
 
@@ -70,6 +70,10 @@ The distinct non-cancelling [LSP bootstrap41788257234](https://github.com/bitwis
 Old [CI41749944578](https://github.com/bitwisecook/tcl-lsp/actions/runs/41749944578), source8050f4d4, remains terminal8success/23failure/16skip. Shard5 has valid4775pass/510fail/1ignored; shard1 runner-shutdown capture is invalid. `/tmp/ci-final-41749944578-0543.json`. Old counts do not certify current work.
 
 ## Latest host and validation results
+
+Host run 41871981409 at b0ff26539172f34f9590916f1e77e8d02d4a1a45 fails in all three builds before runtime tests: Explorer retained-source serialisation expects CommandBindingRealm while the producer returns Arc<CommandBindingRealm> (serialise.rs:129, E0308). This run establishes no new browser/WASI/Native runtime result or lifecycle trace. Logs: `/tmp/lsp-ci-b0ff-job-126721330{423,490,785}.log`. Remote repair 33cf8caf26 is integrated: the consumer retains the same Arc and explicitly borrows its realm for the resolver. A new host run is required; the bridge source now selects the informational workflow on future changes.
+
+Core V13 builds successfully in 265.371 seconds, then refuses before all controls because its actual dep-info discovers a Tcl fixture absent from its parent-graph preseal: `experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl`. Its source overlay restores exactly. No Core control passed or failed in that run. A separate diagnostic on the same fresh ELF is being prepared with that input recorded as observed only after compilation; it cannot repair or pass the original custody result.
 
 The independently reviewed autoload transport repair is adopted: nested operand walks inherit only the exact parent deferred-autoload prefix inventory under the explicit source-advice purpose. It copies no ordinary effects, advice or execution receipt. The actual trace had shown a prefix captured in the first bracket missing from the second bracket’s fresh tape. New transport controls are unexecuted; the unchanged Browser positive can still be refused by the earlier channel callback uncertainty, which is a separate open obligation.
 

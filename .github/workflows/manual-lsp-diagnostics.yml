@@ -3,13 +3,15 @@ name: Manual LSP host diagnostics
 # Informational only. This neither replaces nor changes CI or release gates.
 on:
   # Bootstrap on work without default-branch workflow_dispatch registration.
-  # Ordinary Rust changes and status-only pushes do not select this workflow.
+  # Status-only pushes do not select this workflow; the explicit bridge path
+  # also checks the retained-source type shared by all three LSP hosts.
   push:
     branches: [work]
     paths:
       - .github/workflows/manual-lsp-diagnostics.yml
       - scripts/dev/manual-lsp-rpc-capture.cjs
       - scripts/dev/manual-native-lsp-responses.py
+      - rust/tcl-explorer/src/serialise.rs
   workflow_dispatch:
 
 permissions:

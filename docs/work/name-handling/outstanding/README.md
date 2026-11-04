@@ -16,3 +16,5 @@ Updated 04 November 2026, 16:58 UTC. **Not release-ready.** [Current state](../c
 Separate VM/BIG-IP features stay deferred; linked dependencies and oracle provenance remain critical.
 
 The fresh 21-control Compiler diagnostic builds successfully and is in progress. Its first three controls retain the Browser-cut failure and pass the namespace positive and mutation negatives. Final aggregate/restoration, Core retry and current host acceptance remain pending. See the timestamped current state for exact limits.
+
+At 17:24 UTC: Compiler diagnostic V3 completed 16/21 with five failures and restored overlays. Core V13 built successfully but ran zero controls after a new unsealed Tcl input was discovered; its overlay restored. Current host run b0ff failed all builds on the Explorer Arc mismatch, repaired upstream in 33cf8caf26 and integrated; no new host runtime result. Named binding and autoload prefix transport repairs are adopted but untested.
