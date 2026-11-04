@@ -1311,9 +1311,15 @@ mod tests {
             assert_eq!(full.len(), 1, "{source}");
             assert_eq!(full[0].input.bytes(), b"valid");
             assert_eq!(full[0].file, directory.join("valid.tcl"));
-            let fresh = survey_index_entries_from_source(&source, directory, config, policy)
-                .expect("mixed valid and authenticated invalid filename rows");
-            assert_eq!(records(&fresh), records(&full), "{source}");
+            assert!(
+                survey_index_entries_from_source(&source, directory, config, policy).is_none(),
+                "literal invalid rows retain the full fallback: {source}"
+            );
+            assert_eq!(
+                records(&survey_index_entries(&source, directory, config, policy)),
+                records(&full),
+                "{source}"
+            );
             let mixed = format!("{source}{unknown}");
             assert!(
                 survey_index_entries_from_source(&mixed, directory, config, policy).is_none(),
@@ -1338,6 +1344,51 @@ mod tests {
     }
 
     #[test]
+    fn filename_layout_activation_accepts_conditional_mixed_rows() {
+        let version = tcl_dialect::TclVersion::V8_4;
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
+        let policy = NamePolicyProtocol::authored_tcl(version);
+        let directory = Path::new("/library");
+        let valid = "set auto_index(valid) [list source valid.tcl]\n";
+        let invalid =
+            "set auto_index(invalid) [list source -encoding utf-8 [file join $dir invalid.tcl]]\n";
+        let records = |entries: &[OriginalAutoIndexRegistration]| {
+            entries
+                .iter()
+                .map(|entry| (entry.input.clone(), entry.file.clone()))
+                .collect::<Vec<_>>()
+        };
+        for (source, expected) in [
+            (format!("{valid}{invalid}"), 1),
+            (format!("{invalid}{valid}"), 0),
+        ] {
+            let full = survey_index_entries_with(
+                &source,
+                directory,
+                config,
+                policy,
+                crate::source_structure::analyse_autoload_registration_structure,
+            );
+            assert_eq!(full.len(), expected, "{source}");
+            if let Some(entry) = full.first() {
+                assert_eq!(entry.input.bytes(), b"valid");
+                assert_eq!(entry.file, directory.join("valid.tcl"));
+            }
+            // The later schema is absent after the original unresolved read;
+            // this compares consumer output, not runtime registration effects.
+            let fresh = survey_index_entries_from_source(&source, directory, config, policy)
+                .expect("Conditional invalid layout and later schema abstention");
+            assert_eq!(records(&fresh), records(&full), "{source}");
+            assert_eq!(
+                records(&survey_index_entries(&source, directory, config, policy)),
+                records(&full),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn filename_layout_activation_retains_unavailable_fallbacks() {
         let version = tcl_dialect::TclVersion::V8_5;
         let dialect = tcl_registry::InvocationDialect::for_version(version);
@@ -1350,9 +1401,7 @@ mod tests {
             "set auto_index(a) [list source $option utf-8 a.tcl]",
             "set auto_index(a) [list source -encoding utf-8 $missing]",
             "set auto_index(a) [list source {*}$unknown]",
-            "unavailable; set auto_index(a) [list source a.tcl]",
             "rename list saved; set auto_index(a) [list source a.tcl]",
-            "interp alias {} make {} list; set auto_index(a) [make source a.tcl]",
         ] {
             assert!(
                 survey_index_entries_from_source(source, directory, config, policy).is_none(),
@@ -1373,6 +1422,65 @@ mod tests {
                     .eq(full.iter().map(|entry| (&entry.input, &entry.file)))
             );
         }
+    }
+
+    #[test]
+    fn filename_layout_activation_separates_positive_filenames_and_negative_proofs() {
+        let directory = Path::new("/library");
+        let records = |entries: &[OriginalAutoIndexRegistration]| {
+            entries
+                .iter()
+                .map(|entry| (entry.input.clone(), entry.file.clone()))
+                .collect::<Vec<_>>()
+        };
+        let version = tcl_dialect::TclVersion::V8_5;
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
+        let policy = NamePolicyProtocol::authored_tcl(version);
+        for source in [
+            "unavailable; set auto_index(a) [list source a.tcl]",
+            "interp alias {} make {} list; set auto_index(a) [make source a.tcl]",
+        ] {
+            let full = survey_index_entries_with(
+                source,
+                directory,
+                config,
+                policy,
+                crate::source_structure::analyse_autoload_registration_structure,
+            );
+            let fresh = survey_index_entries_from_source(source, directory, config, policy)
+                .expect("unchanged ordinary positive filename extraction");
+            assert_eq!(full.len(), 1, "{source}");
+            assert_eq!(full[0].input.bytes(), b"a");
+            assert_eq!(full[0].file, directory.join("a.tcl"));
+            assert_eq!(records(&fresh), records(&full), "{source}");
+            assert_eq!(
+                records(&survey_index_entries(source, directory, config, policy)),
+                records(&full),
+                "{source}"
+            );
+        }
+        let version = tcl_dialect::TclVersion::V8_4;
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let config = LexerConfig::for_file_grammar(dialect.lexer_grammar);
+        let policy = NamePolicyProtocol::authored_tcl(version);
+        let source = "unavailable; set auto_index(a) [list source -encoding utf-8 a.tcl]";
+        assert!(
+            survey_index_entries_from_source(source, directory, config, policy).is_none(),
+            "the unknown command withdraws the negative proof"
+        );
+        let full = survey_index_entries_with(
+            source,
+            directory,
+            config,
+            policy,
+            crate::source_structure::analyse_autoload_registration_structure,
+        );
+        assert!(full.is_empty());
+        assert_eq!(
+            records(&survey_index_entries(source, directory, config, policy)),
+            records(&full)
+        );
     }
 
     #[test]
