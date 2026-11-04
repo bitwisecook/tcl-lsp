@@ -1,13 +1,13 @@
 {
-  "checked_at": "2026-11-04T06:15:57.594301+00:00",
+  "checked_at": "2026-11-04T06:20:57.641624+00:00",
   "branch": "work",
-  "head_before_status_commit": "a10bd687b8bccc3ce99cb959665fe339724aa15a",
-  "remote_head_at_fetch": "a10bd687b8bccc3ce99cb959665fe339724aa15a",
-  "sync": "no new remote commits",
+  "head_before_status_commit": "cef083de17afaabf88c7a19ff7a7bfda48bad8de",
+  "remote_head_at_fetch": "6e1713cc87156a8b7352a4b69a2a91515647de58",
+  "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "918c7e9c39f3cf3d0ff233161c22d5902334e45414c423c078fb936a4183aa87",
+  "manual_status_sha256": "98fa0c22d6609cb09db21dd67e5f01d3d44b8ae340a466c5edd5902b5e9e8db0",
   "working_tree_at_check": [],
   "ci_note": "This heartbeat does not poll or certify CI. Exact workflow sources and outcomes are recorded in the timestamped manual snapshot.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
