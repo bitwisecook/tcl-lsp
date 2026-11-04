@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
-| #2376 | Canonical completed-command consumer passes 6 focused units and 130 integration assertions for the called path. All 35 uncalled-procedure probes reproduce generic safe-guard false positives/coarse earlier spans with active unsafe controls. | Scoped repair; generic read-local residual open |
+| #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 7 focused units, including 14 guard cases. Original uncalled-procedure safe guards and later spans are corrected; unsafe controls remain active. | Functional fix published; independent Native-query baseline under review |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
@@ -31,6 +31,10 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #1778 | The reported distinct colon-edge commands preserve their original distinct output under C Tcl 8.6–9.1 optimisation. Additional lifetime and index consumers require verification. | Partial verification |
 | #1796 | ResolveContext selects exact frames, but UpvarInfo still collapses all beyond-caller distances. | Confirmed remaining foundation |
 | #2332 | Qualified and variable-linked substitution reads are impure with global effects; explicit set reads remain conservatively impure with unknown effects. | Verified baseline |
+
+The observations below are chronological history. The table above and the final
+read-local receipt describe the active #2376 snapshot; earlier uncompiled drafts
+and generic failures are retained for provenance, not current status.
 
 The first build required fresh dependency downloads (`sha2` 0.11.1 was absent
 from the cache). Network-enabled execution resolved the dependency limitation;
@@ -117,12 +121,12 @@ NaN behaviour is recorded per engine: truthy on Tcl 8.4/Jim, an error on Tcl
 8.5–9.1. The negative guards allow legitimate future precision instead of
 asserting that an unavailable result must stay unavailable.
 
-The existing binary walker computes short-circuit truth from its expression
+In the initial #2376 baseline, the binary walker computed short-circuit truth from its expression
 reader, which deliberately declines command nodes, even when the original
 left evaluation retained a completed command value. A possible repair would
 consume that actual value only for a direct command or logical negations of
 it, using the shared boolean-context and numeric-release owners. No such
-production edit has been made. The production baseline/regression driver is
+production edit had been made at that checkpoint. The production baseline/regression driver is
 prepared but remains uncompiled while #940/provider work has exclusive compiler
 priority. This checkpoint publishes native evidence and planned acceptance;
 it is not a product-fix or green-gate claim.
@@ -136,14 +140,14 @@ abrupt outcomes and fallback expression analysis intact. The production file
 is unchanged; the proposal is neither compiled nor claimed to fix the current
 report. Its iterative negation walk adds no parser or name interpretation.
 
-The #2376 current production observation completed all 115 case/profile rows;
+The archived initial #2376 production observation completed all 115 case/profile rows;
 see [`w210-short-circuit-baseline`](../rust/tcl-compiler/tests/data/w210-short-circuit-baseline/README.md).
 Source hashes matched across compilation/runtime, and genuine unsafe controls
 remain active. All retained final-Normal probes are unavailable; those Native
 completion refusals must remain intact. The consumer proposal is still
 unapplied at this baseline, and no product fix is claimed.
 
-The current unverified draft narrows the archived proposal to completed direct
+The then-unverified canonical draft narrowed the archived proposal to completed direct
 command results whose text is exactly `0` or `1`, without a retained numeric
 receipt, plus logical negations of that command. Other values retain the
 existing expression-reader fallback. This avoids deriving cached numeric truth
@@ -250,3 +254,12 @@ reproduce in the preserved pre-read-local canonical binary. Production Clippy
 is blocked by the unrelated retained-source cache type. Full gates remain
 pending. The verified guard fix is published under the authorised checkpoint
 exception; #2376 remains open while the coordinator reviews the baseline causes.
+
+The two query-owner baseline failures are now scoped by 48 bounded public API
+observations in
+[`w210-query-purpose-review`](../rust/tcl-compiler/tests/data/w210-query-purpose-review/README.md).
+The ordinary uncalled fresh-source path intentionally models a call after load;
+Native entry and complete-normal proofs remain absent. A genuinely Conditional
+factory-child fixture is under review while preserving the old negative
+assertions, real after-load positives and unknown-history refusal. No production
+source-purpose change has been made.
