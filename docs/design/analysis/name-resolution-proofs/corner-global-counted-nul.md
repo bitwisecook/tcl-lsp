@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 All six captures retain the observed name roster and FULL result; the binding purpose cannot be inferred from a rendered prefix.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=global-counted-nul.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for global-counted-nul; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-counted-nul.tcl`; SHA256 `9e45364947e50b790de25c813569dce03e6f2e0a28266acfec81fd46d4ddb9e0`. Exact 8.4.20 input for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-counted-nul.stdout`; SHA256 `4beba2ecd7bb18e6ffa4e08d102782db6f311776b169fb73cf6fc3609d5a6ca0`. Exact 8.4.20 stdout for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 global-counted-nul. JSON pointer `/rows/24`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-counted-nul.tcl`; SHA256 `9e45364947e50b790de25c813569dce03e6f2e0a28266acfec81fd46d4ddb9e0`. Exact 8.5.19 input for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-counted-nul.stdout`; SHA256 `4beba2ecd7bb18e6ffa4e08d102782db6f311776b169fb73cf6fc3609d5a6ca0`. Exact 8.5.19 stdout for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 global-counted-nul. JSON pointer `/rows/64`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-counted-nul.tcl`; SHA256 `9e45364947e50b790de25c813569dce03e6f2e0a28266acfec81fd46d4ddb9e0`. Exact 8.6.18 input for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-counted-nul.stdout`; SHA256 `4beba2ecd7bb18e6ffa4e08d102782db6f311776b169fb73cf6fc3609d5a6ca0`. Exact 8.6.18 stdout for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for global-counted-nul; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 global-counted-nul. JSON pointer `/rows/104`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-counted-nul.tcl`; SHA256 `9e45364947e50b790de25c813569dce03e6f2e0a28266acfec81fd46d4ddb9e0`. Exact 9.0.4 input for global-counted-nul; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-counted-nul.stdout`; SHA256 `4beba2ecd7bb18e6ffa4e08d102782db6f311776b169fb73cf6fc3609d5a6ca0`. Exact 9.0.4 stdout for global-counted-nul; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for global-counted-nul; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 global-counted-nul. JSON pointer `/rows/144`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-counted-nul.tcl`; SHA256 `9e45364947e50b790de25c813569dce03e6f2e0a28266acfec81fd46d4ddb9e0`. Exact 9.1.0 input for global-counted-nul; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-counted-nul.stdout`; SHA256 `4beba2ecd7bb18e6ffa4e08d102782db6f311776b169fb73cf6fc3609d5a6ca0`. Exact 9.1.0 stdout for global-counted-nul; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for global-counted-nul; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 global-counted-nul. JSON pointer `/rows/184`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-counted-nul.tcl`; SHA256 `9e45364947e50b790de25c813569dce03e6f2e0a28266acfec81fd46d4ddb9e0`. Exact Jim input for global-counted-nul; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-counted-nul.stdout`; SHA256 `4beba2ecd7bb18e6ffa4e08d102782db6f311776b169fb73cf6fc3609d5a6ca0`. Exact Jim stdout for global-counted-nul; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for global-counted-nul; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim global-counted-nul. JSON pointer `/rows/224`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=global-counted-nul.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for global-counted-nul; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-counted-nul.tcl`. Exact 8.4.20 input for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-counted-nul.stdout`. Exact 8.4.20 stdout for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-counted-nul.stderr`. Exact 8.4.20 stderr for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 global-counted-nul. JSON pointer `/rows/24`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-counted-nul.tcl`. Exact 8.5.19 input for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-counted-nul.stdout`. Exact 8.5.19 stdout for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-counted-nul.stderr`. Exact 8.5.19 stderr for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 global-counted-nul. JSON pointer `/rows/64`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-counted-nul.tcl`. Exact 8.6.18 input for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-counted-nul.stdout`. Exact 8.6.18 stdout for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-counted-nul.stderr`. Exact 8.6.18 stderr for global-counted-nul; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 global-counted-nul. JSON pointer `/rows/104`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-counted-nul.tcl`. Exact 9.0.4 input for global-counted-nul; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-counted-nul.stdout`. Exact 9.0.4 stdout for global-counted-nul; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-counted-nul.stderr`. Exact 9.0.4 stderr for global-counted-nul; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 global-counted-nul. JSON pointer `/rows/144`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-counted-nul.tcl`. Exact 9.1.0 input for global-counted-nul; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-counted-nul.stdout`. Exact 9.1.0 stdout for global-counted-nul; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-counted-nul.stderr`. Exact 9.1.0 stderr for global-counted-nul; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 global-counted-nul. JSON pointer `/rows/184`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-counted-nul.tcl`. Exact Jim input for global-counted-nul; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-counted-nul.stdout`. Exact Jim stdout for global-counted-nul; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-counted-nul.stderr`. Exact Jim stderr for global-counted-nul; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim global-counted-nul. JSON pointer `/rows/224`.
 
 ## Source anchors and implementation tests
 

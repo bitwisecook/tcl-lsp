@@ -65,8 +65,8 @@ One exact ASCII Jim script and captured result. Current-label Jim binary path is
 
 ## Exact retained evidence
 
-- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding-manifest.json` SHA256 `76c297ce53f034ee8f3eb0532f9b890af4881762e4167f80a8424ee6a342ac2b`: Exact original native provenance/captured observations.
-- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding.tcl` SHA256 `055390f310cdf80208da1b8b030b4c79166e0489957b074081dc36ca7e4b7367`: Retained exact script/case bytes for the stated question.
+- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding-manifest.json`: Exact original native provenance/captured observations.
+- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding.tcl`: Retained exact script/case bytes for the stated question.
 
 ## Replay
 

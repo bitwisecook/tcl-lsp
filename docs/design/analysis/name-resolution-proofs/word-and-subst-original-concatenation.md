@@ -32,31 +32,31 @@ The eight inputs are ordinary String `A`, Unicode units `0000 D800`, resident St
 
 The operations require independently selected purposes. C8.4 compiled concatenation can return an untouched Unicode first operand while subst materializes it. C8.5 subst preserves pure Unicode or binary input through its token append path, independently of compiled concatenation. C8.6 word and subst preserve a binary result, but subst materializes the Unicode-empty concatenation that compiled word evaluation returns unchanged. C9 both operations retain the observed binary and empty-operand reuse behavior. Original subst templates acquire SubstCode only on C8.6/C9; Jim word results and both template caches use its independent source/script types. The complete retained rows define the narrow result/cache/alias behavior, including changes caused by the first result getter before the second call.
 
-## Evidence
+## Historical references
 
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/probe.c`, SHA-256 `85591ce9af05c47fac5debaaec0187ca6b608bd151ba26bc26e440874fbea8a5`. Exact public C/Jim original object constructors, pre-getter snapshots and repeated entry.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/input.json`, SHA-256 `63c64b4dac844c4997b72ad6910c7c307f6cd445eaf81b29f6c1ab1f51b5491a`. Eight input kinds, exact source templates, operation modes and observation boundary.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/receipt.json`, SHA-256 `512c96256533cf4696408520361fde482762ed8a37826547834a6633685aab30`. Six actual compile/run receipts; exact input/library/header/executable and stream hashes.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/observations.tsv`, SHA-256 `9fa23d5c0f1ca09e0fee7a74be8165a34c513a255bd43c6e8b9c08dbf5c0b3e3`. Derived selected header/alias/result rows consumed by Rust tests; not a substitute for original stdout.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/replay.py`, SHA-256 `c433fc4b8ab7d72db74a43340a772185658805e91c323911147bd951b6fe634b`. Strict sequential native reconfirmation; startup, unavailable constructor controls and all rows compared.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/stdout.jsonl`, SHA-256 `fe74bf29bc7997432973b96ae8a3c0dce481467f9298967a3d1f082a11e516ce`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/receipt.json`, SHA-256 `31fbe2d46d6bdc036efc429477a3c37cc26ba5fc6ecfb01845dd2ec650f099cd`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/stderr`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/stdout.jsonl`, SHA-256 `b72c71fe6dc1ca04b6563907af36b3d42a4d45f8602b478ee2988b789e507f6a`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/receipt.json`, SHA-256 `35e2511ba418a8d790d03f9409e25dc467cbd17147e1d26bb3f635154757b185`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/stderr`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/stdout.jsonl`, SHA-256 `18c0c706c97e6547df4dd27edfdac97b8424bb9e8c0239e135b9066d4cade8b8`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/receipt.json`, SHA-256 `7c0de92ecea3899f1eccba716f09a067236966cbd9adcc39b43b11c2995a03f6`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/stderr`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/stdout.jsonl`, SHA-256 `549822c6c086bb51386c4347c204558dce6678f96546484eb7ba4087eb4a1c97`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/receipt.json`, SHA-256 `211a98ebf652f81e854e79daac5726c6c6ed1d50b36baec19f6556765b90f8c2`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/stderr`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/stdout.jsonl`, SHA-256 `a86009fdc25a37ed30590cf1ec0a85f2da85c5e6f0def897efe07034a174572d`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/receipt.json`, SHA-256 `59e55d4cb29cb8715f259f67b944d579909555e9fdd4fc8cd371d11421142ff4`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/stderr`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/stdout.jsonl`, SHA-256 `6b9d1893527a1fb1a238dc0bfef2d2da362849e49443b3ccd81d6ce52a533410`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/receipt.json`, SHA-256 `a891ff0dcbd2aba0eb70c55485ea051b6a822d5fdafb0c9be34adb3f1d85bc92`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/stderr`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Empty stderr for the completed native program.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/probe.c`. Exact public C/Jim original object constructors, pre-getter snapshots and repeated entry.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/input.json`. Eight input kinds, exact source templates, operation modes and observation boundary.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/receipt.json`. Six actual compile/run receipts; exact input/library/header/executable and stream hashes.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/observations.tsv`. Derived selected header/alias/result rows consumed by Rust tests; not a substitute for original stdout.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/replay.py`. Strict sequential native reconfirmation; startup, unavailable constructor controls and all rows compared.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/stderr`. Empty stderr for the completed native program.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/stderr`. Empty stderr for the completed native program.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/stderr`. Empty stderr for the completed native program.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/stderr`. Empty stderr for the completed native program.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/stderr`. Empty stderr for the completed native program.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
+- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/stderr`. Empty stderr for the completed native program.
 
 ## Source anchors
 

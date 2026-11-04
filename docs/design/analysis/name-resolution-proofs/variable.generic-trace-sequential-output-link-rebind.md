@@ -18,7 +18,7 @@ sequential-output-link-rebind: host exit 0, stdout "1 636f756c646e27742073657420
 
 modern-sequential-output-link-rebind: host exit 0, stdout "0 32203720392039\n", stderr ""
 
-Version: 8.4.20. Build: Original executable SHA256 04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.4.20. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.5 — observed
 
@@ -26,7 +26,7 @@ sequential-output-link-rebind: host exit 0, stdout "1 636f756c646e27742073657420
 
 modern-sequential-output-link-rebind: host exit 0, stdout "0 32203720392039\n", stderr ""
 
-Version: 8.5.19. Build: Original executable SHA256 46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.5.19. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.6 — observed
 
@@ -34,7 +34,7 @@ sequential-output-link-rebind: host exit 0, stdout "1 63616e27742073657420226669
 
 modern-sequential-output-link-rebind: host exit 0, stdout "0 32203720392039\n", stderr ""
 
-Version: 8.6.18. Build: Original executable SHA256 b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.6.18. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.0 — observed
 
@@ -42,7 +42,7 @@ sequential-output-link-rebind: host exit 0, stdout "1 626164206f7074696f6e202276
 
 modern-sequential-output-link-rebind: host exit 0, stdout "0 32203720392039\n", stderr ""
 
-Version: 9.0.4. Build: Original executable SHA256 647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.0.4. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.1 — observed
 
@@ -50,7 +50,7 @@ sequential-output-link-rebind: host exit 0, stdout "1 626164206f7074696f6e202276
 
 modern-sequential-output-link-rebind: host exit 0, stdout "0 32203720392039\n", stderr ""
 
-Version: 9.1.0. Build: Original executable SHA256 baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.1.0. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### jim — observed
 
@@ -58,7 +58,7 @@ sequential-output-link-rebind: host exit 0, stdout "1 696e76616c696420636f6d6d61
 
 modern-sequential-output-link-rebind: host exit 0, stdout "1 696e76616c696420636f6d6d616e64206e616d652022747261636522\n", stderr ""
 
-Version: 0.84-9-g5bac7c9. Build: Original executable SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0. Input channel: ASCII source through recorded shell stdin character input.
+Version: 0.84-9-g5bac7c9. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### bigip — not-tested
 
@@ -75,51 +75,51 @@ The retained transcripts answer only a later scan destination link rebound by an
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json` SHA256 `924a48d1882e93b9f527b7b248ce838d5a5508611e6192cba390a0c91668a71f`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout` SHA256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl` SHA256 `7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7`: Exact original sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-sequential-output-link-rebind.stdout` SHA256 `fe8cb0d1d5138874817e8f4e48a0e8e23c2fa8015f60326fd5a00431d38d3ab2`: tcl8.4 sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl` SHA256 `e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-sequential-output-link-rebind.stdout` SHA256 `aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d`: tcl8.4 modern-sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 modern-sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout` SHA256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl` SHA256 `7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7`: Exact original sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-sequential-output-link-rebind.stdout` SHA256 `fe8cb0d1d5138874817e8f4e48a0e8e23c2fa8015f60326fd5a00431d38d3ab2`: tcl8.5 sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl` SHA256 `e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-sequential-output-link-rebind.stdout` SHA256 `aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d`: tcl8.5 modern-sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 modern-sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout` SHA256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl` SHA256 `7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7`: Exact original sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-sequential-output-link-rebind.stdout` SHA256 `4abd84a872d5f739dc2ca48f5c209283714a5108f50142a3fc2d244d3fba8459`: tcl8.6 sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl` SHA256 `e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-sequential-output-link-rebind.stdout` SHA256 `aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d`: tcl8.6 modern-sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 modern-sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout` SHA256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl` SHA256 `7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7`: Exact original sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-sequential-output-link-rebind.stdout` SHA256 `7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad`: tcl9.0 sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl` SHA256 `e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-sequential-output-link-rebind.stdout` SHA256 `aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d`: tcl9.0 modern-sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 modern-sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout` SHA256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl` SHA256 `7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7`: Exact original sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-sequential-output-link-rebind.stdout` SHA256 `7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad`: tcl9.1 sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl` SHA256 `e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-sequential-output-link-rebind.stdout` SHA256 `aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d`: tcl9.1 modern-sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 modern-sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout` SHA256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl` SHA256 `7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7`: Exact original sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-sequential-output-link-rebind.stdout` SHA256 `8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec`: jim sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim sequential-output-link-rebind original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl` SHA256 `e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-sequential-output-link-rebind.stdout` SHA256 `8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec`: jim modern-sequential-output-link-rebind original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-sequential-output-link-rebind.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim modern-sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl`: Exact original sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-sequential-output-link-rebind.stdout`: tcl8.4 sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-sequential-output-link-rebind.stderr`: tcl8.4 sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-sequential-output-link-rebind.stdout`: tcl8.4 modern-sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-sequential-output-link-rebind.stderr`: tcl8.4 modern-sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl`: Exact original sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-sequential-output-link-rebind.stdout`: tcl8.5 sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-sequential-output-link-rebind.stderr`: tcl8.5 sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-sequential-output-link-rebind.stdout`: tcl8.5 modern-sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-sequential-output-link-rebind.stderr`: tcl8.5 modern-sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl`: Exact original sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-sequential-output-link-rebind.stdout`: tcl8.6 sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-sequential-output-link-rebind.stderr`: tcl8.6 sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-sequential-output-link-rebind.stdout`: tcl8.6 modern-sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-sequential-output-link-rebind.stderr`: tcl8.6 modern-sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl`: Exact original sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-sequential-output-link-rebind.stdout`: tcl9.0 sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-sequential-output-link-rebind.stderr`: tcl9.0 sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-sequential-output-link-rebind.stdout`: tcl9.0 modern-sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-sequential-output-link-rebind.stderr`: tcl9.0 modern-sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl`: Exact original sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-sequential-output-link-rebind.stdout`: tcl9.1 sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-sequential-output-link-rebind.stderr`: tcl9.1 sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-sequential-output-link-rebind.stdout`: tcl9.1 modern-sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-sequential-output-link-rebind.stderr`: tcl9.1 modern-sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-sequential-output-link-rebind.tcl`: Exact original sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-sequential-output-link-rebind.stdout`: jim sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-sequential-output-link-rebind.stderr`: jim sequential-output-link-rebind original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-sequential-output-link-rebind.tcl`: Exact original modern-sequential-output-link-rebind script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-sequential-output-link-rebind.stdout`: jim modern-sequential-output-link-rebind original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-sequential-output-link-rebind.stderr`: jim modern-sequential-output-link-rebind original stderr
 
 ## Replay
 

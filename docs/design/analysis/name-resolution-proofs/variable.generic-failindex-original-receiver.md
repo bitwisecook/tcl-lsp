@@ -24,7 +24,7 @@ failindex-binary_nul: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
 failindex-decomposed: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
-Version: 8.4.20. Build: Original executable SHA256 04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.4.20. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.5 — observed
 
@@ -38,7 +38,7 @@ failindex-binary_nul: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
 failindex-decomposed: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
-Version: 8.5.19. Build: Original executable SHA256 46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.5.19. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.6 — observed
 
@@ -52,7 +52,7 @@ failindex-binary_nul: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
 failindex-decomposed: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
-Version: 8.6.18. Build: Original executable SHA256 b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.6.18. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.0 — observed
 
@@ -66,7 +66,7 @@ failindex-binary_nul: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
 failindex-decomposed: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
-Version: 9.0.4. Build: Original executable SHA256 647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.0.4. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.1 — observed
 
@@ -80,7 +80,7 @@ failindex-binary_nul: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
 failindex-decomposed: host exit 0, stdout "0 30 1 0 31\n", stderr ""
 
-Version: 9.1.0. Build: Original executable SHA256 baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.1.0. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### jim — observed
 
@@ -94,7 +94,7 @@ failindex-binary_nul: host exit 0, stdout "1 77726f6e67202320617267733a2073686f7
 
 failindex-decomposed: host exit 0, stdout "1 77726f6e67202320617267733a2073686f756c642062652022737472696e6720697320636c617373203f2d7374726963743f2073747222 0 1 63616e27742072656164202265cc81223a206e6f2073756368207661726961626c65\n", stderr ""
 
-Version: 0.84-9-g5bac7c9. Build: Original executable SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0. Input channel: ASCII source through recorded shell stdin character input.
+Version: 0.84-9-g5bac7c9. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### bigip — not-tested
 
@@ -111,105 +111,105 @@ The thirty retained case/provider outcomes establish only this handler's observe
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json` SHA256 `006ec7738ee80823494d468a57f8187130e71181e2d4170568f67cb0dba7d36d`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout` SHA256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl` SHA256 `b35b38717cb872d90ebdf29a1a68f4a240be936e5af726dacd666aa14d91e59b`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-plain.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.4 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl` SHA256 `34c9b95252ca7bbf2eb46c57f80617276758133f4ae6133b1ae2b1444963a443`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-qualified.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.4 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl` SHA256 `6fd5a53e6a1af14de525b85625aa791d2290bac2627cecdee137a1086defbb7f`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-index.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.4 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl` SHA256 `17d45a0f40d70babfb855c9cb6d5d6aa50b11e1f93a887bc73cf7f0942cb9e52`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-binary_nul.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.4 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl` SHA256 `21014ad4ec05d58057bb6a7b2a23830489a34e2b1c790ba757f063c3d7ab069b`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-decomposed.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.4 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout` SHA256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl` SHA256 `b35b38717cb872d90ebdf29a1a68f4a240be936e5af726dacd666aa14d91e59b`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-plain.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.5 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl` SHA256 `34c9b95252ca7bbf2eb46c57f80617276758133f4ae6133b1ae2b1444963a443`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-qualified.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.5 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl` SHA256 `6fd5a53e6a1af14de525b85625aa791d2290bac2627cecdee137a1086defbb7f`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-index.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.5 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl` SHA256 `17d45a0f40d70babfb855c9cb6d5d6aa50b11e1f93a887bc73cf7f0942cb9e52`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-binary_nul.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.5 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl` SHA256 `21014ad4ec05d58057bb6a7b2a23830489a34e2b1c790ba757f063c3d7ab069b`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-decomposed.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.5 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout` SHA256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl` SHA256 `b35b38717cb872d90ebdf29a1a68f4a240be936e5af726dacd666aa14d91e59b`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-plain.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.6 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl` SHA256 `34c9b95252ca7bbf2eb46c57f80617276758133f4ae6133b1ae2b1444963a443`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-qualified.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.6 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl` SHA256 `6fd5a53e6a1af14de525b85625aa791d2290bac2627cecdee137a1086defbb7f`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-index.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.6 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl` SHA256 `17d45a0f40d70babfb855c9cb6d5d6aa50b11e1f93a887bc73cf7f0942cb9e52`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-binary_nul.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.6 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl` SHA256 `21014ad4ec05d58057bb6a7b2a23830489a34e2b1c790ba757f063c3d7ab069b`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-decomposed.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl8.6 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout` SHA256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl` SHA256 `b35b38717cb872d90ebdf29a1a68f4a240be936e5af726dacd666aa14d91e59b`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-plain.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.0 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl` SHA256 `34c9b95252ca7bbf2eb46c57f80617276758133f4ae6133b1ae2b1444963a443`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-qualified.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.0 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl` SHA256 `6fd5a53e6a1af14de525b85625aa791d2290bac2627cecdee137a1086defbb7f`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-index.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.0 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl` SHA256 `17d45a0f40d70babfb855c9cb6d5d6aa50b11e1f93a887bc73cf7f0942cb9e52`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-binary_nul.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.0 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl` SHA256 `21014ad4ec05d58057bb6a7b2a23830489a34e2b1c790ba757f063c3d7ab069b`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-decomposed.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.0 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout` SHA256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl` SHA256 `b35b38717cb872d90ebdf29a1a68f4a240be936e5af726dacd666aa14d91e59b`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-plain.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.1 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl` SHA256 `34c9b95252ca7bbf2eb46c57f80617276758133f4ae6133b1ae2b1444963a443`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-qualified.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.1 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl` SHA256 `6fd5a53e6a1af14de525b85625aa791d2290bac2627cecdee137a1086defbb7f`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-index.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.1 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl` SHA256 `17d45a0f40d70babfb855c9cb6d5d6aa50b11e1f93a887bc73cf7f0942cb9e52`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-binary_nul.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.1 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl` SHA256 `21014ad4ec05d58057bb6a7b2a23830489a34e2b1c790ba757f063c3d7ab069b`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-decomposed.stdout` SHA256 `9eb60d18537e2cb403ce516612b08e6f2100e65b8c7e56452c1c0ef3b274c06a`: tcl9.1 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout` SHA256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl` SHA256 `b35b38717cb872d90ebdf29a1a68f4a240be936e5af726dacd666aa14d91e59b`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-plain.stdout` SHA256 `bf71815c9710bb21713b4c1073728d00f8718eaf0daf2d09f4f5ccdb02f90931`: jim failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl` SHA256 `34c9b95252ca7bbf2eb46c57f80617276758133f4ae6133b1ae2b1444963a443`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-qualified.stdout` SHA256 `af87e97549bd84f7260895b692ecd1ced08ad3071fc5464c0a473b4dc3997328`: jim failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl` SHA256 `6fd5a53e6a1af14de525b85625aa791d2290bac2627cecdee137a1086defbb7f`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-index.stdout` SHA256 `d38d6c3f295f6d10a06537535d9419496210295e562d2d64bce3ec53b994e4eb`: jim failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl` SHA256 `17d45a0f40d70babfb855c9cb6d5d6aa50b11e1f93a887bc73cf7f0942cb9e52`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-binary_nul.stdout` SHA256 `5f6df575f33ebe1b8d1c6d05b47fd92315984fa00801b1e99467bd2c083da3f1`: jim failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl` SHA256 `21014ad4ec05d58057bb6a7b2a23830489a34e2b1c790ba757f063c3d7ab069b`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-decomposed.stdout` SHA256 `7ed0158110ae37dc548d9d4dd7d7d0f93213a28f45521db3bb2d860316bf45ed`: jim failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim failindex-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-plain.stdout`: tcl8.4 failindex-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-plain.stderr`: tcl8.4 failindex-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-qualified.stdout`: tcl8.4 failindex-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-qualified.stderr`: tcl8.4 failindex-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-index.stdout`: tcl8.4 failindex-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-index.stderr`: tcl8.4 failindex-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-binary_nul.stdout`: tcl8.4 failindex-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-binary_nul.stderr`: tcl8.4 failindex-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-decomposed.stdout`: tcl8.4 failindex-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-decomposed.stderr`: tcl8.4 failindex-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-plain.stdout`: tcl8.5 failindex-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-plain.stderr`: tcl8.5 failindex-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-qualified.stdout`: tcl8.5 failindex-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-qualified.stderr`: tcl8.5 failindex-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-index.stdout`: tcl8.5 failindex-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-index.stderr`: tcl8.5 failindex-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-binary_nul.stdout`: tcl8.5 failindex-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-binary_nul.stderr`: tcl8.5 failindex-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-decomposed.stdout`: tcl8.5 failindex-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-decomposed.stderr`: tcl8.5 failindex-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-plain.stdout`: tcl8.6 failindex-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-plain.stderr`: tcl8.6 failindex-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-qualified.stdout`: tcl8.6 failindex-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-qualified.stderr`: tcl8.6 failindex-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-index.stdout`: tcl8.6 failindex-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-index.stderr`: tcl8.6 failindex-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-binary_nul.stdout`: tcl8.6 failindex-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-binary_nul.stderr`: tcl8.6 failindex-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-decomposed.stdout`: tcl8.6 failindex-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-decomposed.stderr`: tcl8.6 failindex-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-plain.stdout`: tcl9.0 failindex-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-plain.stderr`: tcl9.0 failindex-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-qualified.stdout`: tcl9.0 failindex-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-qualified.stderr`: tcl9.0 failindex-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-index.stdout`: tcl9.0 failindex-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-index.stderr`: tcl9.0 failindex-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-binary_nul.stdout`: tcl9.0 failindex-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-binary_nul.stderr`: tcl9.0 failindex-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-decomposed.stdout`: tcl9.0 failindex-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-decomposed.stderr`: tcl9.0 failindex-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-plain.stdout`: tcl9.1 failindex-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-plain.stderr`: tcl9.1 failindex-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-qualified.stdout`: tcl9.1 failindex-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-qualified.stderr`: tcl9.1 failindex-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-index.stdout`: tcl9.1 failindex-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-index.stderr`: tcl9.1 failindex-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-binary_nul.stdout`: tcl9.1 failindex-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-binary_nul.stderr`: tcl9.1 failindex-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-decomposed.stdout`: tcl9.1 failindex-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-decomposed.stderr`: tcl9.1 failindex-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-plain.stdout`: jim failindex-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-plain.stderr`: jim failindex-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-qualified.stdout`: jim failindex-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-qualified.stderr`: jim failindex-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-index.stdout`: jim failindex-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-index.stderr`: jim failindex-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-binary_nul.stdout`: jim failindex-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-binary_nul.stderr`: jim failindex-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-decomposed.stdout`: jim failindex-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-decomposed.stderr`: jim failindex-decomposed original stderr
 
 ## Replay
 

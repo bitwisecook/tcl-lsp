@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 The C programs report the full ::n-NUL-tail current name; Jim reports ::n. This establishes only the format-produced namespace operand and its report, without a raw source00 or physical allocation claim.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=namespace-counted-nul.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for namespace-counted-nul; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-counted-nul.tcl`; SHA256 `6625c63f24c6466e9ce2bcfa4c70f70ea3ec121bdee2b51787f167239c50b625`. Exact 8.4.20 input for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-counted-nul.stdout`; SHA256 `cf3315b9d63a42d7d0249a9a919a16feef99582eeaba594669ac26723d88b7cf`. Exact 8.4.20 stdout for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 namespace-counted-nul. JSON pointer `/rows/5`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-counted-nul.tcl`; SHA256 `6625c63f24c6466e9ce2bcfa4c70f70ea3ec121bdee2b51787f167239c50b625`. Exact 8.5.19 input for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-counted-nul.stdout`; SHA256 `cf3315b9d63a42d7d0249a9a919a16feef99582eeaba594669ac26723d88b7cf`. Exact 8.5.19 stdout for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 namespace-counted-nul. JSON pointer `/rows/45`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-counted-nul.tcl`; SHA256 `6625c63f24c6466e9ce2bcfa4c70f70ea3ec121bdee2b51787f167239c50b625`. Exact 8.6.18 input for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-counted-nul.stdout`; SHA256 `cf3315b9d63a42d7d0249a9a919a16feef99582eeaba594669ac26723d88b7cf`. Exact 8.6.18 stdout for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 namespace-counted-nul. JSON pointer `/rows/85`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-counted-nul.tcl`; SHA256 `6625c63f24c6466e9ce2bcfa4c70f70ea3ec121bdee2b51787f167239c50b625`. Exact 9.0.4 input for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-counted-nul.stdout`; SHA256 `cf3315b9d63a42d7d0249a9a919a16feef99582eeaba594669ac26723d88b7cf`. Exact 9.0.4 stdout for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 namespace-counted-nul. JSON pointer `/rows/125`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-counted-nul.tcl`; SHA256 `6625c63f24c6466e9ce2bcfa4c70f70ea3ec121bdee2b51787f167239c50b625`. Exact 9.1.0 input for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-counted-nul.stdout`; SHA256 `cf3315b9d63a42d7d0249a9a919a16feef99582eeaba594669ac26723d88b7cf`. Exact 9.1.0 stdout for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for namespace-counted-nul; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 namespace-counted-nul. JSON pointer `/rows/165`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-counted-nul.tcl`; SHA256 `6625c63f24c6466e9ce2bcfa4c70f70ea3ec121bdee2b51787f167239c50b625`. Exact Jim input for namespace-counted-nul; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-counted-nul.stdout`; SHA256 `9076a874c91be22d94537588069b7a70ed7c8fb4c1148a1fd4433dd25441a0df`. Exact Jim stdout for namespace-counted-nul; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-counted-nul.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for namespace-counted-nul; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim namespace-counted-nul. JSON pointer `/rows/205`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=namespace-counted-nul.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for namespace-counted-nul; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-counted-nul.tcl`. Exact 8.4.20 input for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-counted-nul.stdout`. Exact 8.4.20 stdout for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-counted-nul.stderr`. Exact 8.4.20 stderr for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 namespace-counted-nul. JSON pointer `/rows/5`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-counted-nul.tcl`. Exact 8.5.19 input for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-counted-nul.stdout`. Exact 8.5.19 stdout for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-counted-nul.stderr`. Exact 8.5.19 stderr for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 namespace-counted-nul. JSON pointer `/rows/45`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-counted-nul.tcl`. Exact 8.6.18 input for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-counted-nul.stdout`. Exact 8.6.18 stdout for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-counted-nul.stderr`. Exact 8.6.18 stderr for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 namespace-counted-nul. JSON pointer `/rows/85`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-counted-nul.tcl`. Exact 9.0.4 input for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-counted-nul.stdout`. Exact 9.0.4 stdout for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-counted-nul.stderr`. Exact 9.0.4 stderr for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 namespace-counted-nul. JSON pointer `/rows/125`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-counted-nul.tcl`. Exact 9.1.0 input for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-counted-nul.stdout`. Exact 9.1.0 stdout for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-counted-nul.stderr`. Exact 9.1.0 stderr for namespace-counted-nul; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 namespace-counted-nul. JSON pointer `/rows/165`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-counted-nul.tcl`. Exact Jim input for namespace-counted-nul; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-counted-nul.stdout`. Exact Jim stdout for namespace-counted-nul; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-counted-nul.stderr`. Exact Jim stderr for namespace-counted-nul; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim namespace-counted-nul. JSON pointer `/rows/205`.
 
 ## Source anchors and implementation tests
 

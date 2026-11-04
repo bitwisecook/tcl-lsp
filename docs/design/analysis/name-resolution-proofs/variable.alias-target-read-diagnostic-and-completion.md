@@ -95,14 +95,14 @@ Six retained ASCII programs encoded in cases.tsv, observed original catch-code/r
 
 ## Exact retained evidence
 
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/provenance.json` SHA256 `0a47b4d99f3909b44f6f2e15369503d080b156882cef6329b416bd7268c6ca3d`: Exact original native provenance/captured observations.
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/cases.tsv` SHA256 `07d5db5df01e9cc19e9cad4bce857ce86785cc26b39c37092914fbc083d167d8`: Retained exact script/case bytes for the stated question.
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/8.4.tsv` SHA256 `45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853`: Six original case/catch-code/result-hex rows.
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/8.5.tsv` SHA256 `45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853`: Six original case/catch-code/result-hex rows.
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/8.6.tsv` SHA256 `45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853`: Six original case/catch-code/result-hex rows.
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/9.0.tsv` SHA256 `45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853`: Six original case/catch-code/result-hex rows.
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/9.1.tsv` SHA256 `45910703c3589f87effa362228f718d878e67d284fbadf9052dc5f0a417cc853`: Six original case/catch-code/result-hex rows.
-- `rust/tcl-syntax/tests/data/native_jim_alias_read/jim.tsv` SHA256 `a69562c38f9b4a7a129f1e984225421ee3ed9438faa7af9e3a3da0cb508d9104`: Six original case/catch-code/result-hex rows.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/provenance.json`: Exact original native provenance/captured observations.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/cases.tsv`: Retained exact script/case bytes for the stated question.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/8.4.tsv`: Six original case/catch-code/result-hex rows.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/8.5.tsv`: Six original case/catch-code/result-hex rows.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/8.6.tsv`: Six original case/catch-code/result-hex rows.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/9.0.tsv`: Six original case/catch-code/result-hex rows.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/9.1.tsv`: Six original case/catch-code/result-hex rows.
+- `rust/tcl-syntax/tests/data/native_jim_alias_read/jim.tsv`: Six original case/catch-code/result-hex rows.
 
 ## Exact input cases
 

@@ -105,10 +105,10 @@ All five captured C providers present v for all four declarations. Jim presents 
 
 Four exact ASCII script cases, native shell evaluation, five C release labels plus current-label Jim and original executable SHA. Exact patches/Jim revision were not queried in this manifest. BIG-IP not queried. No bytezero or character-channel translation claim is made.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-syntax/tests/data/native_alias_names/provenance.json` SHA256 `24b117cfdef3258d7ff3d7c1ca7fd1beb87ea91f0111c3dc3108444344da25f6`: Original six executable hashes/status/stdout/stderr and declared source hash.
-- `rust/tcl-syntax/tests/data/native_alias_names/probe.tcl` SHA256 `ff62a137fadf12739f470970731c2d17ff0b3195b44cb4fcc628aeae9ad6a841`: Exact namespace setup and four caught declaration/info-vars scripts.
+- `rust/tcl-syntax/tests/data/native_alias_names/provenance.json`: Original six executable hashes/status/stdout/stderr and declared source hash.
+- `rust/tcl-syntax/tests/data/native_alias_names/probe.tcl`: Exact namespace setup and four caught declaration/info-vars scripts.
 
 ## Replay
 

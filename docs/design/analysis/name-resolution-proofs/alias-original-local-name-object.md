@@ -32,14 +32,14 @@ All five captures retain the List primary for both one-element List local names,
 
 ## Historical references
 
-- `runtime/rust/tests/data/native_alias_simple/manifest.json`, SHA-256 `abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
-- `runtime/rust/tests/data/native_alias_simple/probe.c`, SHA-256 `2c9da4659bc2e41dfba6d921e38f5257d9d79b883d64133cebba48308e2aa51d`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
-- `runtime/rust/tests/data/native_alias_simple/8.4.20.txt`, SHA-256 `5401dc32778ae8571e0214543ff14f749a1b52765311003e310f0adc98d64201`: Exact recorded output for C Tcl 8.4.20
-- `runtime/rust/tests/data/native_alias_simple/8.5.19.txt`, SHA-256 `bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431`: Exact recorded output for C Tcl 8.5.19
-- `runtime/rust/tests/data/native_alias_simple/8.6.18.txt`, SHA-256 `bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431`: Exact recorded output for C Tcl 8.6.18
-- `runtime/rust/tests/data/native_alias_simple/9.0.4.txt`, SHA-256 `bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431`: Exact recorded output for C Tcl 9.0.4
-- `runtime/rust/tests/data/native_alias_simple/9.1.0.txt`, SHA-256 `bc54852fafc4f0e9aa8d02476310d7588240cac69b5fe57cae59d4671b956431`: Exact recorded output for C Tcl 9.1.0
-- `rust/tcl-vm/tests/data/native_alias_simple/manifest.json`, SHA-256 `abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef`: Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred.
+- `runtime/rust/tests/data/native_alias_simple/manifest.json`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
+- `runtime/rust/tests/data/native_alias_simple/probe.c`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
+- `runtime/rust/tests/data/native_alias_simple/8.4.20.txt`: Exact recorded output for C Tcl 8.4.20
+- `runtime/rust/tests/data/native_alias_simple/8.5.19.txt`: Exact recorded output for C Tcl 8.5.19
+- `runtime/rust/tests/data/native_alias_simple/8.6.18.txt`: Exact recorded output for C Tcl 8.6.18
+- `runtime/rust/tests/data/native_alias_simple/9.0.4.txt`: Exact recorded output for C Tcl 9.0.4
+- `runtime/rust/tests/data/native_alias_simple/9.1.0.txt`: Exact recorded output for C Tcl 9.1.0
+- `rust/tcl-vm/tests/data/native_alias_simple/manifest.json`: Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred.
 
 ## Rust comparisons
 

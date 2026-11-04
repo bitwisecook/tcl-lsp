@@ -47,9 +47,9 @@ Exact retained ASCII script, root interpreter followed by procedure call; six re
 
 ## Exact retained evidence
 
-- `manifest`: [runtime/rust/tests/data/native_variable_qualified_target/manifest.json](../../../../runtime/rust/tests/data/native_variable_qualified_target/manifest.json), SHA-256 `53213213bea83777482bbfba77b37dd94637bf39a4823fd1bf720742759f003f`. Original operation list and per-engine complete stdout/status/hash.
+- `manifest`: [runtime/rust/tests/data/native_variable_qualified_target/manifest.json](../../../../runtime/rust/tests/data/native_variable_qualified_target/manifest.json). Original operation list and per-engine complete stdout/status/hash.
 
-- `source`: [runtime/rust/tests/data/native_variable_qualified_target/source.tcl](../../../../runtime/rust/tests/data/native_variable_qualified_target/source.tcl), SHA-256 `bc561b15c41a8f5f37842e84711d42edbfbbd7637bb21c781f92135da0ca84ac`. Exact declared source operations in one interpreter.
+- `source`: [runtime/rust/tests/data/native_variable_qualified_target/source.tcl](../../../../runtime/rust/tests/data/native_variable_qualified_target/source.tcl). Exact declared source operations in one interpreter.
 
 
 ## Replay

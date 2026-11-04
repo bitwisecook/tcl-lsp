@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 All six call EDGE; each provider retains its own enumerated name bytes rather than a shared rendered QName.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=procedure-colon-tail.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for procedure-colon-tail; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-colon-tail.tcl`; SHA256 `274cb148d4231a99f84e50b3b4a3ef8156239c6c257648d7daf1623a726a1779`. Exact 8.4.20 input for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-colon-tail.stdout`; SHA256 `01357d088e96a150991d7d4e8fba62fd8381cb97561da66ed112035942582c90`. Exact 8.4.20 stdout for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-colon-tail.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 procedure-colon-tail. JSON pointer `/rows/8`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-colon-tail.tcl`; SHA256 `274cb148d4231a99f84e50b3b4a3ef8156239c6c257648d7daf1623a726a1779`. Exact 8.5.19 input for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-colon-tail.stdout`; SHA256 `01357d088e96a150991d7d4e8fba62fd8381cb97561da66ed112035942582c90`. Exact 8.5.19 stdout for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-colon-tail.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 procedure-colon-tail. JSON pointer `/rows/48`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-colon-tail.tcl`; SHA256 `274cb148d4231a99f84e50b3b4a3ef8156239c6c257648d7daf1623a726a1779`. Exact 8.6.18 input for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-colon-tail.stdout`; SHA256 `01357d088e96a150991d7d4e8fba62fd8381cb97561da66ed112035942582c90`. Exact 8.6.18 stdout for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-colon-tail.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 procedure-colon-tail. JSON pointer `/rows/88`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-colon-tail.tcl`; SHA256 `274cb148d4231a99f84e50b3b4a3ef8156239c6c257648d7daf1623a726a1779`. Exact 9.0.4 input for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-colon-tail.stdout`; SHA256 `01357d088e96a150991d7d4e8fba62fd8381cb97561da66ed112035942582c90`. Exact 9.0.4 stdout for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-colon-tail.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 procedure-colon-tail. JSON pointer `/rows/128`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-colon-tail.tcl`; SHA256 `274cb148d4231a99f84e50b3b4a3ef8156239c6c257648d7daf1623a726a1779`. Exact 9.1.0 input for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-colon-tail.stdout`; SHA256 `01357d088e96a150991d7d4e8fba62fd8381cb97561da66ed112035942582c90`. Exact 9.1.0 stdout for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-colon-tail.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for procedure-colon-tail; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 procedure-colon-tail. JSON pointer `/rows/168`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-colon-tail.tcl`; SHA256 `274cb148d4231a99f84e50b3b4a3ef8156239c6c257648d7daf1623a726a1779`. Exact Jim input for procedure-colon-tail; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-colon-tail.stdout`; SHA256 `ffe30f48d08284fc9948c55ec82397b7973fa67810eca941f25a4958407f0bce`. Exact Jim stdout for procedure-colon-tail; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-colon-tail.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for procedure-colon-tail; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim procedure-colon-tail. JSON pointer `/rows/208`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=procedure-colon-tail.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for procedure-colon-tail; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-colon-tail.tcl`. Exact 8.4.20 input for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-colon-tail.stdout`. Exact 8.4.20 stdout for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-colon-tail.stderr`. Exact 8.4.20 stderr for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 procedure-colon-tail. JSON pointer `/rows/8`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-colon-tail.tcl`. Exact 8.5.19 input for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-colon-tail.stdout`. Exact 8.5.19 stdout for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-colon-tail.stderr`. Exact 8.5.19 stderr for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 procedure-colon-tail. JSON pointer `/rows/48`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-colon-tail.tcl`. Exact 8.6.18 input for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-colon-tail.stdout`. Exact 8.6.18 stdout for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-colon-tail.stderr`. Exact 8.6.18 stderr for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 procedure-colon-tail. JSON pointer `/rows/88`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-colon-tail.tcl`. Exact 9.0.4 input for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-colon-tail.stdout`. Exact 9.0.4 stdout for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-colon-tail.stderr`. Exact 9.0.4 stderr for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 procedure-colon-tail. JSON pointer `/rows/128`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-colon-tail.tcl`. Exact 9.1.0 input for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-colon-tail.stdout`. Exact 9.1.0 stdout for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-colon-tail.stderr`. Exact 9.1.0 stderr for procedure-colon-tail; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 procedure-colon-tail. JSON pointer `/rows/168`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-colon-tail.tcl`. Exact Jim input for procedure-colon-tail; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-colon-tail.stdout`. Exact Jim stdout for procedure-colon-tail; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-colon-tail.stderr`. Exact Jim stderr for procedure-colon-tail; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim procedure-colon-tail. JSON pointer `/rows/208`.
 
 ## Source anchors and implementation tests
 

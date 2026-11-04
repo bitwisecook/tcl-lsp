@@ -24,7 +24,7 @@ binary_scan-binary_nul: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
 binary_scan-decomposed: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
-Version: 8.4.20. Build: Original executable SHA256 04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.4.20. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.5 — observed
 
@@ -38,7 +38,7 @@ binary_scan-binary_nul: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
 binary_scan-decomposed: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
-Version: 8.5.19. Build: Original executable SHA256 46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.5.19. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.6 — observed
 
@@ -52,7 +52,7 @@ binary_scan-binary_nul: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
 binary_scan-decomposed: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
-Version: 8.6.18. Build: Original executable SHA256 b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.6.18. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.0 — observed
 
@@ -66,7 +66,7 @@ binary_scan-binary_nul: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
 binary_scan-decomposed: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
-Version: 9.0.4. Build: Original executable SHA256 647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.0.4. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.1 — observed
 
@@ -80,7 +80,7 @@ binary_scan-binary_nul: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
 binary_scan-decomposed: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
-Version: 9.1.0. Build: Original executable SHA256 baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.1.0. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### jim — observed
 
@@ -94,7 +94,7 @@ binary_scan-binary_nul: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
 binary_scan-decomposed: host exit 0, stdout "0 31 1 0 4142\n", stderr ""
 
-Version: 0.84-9-g5bac7c9. Build: Original executable SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0. Input channel: ASCII source through recorded shell stdin character input.
+Version: 0.84-9-g5bac7c9. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### bigip — not-tested
 
@@ -111,105 +111,105 @@ The thirty retained case/provider outcomes establish only this handler's observe
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json` SHA256 `006ec7738ee80823494d468a57f8187130e71181e2d4170568f67cb0dba7d36d`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout` SHA256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl` SHA256 `92d1b0c015dd4fa2515e17906c09c6ac39d2e4ffb11a2f75e772ebb991093a55`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-plain.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.4 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl` SHA256 `a86b7ff08878d2f290d6fb31f691ef2554be77f105fe28b22c3a2591f062c31a`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-qualified.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.4 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl` SHA256 `426be45146307cf46b15058a4b0dc35269a6a07eec4e7f77e3ab03ec553a2d1b`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-index.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.4 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl` SHA256 `fbadf97aa2c812d59d4e88de09733f51d93959042c3a40eb055ea141c9fe4949`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-binary_nul.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.4 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl` SHA256 `48d91f0ab12d0145e89fc64b7c316db2666edf08ce61070c456b38170bdcb3c8`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-decomposed.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.4 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout` SHA256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl` SHA256 `92d1b0c015dd4fa2515e17906c09c6ac39d2e4ffb11a2f75e772ebb991093a55`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-plain.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.5 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl` SHA256 `a86b7ff08878d2f290d6fb31f691ef2554be77f105fe28b22c3a2591f062c31a`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-qualified.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.5 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl` SHA256 `426be45146307cf46b15058a4b0dc35269a6a07eec4e7f77e3ab03ec553a2d1b`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-index.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.5 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl` SHA256 `fbadf97aa2c812d59d4e88de09733f51d93959042c3a40eb055ea141c9fe4949`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-binary_nul.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.5 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl` SHA256 `48d91f0ab12d0145e89fc64b7c316db2666edf08ce61070c456b38170bdcb3c8`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-decomposed.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.5 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout` SHA256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl` SHA256 `92d1b0c015dd4fa2515e17906c09c6ac39d2e4ffb11a2f75e772ebb991093a55`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-plain.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.6 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl` SHA256 `a86b7ff08878d2f290d6fb31f691ef2554be77f105fe28b22c3a2591f062c31a`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-qualified.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.6 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl` SHA256 `426be45146307cf46b15058a4b0dc35269a6a07eec4e7f77e3ab03ec553a2d1b`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-index.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.6 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl` SHA256 `fbadf97aa2c812d59d4e88de09733f51d93959042c3a40eb055ea141c9fe4949`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-binary_nul.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.6 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl` SHA256 `48d91f0ab12d0145e89fc64b7c316db2666edf08ce61070c456b38170bdcb3c8`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-decomposed.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl8.6 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout` SHA256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl` SHA256 `92d1b0c015dd4fa2515e17906c09c6ac39d2e4ffb11a2f75e772ebb991093a55`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-plain.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.0 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl` SHA256 `a86b7ff08878d2f290d6fb31f691ef2554be77f105fe28b22c3a2591f062c31a`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-qualified.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.0 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl` SHA256 `426be45146307cf46b15058a4b0dc35269a6a07eec4e7f77e3ab03ec553a2d1b`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-index.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.0 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl` SHA256 `fbadf97aa2c812d59d4e88de09733f51d93959042c3a40eb055ea141c9fe4949`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-binary_nul.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.0 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl` SHA256 `48d91f0ab12d0145e89fc64b7c316db2666edf08ce61070c456b38170bdcb3c8`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-decomposed.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.0 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout` SHA256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl` SHA256 `92d1b0c015dd4fa2515e17906c09c6ac39d2e4ffb11a2f75e772ebb991093a55`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-plain.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.1 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl` SHA256 `a86b7ff08878d2f290d6fb31f691ef2554be77f105fe28b22c3a2591f062c31a`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-qualified.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.1 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl` SHA256 `426be45146307cf46b15058a4b0dc35269a6a07eec4e7f77e3ab03ec553a2d1b`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-index.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.1 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl` SHA256 `fbadf97aa2c812d59d4e88de09733f51d93959042c3a40eb055ea141c9fe4949`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-binary_nul.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.1 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl` SHA256 `48d91f0ab12d0145e89fc64b7c316db2666edf08ce61070c456b38170bdcb3c8`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-decomposed.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: tcl9.1 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout` SHA256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl` SHA256 `92d1b0c015dd4fa2515e17906c09c6ac39d2e4ffb11a2f75e772ebb991093a55`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-plain.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: jim binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-plain.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl` SHA256 `a86b7ff08878d2f290d6fb31f691ef2554be77f105fe28b22c3a2591f062c31a`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-qualified.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: jim binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-qualified.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl` SHA256 `426be45146307cf46b15058a4b0dc35269a6a07eec4e7f77e3ab03ec553a2d1b`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-index.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: jim binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-index.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl` SHA256 `fbadf97aa2c812d59d4e88de09733f51d93959042c3a40eb055ea141c9fe4949`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-binary_nul.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: jim binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-binary_nul.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl` SHA256 `48d91f0ab12d0145e89fc64b7c316db2666edf08ce61070c456b38170bdcb3c8`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-decomposed.stdout` SHA256 `8085698104797ded52df6769052c3036a6c44d1be6b45e088565bfb97f56cef0`: jim binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-decomposed.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim binary_scan-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-plain.stdout`: tcl8.4 binary_scan-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-plain.stderr`: tcl8.4 binary_scan-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-qualified.stdout`: tcl8.4 binary_scan-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-qualified.stderr`: tcl8.4 binary_scan-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-index.stdout`: tcl8.4 binary_scan-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-index.stderr`: tcl8.4 binary_scan-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-binary_nul.stdout`: tcl8.4 binary_scan-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-binary_nul.stderr`: tcl8.4 binary_scan-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-decomposed.stdout`: tcl8.4 binary_scan-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-decomposed.stderr`: tcl8.4 binary_scan-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-plain.stdout`: tcl8.5 binary_scan-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-plain.stderr`: tcl8.5 binary_scan-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-qualified.stdout`: tcl8.5 binary_scan-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-qualified.stderr`: tcl8.5 binary_scan-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-index.stdout`: tcl8.5 binary_scan-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-index.stderr`: tcl8.5 binary_scan-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-binary_nul.stdout`: tcl8.5 binary_scan-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-binary_nul.stderr`: tcl8.5 binary_scan-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-decomposed.stdout`: tcl8.5 binary_scan-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-decomposed.stderr`: tcl8.5 binary_scan-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-plain.stdout`: tcl8.6 binary_scan-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-plain.stderr`: tcl8.6 binary_scan-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-qualified.stdout`: tcl8.6 binary_scan-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-qualified.stderr`: tcl8.6 binary_scan-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-index.stdout`: tcl8.6 binary_scan-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-index.stderr`: tcl8.6 binary_scan-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-binary_nul.stdout`: tcl8.6 binary_scan-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-binary_nul.stderr`: tcl8.6 binary_scan-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-decomposed.stdout`: tcl8.6 binary_scan-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-decomposed.stderr`: tcl8.6 binary_scan-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-plain.stdout`: tcl9.0 binary_scan-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-plain.stderr`: tcl9.0 binary_scan-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-qualified.stdout`: tcl9.0 binary_scan-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-qualified.stderr`: tcl9.0 binary_scan-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-index.stdout`: tcl9.0 binary_scan-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-index.stderr`: tcl9.0 binary_scan-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-binary_nul.stdout`: tcl9.0 binary_scan-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-binary_nul.stderr`: tcl9.0 binary_scan-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-decomposed.stdout`: tcl9.0 binary_scan-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-decomposed.stderr`: tcl9.0 binary_scan-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-plain.stdout`: tcl9.1 binary_scan-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-plain.stderr`: tcl9.1 binary_scan-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-qualified.stdout`: tcl9.1 binary_scan-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-qualified.stderr`: tcl9.1 binary_scan-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-index.stdout`: tcl9.1 binary_scan-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-index.stderr`: tcl9.1 binary_scan-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-binary_nul.stdout`: tcl9.1 binary_scan-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-binary_nul.stderr`: tcl9.1 binary_scan-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-decomposed.stdout`: tcl9.1 binary_scan-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-decomposed.stderr`: tcl9.1 binary_scan-decomposed original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-plain.stdout`: jim binary_scan-plain original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-plain.stderr`: jim binary_scan-plain original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-qualified.stdout`: jim binary_scan-qualified original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-qualified.stderr`: jim binary_scan-qualified original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-index.stdout`: jim binary_scan-index original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-index.stderr`: jim binary_scan-index original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-binary_nul.stdout`: jim binary_scan-binary_nul original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-binary_nul.stderr`: jim binary_scan-binary_nul original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-decomposed.stdout`: jim binary_scan-decomposed original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-decomposed.stderr`: jim binary_scan-decomposed original stderr
 
 ## Replay
 

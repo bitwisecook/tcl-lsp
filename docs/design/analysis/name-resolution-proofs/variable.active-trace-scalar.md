@@ -16,31 +16,31 @@ scalar destruction and unset delivery during an active read trace Which exact co
 
 scalar: host exit 0, stdout "{NEW EXTRA} {NEW EXTRA} {read unset} {}\n", stderr ""
 
-Version: 8.4.20. Build: Original executable SHA256 04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.4.20. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.5 — observed
 
 scalar: host exit 0, stdout "{NEW EXTRA} {NEW EXTRA} {read unset} {}\n", stderr ""
 
-Version: 8.5.19. Build: Original executable SHA256 46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.5.19. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.6 — observed
 
 scalar: host exit 0, stdout "{NEW EXTRA} {NEW EXTRA} {read unset} {}\n", stderr ""
 
-Version: 8.6.18. Build: Original executable SHA256 b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.6.18. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.0 — observed
 
 scalar: host exit 0, stdout "{NEW EXTRA} {NEW EXTRA} {read unset} {}\n", stderr ""
 
-Version: 9.0.4. Build: Original executable SHA256 647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.0.4. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.1 — observed
 
 scalar: host exit 0, stdout "{NEW EXTRA} {NEW EXTRA} {read unset} {}\n", stderr ""
 
-Version: 9.1.0. Build: Original executable SHA256 baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.1.0. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### jim — not-tested
 
@@ -63,29 +63,29 @@ These five original C transcripts establish the measured callback order, later v
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/manifest.json` SHA256 `492f69c293d2443fcff657fd4c101502adc641a6e153761aca803b801e5b5d8d`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-version.stdout` SHA256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl` SHA256 `5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-scalar.stdout` SHA256 `1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d`: tcl8.4 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-scalar.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-version.stdout` SHA256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl` SHA256 `5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-scalar.stdout` SHA256 `1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d`: tcl8.5 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-scalar.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-version.stdout` SHA256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl` SHA256 `5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-scalar.stdout` SHA256 `1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d`: tcl8.6 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-scalar.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-version.stdout` SHA256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl` SHA256 `5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-scalar.stdout` SHA256 `1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d`: tcl9.0 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-scalar.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-version.stdout` SHA256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl` SHA256 `5b120800f3a8e4ed2331c174584acbd69f1243e367afc880a472cc43485e53d5`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-scalar.stdout` SHA256 `1a2c4ddad130cf9e050db14aeabdb59c142247226788d244d52aa8b1faef8b8d`: tcl9.1 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-scalar.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 scalar original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-scalar.stdout`: tcl8.4 scalar original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-scalar.stderr`: tcl8.4 scalar original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-scalar.stdout`: tcl8.5 scalar original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-scalar.stderr`: tcl8.5 scalar original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-scalar.stdout`: tcl8.6 scalar original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-scalar.stderr`: tcl8.6 scalar original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-scalar.stdout`: tcl9.0 scalar original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-scalar.stderr`: tcl9.0 scalar original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-scalar.stdout`: tcl9.1 scalar original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-scalar.stderr`: tcl9.1 scalar original stderr
 
 ## Replay
 

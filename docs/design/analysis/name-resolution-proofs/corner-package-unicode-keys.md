@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 C programs return 1.0 2.0; Jim returns 1.0 1.0 in this exact control. These observations alone do not identify the internal key comparison mechanism.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=package-unicode-keys.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for package-unicode-keys; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-unicode-keys.tcl`; SHA256 `3f59ca1e9d5f9c3244868344d15120b4a4fb916c8db61624a8e684150be29732`. Exact 8.4.20 input for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-unicode-keys.stdout`; SHA256 `b38773b320ec94e9c0746bdb1144a3ea84a3e26566172764c7276fcca0c0f001`. Exact 8.4.20 stdout for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-unicode-keys.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 package-unicode-keys. JSON pointer `/rows/34`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-unicode-keys.tcl`; SHA256 `3f59ca1e9d5f9c3244868344d15120b4a4fb916c8db61624a8e684150be29732`. Exact 8.5.19 input for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-unicode-keys.stdout`; SHA256 `b38773b320ec94e9c0746bdb1144a3ea84a3e26566172764c7276fcca0c0f001`. Exact 8.5.19 stdout for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-unicode-keys.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 package-unicode-keys. JSON pointer `/rows/74`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-unicode-keys.tcl`; SHA256 `3f59ca1e9d5f9c3244868344d15120b4a4fb916c8db61624a8e684150be29732`. Exact 8.6.18 input for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-unicode-keys.stdout`; SHA256 `b38773b320ec94e9c0746bdb1144a3ea84a3e26566172764c7276fcca0c0f001`. Exact 8.6.18 stdout for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-unicode-keys.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 package-unicode-keys. JSON pointer `/rows/114`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-unicode-keys.tcl`; SHA256 `3f59ca1e9d5f9c3244868344d15120b4a4fb916c8db61624a8e684150be29732`. Exact 9.0.4 input for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-unicode-keys.stdout`; SHA256 `b38773b320ec94e9c0746bdb1144a3ea84a3e26566172764c7276fcca0c0f001`. Exact 9.0.4 stdout for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-unicode-keys.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 package-unicode-keys. JSON pointer `/rows/154`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-unicode-keys.tcl`; SHA256 `3f59ca1e9d5f9c3244868344d15120b4a4fb916c8db61624a8e684150be29732`. Exact 9.1.0 input for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-unicode-keys.stdout`; SHA256 `b38773b320ec94e9c0746bdb1144a3ea84a3e26566172764c7276fcca0c0f001`. Exact 9.1.0 stdout for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-unicode-keys.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for package-unicode-keys; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 package-unicode-keys. JSON pointer `/rows/194`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-unicode-keys.tcl`; SHA256 `3f59ca1e9d5f9c3244868344d15120b4a4fb916c8db61624a8e684150be29732`. Exact Jim input for package-unicode-keys; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-unicode-keys.stdout`; SHA256 `f4b9311ad0260790edcbb403908680a807c4281ea75ac341c9983fa4624500fc`. Exact Jim stdout for package-unicode-keys; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-unicode-keys.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for package-unicode-keys; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim package-unicode-keys. JSON pointer `/rows/234`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=package-unicode-keys.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for package-unicode-keys; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-unicode-keys.tcl`. Exact 8.4.20 input for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-unicode-keys.stdout`. Exact 8.4.20 stdout for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-unicode-keys.stderr`. Exact 8.4.20 stderr for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 package-unicode-keys. JSON pointer `/rows/34`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-unicode-keys.tcl`. Exact 8.5.19 input for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-unicode-keys.stdout`. Exact 8.5.19 stdout for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-unicode-keys.stderr`. Exact 8.5.19 stderr for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 package-unicode-keys. JSON pointer `/rows/74`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-unicode-keys.tcl`. Exact 8.6.18 input for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-unicode-keys.stdout`. Exact 8.6.18 stdout for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-unicode-keys.stderr`. Exact 8.6.18 stderr for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 package-unicode-keys. JSON pointer `/rows/114`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-unicode-keys.tcl`. Exact 9.0.4 input for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-unicode-keys.stdout`. Exact 9.0.4 stdout for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-unicode-keys.stderr`. Exact 9.0.4 stderr for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 package-unicode-keys. JSON pointer `/rows/154`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-unicode-keys.tcl`. Exact 9.1.0 input for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-unicode-keys.stdout`. Exact 9.1.0 stdout for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-unicode-keys.stderr`. Exact 9.1.0 stderr for package-unicode-keys; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 package-unicode-keys. JSON pointer `/rows/194`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-unicode-keys.tcl`. Exact Jim input for package-unicode-keys; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-unicode-keys.stdout`. Exact Jim stdout for package-unicode-keys; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-unicode-keys.stderr`. Exact Jim stderr for package-unicode-keys; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim package-unicode-keys. JSON pointer `/rows/234`.
 
 ## Source anchors and implementation tests
 

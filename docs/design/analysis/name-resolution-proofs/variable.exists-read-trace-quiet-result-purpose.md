@@ -93,16 +93,16 @@ Every measured C provider completes these three original exists probes normally 
 
 Fifteen original windows in the retained modern trace-add probe/cases, C8.4.20–9.1.0, private compiled procedures plus original native objects. Exact three trace bodies and aliases only. Jim/BIG-IP not queried; no unsupported classification is inferred from their absence.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/manifest.json` SHA256 `93980bc7a12661f9ab3d06981b834d5e536324984da3c7a7fe11003d361826ac`: Original five-provider compile/run hashes and three result windows each.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/probe.c` SHA256 `b8bdd9f7036037cec344521d416ae316a323bb7db396ed39f0de24608b53587f`: Exact read-trace bodies, alias/array setup and original existence opcode/result observation.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/cases.rs` SHA256 `5d746de10fc6e30545054cc4d58b6ecc6ec69796e99039f183f92951c061468a`: The same three original programmes consumed by current comparisons.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt` SHA256 `6c3522ff50acafbedaba5d68a989ac8acc726bd1b11f3dcc790b3502af303451`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt` SHA256 `92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt` SHA256 `92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt` SHA256 `92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt` SHA256 `92c0133e025278dda369e8174933c965e04a095eb48dc80be3364ea8b1bb0be2`: All three existence-result/type/cache/refcount/opcode rows.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/manifest.json`: Original five-provider compile/run hashes and three result windows each.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/probe.c`: Exact read-trace bodies, alias/array setup and original existence opcode/result observation.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/cases.rs`: The same three original programmes consumed by current comparisons.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt`: All three existence-result/type/cache/refcount/opcode rows.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt`: All three existence-result/type/cache/refcount/opcode rows.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt`: All three existence-result/type/cache/refcount/opcode rows.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt`: All three existence-result/type/cache/refcount/opcode rows.
+- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt`: All three existence-result/type/cache/refcount/opcode rows.
 
 ## Replay
 

@@ -77,8 +77,8 @@ Exact ASCII namespace creation and three catch-presented original argument vecto
 
 ## Exact retained evidence
 
-- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/manifest.json` SHA256 `13464962121fe902ff87cd5377c28ec8671ce8bb64fb0fce5f0c880923a9d8e8`: Exact original native provenance/captured observations.
-- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/source.tcl` SHA256 `938e4ee3c0e7ed17eec76d45991555841fb29cfb3a549b4bb6e8115099e41e59`: Retained exact script/case bytes for the stated question.
+- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/manifest.json`: Exact original native provenance/captured observations.
+- `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/source.tcl`: Retained exact script/case bytes for the stated question.
 
 ## Replay
 

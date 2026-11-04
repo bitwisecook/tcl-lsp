@@ -32,13 +32,13 @@ The C8.5–C9.1 captures change both original one-element List flags from noncan
 
 ## Historical references
 
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/manifest.json`, SHA-256 `918eb0e1d8c676af675db4f2107c4cdcc848327b4c687ed5056c1e7a0fe23082`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/probe.c`, SHA-256 `c28e46cf365c1d682b2ee7f9585b45e3c5a208468d6b225abbb8ae7dd95aa932`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.4.20.txt`, SHA-256 `570feb82387ea77cf20eb615761ff4c97decbf41d741def1c8cd12e200e93f5e`: Retained canonical-flag column projection for C Tcl 8.4.20
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.5.19.txt`, SHA-256 `82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a`: Retained canonical-flag column projection for C Tcl 8.5.19
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.6.18.txt`, SHA-256 `82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a`: Retained canonical-flag column projection for C Tcl 8.6.18
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/9.0.4.txt`, SHA-256 `82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a`: Retained canonical-flag column projection for C Tcl 9.0.4
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/9.1.0.txt`, SHA-256 `82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a`: Retained canonical-flag column projection for C Tcl 9.1.0
+- `rust/tcl-vm/tests/data/native_alias_simple/canonical/manifest.json`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
+- `rust/tcl-vm/tests/data/native_alias_simple/canonical/probe.c`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
+- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.4.20.txt`: Retained canonical-flag column projection for C Tcl 8.4.20
+- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.5.19.txt`: Retained canonical-flag column projection for C Tcl 8.5.19
+- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.6.18.txt`: Retained canonical-flag column projection for C Tcl 8.6.18
+- `rust/tcl-vm/tests/data/native_alias_simple/canonical/9.0.4.txt`: Retained canonical-flag column projection for C Tcl 9.0.4
+- `rust/tcl-vm/tests/data/native_alias_simple/canonical/9.1.0.txt`: Retained canonical-flag column projection for C Tcl 9.1.0
 
 ## Rust comparisons
 

@@ -108,16 +108,16 @@ All five successful final probes report missing and retired frame selection as -
 
 Thirty completed final private TclGetFrame/TclObjGetFrame windows, C8.4.20–9.1.0, original counted #1 object. The first attempt separately completed C8.4/C8.5 but failed linking C8.6/C9 because of unresolved zlib dependencies; those failed attempts have no runtime observations. Jim and BIG-IP not queried.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-syntax/tests/data/native_frame_reference/manifest.json` SHA256 `47807f08736e5e0108ed9f1e09278d1d4d264248ae4607b869aeb2c4be0d5edd`: Complete final compile/run argv, headers/archive/binary hashes and stdout/stderr hex.
-- `rust/tcl-syntax/tests/data/native_frame_reference/attempt1-manifest.json` SHA256 `6a8b3a4a1beab074e6c3c2fcc0a2c98e12935e75b06d4ca710a2c3eb0e58843b`: First attempt: two completed providers and three actual failed-link stderr records, without runtime rows for failed links.
-- `rust/tcl-syntax/tests/data/native_frame_reference/probe.c` SHA256 `68d3b6f998be2fc11e441346ea40593edf5e48e64fabe4748d6d5b85b084e2bb`: Exact retained object/push/pop/replacement/foreign-interpreter/duplicate sequence.
-- `rust/tcl-syntax/tests/data/native_frame_reference/8.4.20.tsv` SHA256 `55dfa04de710719ffd1adfc87b0fc9452a414f852f185c5d83b67d737b31e124`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/8.5.19.tsv` SHA256 `0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/8.6.18.tsv` SHA256 `0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/9.0.4.tsv` SHA256 `0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/9.1.0.tsv` SHA256 `0db9c43dbd534632e8d1f0a29f3dda631e8fe33f62c808f398642f644fe4552a`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
+- `rust/tcl-syntax/tests/data/native_frame_reference/manifest.json`: Complete final compile/run argv, headers/archive/binary hashes and stdout/stderr hex.
+- `rust/tcl-syntax/tests/data/native_frame_reference/attempt1-manifest.json`: First attempt: two completed providers and three actual failed-link stderr records, without runtime rows for failed links.
+- `rust/tcl-syntax/tests/data/native_frame_reference/probe.c`: Exact retained object/push/pop/replacement/foreign-interpreter/duplicate sequence.
+- `rust/tcl-syntax/tests/data/native_frame_reference/8.4.20.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
+- `rust/tcl-syntax/tests/data/native_frame_reference/8.5.19.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
+- `rust/tcl-syntax/tests/data/native_frame_reference/8.6.18.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
+- `rust/tcl-syntax/tests/data/native_frame_reference/9.0.4.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
+- `rust/tcl-syntax/tests/data/native_frame_reference/9.1.0.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
 
 ## Replay
 

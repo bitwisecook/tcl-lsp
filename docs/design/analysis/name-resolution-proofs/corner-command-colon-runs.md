@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 The captured C calls use ::n::leaf, while Jim retains the extra colon in the reported flat command key.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=command-colon-runs.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for command-colon-runs; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.tcl`; SHA256 `622df267266e3e7db56e80859e8427ee00a61835226c3009f820b843ef4fc418`. Exact 8.4.20 input for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.stdout`; SHA256 `955f5b43d71cada2189bdbb063a922542829da51ca4d9e3a77829696dd7b0f5f`. Exact 8.4.20 stdout for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 command-colon-runs. JSON pointer `/rows/0`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-colon-runs.tcl`; SHA256 `622df267266e3e7db56e80859e8427ee00a61835226c3009f820b843ef4fc418`. Exact 8.5.19 input for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-colon-runs.stdout`; SHA256 `955f5b43d71cada2189bdbb063a922542829da51ca4d9e3a77829696dd7b0f5f`. Exact 8.5.19 stdout for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-colon-runs.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 command-colon-runs. JSON pointer `/rows/40`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-colon-runs.tcl`; SHA256 `622df267266e3e7db56e80859e8427ee00a61835226c3009f820b843ef4fc418`. Exact 8.6.18 input for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-colon-runs.stdout`; SHA256 `955f5b43d71cada2189bdbb063a922542829da51ca4d9e3a77829696dd7b0f5f`. Exact 8.6.18 stdout for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-colon-runs.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for command-colon-runs; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 command-colon-runs. JSON pointer `/rows/80`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-colon-runs.tcl`; SHA256 `622df267266e3e7db56e80859e8427ee00a61835226c3009f820b843ef4fc418`. Exact 9.0.4 input for command-colon-runs; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-colon-runs.stdout`; SHA256 `955f5b43d71cada2189bdbb063a922542829da51ca4d9e3a77829696dd7b0f5f`. Exact 9.0.4 stdout for command-colon-runs; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-colon-runs.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for command-colon-runs; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 command-colon-runs. JSON pointer `/rows/120`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-colon-runs.tcl`; SHA256 `622df267266e3e7db56e80859e8427ee00a61835226c3009f820b843ef4fc418`. Exact 9.1.0 input for command-colon-runs; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-colon-runs.stdout`; SHA256 `955f5b43d71cada2189bdbb063a922542829da51ca4d9e3a77829696dd7b0f5f`. Exact 9.1.0 stdout for command-colon-runs; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-colon-runs.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for command-colon-runs; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 command-colon-runs. JSON pointer `/rows/160`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-colon-runs.tcl`; SHA256 `622df267266e3e7db56e80859e8427ee00a61835226c3009f820b843ef4fc418`. Exact Jim input for command-colon-runs; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-colon-runs.stdout`; SHA256 `001aebc993563f7533e575f9afd00554af5d57bf1b0b79e6a582a5ba6c9616ab`. Exact Jim stdout for command-colon-runs; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-colon-runs.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for command-colon-runs; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim command-colon-runs. JSON pointer `/rows/200`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=command-colon-runs.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for command-colon-runs; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.tcl`. Exact 8.4.20 input for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.stdout`. Exact 8.4.20 stdout for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.stderr`. Exact 8.4.20 stderr for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 command-colon-runs. JSON pointer `/rows/0`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-colon-runs.tcl`. Exact 8.5.19 input for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-colon-runs.stdout`. Exact 8.5.19 stdout for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-colon-runs.stderr`. Exact 8.5.19 stderr for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 command-colon-runs. JSON pointer `/rows/40`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-colon-runs.tcl`. Exact 8.6.18 input for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-colon-runs.stdout`. Exact 8.6.18 stdout for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-colon-runs.stderr`. Exact 8.6.18 stderr for command-colon-runs; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 command-colon-runs. JSON pointer `/rows/80`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-colon-runs.tcl`. Exact 9.0.4 input for command-colon-runs; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-colon-runs.stdout`. Exact 9.0.4 stdout for command-colon-runs; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-colon-runs.stderr`. Exact 9.0.4 stderr for command-colon-runs; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 command-colon-runs. JSON pointer `/rows/120`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-colon-runs.tcl`. Exact 9.1.0 input for command-colon-runs; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-colon-runs.stdout`. Exact 9.1.0 stdout for command-colon-runs; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-colon-runs.stderr`. Exact 9.1.0 stderr for command-colon-runs; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 command-colon-runs. JSON pointer `/rows/160`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-colon-runs.tcl`. Exact Jim input for command-colon-runs; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-colon-runs.stdout`. Exact Jim stdout for command-colon-runs; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-colon-runs.stderr`. Exact Jim stderr for command-colon-runs; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim command-colon-runs. JSON pointer `/rows/200`.
 
 ## Source anchors and implementation tests
 

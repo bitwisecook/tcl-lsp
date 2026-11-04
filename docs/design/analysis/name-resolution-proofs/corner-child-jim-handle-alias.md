@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 Jim returns PREFIX ARG; the five C captures preserve the distinct interp grammar errors for this handle syntax.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=child-jim-handle-alias.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for child-jim-handle-alias; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/child-jim-handle-alias.tcl`; SHA256 `ead88549e26d23144743da82d589cf54670cfa2d6794d610b7771b57c7ebe6f9`. Exact 8.4.20 input for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/child-jim-handle-alias.stdout`; SHA256 `84ad3edc3d26102f5472e192926a67e2d63d5fcf6717d14b584432343910f3cd`. Exact 8.4.20 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/child-jim-handle-alias.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 child-jim-handle-alias. JSON pointer `/rows/17`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/child-jim-handle-alias.tcl`; SHA256 `ead88549e26d23144743da82d589cf54670cfa2d6794d610b7771b57c7ebe6f9`. Exact 8.5.19 input for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/child-jim-handle-alias.stdout`; SHA256 `84ad3edc3d26102f5472e192926a67e2d63d5fcf6717d14b584432343910f3cd`. Exact 8.5.19 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/child-jim-handle-alias.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 child-jim-handle-alias. JSON pointer `/rows/57`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/child-jim-handle-alias.tcl`; SHA256 `ead88549e26d23144743da82d589cf54670cfa2d6794d610b7771b57c7ebe6f9`. Exact 8.6.18 input for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/child-jim-handle-alias.stdout`; SHA256 `84ad3edc3d26102f5472e192926a67e2d63d5fcf6717d14b584432343910f3cd`. Exact 8.6.18 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/child-jim-handle-alias.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 child-jim-handle-alias. JSON pointer `/rows/97`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/child-jim-handle-alias.tcl`; SHA256 `ead88549e26d23144743da82d589cf54670cfa2d6794d610b7771b57c7ebe6f9`. Exact 9.0.4 input for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/child-jim-handle-alias.stdout`; SHA256 `84ad3edc3d26102f5472e192926a67e2d63d5fcf6717d14b584432343910f3cd`. Exact 9.0.4 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/child-jim-handle-alias.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 child-jim-handle-alias. JSON pointer `/rows/137`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/child-jim-handle-alias.tcl`; SHA256 `ead88549e26d23144743da82d589cf54670cfa2d6794d610b7771b57c7ebe6f9`. Exact 9.1.0 input for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/child-jim-handle-alias.stdout`; SHA256 `84ad3edc3d26102f5472e192926a67e2d63d5fcf6717d14b584432343910f3cd`. Exact 9.1.0 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/child-jim-handle-alias.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 child-jim-handle-alias. JSON pointer `/rows/177`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/child-jim-handle-alias.tcl`; SHA256 `ead88549e26d23144743da82d589cf54670cfa2d6794d610b7771b57c7ebe6f9`. Exact Jim input for child-jim-handle-alias; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/child-jim-handle-alias.stdout`; SHA256 `872bd3f0a948a90fdbc3f2e80e845004aba59e3377c7e6b6d6267d450bc0f8d9`. Exact Jim stdout for child-jim-handle-alias; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/child-jim-handle-alias.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for child-jim-handle-alias; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim child-jim-handle-alias. JSON pointer `/rows/217`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=child-jim-handle-alias.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for child-jim-handle-alias; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/child-jim-handle-alias.tcl`. Exact 8.4.20 input for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/child-jim-handle-alias.stdout`. Exact 8.4.20 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/child-jim-handle-alias.stderr`. Exact 8.4.20 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 child-jim-handle-alias. JSON pointer `/rows/17`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/child-jim-handle-alias.tcl`. Exact 8.5.19 input for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/child-jim-handle-alias.stdout`. Exact 8.5.19 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/child-jim-handle-alias.stderr`. Exact 8.5.19 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 child-jim-handle-alias. JSON pointer `/rows/57`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/child-jim-handle-alias.tcl`. Exact 8.6.18 input for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/child-jim-handle-alias.stdout`. Exact 8.6.18 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/child-jim-handle-alias.stderr`. Exact 8.6.18 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 child-jim-handle-alias. JSON pointer `/rows/97`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/child-jim-handle-alias.tcl`. Exact 9.0.4 input for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/child-jim-handle-alias.stdout`. Exact 9.0.4 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/child-jim-handle-alias.stderr`. Exact 9.0.4 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 child-jim-handle-alias. JSON pointer `/rows/137`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/child-jim-handle-alias.tcl`. Exact 9.1.0 input for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/child-jim-handle-alias.stdout`. Exact 9.1.0 stdout for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/child-jim-handle-alias.stderr`. Exact 9.1.0 stderr for child-jim-handle-alias; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 child-jim-handle-alias. JSON pointer `/rows/177`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/child-jim-handle-alias.tcl`. Exact Jim input for child-jim-handle-alias; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/child-jim-handle-alias.stdout`. Exact Jim stdout for child-jim-handle-alias; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/child-jim-handle-alias.stderr`. Exact Jim stderr for child-jim-handle-alias; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim child-jim-handle-alias. JSON pointer `/rows/217`.
 
 ## Source anchors and implementation tests
 

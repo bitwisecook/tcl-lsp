@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 C8.6–9.1 return VALUE; stock C8.4, C8.5 and Jim retain the unavailable oo::class command errors.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=oo-method-colon-name.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for oo-method-colon-name; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-method-colon-name.tcl`; SHA256 `7baff4378437cdc42c7691000ab02dbc08a8425b4e17329587533a4396f7151c`. Exact 8.4.20 input for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-method-colon-name.stdout`; SHA256 `b29a4f06d6fd6cc1258878630fd63abd9f0b4c6f47afd8381fef05e729e0d79c`. Exact 8.4.20 stdout for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-method-colon-name.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 oo-method-colon-name. JSON pointer `/rows/38`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-method-colon-name.tcl`; SHA256 `7baff4378437cdc42c7691000ab02dbc08a8425b4e17329587533a4396f7151c`. Exact 8.5.19 input for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-method-colon-name.stdout`; SHA256 `b29a4f06d6fd6cc1258878630fd63abd9f0b4c6f47afd8381fef05e729e0d79c`. Exact 8.5.19 stdout for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-method-colon-name.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 oo-method-colon-name. JSON pointer `/rows/78`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-method-colon-name.tcl`; SHA256 `7baff4378437cdc42c7691000ab02dbc08a8425b4e17329587533a4396f7151c`. Exact 8.6.18 input for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-method-colon-name.stdout`; SHA256 `ae643b7cffa9e96b0964efad5d1c359bb85641003796e3cfb9a80fea5fefa4ce`. Exact 8.6.18 stdout for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-method-colon-name.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 oo-method-colon-name. JSON pointer `/rows/118`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-method-colon-name.tcl`; SHA256 `7baff4378437cdc42c7691000ab02dbc08a8425b4e17329587533a4396f7151c`. Exact 9.0.4 input for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-method-colon-name.stdout`; SHA256 `ae643b7cffa9e96b0964efad5d1c359bb85641003796e3cfb9a80fea5fefa4ce`. Exact 9.0.4 stdout for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-method-colon-name.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 oo-method-colon-name. JSON pointer `/rows/158`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-method-colon-name.tcl`; SHA256 `7baff4378437cdc42c7691000ab02dbc08a8425b4e17329587533a4396f7151c`. Exact 9.1.0 input for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-method-colon-name.stdout`; SHA256 `ae643b7cffa9e96b0964efad5d1c359bb85641003796e3cfb9a80fea5fefa4ce`. Exact 9.1.0 stdout for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-method-colon-name.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for oo-method-colon-name; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 oo-method-colon-name. JSON pointer `/rows/198`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-method-colon-name.tcl`; SHA256 `7baff4378437cdc42c7691000ab02dbc08a8425b4e17329587533a4396f7151c`. Exact Jim input for oo-method-colon-name; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-method-colon-name.stdout`; SHA256 `b29a4f06d6fd6cc1258878630fd63abd9f0b4c6f47afd8381fef05e729e0d79c`. Exact Jim stdout for oo-method-colon-name; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-method-colon-name.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for oo-method-colon-name; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim oo-method-colon-name. JSON pointer `/rows/238`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=oo-method-colon-name.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for oo-method-colon-name; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-method-colon-name.tcl`. Exact 8.4.20 input for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-method-colon-name.stdout`. Exact 8.4.20 stdout for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-method-colon-name.stderr`. Exact 8.4.20 stderr for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 oo-method-colon-name. JSON pointer `/rows/38`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-method-colon-name.tcl`. Exact 8.5.19 input for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-method-colon-name.stdout`. Exact 8.5.19 stdout for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-method-colon-name.stderr`. Exact 8.5.19 stderr for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 oo-method-colon-name. JSON pointer `/rows/78`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-method-colon-name.tcl`. Exact 8.6.18 input for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-method-colon-name.stdout`. Exact 8.6.18 stdout for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-method-colon-name.stderr`. Exact 8.6.18 stderr for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 oo-method-colon-name. JSON pointer `/rows/118`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-method-colon-name.tcl`. Exact 9.0.4 input for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-method-colon-name.stdout`. Exact 9.0.4 stdout for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-method-colon-name.stderr`. Exact 9.0.4 stderr for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 oo-method-colon-name. JSON pointer `/rows/158`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-method-colon-name.tcl`. Exact 9.1.0 input for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-method-colon-name.stdout`. Exact 9.1.0 stdout for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-method-colon-name.stderr`. Exact 9.1.0 stderr for oo-method-colon-name; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 oo-method-colon-name. JSON pointer `/rows/198`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-method-colon-name.tcl`. Exact Jim input for oo-method-colon-name; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-method-colon-name.stdout`. Exact Jim stdout for oo-method-colon-name; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-method-colon-name.stderr`. Exact Jim stderr for oo-method-colon-name; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim oo-method-colon-name. JSON pointer `/rows/238`.
 
 ## Source anchors and implementation tests
 

@@ -32,14 +32,14 @@ C8.4/8.5 read LOCAL, then GLOBAL through the reused localVarName object and retu
 
 ## Historical references
 
-- `runtime/rust/tests/data/native_global_cache_token/manifest.json`, SHA-256 `32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
-- `runtime/rust/tests/data/native_global_cache_token/probe.c`, SHA-256 `0d690fca1392b40a5a5aa43b0c011ca276e9927014a872599ce6c8070e6f11d9`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
-- `runtime/rust/tests/data/native_global_cache_token/8.4.20.txt`, SHA-256 `58ceb067a7340cd4e20f8f354e80181227d63207bdb21edf8b4b7c52d689d4f2`: Exact recorded output for C Tcl 8.4.20
-- `runtime/rust/tests/data/native_global_cache_token/8.5.19.txt`, SHA-256 `58ceb067a7340cd4e20f8f354e80181227d63207bdb21edf8b4b7c52d689d4f2`: Exact recorded output for C Tcl 8.5.19
-- `runtime/rust/tests/data/native_global_cache_token/8.6.18.txt`, SHA-256 `a1cf181152fb73ce3b5159ab34bcbb2b6627339372e649633746aafdde934d14`: Exact recorded output for C Tcl 8.6.18
-- `runtime/rust/tests/data/native_global_cache_token/9.0.4.txt`, SHA-256 `a1cf181152fb73ce3b5159ab34bcbb2b6627339372e649633746aafdde934d14`: Exact recorded output for C Tcl 9.0.4
-- `runtime/rust/tests/data/native_global_cache_token/9.1.0.txt`, SHA-256 `a1cf181152fb73ce3b5159ab34bcbb2b6627339372e649633746aafdde934d14`: Exact recorded output for C Tcl 9.1.0
-- `rust/tcl-vm/tests/data/native_global_cache_token/manifest.json`, SHA-256 `32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0`: Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred.
+- `runtime/rust/tests/data/native_global_cache_token/manifest.json`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
+- `runtime/rust/tests/data/native_global_cache_token/probe.c`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
+- `runtime/rust/tests/data/native_global_cache_token/8.4.20.txt`: Exact recorded output for C Tcl 8.4.20
+- `runtime/rust/tests/data/native_global_cache_token/8.5.19.txt`: Exact recorded output for C Tcl 8.5.19
+- `runtime/rust/tests/data/native_global_cache_token/8.6.18.txt`: Exact recorded output for C Tcl 8.6.18
+- `runtime/rust/tests/data/native_global_cache_token/9.0.4.txt`: Exact recorded output for C Tcl 9.0.4
+- `runtime/rust/tests/data/native_global_cache_token/9.1.0.txt`: Exact recorded output for C Tcl 9.1.0
+- `rust/tcl-vm/tests/data/native_global_cache_token/manifest.json`: Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred.
 
 ## Rust comparisons
 

@@ -18,7 +18,7 @@ quiet-read-callback-error: host exit 0, stdout "0 7b7d204e4f4e45207b7d\n", stder
 
 modern-quiet-read-callback-error: host exit 0, stdout "0 7b7d204e4f4e45207b7d\n", stderr ""
 
-Version: 8.4.20. Build: Original executable SHA256 04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.4.20. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.5 — observed
 
@@ -26,7 +26,7 @@ quiet-read-callback-error: host exit 0, stdout "0 7b7d2053454e54494e454c207b7d\n
 
 modern-quiet-read-callback-error: host exit 0, stdout "0 7b7d2053454e54494e454c207b7d\n", stderr ""
 
-Version: 8.5.19. Build: Original executable SHA256 46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.5.19. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl8.6 — observed
 
@@ -34,7 +34,7 @@ quiet-read-callback-error: host exit 0, stdout "0 7b7d207b54434c2052454144205641
 
 modern-quiet-read-callback-error: host exit 0, stdout "0 7b7d207b54434c2052454144205641524e414d457d207b7d\n", stderr ""
 
-Version: 8.6.18. Build: Original executable SHA256 b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c. Input channel: ASCII source through recorded shell stdin character input.
+Version: 8.6.18. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.0 — observed
 
@@ -42,7 +42,7 @@ quiet-read-callback-error: host exit 0, stdout "1 626164206f7074696f6e2022766172
 
 modern-quiet-read-callback-error: host exit 0, stdout "0 7b7d207b54434c2052454144205641524e414d457d207b7d\n", stderr ""
 
-Version: 9.0.4. Build: Original executable SHA256 647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.0.4. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### tcl9.1 — observed
 
@@ -50,7 +50,7 @@ quiet-read-callback-error: host exit 0, stdout "1 626164206f7074696f6e2022766172
 
 modern-quiet-read-callback-error: host exit 0, stdout "0 7b7d207b54434c2052454144205641524e414d457d207b7d\n", stderr ""
 
-Version: 9.1.0. Build: Original executable SHA256 baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee. Input channel: ASCII source through recorded shell stdin character input.
+Version: 9.1.0. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### jim — observed
 
@@ -58,7 +58,7 @@ quiet-read-callback-error: host exit 0, stdout "1 696e76616c696420636f6d6d616e64
 
 modern-quiet-read-callback-error: host exit 0, stdout "1 696e76616c696420636f6d6d616e64206e616d652022747261636522\n", stderr ""
 
-Version: 0.84-9-g5bac7c9. Build: Original executable SHA256 d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0. Input channel: ASCII source through recorded shell stdin character input.
+Version: 0.84-9-g5bac7c9. Build: Original executable. Input channel: ASCII source through recorded shell stdin character input.
 
 ### bigip — not-tested
 
@@ -75,51 +75,51 @@ The retained transcripts answer only quiet original-name read after an erroring 
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
 
-## Retained evidence
+## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json` SHA256 `924a48d1882e93b9f527b7b248ce838d5a5508611e6192cba390a0c91668a71f`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout` SHA256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl` SHA256 `fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-read-callback-error.stdout` SHA256 `92f2b94c3d6de30d66833482d429caf46a7e3853ddeb8f286bc57f45aee5c4d1`: tcl8.4 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl` SHA256 `4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-quiet-read-callback-error.stdout` SHA256 `92f2b94c3d6de30d66833482d429caf46a7e3853ddeb8f286bc57f45aee5c4d1`: tcl8.4 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.4 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout` SHA256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl` SHA256 `fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-read-callback-error.stdout` SHA256 `dbf718537a602f2ce428688a20f5986f246ce34e5b71c1ffbb4fcc5266e190d3`: tcl8.5 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl` SHA256 `4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-quiet-read-callback-error.stdout` SHA256 `dbf718537a602f2ce428688a20f5986f246ce34e5b71c1ffbb4fcc5266e190d3`: tcl8.5 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.5 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout` SHA256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl` SHA256 `fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-read-callback-error.stdout` SHA256 `88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91`: tcl8.6 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl` SHA256 `4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-quiet-read-callback-error.stdout` SHA256 `88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91`: tcl8.6 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl8.6 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout` SHA256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl` SHA256 `fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-read-callback-error.stdout` SHA256 `7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad`: tcl9.0 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl` SHA256 `4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-quiet-read-callback-error.stdout` SHA256 `88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91`: tcl9.0 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.0 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout` SHA256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl` SHA256 `fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-read-callback-error.stdout` SHA256 `7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad`: tcl9.1 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl` SHA256 `4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-quiet-read-callback-error.stdout` SHA256 `88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91`: tcl9.1 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: tcl9.1 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout` SHA256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl` SHA256 `fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-read-callback-error.stdout` SHA256 `8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec`: jim quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl` SHA256 `4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-quiet-read-callback-error.stdout` SHA256 `8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec`: jim modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-quiet-read-callback-error.stderr` SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`: jim modern-quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-read-callback-error.stdout`: tcl8.4 quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-read-callback-error.stderr`: tcl8.4 quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-quiet-read-callback-error.stdout`: tcl8.4 modern-quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-quiet-read-callback-error.stderr`: tcl8.4 modern-quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-read-callback-error.stdout`: tcl8.5 quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-read-callback-error.stderr`: tcl8.5 quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-quiet-read-callback-error.stdout`: tcl8.5 modern-quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-quiet-read-callback-error.stderr`: tcl8.5 modern-quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-read-callback-error.stdout`: tcl8.6 quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-read-callback-error.stderr`: tcl8.6 quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-quiet-read-callback-error.stdout`: tcl8.6 modern-quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-quiet-read-callback-error.stderr`: tcl8.6 modern-quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-read-callback-error.stdout`: tcl9.0 quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-read-callback-error.stderr`: tcl9.0 quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-quiet-read-callback-error.stdout`: tcl9.0 modern-quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-quiet-read-callback-error.stderr`: tcl9.0 modern-quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-read-callback-error.stdout`: tcl9.1 quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-read-callback-error.stderr`: tcl9.1 quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-quiet-read-callback-error.stdout`: tcl9.1 modern-quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-quiet-read-callback-error.stderr`: tcl9.1 modern-quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-read-callback-error.stdout`: jim quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-read-callback-error.stderr`: jim quiet-read-callback-error original stderr
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-quiet-read-callback-error.stdout`: jim modern-quiet-read-callback-error original stdout
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-quiet-read-callback-error.stderr`: jim modern-quiet-read-callback-error original stderr
 
 ## Replay
 

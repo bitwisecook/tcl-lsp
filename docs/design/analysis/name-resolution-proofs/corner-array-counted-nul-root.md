@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 All six return FULL SHORT for the two generated-versus-plain roots in this exact program.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=array-counted-nul-root.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for array-counted-nul-root; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-root.tcl`; SHA256 `8f4f8b2e685a87b38ce6c1fc3376fa437c98bf9392eef4ee927f55d903bde160`. Exact 8.4.20 input for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-root.stdout`; SHA256 `3f59ed473ef12f518867681b65b2f20f640a06b9fe344a124e8115543b87e995`. Exact 8.4.20 stdout for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-root.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 array-counted-nul-root. JSON pointer `/rows/28`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-root.tcl`; SHA256 `8f4f8b2e685a87b38ce6c1fc3376fa437c98bf9392eef4ee927f55d903bde160`. Exact 8.5.19 input for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-root.stdout`; SHA256 `3f59ed473ef12f518867681b65b2f20f640a06b9fe344a124e8115543b87e995`. Exact 8.5.19 stdout for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-root.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 array-counted-nul-root. JSON pointer `/rows/68`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-root.tcl`; SHA256 `8f4f8b2e685a87b38ce6c1fc3376fa437c98bf9392eef4ee927f55d903bde160`. Exact 8.6.18 input for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-root.stdout`; SHA256 `3f59ed473ef12f518867681b65b2f20f640a06b9fe344a124e8115543b87e995`. Exact 8.6.18 stdout for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-root.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 array-counted-nul-root. JSON pointer `/rows/108`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-root.tcl`; SHA256 `8f4f8b2e685a87b38ce6c1fc3376fa437c98bf9392eef4ee927f55d903bde160`. Exact 9.0.4 input for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-root.stdout`; SHA256 `3f59ed473ef12f518867681b65b2f20f640a06b9fe344a124e8115543b87e995`. Exact 9.0.4 stdout for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-root.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 array-counted-nul-root. JSON pointer `/rows/148`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-root.tcl`; SHA256 `8f4f8b2e685a87b38ce6c1fc3376fa437c98bf9392eef4ee927f55d903bde160`. Exact 9.1.0 input for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-root.stdout`; SHA256 `3f59ed473ef12f518867681b65b2f20f640a06b9fe344a124e8115543b87e995`. Exact 9.1.0 stdout for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-root.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for array-counted-nul-root; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 array-counted-nul-root. JSON pointer `/rows/188`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-root.tcl`; SHA256 `8f4f8b2e685a87b38ce6c1fc3376fa437c98bf9392eef4ee927f55d903bde160`. Exact Jim input for array-counted-nul-root; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-root.stdout`; SHA256 `3f59ed473ef12f518867681b65b2f20f640a06b9fe344a124e8115543b87e995`. Exact Jim stdout for array-counted-nul-root; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-root.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for array-counted-nul-root; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim array-counted-nul-root. JSON pointer `/rows/228`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=array-counted-nul-root.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for array-counted-nul-root; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-root.tcl`. Exact 8.4.20 input for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-root.stdout`. Exact 8.4.20 stdout for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-root.stderr`. Exact 8.4.20 stderr for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 array-counted-nul-root. JSON pointer `/rows/28`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-root.tcl`. Exact 8.5.19 input for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-root.stdout`. Exact 8.5.19 stdout for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-root.stderr`. Exact 8.5.19 stderr for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 array-counted-nul-root. JSON pointer `/rows/68`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-root.tcl`. Exact 8.6.18 input for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-root.stdout`. Exact 8.6.18 stdout for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-root.stderr`. Exact 8.6.18 stderr for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 array-counted-nul-root. JSON pointer `/rows/108`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-root.tcl`. Exact 9.0.4 input for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-root.stdout`. Exact 9.0.4 stdout for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-root.stderr`. Exact 9.0.4 stderr for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 array-counted-nul-root. JSON pointer `/rows/148`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-root.tcl`. Exact 9.1.0 input for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-root.stdout`. Exact 9.1.0 stdout for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-root.stderr`. Exact 9.1.0 stderr for array-counted-nul-root; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 array-counted-nul-root. JSON pointer `/rows/188`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-root.tcl`. Exact Jim input for array-counted-nul-root; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-root.stdout`. Exact Jim stdout for array-counted-nul-root; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-root.stderr`. Exact Jim stderr for array-counted-nul-root; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim array-counted-nul-root. JSON pointer `/rows/228`.
 
 ## Source anchors and implementation tests
 

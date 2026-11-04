@@ -36,35 +36,35 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 The C programs reject n::q as a nonsimple formal; Jim accepts the two names and returns A B with its captured local roster.
 
-## Evidence
+## Historical references
 
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original six-provider case rows; filter case=procedure-formal-colon.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`; SHA256 `f43510314da33f66bf8bdd8ee9028f241946e5610e355793015d9fdad8ac713c`. Original reported interpreter identity and retained selected binary SHA256.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`; SHA256 `6ad68938c04dc4c42f5112084942d867ac254624ea725c513e15683329c08c9f`. Authored control body for procedure-formal-colon; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-formal-colon.tcl`; SHA256 `b647712825e92003e04bb8e3aadf619ccfc4f5b51119f9eddad818a82c4144f2`. Exact 8.4.20 input for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-formal-colon.stdout`; SHA256 `2af34c3095dd038beea433d1ad5f967fccdadad1c57ccdeefd7e34830dc7faf9`. Exact 8.4.20 stdout for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-formal-colon.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.4.20 stderr for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.4.20 procedure-formal-colon. JSON pointer `/rows/10`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-formal-colon.tcl`; SHA256 `b647712825e92003e04bb8e3aadf619ccfc4f5b51119f9eddad818a82c4144f2`. Exact 8.5.19 input for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-formal-colon.stdout`; SHA256 `27c9afadffc22743316f47db93746769ed33d68ad5c50f3f369e239a3f18d43e`. Exact 8.5.19 stdout for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-formal-colon.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.5.19 stderr for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.5.19 procedure-formal-colon. JSON pointer `/rows/50`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-formal-colon.tcl`; SHA256 `b647712825e92003e04bb8e3aadf619ccfc4f5b51119f9eddad818a82c4144f2`. Exact 8.6.18 input for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-formal-colon.stdout`; SHA256 `27c9afadffc22743316f47db93746769ed33d68ad5c50f3f369e239a3f18d43e`. Exact 8.6.18 stdout for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-formal-colon.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 8.6.18 stderr for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 8.6.18 procedure-formal-colon. JSON pointer `/rows/90`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-formal-colon.tcl`; SHA256 `b647712825e92003e04bb8e3aadf619ccfc4f5b51119f9eddad818a82c4144f2`. Exact 9.0.4 input for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-formal-colon.stdout`; SHA256 `27c9afadffc22743316f47db93746769ed33d68ad5c50f3f369e239a3f18d43e`. Exact 9.0.4 stdout for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-formal-colon.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.0.4 stderr for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.0.4 procedure-formal-colon. JSON pointer `/rows/130`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-formal-colon.tcl`; SHA256 `b647712825e92003e04bb8e3aadf619ccfc4f5b51119f9eddad818a82c4144f2`. Exact 9.1.0 input for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-formal-colon.stdout`; SHA256 `27c9afadffc22743316f47db93746769ed33d68ad5c50f3f369e239a3f18d43e`. Exact 9.1.0 stdout for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-formal-colon.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact 9.1.0 stderr for procedure-formal-colon; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for 9.1.0 procedure-formal-colon. JSON pointer `/rows/170`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-formal-colon.tcl`; SHA256 `b647712825e92003e04bb8e3aadf619ccfc4f5b51119f9eddad818a82c4144f2`. Exact Jim input for procedure-formal-colon; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-formal-colon.stdout`; SHA256 `2be2c4352a3c1f4d23c81feeb1e8b973a98ef557e281b5719b945e13df173e8a`. Exact Jim stdout for procedure-formal-colon; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-formal-colon.stderr`; SHA256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact Jim stderr for procedure-formal-colon; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`; SHA256 `aeddfe8965468da893d3483c1e44069d7955531084076b27b0e9e7a9c5f22da6`. Original process/guest status and hashes for Jim procedure-formal-colon. JSON pointer `/rows/210`.
+- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=procedure-formal-colon.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for procedure-formal-colon; exact observer wrappers are separate provider inputs.
+- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-formal-colon.tcl`. Exact 8.4.20 input for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-formal-colon.stdout`. Exact 8.4.20 stdout for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/procedure-formal-colon.stderr`. Exact 8.4.20 stderr for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 procedure-formal-colon. JSON pointer `/rows/10`.
+- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-formal-colon.tcl`. Exact 8.5.19 input for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-formal-colon.stdout`. Exact 8.5.19 stdout for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/procedure-formal-colon.stderr`. Exact 8.5.19 stderr for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 procedure-formal-colon. JSON pointer `/rows/50`.
+- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-formal-colon.tcl`. Exact 8.6.18 input for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-formal-colon.stdout`. Exact 8.6.18 stdout for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/procedure-formal-colon.stderr`. Exact 8.6.18 stderr for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 procedure-formal-colon. JSON pointer `/rows/90`.
+- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-formal-colon.tcl`. Exact 9.0.4 input for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-formal-colon.stdout`. Exact 9.0.4 stdout for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/procedure-formal-colon.stderr`. Exact 9.0.4 stderr for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 procedure-formal-colon. JSON pointer `/rows/130`.
+- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-formal-colon.tcl`. Exact 9.1.0 input for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-formal-colon.stdout`. Exact 9.1.0 stdout for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/procedure-formal-colon.stderr`. Exact 9.1.0 stderr for procedure-formal-colon; source channel is the retained CLI script file.
+- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 procedure-formal-colon. JSON pointer `/rows/170`.
+- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-formal-colon.tcl`. Exact Jim input for procedure-formal-colon; source channel is the retained CLI script file.
+- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-formal-colon.stdout`. Exact Jim stdout for procedure-formal-colon; source channel is the retained CLI script file.
+- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/procedure-formal-colon.stderr`. Exact Jim stderr for procedure-formal-colon; source channel is the retained CLI script file.
+- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim procedure-formal-colon. JSON pointer `/rows/210`.
 
 ## Source anchors and implementation tests
 
