@@ -1685,7 +1685,12 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     assert!(
         backend
             .apply_global_formatting(&serde_json::json!({
-                "formatting": { "indentSize": 2, "lineEnding": "auto" }
+                "formatting": {
+                    "indentSize": 2,
+                    "lineEnding": "auto",
+                    "expandSingleLineBodies": true,
+                    "minBodyCommandsForExpansion": 1
+                }
             }))
             .await
             .is_none()
@@ -1729,7 +1734,12 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     assert!(
         backend
             .apply_global_formatting(&serde_json::json!({
-                "formatting": { "indentSize": 2, "lineEnding": "lf" }
+                "formatting": {
+                    "indentSize": 2,
+                    "lineEnding": "lf",
+                    "expandSingleLineBodies": true,
+                    "minBodyCommandsForExpansion": 1
+                }
             }))
             .await
             .is_none()
