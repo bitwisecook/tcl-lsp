@@ -6,6 +6,7 @@ of coverage, not a claim that it has been rerun in this checkout.
 
 | Issue | Current evidence and status |
 | --- | --- |
+| #940 | The reporter’s conditional `lappend` program returns the same values on Tcl 8.4–9.1 and Jim 0.84. Tcl 8.6 shows one pure-string to list promotion; Tcl 9.0 and 9.1 retain list representations. Reproduction with retained compiler analysis input is running; an earlier standalone-unit test abstained and is not evidence. |
 | #2498, #2500, #2504 | `compiler_checks::list_element_shimmer_controls` covers list elements and signed infinity; execution pending. |
 | #2499 | `w212_allows_indirect_read_through_a_computed_name_2499` covers the reported form; execution pending. |
 | #2503 | `selected_nested_expression_controls` covers quoted and array-index operands and a direct expression operand; execution pending. |
