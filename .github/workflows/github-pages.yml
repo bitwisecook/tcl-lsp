@@ -153,7 +153,7 @@ jobs:
         with:
           # wasm-bindgen-cli must match the wasm-bindgen crate version pinned in
           # rust/bigip-report-gen/wasm/Cargo.toml.
-          tool: wasm-pack@0.15.0,wasm-bindgen-cli@0.2.129
+          tool: wasm-pack@0.15.0,wasm-bindgen-cli@0.2.130
 
       # No wasm-opt/binaryen: it is intentionally disabled for this module
       # (see rust/tcl-explorer-wasm/Cargo.toml + the explorer-wasm Make target).
