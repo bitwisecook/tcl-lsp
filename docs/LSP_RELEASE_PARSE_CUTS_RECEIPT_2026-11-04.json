@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-04",
+  "issue": 2436,
+  "branch": "work",
+  "fix_commit": "1eefbc317",
+  "reference_commit": "c80aa092d",
+  "source_files_checked_before_after_and_after_rebase": [
+    {
+      "path": "rust/tcl-lexer/src/lib.rs",
+      "sha256": "06b30ace635bb44c85127336c9cd78c1e621ade5ddc642ea120aca8fa0f71f06"
+    },
+    {
+      "path": "rust/tcl-lexer/src/parse_cut.rs",
+      "sha256": "6ccc1b3fc85a946fedb4317df2b1d98a6657015748b31d0648a6105d576d43eb"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "sha256": "9bea32039cc5937a4b1288b24c259829b956500aa24383a039441b4ea3ab3beb"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/lsp_parse_cuts_release.rs",
+      "sha256": "7dcf5582252782d6b01dd562ea4bb567c634b985705f398179511b97c2dbf4cc"
+    },
+    {
+      "path": "rust/tcl-lexer/tests/parse_cuts_release.rs",
+      "sha256": "ea2c8fb9432d740a84766704902fb4f0bf35630302e7c03a19252fa5b0ec61bd"
+    },
+    {
+      "path": "rust/tcl-test-support/jim-reference.txt",
+      "sha256": "e1a04588ca226f136cf8dffd3272f769c67bf3bed4644942827839e21315654e"
+    }
+  ],
+  "compiler_test_harness": {
+    "manifest": "[package]\nname = \"lsp-coordinator-release-probe\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\ntcl-compiler = { path = \"/workspace/tcl-lsp/tmp/lsp-release-work/rust/tcl-compiler\" }\ntcl-core-types = { path = \"/workspace/tcl-lsp/tmp/lsp-release-work/rust/tcl-core-types\" }\ntcl-test-support = { path = \"/workspace/tcl-lsp/tmp/lsp-release-work/rust/tcl-test-support\" }\n",
+    "lib": "include!(\"/workspace/tcl-lsp/tmp/lsp-release-work/rust/tcl-compiler/tests/lsp_parse_cuts_release.rs\");\n",
+    "build_command": "cargo test --offline --manifest-path /tmp/lsp-coordinator-probe/Cargo.toml --lib --no-run",
+    "run_command": "TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1 TCL_LSP_REQUIRE_JIM_ORACLE=1 target/debug/deps/lsp_coordinator_release_probe-6ac0b47498b5d083 --nocapture",
+    "binary_sha256": "017264f9076127d8ec55185264c3a8af5765823fb04866ea840c489271595740",
+    "output": "\nrunning 4 tests\ntest nested_parse_cuts_match_current_jim ... ok\ntest nested_parse_cuts_match_c_tcl_references ... ok\ntest jim_accepts_nested_close_quote_suffix ... ok\ntest nested_command_reports_extra_characters_after_closer_2436 ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.05s\n\n"
+  },
+  "lexer_tests": {
+    "build_command": "cargo test --offline -p tcl-lexer --test parse_cuts_release --no-run",
+    "run_command": "target/debug/deps/parse_cuts_release-185fad4dd478b58e --nocapture",
+    "output": "\nrunning 2 tests\ntest cuts_keep_the_first_nested_error_in_each_command ... ok\ntest jim_quote_suffix_stays_accepted_while_brace_suffix_is_rejected ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+  },
+  "jim": {
+    "revision": "82fb4d0caf90240d94352a31fcbd16adf52658a7",
+    "verified_upstream_head": true,
+    "patchlevel": "0.84-10-g82fb4d0",
+    "provisioner": "scripts/dev/ensure-jim-oracle.sh",
+    "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh"
+  },
+  "workspace_rust_check_and_prep_pr": "pending; focused verification does not certify release gates",
+  "issue_comment": "https://github.com/bitwisecook/tcl-lsp/issues/2436#issuecomment-6630162759",
+  "targeted_clippy": {
+    "command": "cargo clippy --offline -p tcl-lexer -p tcl-compiler --lib -- -D warnings",
+    "source_head": "c80aa092d (plus documentation-only 767bb6897)",
+    "result": "pass",
+    "final_output": "    Finished `dev` profile [unoptimized] target(s) in 1m 14s"
+  }
+}

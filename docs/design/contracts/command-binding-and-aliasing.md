@@ -169,6 +169,9 @@ redefinition.
     itself is trustworthy), only `rename` / `interp alias` touching the name
     demotes it. A dynamic (statically unknown target) rebinding anywhere sets
     `dynamic`, which makes both queries answer `false` for every name.
+    O115's retained return/argument normalisation checks the resolved registry
+    descriptor against this same gate; an original operand receipt does not
+    override whole-module command distrust.
     `distrust_all()` is the sound stand-in for a consumer with no
     whole-module view at all, and `CommandTrustSnapshot` is the canonical
     hashable form so the fact can ride inside a memoisation key.

@@ -105,6 +105,18 @@ mutation and distrust `expr`; the propagation helper bypasses that fact.
 The implementation now retains the registry-resolved expression invocation
 and checks its descriptor against the whole-module trust gate before O115.
 No binding-owner, CLI, VM or F5 code is changed. Focused return/argument
-controls and execution under Tcl 8.4–9.1/current Jim are prepared; corrected
-verification is pending this required integration checkpoint. Older tooling
+controls and execution under Tcl 8.4–9.1/current Jim passed all three focused
+regressions at clean `c47d83bda` (15.60 seconds). Eight positive and eight
+negative return/argument controls include a proved computed `puts` head.
+The six-engine execution installs a mutating target after load, dispatches it
+through the public dynamic procedure and compares the resulting output.
+The sample README's dynamic-head row now says **not reported** and its former
+remaining-gap paragraph has been replaced. The existing test binary also passed its single six-engine execution case
+with the refreshed Jim oracle (0.84-10-g82fb4d0), outside the build wrapper.
+The equivalent compilation rerun was cancelled to release the priority #940
+slot. The coordinator verified production lexer/compiler Clippy at
+`c80aa092d`, which includes the implementation fix; no duplicate library
+Clippy or unrelated regression matrix was run. The focused proof draft and
+machine-readable receipt are `/tmp/lsp-2218-comment.md` and
+`/tmp/lsp-2218-evidence.json`. Older tooling
 and allocation/setup drafts remain stashed.

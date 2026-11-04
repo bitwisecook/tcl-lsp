@@ -892,7 +892,12 @@ fn issue_2218_unknown_future_target_preserves_execution() {
             "{version:?}\n{rewritten}"
         );
     }
-    if let Some(jim) = tcl_test_support::locate_jimsh().expect("validated Jim oracle") {
+    let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+        Some(tcl_test_support::require_jimsh().expect("required current Jim oracle"))
+    } else {
+        tcl_test_support::locate_jimsh().expect("validated Jim oracle")
+    };
+    if let Some(jim) = jim {
         let (rewritten, applied) = optimise(source, "jim");
         assert!(
             applied

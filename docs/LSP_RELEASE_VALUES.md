@@ -16,7 +16,7 @@ also silent.
 | #2131 | `type_infer` uses the `tcl-syntax` `MathResultClass` owner; execution pending. |
 | #2288 | At `e19c0acaa`, the prefixed list-built Tk callback is quiet and an interpolated Tk callback emits W105. `lsp_external_validation::issue_2288_prefixed_tk_bind_script`. |
 | #2440 | Selected script-argument roles avoid scanning the containing body. The focused integration regression passed on `073e6e942`, covering proc literal and proven use, conditional and iRules bodies, and braced data. |
-| #2436 | Tcl 8.4–9.1 reject both reported welded forms; Jim 0.84 rejects welded braces and accepts welded quotes. Shared per-command parse-cut API and analyser integration drafted; lexer regression passes, compiler integration pending. |
+| #2436 | The earlier draft is superseded by the verified fix in `1eefbc317`. Two lexer tests and four production/reference tests passed against Tcl 8.4–9.1 and the verified current Jim build; see `docs/LSP_RELEASE_STATUS.md`. |
 | #2387, #2437, #2438, #2451–#2454, #2427 | Awaiting reproduction against current branch. |
 
 The initial compiler test build was stopped before completion to honour the
@@ -298,3 +298,5 @@ foreach pt {{1 2} {3 4} {5 6}} {
 }
 puts [list [info patchlevel] $ys]
 ```
+
+The first guarded root-flow prototype was tested at `c80aa092d` with its uncommitted source changes. Its production library compiled, but `conditional_root_source_scope_uses_its_original_parent_and_input` failed: the existing child layout row was refused at `scopes.row-current`. The prototype has not established a safe root source owner and #940 remains open. The frozen build and direct test logs are `/tmp/lsp-940-root-test2-build.log` and `/tmp/lsp-940-root-test2-run.log`; the test build required five exact fixture blobs restored from the same commit because the checkout was sparse.
