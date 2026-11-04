@@ -184,3 +184,15 @@ Exact frozen inputs, patch and failed/passing receipts are in
 [`w210-short-circuit-canonical-attempt`](../rust/tcl-compiler/tests/data/w210-short-circuit-canonical-attempt/README.md).
 The draft remains uncommitted. Five missing authentic sparse unit fixtures are
 restored for the next private-model retry; full gates remain pending.
+
+The corrected model build and all six focused tests now pass; see
+[`w210-short-circuit-model-gates`](../rust/tcl-compiler/tests/data/w210-short-circuit-model-gates/README.md).
+All 12 actual-input probes retain AuthoredSimulation/Direct purpose, supplied
+metadata, no Native entry and no inline/named compiler admission. Final-store
+source values are `0`, with normal completion for that invocation when reached;
+whole expressions keep unavailable results and no complete-normal proof, so
+raw child `9` is never a Boolean root result. The 30 prior source values match
+the documented conditional value contract. The current coherent warning matrix
+also passes 60/60 with unchanged source hashes. Stronger exact value/gate
+assertions await the scheduled final combined run; no candidate code has been
+published, and full gates remain pending.
