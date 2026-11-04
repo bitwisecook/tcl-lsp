@@ -239,3 +239,15 @@ foreach number {2498 2500 2504 2506} {
  puts [list [info patchlevel] $number $status $result]
 }
 ```
+
+
+## Analysis-only source-owner experiment
+
+At `942a957d0`, a local candidate routed a checked conditional Native source
+schema from the current retained inventory through the existing analysis-only
+structured invocation. Its frozen full-pipeline run still left both the
+Tcl-confirmed S102 positive control and all three int/dict-to-list shimmer
+positive controls silent. The reported #940, #2498, #2500 and #2504 cases
+remained quiet, so the candidate does not establish a fix. The owner route
+requires additional tracing; no candidate production changes have been
+committed. Native execution and Normal-completion proof paths were not changed.
