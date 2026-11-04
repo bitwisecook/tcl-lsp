@@ -20,3 +20,17 @@ history negatives. No blanket Conditional production change is justified.
 These are Rust API/owner observations, not Tcl execution evidence. Exact source
 constructors, inputs and library hashes are archived; private physical operands
 and alias-frame internals were not queried by the public probe.
+
+The additional 24-row factory contrast uses `proc outer {} {proc f {}
+{...}}` with neither called, versus an actual `outer; f` suffix. Fresh uncalled
+f remains Conditional with no proved target, strict query/Normal transfer or
+retained result. The actual-call contrast retains its selected model metadata.
+Native-entry and total-completion proofs are absent throughout. A final root
+`list` witness retains possible f candidates with may-absence; it does not
+prove f present, and the test must not equate that with an empty candidate set.
+Compiler-only admission can remain present independently of runtime entry.
+
+The reviewed cfg(test)-only correction selects this genuine Conditional fixture
+for the two old strict-None assertions and adds after-load/reached positives
+plus unknown-history refusals. Its unit retry is pending; no source-purpose
+production fix is proposed or claimed.

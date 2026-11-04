@@ -263,3 +263,10 @@ Native entry and complete-normal proofs remain absent. A genuinely Conditional
 factory-child fixture is under review while preserving the old negative
 assertions, real after-load positives and unknown-history refusal. No production
 source-purpose change has been made.
+
+The 17:30 UTC checkpoint retains a further 24 public factory-child contrasts.
+They confirm genuinely Conditional query/Normal-transfer refusal, independently
+of compiler-only admission, and preserve actual-call selection. The reviewed
+query correction is cfg(test)-only and awaits its focused retry. The root's
+separate #2426 typed index-subject deduplication draft is also stashed for the
+planned joint build; no unverified tests or product changes are published.
