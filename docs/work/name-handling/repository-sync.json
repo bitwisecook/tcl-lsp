@@ -1,8 +1,8 @@
 {
-  "checked_at": "2026-11-04T08:30:57.541496+00:00",
+  "checked_at": "2026-11-04T08:35:57.581596+00:00",
   "branch": "work",
-  "head_before_status_commit": "bca720721f9ce71d8beb97af12f5089970d7d494",
-  "remote_head_at_fetch": "2fad45a7c025d5ae644aca8592256b95f52007bf",
+  "head_before_status_commit": "97f79e0ae0f39c15cf8f046bc6e133fcfe20a005",
+  "remote_head_at_fetch": "c54c816b6e41eeb82750e5c0450e579eb7d371e2",
   "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
