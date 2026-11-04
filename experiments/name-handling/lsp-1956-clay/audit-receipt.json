@@ -1,0 +1,25 @@
+{
+  "issue": 1956,
+  "status": "Open; source audit and source-boundary proposal pending review. No implementation or Cargo run.",
+  "fixture_sha256": {
+    "tmp/tcllib-2.0/modules/clay/clay.tcl": "150b48a3ddf4916cca5e182ce05274773ddcc3bc296c9b1e6f8c4d9afd1c49b0",
+    "tmp/tcllib-2.0/modules/clay/pkgIndex.tcl": "8dc14eb23d620462cb19009ccff7e6ce980731250c9c5dfede2b6960823e5aec",
+    "tmp/tcllib-2.0/modules/httpd/httpd.tcl": "36cdae3de3a8669d14deca6ac9ea6430670aefd82e28a163bb6d398f60c7288d",
+    "tmp/tcllib-2.0/modules/httpd/pkgIndex.tcl": "aec83fe863a5fc2c7e294ab3ceb4450603f6ba8db6f66e1b14bdb9aea0b332f4"
+  },
+  "native_record": "../../../evidence/tcl/lsp-1956-clay-definition-forwarding.md",
+  "native_script_sha256": "d9c1cab7cb2bfe91c178cb2778b21497f5c9835e5dd010c345f6bedc04a790e6",
+  "baseline_server_record": "baseline-server-receipt.json",
+  "raw_artifacts": "/workspace/tcl-lsp/tmp/lsp-verified-artifacts/1956",
+  "full_rust_check": "Not run",
+  "full_prep_pr": "Not run",
+  "static_checks": {
+    "tcl_evidence_format": {
+      "command": "python3 scripts/dev/check-tcl-evidence.py",
+      "actual_exit": 0,
+      "files": 1648
+    },
+    "baseline_probe_py_compile": 0,
+    "git_diff_check": 0
+  }
+}
