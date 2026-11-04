@@ -158,6 +158,19 @@ def main():
                         markdown_block(bytes.fromhex(values[4]), "text-visible"),
                     ]
                 )
+            elif case.startswith("trace-") or case in {
+                "lappend-zero-recreate",
+                "scan-rebind-frame-zero",
+            }:
+                values = parser.splitlist(result.decode("ascii"))
+                if len(values) != 2:
+                    raise ValueError(f"unexpected trace result: {case}/{unit}")
+                parts.extend(
+                    [
+                        "\nThe script encoded its inner result as hex; decoded bytes:\n\n",
+                        markdown_block(bytes.fromhex(values[1]), "text-visible"),
+                    ]
+                )
         document = "".join(parts).rstrip() + "\n"
         errors = validate_document(document)
         if errors:

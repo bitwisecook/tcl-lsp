@@ -34,6 +34,12 @@ set summary
 
 The wrapper recorded Tcl completion code 0. The response from source port 42103 included this case in the sequential control matrix.
 
+The script encoded its inner result as hex; decoded bytes:
+
+```text-visible
+SENTINEL {NEW EXTRA}⟦EOF⟧
+```
+
 ### TMM 0:1, HTTP_REQUEST
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
@@ -48,6 +54,12 @@ The wrapper recorded Tcl completion code 0. The response from source port 42103 
 ```
 
 The wrapper recorded Tcl completion code 0. The response from source port 42102 included this case in the sequential control matrix.
+
+The script encoded its inner result as hex; decoded bytes:
+
+```text-visible
+SENTINEL {NEW EXTRA}⟦EOF⟧
+```
 
 ### TMM 0:2, HTTP_REQUEST
 
@@ -64,6 +76,12 @@ The wrapper recorded Tcl completion code 0. The response from source port 42102 
 
 The wrapper recorded Tcl completion code 0. The response from source port 42101 included this case in the sequential control matrix.
 
+The script encoded its inner result as hex; decoded bytes:
+
+```text-visible
+SENTINEL {NEW EXTRA}⟦EOF⟧
+```
+
 ### TMM 0:3, HTTP_REQUEST
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
@@ -78,3 +96,9 @@ The wrapper recorded Tcl completion code 0. The response from source port 42101 
 ```
 
 The wrapper recorded Tcl completion code 0. The response from source port 42100 included this case in the sequential control matrix.
+
+The script encoded its inner result as hex; decoded bytes:
+
+```text-visible
+SENTINEL {NEW EXTRA}⟦EOF⟧
+```
