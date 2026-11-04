@@ -298,12 +298,17 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
 
 ### Where bodies run: one hook service, and tables
 
-A process runs every hook body on one dedicated thread, the **hook
+A native process runs every hook body on one dedicated thread, the **hook
 service** (`tcl_spectcl::hooks::service`), which owns the only VM-backed
 host: built once per published plan, every pack's sandbox bootstrapped and
 every body bound before the first call. A worker thread installs a
-forwarding proxy, so no analysis thread ever pays a VM bootstrap, however
-often a thread pool turns its threads over; quarantine is process-wide.
+forwarding proxy, so no native analysis thread pays a VM bootstrap, however
+often a thread pool turns its threads over. Browser and WASI hosts execute
+synchronously on their execution thread, building the same sandboxed host
+on the first call that needs it and retaining it for the published plan.
+No service-state borrow crosses VM execution; nested calls cannot re-enter
+the active VM. Quarantine is process-wide and belongs to its service-plan
+generation, so a retired host cannot quarantine its replacement.
 `pack_hooks::evaluator_generation` answers from the published plan without
 building anything.
 
