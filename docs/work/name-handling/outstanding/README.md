@@ -1,10 +1,10 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 09:22 UTC. **Not release-ready.** The [current snapshot](../current-state.md) binds exact sources and receipts.
+Updated 04 November 2026, 10:07 UTC. **Not release-ready.** The [current snapshot](../current-state.md) binds exact sources and receipts.
 
 | Work | Open acceptance |
 | --- | --- |
-| Rename/reference producer |New captured-row source-reference API and authentic fixture correction adopted; focusedCore11 is building, genuine two-file positive first. Earlier jointCoreV3 remains15pass/5fail. Repeat Kernel regressions, Core positives/refusals and actual native two-file edits. |
+| Rename/reference producer |New captured-row source-reference API and authentic fixture correction adopted; pre-merge focusedCore11 builds0 but is7pass/4fail; the source-reference allocation itself is observed, while both rename positives remain blocked. CompilerV8 regressions/observations are running after a corrected test build error. Earlier jointCoreV3 remains15pass/5fail. Repeat Kernel regressions, Core positives/refusals and actual native two-file edits. |
 | Navigation and metadata |Earlier Server7/7 and native15+20+5 passes predate current changes. Run current Server13, including six input-capture controls, then actual native/browser/WASI. Public symbol/autoload nulls and parameter/metadata gaps remain open. |
 | Autoload |CoreV3 all11 reuse controls and15/15 installed fresh/full ordered vectors pass with matching seals. Matched cold-host plans remain unexecuted; the old strict startup case still fails. Require-first lookup refusal is not a supported positive fixture. |
 | Linked hook containment |RMWv6 fails Engine1/6 and hooks10/13; Jim1/1 passes. Repeat adopted ScriptBytes/error-contract and budget/F5-purpose test corrections with v7 Engine6/containment14/Jim1. Production confinement and budgets remain required. |
