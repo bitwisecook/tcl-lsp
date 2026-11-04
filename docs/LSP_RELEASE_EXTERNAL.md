@@ -1,6 +1,6 @@
 # External issue validation comments
 
-Inventory rechecked 2026-11-04 20:37 UTC: the same 20 external issues remain open. Evidence revisions and measured scope remain in the comments. All **19 requested issue comments** were posted and
+Inventory rechecked 2026-11-04 21:36 UTC: the same 20 external issues remain open. Evidence revisions and measured scope remain in the comments. All **19 requested issue comments** were posted and
 reread on GitHub. **#2021 was excluded and received no comment from this sweep.**
 No external issue was closed by this work. Revisions, commands, native-oracle
 versions, controls and scope limits are in the linked comments.
@@ -48,3 +48,5 @@ examples remain coverage-inconclusive, and the issue stays open.
 
 The #940 proof comment was updated and read back exactly again at 21:30 UTC.
 It now links the [native foreach profile evidence](../evidence/tcl/lsp-940-foreach-numeric-representation.md): numeric inputs retain their representation on Tcl 9.0/9.1, so they cannot serve as universal foreach conversion controls. Its font-size silence is explicitly observational while reached consumer coverage remains unverified. All 19 external proof comments remain present; #2021 is excluded.
+
+At 21:45 UTC, the [compiler regression refresh](../experiments/lsp-external/refresh-2026-11-04-2145/README.md) passed 11 existing tests against the integrated stage fix: full linked binding inputs across Tcl 8.4–9.1 and Tcl 8.6 surface/taint controls. All inputs, 145 dependencies and the binary closed unchanged. This does not revalidate native LSP delivery or close the separate reached-read gaps; all issue classifications above remain unchanged.
