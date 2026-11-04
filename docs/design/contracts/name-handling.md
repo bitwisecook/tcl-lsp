@@ -177,6 +177,11 @@ is separate from generic executable command-vector membership: literal braced
 data supplies neither one. Navigation retains every earlier uncertainty,
 operand-effect and unique-target check. The relationship grants no body entry,
 Normal outcome, Native execution, complete coverage or edit authority.
+An original bracket call keeps its operand horizon: later operands and the
+containing command's later effects cannot move that selection. A prior channel
+write's unresolved effects remain attached even with a literal payload; remaining
+earlier uncertainty refuses navigation. Non-ASCII source geometry does not discharge
+that debt.
 
 Logical semantic class-body context reads the name operand from the actual
 selected definition grammar's `command_installation` descriptor. A generic

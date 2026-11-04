@@ -398,9 +398,9 @@ mod nested_procedure_navigation_tests {
 
     #[test]
     fn nested_procedure_navigation_keeps_its_original_operand_horizon() {
-        for dialect in ["tcl8.6", "tcl9.0"] {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             for source in [
-                "proc host_old {value} { return $value }\nputs \"🧪 café\"; puts [host_old 7]\n",
+                "proc host_old {value} { return $value }\nlist \"🧪 café\"; puts [host_old 7]\n",
                 "proc host_old {value} {return $value}\nputs [list [host_old 7]]\n",
                 "proc host_old {value} {return $value}\nputs [host_old 7] $later\n",
             ] {
@@ -418,6 +418,37 @@ mod nested_procedure_navigation_tests {
                 assert!(call.declaration(&independent).is_none());
                 let changed = source.replace("host_old 7", "host_old 8");
                 assert!(select(&changed, &analysis, offset).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn nested_procedure_navigation_preserves_prior_channel_write_debt() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for payload in ["\"🧪 café\"", "\"ascii\""] {
+                let source = format!(
+                    "proc host_old {{value}} {{ return $value }}\nputs {payload}; puts [host_old 7]\n"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let offset = u32::try_from(source.find("host_old 7").unwrap()).unwrap();
+                let call = tcl_compiler::registry_invocation::source_structure::source_original_procedure_call_at(
+                    &source, &analysis, offset,
+                ).unwrap();
+                let declaration = call.declaration(&analysis).unwrap();
+                assert_eq!(declaration.name_input().bytes(), b"host_old");
+                assert!(!call.has_lookup_operand_effects());
+                let [earlier] = call.uncertain_operations() else {
+                    panic!("expected the earlier channel write's unresolved effects");
+                };
+                assert_eq!(earlier.len(), 2);
+                assert_eq!(earlier[0].bytes(), b"puts");
+                assert_eq!(earlier[1].bytes(), payload.as_bytes());
+                let earlier_offset = source.find("\nputs ").unwrap() + 1;
+                assert_eq!(
+                    earlier[0].span().start(),
+                    u32::try_from(earlier_offset).unwrap()
+                );
+                assert!(select(&source, &analysis, offset).is_none());
             }
         }
     }
