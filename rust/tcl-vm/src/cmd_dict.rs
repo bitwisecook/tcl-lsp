@@ -1264,11 +1264,10 @@ fn populate_dictionary_update_variables(
         };
         if exists {
             vm.store_var_result_bytes(&name, selected)?;
+        } else if vm.native_c_variable_name_protocol().is_some() {
+            vm.unset_original_named_variable(&pair[1], false)?;
         } else {
-            let _ = vm.unset_var_bytes(&name);
-            if let Some(refusal) = vm.refused_completion() {
-                return Err(refusal);
-            }
+            vm.unset_one_bytes(&name, false)?;
         }
         mappings.push((pair[0].clone(), pair[1].clone()));
     }
@@ -1408,6 +1407,157 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn confined_jim_dictionary_missing_key_keeps_outer_alias_and_dictionary_member() {
+        for confined in [false, true] {
+            let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+            let mut vm = crate::native_fixture::interpreter_with_dictionary_library(profile);
+            vm.push_call_frame(Some("outer".into()), Vec::new());
+            let outer = vm.current_level();
+            vm.set_var("held", Value::string("old")).unwrap();
+            vm.set_var("dictionary", Value::string("k held")).unwrap();
+            vm.push_call_frame(Some("inner".into()), Vec::new());
+            vm.add_link("alias", outer, "held")
+                .unwrap_or_else(|_| panic!("link"));
+            vm.add_link("dictionary_alias", outer, "dictionary")
+                .unwrap_or_else(|_| panic!("link"));
+            vm.set_var("local_dictionary", Value::string("k local"))
+                .unwrap();
+            vm.set_stores_confined(confined);
+            let inner = vm.current_level();
+            let root = Value::dict(Vec::new());
+            for target in ["alias", "dictionary_alias(k)"] {
+                let original_names =
+                    crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
+                        .unwrap();
+                let result = populate_dictionary_update_variables(
+                    &mut vm,
+                    &original_names,
+                    &root,
+                    &[Value::string("k"), Value::string(target)],
+                );
+                original_names.finish(&mut vm).unwrap();
+                assert_eq!(vm.current_level(), inner);
+                if confined {
+                    assert!(result.is_err(), "{target}");
+                } else {
+                    result.unwrap();
+                }
+            }
+            if confined {
+                assert_eq!(
+                    vm.get_var_from(outer, "held").unwrap().to_str().as_ref(),
+                    "old"
+                );
+                assert_eq!(
+                    vm.get_var_from(outer, "dictionary")
+                        .unwrap()
+                        .to_str()
+                        .as_ref(),
+                    "k held"
+                );
+            } else {
+                assert!(vm.get_var_from(outer, "held").is_none());
+                assert_eq!(
+                    vm.get_var_from(outer, "dictionary")
+                        .unwrap()
+                        .to_str()
+                        .as_ref(),
+                    ""
+                );
+            }
+            for target in ["absent", "local_dictionary(k)", "local_dictionary(missing)"] {
+                let original_names =
+                    crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
+                        .unwrap();
+                populate_dictionary_update_variables(
+                    &mut vm,
+                    &original_names,
+                    &root,
+                    &[Value::string("k"), Value::string(target)],
+                )
+                .unwrap();
+                original_names.finish(&mut vm).unwrap();
+            }
+            assert_eq!(
+                vm.get_var("local_dictionary").unwrap().to_str().as_ref(),
+                ""
+            );
+        }
+    }
+
+    #[test]
+    fn confined_dictionary_update_missing_key_keeps_foreign_target_and_unset_traces() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+
+        struct ObserveUnset(Rc<Cell<usize>>);
+        impl crate::command::NativeCommand for ObserveUnset {
+            fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
+                self.0.set(self.0.get() + 1);
+                ok(Value::empty())
+            }
+        }
+        for confined in [false, true] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            vm.set_var("::seed", Value::string("old")).unwrap();
+            let callbacks = Rc::new(Cell::new(0));
+            vm.register_native_command(
+                "observe_missing_key_unset",
+                Rc::new(ObserveUnset(callbacks.clone())),
+            );
+            vm.add_var_trace_bytes(
+                b"::seed",
+                vec!["unset".into()],
+                &Value::string("observe_missing_key_unset"),
+                false,
+            );
+            vm.push_call_frame(Some("dictionary_update".into()), Vec::new());
+            vm.set_var("d", Value::dict(Vec::new())).unwrap();
+            vm.set_stores_confined(confined);
+            let result = cmd_dict_update(
+                &mut vm,
+                &[
+                    Value::string("d"),
+                    Value::string("k"),
+                    Value::string("::seed"),
+                    Value::empty(),
+                ],
+            );
+            if confined {
+                assert_eq!(result.code, Code::Error);
+                assert_eq!(
+                    result.result.string_bytes().as_ref(),
+                    b"can't unset \"::seed\": stores are confined to the activation"
+                );
+                assert_eq!(vm.get_var("::seed").unwrap().to_str().as_ref(), "old");
+                assert_eq!(callbacks.get(), 0);
+            } else {
+                assert_eq!(result.code, Code::Ok);
+                assert!(vm.get_var("::seed").is_none());
+                assert_eq!(callbacks.get(), 1);
+            }
+            for target in ["::missing_ns::x", "local"] {
+                if target == "local" {
+                    vm.set_var("local", Value::string("old")).unwrap();
+                }
+                let result = cmd_dict_update(
+                    &mut vm,
+                    &[
+                        Value::string("d"),
+                        Value::string("k"),
+                        Value::string(target),
+                        Value::empty(),
+                    ],
+                );
+                assert_eq!(result.code, Code::Ok, "{target}: {result:?}");
+                assert!(vm.get_var(target).is_none());
+            }
+        }
+    }
 
     #[test]
     fn host_dictionary_surface_is_independent_of_embedded_source_grammar() {

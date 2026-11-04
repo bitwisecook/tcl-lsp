@@ -474,7 +474,7 @@ impl Vm {
         let Some(variable) = self.variable_observers.native_error_cells.get(&id).copied() else {
             return;
         };
-        if op != "read" {
+        if op != "read" || self.limits.confined_stores {
             return;
         }
         let Some(protocol) = self
@@ -912,6 +912,52 @@ mod tests {
     use std::rc::Rc;
     use tcl_registry::special_vars::NativeBootstrapInputs;
     use tcl_runtime_api::{Code, Completion};
+
+    #[test]
+    fn confined_native_error_reads_keep_private_metadata_without_publication() {
+        for confined in [false, true] {
+            let mut vm = native_vm("tcl9.0");
+            for variable in [Variable::ErrorInfo, Variable::ErrorCode] {
+                vm.unset_var_bytes(variable.global_name().as_bytes());
+            }
+            let info = Value::string("private error info");
+            let code = Value::list(vec![Value::string("CUSTOM"), Value::string("DETAIL")]);
+            vm.native_errors.native_error_info = Some(info.clone());
+            vm.native_errors.primitive_error_code = Some(code.clone());
+            vm.native_errors.native_error_legacy_copy = true;
+            vm.set_stores_confined(confined);
+            for (variable, original) in [(Variable::ErrorInfo, &info), (Variable::ErrorCode, &code)]
+            {
+                let id = vm
+                    .registered_trace_cell_bytes(variable.global_name().as_bytes())
+                    .unwrap()
+                    .id
+                    .unwrap();
+                assert!(vm.read_resolved_cell(id).is_none());
+                vm.fire_native_error_variable_trace(id, "read");
+                let published = vm.read_resolved_cell(id);
+                if confined {
+                    assert!(published.is_none());
+                } else {
+                    assert!(published.unwrap().is_same_object(original));
+                }
+            }
+            assert!(
+                vm.native_errors
+                    .native_error_info
+                    .as_ref()
+                    .unwrap()
+                    .is_same_object(&info)
+            );
+            assert!(
+                vm.native_errors
+                    .primitive_error_code
+                    .as_ref()
+                    .unwrap()
+                    .is_same_object(&code)
+            );
+        }
+    }
 
     fn lower_hex(bytes: &[u8]) -> String {
         use std::fmt::Write;

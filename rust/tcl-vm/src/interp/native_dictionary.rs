@@ -197,10 +197,13 @@ impl Vm {
                         "dictionary update target slot is unavailable".into(),
                     ));
                 };
-                let _ = self.unset_var_bytes(binding.name.as_bytes());
-                if let Some(refusal) = self.refused_completion() {
-                    return Err(refusal);
-                }
+                self.confine_store_binding_bytes(
+                    binding.name.as_bytes(),
+                    &binding,
+                    self.current_level(),
+                    true,
+                )?;
+                self.unset_one_bytes(binding.name.as_bytes(), false)?;
             }
         }
         Ok(())
@@ -481,6 +484,70 @@ impl Vm {
                 })?
         } else {
             objects.prepare(root)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    struct ObserveUnset(Rc<Cell<usize>>);
+    impl crate::command::NativeCommand for ObserveUnset {
+        fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
+            self.0.set(self.0.get() + 1);
+            super::super::ok(Value::empty())
+        }
+    }
+
+    #[test]
+    fn confined_compiled_dictionary_missing_key_checks_linked_slot_before_unset() {
+        for confined in [false, true] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            vm.set_var("::seed", Value::string("old")).unwrap();
+            let callbacks = Rc::new(Cell::new(0));
+            vm.register_native_command(
+                "observe_compiled_missing_unset",
+                Rc::new(ObserveUnset(callbacks.clone())),
+            );
+            vm.add_var_trace_bytes(
+                b"::seed",
+                vec!["unset".into()],
+                &Value::string("observe_compiled_missing_unset"),
+                false,
+            );
+            vm.push_call_frame(Some("dictionary_update".into()), Vec::new());
+            vm.install_compiled_local_slots(&["d".into(), "alias".into(), "local".into()])
+                .unwrap();
+            vm.bind_compiled_formal_slot(0, Value::dict(Vec::new()))
+                .unwrap();
+            vm.add_link("alias", 0, "::seed")
+                .unwrap_or_else(|_| panic!("link"));
+            vm.bind_compiled_formal_slot(2, Value::string("old"))
+                .unwrap();
+            vm.set_stores_confined(confined);
+            let keys = Value::list(vec![Value::string("k")]);
+            let result = vm.start_compiled_dictionary_update(0, &keys, &[1]);
+            if confined {
+                let error = result.unwrap_err();
+                assert_eq!(
+                    error.result.string_bytes().as_ref(),
+                    b"can't unset \"alias\": stores are confined to the activation"
+                );
+                assert_eq!(vm.get_var("::seed").unwrap().to_str().as_ref(), "old");
+                assert_eq!(callbacks.get(), 0);
+            } else {
+                result.unwrap();
+                assert!(vm.get_var("::seed").is_none());
+                assert_eq!(callbacks.get(), 1);
+            }
+            vm.start_compiled_dictionary_update(0, &keys, &[2]).unwrap();
+            assert!(vm.get_var("local").is_none());
+            vm.start_compiled_dictionary_update(0, &keys, &[2]).unwrap();
         }
     }
 }
