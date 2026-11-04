@@ -1,0 +1,69 @@
+{
+  "issue": 2371,
+  "cases": [
+    {
+      "id": "original-after-unset",
+      "source": "proc p {} {set x 1; if {[info exists x]} {unset x; puts $x}}\np\n",
+      "variable": "x",
+      "expected_w210": true
+    },
+    {
+      "id": "guarded-stable-readable",
+      "source": "proc p {} {set x 1; if {[info exists x]} {puts $x}}\np\n",
+      "variable": "x",
+      "expected_w210": false
+    },
+    {
+      "id": "restored-after-unset",
+      "source": "proc p {} {set x 1; if {[info exists x]} {unset x; set x 2; puts $x}}\np\n",
+      "variable": "x",
+      "expected_w210": false
+    },
+    {
+      "id": "unrelated-unset",
+      "source": "proc p {} {set x 1; set y 1; if {[info exists x]} {unset y; puts $x}}\np\n",
+      "variable": "x",
+      "expected_w210": false
+    },
+    {
+      "id": "negated-else-unset",
+      "source": "proc p {} {set x 1; if {![info exists x]} {} else {unset x; puts $x}}\np\n",
+      "variable": "x",
+      "expected_w210": true
+    },
+    {
+      "id": "alias-unset",
+      "source": "proc p {} {set x 1; upvar 0 x linked; if {[info exists x]} {unset linked; puts $x}}\np\n",
+      "variable": "x",
+      "expected_w210": true
+    },
+    {
+      "id": "array-element-unset",
+      "source": "proc p {} {set a(k) 1; if {[info exists a(k)]} {unset a(k); puts $a(k)}}\np\n",
+      "variable": "a(k)",
+      "expected_w210": true
+    },
+    {
+      "id": "other-array-element-unset",
+      "source": "proc p {} {set a(k) 1; set a(j) 2; if {[info exists a(k)]} {unset a(j); puts $a(k)}}\np\n",
+      "variable": "a(k)",
+      "expected_w210": false
+    },
+    {
+      "id": "unguarded-positive",
+      "source": "proc missingOwner {} {puts $__guard_missing}\nmissingOwner\n",
+      "variable": "__guard_missing",
+      "expected_w210": true
+    }
+  ],
+  "known_gaps": [
+    {
+      "id": "guarded-readable",
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x]} {puts $x}}\np 0; p 1\n",
+      "variable": "x",
+      "expected_w210": false,
+      "observed_baseline_w210": true,
+      "scope": "Existing false positive for a conditional producer; excluded from this direct-unset fix acceptance."
+    }
+  ]
+}

@@ -8,7 +8,8 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | Issues | Current evidence | Status |
 | --- | --- | --- |
 | #2501, #2502 | Exact current report inputs have no W210 under supported profiles; removing their binders in local controls still misses genuine reads. See the external validation receipt. | Scoped non-reproduction; control limits |
-| #2246, #2371 | C Tcl and Jim confirm the missing-variable reads; fresh compiler emits no W210. | Reproduced residual |
+| #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
+| #2371 | The exact guarded-unset report and direct/alias/element controls fail natively; a diagnostic-only attempted-read version fix is drafted but not yet compiled. | Reproduced residual; candidate unverified |
 | #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
 | #2376 | C Tcl and Jim confirm the short-circuit expression is safe; fresh compiler warns on its skipped read. | Reproduced residual |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
@@ -79,3 +80,22 @@ as do the adjacent removed-binder and Tcltest genuine-read controls. The
 top-level dict/list S100 control works, while its procedure-loop counterpart
 does not. The exact receipts distinguish existing compiler/Normal authority
 and provider plans from absent child proofs. No production fix is included.
+
+The #2371 fixed-input native matrix is in
+[`w210-unset-guards.json`](../rust/tcl-compiler/tests/data/w210-unset-guards.json),
+with all 54 direct C Tcl 8.4–9.1/Jim interpreter observations in
+[`w210-unset-guards-oracles.json`](../rust/tcl-compiler/tests/data/w210-unset-guards-oracles.json).
+Each row records its exact input digest, catch wrapper and interpreter command;
+a caught status of one preserves the native missing-variable error. Safe
+controls preserve a guarded value, restore a destroyed value or destroy an
+independent scalar/array cell. A standalone missing-read control checks W210
+execution separately. These are native semantics, not a passing product fix.
+
+The pre-change production baseline misses all four guarded deletion reports.
+It also warns on a distinct safe conditional-producer/existence-guard example;
+that existing false positive is recorded under `known_gaps`, outside this
+direct-unset fix's regression acceptance. The narrow candidate uses the shared
+attempted-read cell/version to recognise an existing SSA destruction, without
+inventing a readable value or completed Normal result. Its queued build is
+paused for #940 priority; the implementation and regression test remain safely
+separate from this native-data/status checkpoint.
