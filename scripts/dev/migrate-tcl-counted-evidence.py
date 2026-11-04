@@ -15,6 +15,39 @@ from tcl_evidence_format import markdown_block, script_from_markdown, validate_d
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "docs/design/analysis/name-resolution-proofs/manifest.json"
+SCOPE_OVERRIDES = {
+    "naming.mathop.original-public-evaluation-envelopes": (
+        "Three separate ASCII sources cover a bare operation, a CLI catch/result/"
+        "binary-scan/puts envelope, and a script variable passed to catch. Each "
+        "runs in a fresh fully initialized provider through the counted-source C API "
+        "driver without an added source envelope. Guest and driver output retain "
+        "their recorded buffering order."
+    ),
+    "naming.variable.original-array-unset-trace-refill": (
+        "Two ASCII LF sources were evaluated independently in fresh fully initialized "
+        "interpreters through the counted-source C API driver, without an added "
+        "source envelope or provider API substitution. Arbitrary trace registration "
+        "order, private identity, BIG-IP and executed software controls were not tested."
+    ),
+    "naming.variable.original-frame-array-trace-caller-access": (
+        "Two ASCII LF sources were evaluated independently in fresh fully initialized "
+        "interpreters through the counted-source C API driver, without an added source "
+        "envelope. Opaque, NUL and Unicode names, private identities, BIG-IP and "
+        "executed software controls were not tested. Public logs do not prove private identities."
+    ),
+    "naming.variable.original-undefined-array-member-retirement": (
+        "Three ASCII LF sources were evaluated independently in fresh fully initialized "
+        "interpreters through the counted-source C API driver. Defined-value queries, "
+        "arbitrary trace registration order, private object identity, BIG-IP and "
+        "executed Rust controls were outside this observation."
+    ),
+    "naming.variable.original-unset-alias-trace-refill": (
+        "Two ASCII LF sources use original upvar #0 aliases and modern trace API words, "
+        "with one fresh fully initialized interpreter and process per provider and source. "
+        "No API substitution, source/output normalization, physical identity, BIG-IP "
+        "execution or executed Rust assertion is established by these results."
+    ),
+}
 
 
 def quote(value: str) -> str:
@@ -46,9 +79,10 @@ def main() -> None:
         ):
             continue
         # Legacy bookkeeping in a scope needs a human edit before publication.
+        scope = SCOPE_OVERRIDES.get(record["id"], record.get("scope") or "")
         if re.search(
             r"(?i)sha.?256|digest|\bhash(?:es)?\b(?![- ](?:order|iteration|table|key))",
-            record.get("scope") or "",
+            scope,
         ):
             continue
         evidence = {item["id"]: item for item in record.get("evidence", [])}
@@ -156,7 +190,9 @@ def main() -> None:
             parts.extend(
                 [
                     "Recorded scope and limits:\n\n",
-                    quote(clean_scope(record["scope"])),
+                    quote(
+                        clean_scope(SCOPE_OVERRIDES.get(record["id"], record["scope"]))
+                    ),
                     "\n\n",
                 ]
             )
