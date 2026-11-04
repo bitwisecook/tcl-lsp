@@ -1329,7 +1329,8 @@ mod tests {
         let registry = input.borrowed_context_registry().commands();
         let mut policy = PolicyBuilder::new().build();
         policy.optimiser = OptimiserPolicy::all_on();
-        let marked = "proc f {flag} {set x 1; if {$flag} {\n# noqa: O125\nputs $x} else {puts no}}\n";
+        let marked =
+            "proc f {flag} {set x 1; if {$flag} {\n# noqa: O125\nputs $x} else {puts no}}\n";
         let out = optimise_under_policy(marked, registry, Some(&input), 1, &policy);
         assert!(out.text.contains("set x 1"), "{}", out.text);
         assert!(
