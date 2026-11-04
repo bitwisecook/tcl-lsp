@@ -127,28 +127,9 @@ fn original_variable_rename_edits_impl(
             continue;
         }
         if let SignatureSourceNameInput::OriginalVariableRoot(root) = input {
-            let (raw, extent) = variable_root_tail_extent(&image, root, symbol)?;
-            let mut after = std::str::from_utf8(raw)
-                .map_err(|_| refuse("the editor variable source is not Unicode"))?
-                .to_owned();
-            after.replace_range(extent, new_tail);
-            let produced = tcl_syntax::backslash::native_source_literal_bytes(
-                after.as_bytes(),
-                image.channel(),
-                symbol.policy().string_protocol(),
-            )
-            .map_err(|_| refuse("the lexical replacement has no source string recipe"))?;
-            if produced.as_ref() != wanted {
-                return Err(refuse(
-                    "the replacement changes unrelated lexical variable units",
-                ));
-            }
-            roots.push(
-                crate::original_name_edit::original_variable_root_name_edit(&image, root, &after)
-                    .ok_or_else(|| {
-                    refuse("the replacement changes variable delimiters or its root/index boundary")
-                })?,
-            );
+            roots.push(variable_root_name_edit(
+                &image, root, symbol, new_tail, &wanted,
+            )?);
         } else {
             require_original_variable_container(input)?;
             requests.push((input.clone(), wanted.into()));
@@ -182,6 +163,35 @@ fn original_variable_rename_edits_impl(
             .collect(),
         generated_source,
     })
+}
+
+fn variable_root_name_edit(
+    image: &SourceImage,
+    root: &tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot,
+    symbol: &SignatureSourceVariableSymbol,
+    new_tail: &str,
+    wanted: &[u8],
+) -> Result<crate::original_name_edit::OriginalNameSourceEdit, RenameRefusal> {
+    let refuse = |reason: &str| RenameRefusal {
+        reason: reason.to_owned(),
+        range: None,
+    };
+    let (raw, extent) = variable_root_tail_extent(image, root, symbol)?;
+    let mut after = std::str::from_utf8(raw)
+        .map_err(|_| refuse("the editor variable source is not Unicode"))?
+        .to_owned();
+    after.replace_range(extent, new_tail);
+    let produced = root
+        .source_literal_bytes(after.as_bytes())
+        .ok_or_else(|| refuse("the lexical replacement has no source string recipe"))?;
+    if produced.as_ref() != wanted {
+        return Err(refuse(
+            "the replacement changes unrelated lexical variable units",
+        ));
+    }
+    crate::original_name_edit::original_variable_root_name_edit(image, root, &after).ok_or_else(
+        || refuse("the replacement changes variable delimiters or its root/index boundary"),
+    )
 }
 
 fn require_disjoint_variable_edits(
@@ -268,18 +278,14 @@ fn variable_root_tail_extent<'a>(
     } else {
         tcl_syntax::naming::NativeVariableInputForm::Combined(root.bytes())
     };
-    let native_extent = symbol
+    let value_extent = symbol
         .policy()
         .recipe()
         .variable_root_tail_extent(form)
         .ok_or_else(|| refuse("the lexical variable has no selected original root tail"))?;
-    let extent = tcl_syntax::backslash::native_source_literal_extent(
-        raw,
-        image.channel(),
-        symbol.policy().string_protocol(),
-        native_extent,
-    )
-    .ok_or_else(|| refuse("the variable root tail crosses a source unit boundary"))?;
+    let extent = root
+        .source_literal_extent(raw, value_extent)
+        .ok_or_else(|| refuse("the variable root tail crosses a source unit boundary"))?;
     Ok((raw, extent))
 }
 
@@ -341,6 +347,80 @@ struct LogicalVariableSourceRenameIntent {
     after: String,
     generated: AnalysisResult,
     edits: Vec<crate::original_name_edit::OriginalNameSourceEdit>,
+}
+
+fn conditional_source_correspondence(
+    source: &str,
+    analysis: &AnalysisResult,
+    symbol: &SignatureSourceVariableSymbol,
+    after: &str,
+    generated: &AnalysisResult,
+    selected_after: &SignatureSourceVariableSymbol,
+    edits: &[crate::original_name_edit::OriginalNameSourceEdit],
+) -> Option<()> {
+    let input = analysis.resolved_input.as_ref()?;
+    let alpha_edits = edits
+        .iter()
+        .map(
+            |edit| tcl_compiler::analyser::logical_variable_alpha::ConditionalNameEdit {
+                span: edit.span(),
+                replacement: edit.text().as_bytes(),
+            },
+        )
+        .collect::<Vec<_>>();
+    let certificate =
+        tcl_compiler::analyser::logical_variable_alpha::conditional_source_plan_correspondence(
+            tcl_compiler::analyser::logical_variable_alpha::ConditionalSourcePlanRequest {
+                before_source: source,
+                before_analysis: analysis,
+                before_symbol: symbol,
+                after_source: after,
+                after_analysis: generated,
+                after_symbol: selected_after,
+                edits: &alpha_edits,
+            },
+        )?;
+    certificate
+        .matches(source, after, input, symbol, selected_after, &alpha_edits)
+        .then_some(())?;
+    Some(())
+}
+
+fn preserved_formal_topology(
+    source: &str,
+    analysis: &AnalysisResult,
+    after: &str,
+    generated: &AnalysisResult,
+    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
+    edits: &[crate::original_name_edit::OriginalNameSourceEdit],
+) -> Option<SourceImage> {
+    // A formal renamed to or from the reserved rest name must not silently
+    // change positional/default/rest topology while its token still parses.
+    let image = SourceImage::document(source);
+    let after_image = SourceImage::document(after);
+    let before_headers = analysis
+        .logical_source_procedure_declarations()
+        .collect::<Vec<_>>();
+    let after_headers = generated
+        .logical_source_procedure_declarations()
+        .collect::<Vec<_>>();
+    (before_headers.len() == after_headers.len()).then_some(())?;
+    for header in before_headers {
+        let old_body = header.original_body_word(&image, input)?.span();
+        let start = mapped_boundary(old_body.start(), edits)?;
+        let end = mapped_boundary(old_body.end(), edits)?;
+        let mut matching = after_headers.iter().filter(|candidate| {
+            candidate
+                .original_body_word(&after_image, input)
+                .is_some_and(|body| body.span().start() == start && body.span().end() == end)
+        });
+        let matched = matching.next()?;
+        (matching.next().is_none()
+            && header.source_candidate_coordinate() == matched.source_candidate_coordinate()
+            && header.formal_count_projection() == matched.formal_count_projection())
+        .then_some(())?;
+    }
+    Some(image)
 }
 
 impl LogicalVariableSourceRenameIntent {
@@ -415,57 +495,21 @@ impl LogicalVariableSourceRenameIntent {
         }
         let selected_after = groups.get(symbol)?;
         if conditional {
-            let alpha_edits = edits
-                .iter()
-                .map(
-                    |edit| tcl_compiler::analyser::logical_variable_alpha::ConditionalNameEdit {
-                        span: edit.span(),
-                        replacement: edit.text().as_bytes(),
-                    },
-                )
-                .collect::<Vec<_>>();
-            let certificate =
-                tcl_compiler::analyser::logical_variable_alpha::conditional_source_plan_correspondence(
-                    tcl_compiler::analyser::logical_variable_alpha::ConditionalSourcePlanRequest {
-                        before_source: source, before_analysis: analysis, before_symbol: symbol,
-                        after_source: &after, after_analysis: &generated, after_symbol: selected_after,
-                        edits: &alpha_edits,
-                    },
-                )?;
-            certificate
-                .matches(source, &after, input, symbol, selected_after, &alpha_edits)
-                .then_some(())?;
+            conditional_source_correspondence(
+                source,
+                analysis,
+                symbol,
+                &after,
+                &generated,
+                selected_after,
+                &edits,
+            )?;
         } else {
             generated
                 .original_variable_rename_is_complete(selected_after)
                 .then_some(())?;
         }
-        // A formal renamed to or from the reserved rest name must not silently
-        // change positional/default/rest topology while its token still parses.
-        let image = SourceImage::document(source);
-        let after_image = SourceImage::document(&after);
-        let before_headers = analysis
-            .logical_source_procedure_declarations()
-            .collect::<Vec<_>>();
-        let after_headers = generated
-            .logical_source_procedure_declarations()
-            .collect::<Vec<_>>();
-        (before_headers.len() == after_headers.len()).then_some(())?;
-        for header in before_headers {
-            let old_body = header.original_body_word(&image, input)?.span();
-            let start = mapped_boundary(old_body.start(), &edits)?;
-            let end = mapped_boundary(old_body.end(), &edits)?;
-            let mut matching = after_headers.iter().filter(|candidate| {
-                candidate
-                    .original_body_word(&after_image, input)
-                    .is_some_and(|body| body.span().start() == start && body.span().end() == end)
-            });
-            let matched = matching.next()?;
-            (matching.next().is_none()
-                && header.source_candidate_coordinate() == matched.source_candidate_coordinate()
-                && header.formal_count_projection() == matched.formal_count_projection())
-            .then_some(())?;
-        }
+        let image = preserved_formal_topology(source, analysis, &after, &generated, input, &edits)?;
         Some(Self {
             image,
             input: input.clone(),

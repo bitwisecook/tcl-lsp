@@ -174,7 +174,7 @@ impl SignatureSourceVariableRoot {
         (arena.image() == image
             && image.channel() == self.source_image().channel()
             && arena.config() == self.lexer_config())
-            .then_some(())?;
+        .then_some(())?;
         Self::from_owner(
             OriginalVariableRootOwner::Executable(arena.clone()),
             exact_part,
@@ -203,6 +203,30 @@ impl SignatureSourceVariableRoot {
                     self.source_image().channel(),
                 ))
             }
+        }
+    }
+
+    /// Map a literal value extent through this root's retained source authority.
+    #[must_use]
+    pub fn source_literal_extent(
+        &self,
+        raw: &[u8],
+        extent: std::ops::Range<usize>,
+    ) -> Option<std::ops::Range<usize>> {
+        match self.formation {
+            VariableRootFormation::NativeRecipe => {
+                tcl_syntax::backslash::native_source_literal_extent(
+                    raw,
+                    self.source_image().channel(),
+                    self.policy.string_protocol(),
+                    extent,
+                )
+            }
+            VariableRootFormation::LogicalSource => tcl_syntax::backslash::source_literal_extent(
+                raw,
+                self.source_image().channel(),
+                extent,
+            ),
         }
     }
 
@@ -300,6 +324,46 @@ impl SignatureSourceVariableRoot {
 mod tests {
     use super::*;
     use tcl_lexer::SubstFlags;
+
+    #[test]
+    fn original_root_literal_extents_retain_logical_and_native_units() {
+        let mut config = tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::plain_tcl().grammar,
+        );
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        config.escapes = policy.string_protocol().escape_syntax();
+        let image = SourceImage::document("${café🙂}");
+        let arena = ExecutablePartArena::decompose(
+            image.clone(),
+            Span::new(0, u32::try_from(image.len()).unwrap()),
+            SubstFlags::default(),
+            config,
+        )
+        .unwrap();
+        let part = &arena.list(arena.root())[0];
+        let rules = WordValueRules::from_config(&config);
+        let logical = SignatureSourceVariableRoot::from_original_logical_source_executable(
+            &arena, &image, config, part.span, rules, policy,
+        )
+        .unwrap();
+        let native = SignatureSourceVariableRoot::from_original_executable(
+            &arena, &image, config, part.span, rules, policy,
+        )
+        .unwrap();
+        let raw = "café🙂".as_bytes();
+        assert_eq!(logical.bytes(), raw);
+        assert_ne!(native.bytes(), raw);
+        assert_eq!(
+            logical.source_literal_extent(raw, 0..raw.len()),
+            Some(0..raw.len())
+        );
+        assert_eq!(
+            native.source_literal_extent(raw, 0..native.bytes().len()),
+            Some(0..raw.len())
+        );
+        assert_eq!(logical.source_literal_extent(raw, 0..raw.len() - 1), None);
+        assert_eq!(native.source_literal_extent(raw, 0..raw.len()), None);
+    }
 
     #[test]
     fn original_logical_roots_keep_exact_document_geometry_and_native_refusal() {

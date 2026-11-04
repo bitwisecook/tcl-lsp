@@ -1039,12 +1039,7 @@ impl SignatureSourceVariableOccurrence {
             SignatureSourceNameInput::OriginalVariableRoot(root) => {
                 let name = root.name_span()?;
                 let raw = root.source_image().bytes().get(name.as_range())?;
-                let selected = tcl_syntax::backslash::native_source_literal_extent(
-                    raw,
-                    root.source_image().channel(),
-                    root.policy().string_protocol(),
-                    extent,
-                )?;
+                let selected = root.source_literal_extent(raw, extent)?;
                 Some(tcl_lexer::Span::new(
                     name.start()
                         .checked_add(u32::try_from(selected.start).ok()?)?,
@@ -1053,6 +1048,9 @@ impl SignatureSourceVariableOccurrence {
                 ))
             }
             SignatureSourceNameInput::OriginalWord(key) => {
+                if key.is_logical_source() {
+                    return key.logical_source_literal_extent(extent);
+                }
                 tcl_registry::native_compiler_words::NativeCompilerWords::capture(
                     std::slice::from_ref(key.original_word()),
                     key.policy().string_protocol(),

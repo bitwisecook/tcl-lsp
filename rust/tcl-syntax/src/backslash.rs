@@ -195,15 +195,58 @@ pub fn source_literal_bytes(raw: &[u8], channel: tcl_lexer::SourceChannel) -> Co
     let mut value = Vec::with_capacity(raw.len());
     let mut at = 0;
     while at < raw.len() {
-        if raw[at] == b'\r' {
-            value.push(b'\n');
-            at += usize::from(raw.get(at + 1) == Some(&b'\n'));
-        } else {
-            value.push(raw[at]);
-        }
-        at += 1;
+        let (byte, next) = source_literal_byte(raw, at, channel);
+        value.push(byte);
+        at = next;
     }
     Cow::Owned(value)
+}
+
+fn source_literal_byte(raw: &[u8], at: usize, channel: tcl_lexer::SourceChannel) -> (u8, usize) {
+    if channel == tcl_lexer::SourceChannel::Document && raw[at] == b'\r' {
+        (b'\n', at + 1 + usize::from(raw.get(at + 1) == Some(&b'\n')))
+    } else {
+        (raw[at], at + 1)
+    }
+}
+
+/// Map [`source_literal_bytes`] boundaries to their original source extent.
+/// Document offsets must delimit complete UTF-8 characters; CRLF and lone CR
+/// use the same newline translation as the value view. `NativeValue` offsets
+/// remain counted byte boundaries. This supplies no native units or edit
+/// authority and does not interpret escapes.
+#[must_use]
+pub fn source_literal_extent(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    literal: std::ops::Range<usize>,
+) -> Option<std::ops::Range<usize>> {
+    if literal.start > literal.end {
+        return None;
+    }
+    if channel == tcl_lexer::SourceChannel::NativeValue {
+        return (literal.end <= raw.len()).then_some(literal);
+    }
+    let text = std::str::from_utf8(raw).ok()?;
+    let mut at = 0;
+    let mut value_at = 0;
+    let mut start = None;
+    loop {
+        if value_at == literal.start {
+            start = Some(at);
+        }
+        if value_at == literal.end {
+            let start = start?;
+            return (text.is_char_boundary(start) && text.is_char_boundary(at))
+                .then_some(start..at);
+        }
+        if at == raw.len() {
+            return None;
+        }
+        let (_, next) = source_literal_byte(raw, at, channel);
+        at = next;
+        value_at += 1;
+    }
 }
 
 /// Native literal bytes produced by an independently selected source channel.
@@ -1902,6 +1945,115 @@ mod original_literal_extent_tests {
                 crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0),
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn source_literal_extents_preserve_ascii_and_unicode_boundaries() {
+        use tcl_lexer::SourceChannel::Document;
+
+        assert_eq!(source_literal_extent(b"scalar", Document, 1..4), Some(1..4));
+        let source = "café🙂".as_bytes();
+        assert_eq!(source_literal_bytes(source, Document).as_ref(), source);
+        assert_eq!(source_literal_extent(source, Document, 0..9), Some(0..9));
+        assert_eq!(source_literal_extent(source, Document, 3..5), Some(3..5));
+        assert_eq!(source_literal_extent(source, Document, 5..9), Some(5..9));
+        assert_eq!(source_literal_extent(source, Document, 5..5), Some(5..5));
+        assert!(source_literal_extent(source, Document, 3..4).is_none());
+        assert!(source_literal_extent(source, Document, 4..5).is_none());
+        assert!(source_literal_extent(source, Document, 6..6).is_none());
+        assert!(source_literal_extent(source, Document, 0..10).is_none());
+        assert!(source_literal_extent(source, Document, 10..10).is_none());
+        assert!(
+            source_literal_extent(source, Document, std::ops::Range { start: 5, end: 3 }).is_none()
+        );
+    }
+
+    #[test]
+    fn source_literal_extents_share_exact_document_newline_translation() {
+        use tcl_lexer::SourceChannel::Document;
+
+        let source = b"a\r\nb\rc";
+        let value = source_literal_bytes(source, Document);
+        assert_eq!(value.as_ref(), b"a\nb\nc");
+        for (literal, original) in [
+            (0..5, 0..6),
+            (1..2, 1..3),
+            (2..3, 3..4),
+            (3..4, 4..5),
+            (5..5, 6..6),
+        ] {
+            assert_eq!(
+                source_literal_extent(source, Document, literal.clone()),
+                Some(original.clone())
+            );
+            assert_eq!(
+                source_literal_bytes(&source[original], Document).as_ref(),
+                &value[literal]
+            );
+        }
+        assert_eq!(source_literal_extent(b"\r", Document, 0..1), Some(0..1));
+        assert_eq!(source_literal_extent(b"\r\n", Document, 0..1), Some(0..2));
+        assert!(source_literal_extent(b"\r\n", Document, 0..2).is_none());
+        assert_eq!(source_literal_extent(b"\\r\\n", Document, 1..3), Some(1..3));
+        let unicode = "a\r\ncafé🙂".as_bytes();
+        assert_eq!(source_literal_extent(unicode, Document, 2..11), Some(3..12));
+        assert!(source_literal_extent(unicode, Document, 6..7).is_none());
+    }
+
+    #[test]
+    fn source_literal_extents_retain_bom_and_validate_empty_document_ranges() {
+        use tcl_lexer::SourceChannel::Document;
+
+        let source = "\u{feff}café🙂\r\n".as_bytes();
+        assert_eq!(
+            source_literal_bytes(source, Document).as_ref(),
+            "\u{feff}café🙂\n".as_bytes()
+        );
+        assert_eq!(source_literal_extent(source, Document, 0..3), Some(0..3));
+        assert_eq!(source_literal_extent(source, Document, 3..12), Some(3..12));
+        assert_eq!(source_literal_extent(source, Document, 0..13), Some(0..14));
+        assert!(source_literal_extent(source, Document, 0..1).is_none());
+        assert_eq!(source_literal_extent(b"", Document, 0..0), Some(0..0));
+        assert!(source_literal_extent(b"", Document, 0..1).is_none());
+        assert!(source_literal_extent(b"\xff", Document, 0..0).is_none());
+        assert!(source_literal_extent(b"\xff", Document, 0..1).is_none());
+    }
+
+    #[test]
+    fn source_literal_extents_keep_native_channel_counted_bytes() {
+        use tcl_lexer::SourceChannel::NativeValue;
+
+        let source = b"\xff\r\n\xc3\xa9";
+        assert_eq!(source_literal_bytes(source, NativeValue).as_ref(), source);
+        assert_eq!(source_literal_extent(source, NativeValue, 0..5), Some(0..5));
+        assert_eq!(source_literal_extent(source, NativeValue, 1..2), Some(1..2));
+        assert_eq!(source_literal_extent(source, NativeValue, 3..4), Some(3..4));
+        assert_eq!(source_literal_extent(source, NativeValue, 5..5), Some(5..5));
+        assert!(source_literal_extent(source, NativeValue, 0..6).is_none());
+        assert!(
+            source_literal_extent(source, NativeValue, std::ops::Range { start: 2, end: 1 })
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn source_literal_extents_do_not_relax_native_unit_mapping() {
+        use tcl_lexer::SourceChannel::Document;
+
+        let source = "café🙂".as_bytes();
+        let protocol = crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        assert_eq!(source_literal_extent(source, Document, 0..9), Some(0..9));
+        assert_eq!(
+            native_source_literal_bytes(source, Document, protocol)
+                .unwrap()
+                .len(),
+            11
+        );
+        assert!(native_source_literal_extent(source, Document, protocol, 0..9).is_none());
+        assert_eq!(
+            native_source_literal_extent(source, Document, protocol, 5..11),
+            Some(5..9)
         );
     }
 

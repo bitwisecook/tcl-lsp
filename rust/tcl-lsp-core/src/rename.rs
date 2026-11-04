@@ -6044,6 +6044,51 @@ mod conditional_source_alpha_tests {
         );
     }
     #[test]
+    fn conditional_source_alpha_preserves_supplementary_unicode_source_geometry() {
+        let source = "set {café🙂} 1\nputs ${café🙂}\n";
+        let analysis = analyse(source);
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        assert!(rename_with_diagnosis(source, profile, 1, 7, "new", &analysis, None).is_err());
+        assert!(prepare_conditional_variable_rename(source, 1, 7, &analysis).is_some());
+        let proposal = conditional_variable_rename_with_diagnosis(source, 1, 7, "new", &analysis)
+            .expect("source-local Unicode variable edit");
+        assert_eq!(proposal.generated_source, "set {new} 1\nputs ${new}\n");
+        assert_eq!(
+            proposal.edits,
+            vec![
+                TextEdit {
+                    range: LspRange {
+                        start_line: 0,
+                        start_character: 4,
+                        end_line: 0,
+                        end_character: 12
+                    },
+                    new_text: "{new}".to_owned(),
+                },
+                TextEdit {
+                    range: LspRange {
+                        start_line: 1,
+                        start_character: 7,
+                        end_line: 1,
+                        end_character: 13
+                    },
+                    new_text: "new".to_owned(),
+                },
+            ]
+        );
+        assert!(
+            conditional_variable_rename_with_diagnosis(
+                &(source.to_owned() + " "),
+                1,
+                7,
+                "new",
+                &analysis,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn conditional_source_alpha_refuses_trace_and_string_name_uses() {
         for source in [
             "trace add variable x write callback\nset x 1\nputs $x\n",

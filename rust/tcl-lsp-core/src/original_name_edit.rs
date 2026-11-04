@@ -308,6 +308,49 @@ fn render_container_literal(
     )
 }
 
+fn logical_word_edit(
+    source: &SourceImage,
+    key: &tcl_compiler::signature_scan::scope::SignatureSourceNameKey,
+    wanted: &[u8],
+) -> Option<OriginalNameSourceEdit> {
+    let word = key.original_word();
+    if word.image() != source {
+        return None;
+    }
+    key.logical_source_literal_extent(0..key.bytes().len())?;
+    let wanted_text = std::str::from_utf8(wanted).ok()?;
+    let rendered = match word.group().kind {
+        tcl_lexer::WordKind::Bare => wanted_text.to_owned(),
+        tcl_lexer::WordKind::Braced => format!("{{{wanted_text}}}"),
+        tcl_lexer::WordKind::Quoted => format!("\"{wanted_text}\""),
+    };
+    let image = SourceImage::document(&rendered);
+    let span = Span::new(0, u32::try_from(rendered.len()).ok()?);
+    let plan = tcl_lexer::native_script_words_in(image.clone(), span, word.config()).ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    let [reparsed] = command.words.as_slice() else {
+        return None;
+    };
+    if reparsed.span() != span
+        || reparsed.group().expand
+        || reparsed.group().kind != word.group().kind
+        || tcl_syntax::word_rules::original_static_word_unicode_value(reparsed)?.as_slice()
+            != wanted
+        || image
+            .bytes()
+            .get(reparsed.content_span().ok()?.as_range())?
+            != wanted
+    {
+        return None;
+    }
+    Some(OriginalNameSourceEdit {
+        span: word.span(),
+        text: rendered,
+    })
+}
+
 /// Plan all replacements in one source image. Each requested input must retain
 /// a genuine complete static container. Readonly evaluated/fragment producers
 /// remain unavailable. Multiple children of one parent produce one edit.
@@ -320,7 +363,18 @@ pub fn original_name_input_edits(
     requests: &[(SignatureSourceNameInput, NameBytes)],
 ) -> Option<Vec<OriginalNameSourceEdit>> {
     let mut containers: Vec<ContainerEdits<'_>> = Vec::new();
+    let mut edits = Vec::new();
+    let mut logical_claims = Vec::new();
     for (input, wanted) in requests {
+        if let SignatureSourceNameInput::OriginalWord(key) = input
+            && key.is_logical_source()
+        {
+            let edit = logical_word_edit(source, key, wanted.as_bytes())?;
+            if !logical_claims.contains(&edit) {
+                logical_claims.push(edit);
+            }
+            continue;
+        }
         let (SignatureSourceNameInput::OriginalWord(_)
         | SignatureSourceNameInput::OriginalValue(_)) = input
         else {
@@ -352,7 +406,6 @@ pub fn original_name_input_edits(
             });
         }
     }
-    let mut edits = Vec::with_capacity(containers.len());
     for group in containers {
         let old = literal(group.word, group.policy)?;
         let wanted = replace_list(&old, &group.requests, group.policy)?;
@@ -400,6 +453,23 @@ pub fn original_name_input_edits(
             });
         }
     }
+    logical_claims.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
+    if logical_claims
+        .windows(2)
+        .any(|pair| pair[0].span.end() > pair[1].span.start())
+        || logical_claims.iter().any(|logical| {
+            edits.iter().any(|native| {
+                logical.span.start() < native.span.end() && native.span.start() < logical.span.end()
+            })
+        })
+    {
+        return None;
+    }
+    edits.extend(
+        logical_claims
+            .into_iter()
+            .filter(|edit| source.bytes().get(edit.span.as_range()) != Some(edit.text.as_bytes())),
+    );
     edits.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
     if edits
         .windows(2)

@@ -120,6 +120,13 @@ pub struct SignatureSourceNameKey {
     bytes: NameBytes,
     rules: WordValueRules,
     policy: NamePolicyProtocol,
+    provenance: SourceNameProvenance,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SourceNameProvenance {
+    Native,
+    Logical,
 }
 
 impl SignatureSourceNameKey {
@@ -147,6 +154,7 @@ impl SignatureSourceNameKey {
             bytes: NameBytes::from(words.literal(0)?),
             rules,
             policy,
+            provenance: SourceNameProvenance::Native,
         })
     }
 
@@ -169,7 +177,61 @@ impl SignatureSourceNameKey {
             bytes: bytes.into(),
             rules,
             policy,
+            provenance: SourceNameProvenance::Logical,
         })
+    }
+
+    /// Whether this key came from the selected Logical document producer.
+    #[must_use]
+    pub const fn is_logical_source(&self) -> bool {
+        matches!(self.provenance, SourceNameProvenance::Logical)
+    }
+
+    /// Source extent of byte-identical literal Logical units in the complete word.
+    #[must_use]
+    pub fn logical_source_literal_extent(&self, extent: std::ops::Range<usize>) -> Option<Span> {
+        let word = &self.original;
+        if !self.is_logical_source()
+            || word.image().channel() != tcl_lexer::SourceChannel::Document
+            || word.group().expand
+        {
+            return None;
+        }
+        let plan =
+            tcl_lexer::native_script_words_in(word.image().clone(), word.span(), word.config())
+                .ok()?;
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [reparsed] = command.words.as_slice() else {
+            return None;
+        };
+        if reparsed != word {
+            return None;
+        }
+        let content = word.content_span().ok()?;
+        let raw = word.image().bytes().get(content.as_range())?;
+        if raw != self.bytes()
+            || tcl_syntax::word_rules::original_static_word_unicode_value(word)?.as_slice() != raw
+        {
+            return None;
+        }
+        let text = std::str::from_utf8(raw).ok()?;
+        if extent.start > extent.end
+            || extent.end > raw.len()
+            || !text.is_char_boundary(extent.start)
+            || !text.is_char_boundary(extent.end)
+        {
+            return None;
+        }
+        Some(Span::new(
+            content
+                .start()
+                .checked_add(u32::try_from(extent.start).ok()?)?,
+            content
+                .start()
+                .checked_add(u32::try_from(extent.end).ok()?)?,
+        ))
     }
 
     /// Actual produced units; Unicode reporting cannot reconstruct this value.
@@ -333,6 +395,97 @@ mod tests {
                 policy,
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_literal_extent_requires_the_complete_unchanged_word() {
+        let config =
+            LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        for (source, expected) in [
+            ("café🙂", Some(Span::new(0, 9))),
+            ("{café🙂}", Some(Span::new(1, 10))),
+            (r"caf\u00e9", None),
+        ] {
+            let image = SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image,
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let key = SignatureSourceNameKey::from_original_logical_source_word(
+                &plan.commands[0].words[0],
+                WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap();
+            assert!(key.is_logical_source());
+            assert_eq!(
+                key.logical_source_literal_extent(0..key.bytes().len()),
+                expected
+            );
+            if expected.is_some() {
+                assert!(key.logical_source_literal_extent(4..5).is_none());
+                assert!(
+                    key.logical_source_literal_extent(0..key.bytes().len() + 1)
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn logical_literal_extent_keeps_document_offsets_for_command_words() {
+        let source = "set {café🙂} 1";
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let plain = LexerConfig::for_file_grammar(tcl_dialect::DialectProfile::plain_tcl().grammar);
+        for base_offset in [0, 77] {
+            let config = LexerConfig {
+                base_offset,
+                ..plain
+            };
+            let image = SourceImage::document(source);
+            let plan = tcl_lexer::native_script_words_in(
+                image,
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let key = SignatureSourceNameKey::from_original_logical_source_word(
+                &plan.commands[0].words[1],
+                WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap();
+            assert_eq!(
+                key.logical_source_literal_extent(0..key.bytes().len()),
+                Some(Span::new(5, 14))
+            );
+        }
+    }
+
+    #[test]
+    fn native_key_does_not_grant_logical_source_extent() {
+        let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let config =
+            LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("tcl8.6")));
+        let image = SourceImage::document("ascii");
+        let plan = tcl_lexer::native_script_words_in(image, Span::new(0, 5), config).unwrap();
+        let word = &plan.commands[0].words[0];
+        let rules = WordValueRules::from_config(&config);
+        let native =
+            SignatureSourceNameKey::from_original_native_word(word, rules, policy).unwrap();
+        let logical =
+            SignatureSourceNameKey::from_original_logical_source_word(word, rules, policy).unwrap();
+        assert!(!native.is_logical_source());
+        assert!(logical.is_logical_source());
+        assert_ne!(native, logical);
+        assert_eq!(native.logical_source_literal_extent(0..5), None);
+        assert_eq!(
+            logical.logical_source_literal_extent(0..5),
+            Some(Span::new(0, 5))
         );
     }
 
