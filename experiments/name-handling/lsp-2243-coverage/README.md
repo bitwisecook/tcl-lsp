@@ -58,3 +58,19 @@ The source-phase trace uses the same library command with
 The earlier 24 fresh-process quiet comparisons did not test this source-coverage
 condition. They prove returned-report agreement for that bounded sample only.
 No compiler behaviour or startup-variable exemption was changed.
+
+The reported historical source has a distinct ownership hazard. At
+[`04fda11daba58ce13f225e18d99b4a8fded5b0f7`](https://github.com/bitwisecook/tcl-lsp/commit/04fda11daba58ce13f225e18d99b4a8fded5b0f7),
+`compiler_check_diagnostics` obtained a unit from `compilation_unit`, then
+applied `proc_taint_solve`'s symbol-keyed taints over that separate unit. Current
+`CheckSolve` retains its own private unit, and the checked producer uses
+`solve.unit` for those maps. The old taint source is identical at the two
+reported revisions, `04fda11d` and `c945a41e`: its suppression was
+`ver == 0 && name.starts_with("::")`. Current suppression follows the typed
+`ConservativeGlobalSeedOnly` provenance through joins instead. This source
+comparison identifies an old cross-unit path; it does not reproduce the old
+intermittency or establish current exact-file read coverage.
+
+A separate [public native-entry probe](seed-audit/README.md) reproduces a
+current incoming-taint provenance defect at genuinely retained top-level reads.
+Its diagnostic and coverage limits remain separate from #2243.
