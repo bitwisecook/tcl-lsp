@@ -82,12 +82,9 @@ impl Segmenter for Segments {
                     words: words(source, command),
                 })
                 .collect(),
-            fatal: parsed.fatal_tail.map(|tail| {
-                (
-                    tail.command.span.start() as usize,
-                    tail.cut.message.to_owned(),
-                )
-            }),
+            fatal: parsed
+                .fatal_tail
+                .map(|(start, message, _)| (start, message)),
         }
     }
 }

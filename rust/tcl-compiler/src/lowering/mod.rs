@@ -7668,12 +7668,29 @@ pub fn first_fatal_parse_cut(
     tcl_lexer::first_parse_cut(source, config)
 }
 
+/// A Tcl script split at the first command whose parse is fatally malformed.
+///
+/// Both bytecode inline control-flow emission and runtime compilation consume
+/// this owner. Keeping the command boundary beside the dialect-aware lexer
+/// prevents `catch`/`try` paths from growing their own separator scanners.
+pub(crate) struct CommandAtTimeScript {
+    /// Complete commands before the malformed tail (all commands when clean).
+    pub(crate) commands: Vec<crate::segmenter::SegmentedCommand>,
+    /// Byte offset and Tcl parse message for the first malformed command,
+    /// with the offset of the unclosed delimiter when there is one.
+    ///
+    /// That third field is C's `parsePtr->term`: `TclCompileScript` quotes
+    /// `source[start ..= term]` in the `while executing` frame, so it is not
+    /// derivable from the start offset or from the end of input (#2172).
+    pub(crate) fatal_tail: Option<(usize, String, Option<u32>)>,
+}
+
 /// Segment `source` using `config`, retaining only complete commands before a
-/// fatal command and the original structured cut, including its kind and term.
+/// fatal command and recording the exact suffix boundary/error.
 pub(crate) fn command_at_time_script_with_config(
     source: &str,
     config: tcl_lexer::LexerConfig,
-) -> Result<crate::segmenter::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
+) -> Result<CommandAtTimeScript, tcl_lexer::ParseCutUnavailable> {
     command_at_time_script_image(&tcl_lexer::SourceImage::document(source), config)
 }
 
@@ -7682,8 +7699,18 @@ pub(crate) fn command_at_time_script_with_config(
 pub(crate) fn command_at_time_script_image(
     source: &tcl_lexer::SourceImage,
     config: tcl_lexer::LexerConfig,
-) -> Result<crate::segmenter::SegmentedScript, tcl_lexer::ParseCutUnavailable> {
-    crate::segmenter::segment_script_image_with_offset_and_config(source, 0, config)
+) -> Result<CommandAtTimeScript, tcl_lexer::ParseCutUnavailable> {
+    let script = crate::segmenter::segment_script_image_with_offset_and_config(source, 0, config)?;
+    Ok(CommandAtTimeScript {
+        commands: script.commands,
+        fatal_tail: script.fatal_tail.map(|tail| {
+            (
+                tail.command.span.start() as usize,
+                tail.cut.message.to_owned(),
+                Some(tail.cut.term),
+            )
+        }),
+    })
 }
 
 /// Drive a configured [`Lowerer`] to a finished [`Module`] (the shared tail of
