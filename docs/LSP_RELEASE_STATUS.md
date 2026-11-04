@@ -68,3 +68,5 @@ no speculative authority or parser workaround was committed.
 
 
 Naming update at 18:11 UTC: RMW19 completes 31/32 (Engine7/7, hooks14/14, VM10/11) with unchanged captured pins and Main drift. The remaining Jim mutation-before-refusal fix and Logical namespace repair are adopted but untested. Old-source Native capture records411 failures before cancellation and no aggregate; current host validation remains pending.
+
+At 18:30 UTC, Compiler34 v2 is compiling combined adopted repairs with tracing off; no controls yet. The channel extension retains all four unresolved conditions as a readonly SOURCE-header association. SpecTcl cache/hash/publication corrections and standalone LSP eager loading are adopted, untested. Host5c0b Browser remains40/41 twice; WASI stopped before runtime on a deprecated trace atomic API, so no new lifecycle evidence exists.
