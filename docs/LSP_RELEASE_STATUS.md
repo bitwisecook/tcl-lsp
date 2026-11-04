@@ -2,6 +2,12 @@
 
 Updated 4 November 2026. Branch: `work`. The LSP is not yet release-ready.
 
+User priority update: the conditional-list S102 follow-up in #940 takes priority.
+The user permits evidence comments and closure only for verified fixed issues
+authored by bitwisecook. The five issues #2254, #2255, #2334, #2351 and #2434
+were verified, commented and closed. All 20 other-reporter issues remain open;
+their current assessment is in [LSP_RELEASE_EXTERNAL.md](LSP_RELEASE_EXTERNAL.md).
+
 This sweep follows the user’s LSP/compiler release scope. VM, BIG-IP, f5tcl and unrelated tooling work remain outside it. Existing naming-migration acceptance work and its failing gates continue independently; this issue sweep does not certify those gates.
 
 Development integration is authorised at least every 15 minutes regardless of test state. Each lane commits reviewed fixes and status evidence, pulls with rebase and pushes without force. Required release gates still need to pass on the final source.
@@ -32,4 +38,6 @@ All naming changes use the shared naming owners. Tcl parsing must use the existi
 - Coordinator #2426: current diagnostics retain typed subjects, and Core includes changed-wording/quoting transport controls. Repository-wide envelope and drift-gate acceptance remain unverified.
 - Large design/audit issues #1655, #1710, #1712, #1714 and #2426 require explicit assessment; no blanket completion is claimed.
 - Next: run fresh focused regressions, fix residual defects, preserve positive and refusal cases, update lane evidence, and continue scheduled integration.
+- The corrected optimiser differential cohort passes 44/44 on the applicable pinned Tcl releases at `1c15d4ff5`; expanded controls and newer changes require their own results.
+- Full locked Cargo metadata succeeds for the LSP server, Spec Studio and Explorer WASM hosts. This verifies those lockfiles, not a WASM binary or editor package build.
 
