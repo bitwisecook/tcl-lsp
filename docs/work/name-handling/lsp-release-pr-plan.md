@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 3 November 2026.** The user has resumed work and requires the LSP and its transitive dependencies to be release-ready; separate VM/BIG-IP feature work is deferred. `work` checkpoint `5ab3de41f` has been pushed with approval. No PR or release exists. [Current state](current-state.md) supersedes the dated plan observations below; old cleanup counts are not a current recount. All unexecuted or failed required gates remain open.
+**ACTIVE — 04 November 2026, 01:43 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP feature work is deferred. No PR or release exists. [Current state](current-state.md) records exact published checkpoints, execution and blockers. The dated observations below are historical, not a current validation recount.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -46,7 +46,7 @@ All of these conditions are necessary:
   warnings, packaging works, and running generation/gates leaves no unexplained
   tracked changes. Squash-tree verification uses the same product tree.
 
-## Current position and immediate sequence
+## Historical planning position and acceptance sequence
 
 The six-hour target passed at14:56UTC with required gates still red. Work and
 the reduced release branch remain separate; no PR is open. Current detailed
@@ -105,7 +105,7 @@ Actual Kotlin validation passed97 tests on recordedcandidate658 through a bounde
    packaging, then verify the squash tree matches the validated product.
    Open the already-authorised PR only after every acceptance condition holds.
 
-## Functional workstreams and owners
+## Required functional workstreams
 
 | Workstream | Required completion | Owner |
 |---|---|---|
@@ -116,9 +116,7 @@ Actual Kotlin validation passed97 tests on recordedcandidate658 through a bounde
 | BIGIP/editor consumers | Finish original consumer tests under the stop-after-opaque ILX decision; strict Clippy, generated editor catalogues, Zed/tree-sitter and shipped integration follow-ups. Route generic compiler/LSP blockers to those owners. | existing separate bigip-lsp session |
 | Performance patches | Preserve the completed authenticated all-old/mixed full-report equivalence proof and reviewed integrated realm/interprocedural patches. Keep global/runtime equality strict. Measure the final shipping source across all required Tcl corpora; prior proof does not establish shipping latency or memory acceptance. | compiler/names for API; existing separate perf session for proof |
 
-No duplicate BIGIP, perf or review-triage roles are started. Notify the user when
-external role files exceed60 minutes; do not silently take them over. Review
-triage is marked complete; its old header does not establish incomplete triage.
+Owner names in this older table are historical work areas. Current ownership and scope are in [outstanding/README.md](outstanding/README.md); no other live session or completed triage is inferred from these labels.
 
 ## Integrated server and oracle acceptance
 
