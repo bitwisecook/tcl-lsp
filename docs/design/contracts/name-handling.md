@@ -1148,6 +1148,9 @@ occupants, prior original operations and arity debt. A known prior source call
 must retain its actual declaration/body and Registry schema mutation footprint;
 an unknown head, source mutation, script callback or frame-reaching prefix cannot
 borrow the name of a known command. Dynamic or expanded selected argv refuses.
+A nested operand walk for this purpose carries the parent's typed prefix inventory
+into its own ordered horizon. Exact original-word and body ownership checks and
+unanimous merge refusals remain; no ordinary advice or effect inventory is copied.
 This receipt inventory is collected only for its explicit deferred-autoload source
 query; ordinary phase/body and source-advice requests keep their existing purpose.
 The recipe keeps body-entry, actual-lookup, observer and deferred-reachability

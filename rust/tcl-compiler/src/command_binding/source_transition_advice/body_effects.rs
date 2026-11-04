@@ -631,6 +631,14 @@ impl AdviceInvocationContext<'_> {
                 catalogue_body: None,
                 authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             };
+            if matches!(
+                self.query,
+                Some(super::SourceAdviceQuery::NativeDeferredAutoload)
+            ) {
+                walk.authored_prefixes
+                    .native_deferred_autoload_prefixes
+                    .clone_from(&tape.native_deferred_autoload_prefixes);
+            }
             let walked = walk.substitutions(graph, native, 0);
             if native_parent {
                 graph.record_uncertainty(native);

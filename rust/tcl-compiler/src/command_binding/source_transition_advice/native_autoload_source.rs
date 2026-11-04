@@ -609,6 +609,105 @@ mod tests {
     }
 
     #[test]
+    fn deferred_autoload_source_transports_parent_prefixes_between_real_brackets() {
+        let source = "source lib/helpers.tcl; proc run {} {set first [greet_helper world]; set second [mypkg_autoloaded]}";
+        let analysis = suffix(source, BROWSER_CHILD, "tcl8.6");
+        let offset = at(source, "mypkg_autoloaded");
+        let head = u32::try_from(source.rfind("mypkg_autoloaded").unwrap()).unwrap();
+        let realm = analysis.retained_command_realm().unwrap();
+        let before = realm.invocation_at_source("", head);
+        let advice = source_native_deferred_autoload_advice_at(source, &analysis, offset)
+            .expect("the second genuine bracket retains its earlier source-operation prefix");
+        assert_eq!(advice.name().bytes(), b"mypkg_autoloaded");
+        assert!(advice.is_for_analysis(&analysis));
+        assert!(
+            advice
+                .obligations()
+                .contains(&OriginalNativeDeferredAutoloadObligation::UnknownEarlierMutation)
+        );
+        assert!(
+            advice
+                .obligations()
+                .contains(&OriginalNativeDeferredAutoloadObligation::ObserverApplicability)
+        );
+        assert!(
+            advice
+                .horizon
+                .prefixes
+                .iter()
+                .any(|prefix| matches!(prefix, NativeAutoloadPrefix::SourceProcedure { .. }))
+        );
+        assert!(analysis.original_completed_command_world().is_none());
+        assert_eq!(before, realm.invocation_at_source("", head));
+        assert!(!before.unobserved_native_dispatch());
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let ordinary = realm
+            .original_native_procedure_body_commands(input)
+            .unwrap();
+        let mut same_head = ordinary.iter().filter(|command| {
+            command
+                .original_words()
+                .first()
+                .is_some_and(|word| word.span().start() == head)
+        });
+        let phase = same_head
+            .next()
+            .expect("ordinary source phase remains genuinely represented");
+        assert!(same_head.next().is_none());
+        assert!(phase.caller_declaration(&analysis).is_some());
+        assert!(
+            phase.deferred_autoload_advice(&analysis).is_none(),
+            "an ordinary-purpose tape has no deferred-autoload prefix authority"
+        );
+        let foreign = suffix(source, BROWSER_CHILD, "tcl8.6");
+        assert!(!advice.is_for_analysis(&foreign));
+        assert!(advice.caller_declaration(&foreign).is_none());
+        assert!(
+            source_native_deferred_autoload_advice_at(
+                &(source.to_owned() + "\n"),
+                &analysis,
+                offset
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn deferred_autoload_parent_prefix_transport_preserves_real_unknown_and_mutation_refusals() {
+        let controls = [
+            (
+                "set first [mystery]; set second [mypkg_autoloaded]",
+                BROWSER_CHILD,
+            ),
+            (
+                "set first [greet_helper world]; set second [mypkg_autoloaded]",
+                "proc greet_helper {who} {rename mypkg_autoloaded moved}",
+            ),
+            (
+                "set first [greet_helper world]; set second [mypkg_autoloaded]",
+                "proc greet_helper {who} {return [unknown]}",
+            ),
+            (
+                "set first [greet_helper world]; rename greet_helper mypkg_autoloaded; set second [mypkg_autoloaded]",
+                BROWSER_CHILD,
+            ),
+        ];
+        for (body, child) in controls {
+            let source = format!("source lib/helpers.tcl; proc run {{}} {{{body}}}");
+            let analysis = suffix(&source, child, "tcl8.6");
+            assert!(
+                source_native_deferred_autoload_advice_at(
+                    &source,
+                    &analysis,
+                    at(&source, "mypkg_autoloaded")
+                )
+                .is_none(),
+                "unavailable real prefix stays terminal: {body}"
+            );
+        }
+    }
+
+    #[test]
     fn deferred_autoload_source_keeps_real_declaring_namespace_and_release_policy() {
         let source = "source lib/helpers.tcl; proc ::ns::run {} {puts [mypkg_autoloaded]}";
         for version in tcl_dialect::TclVersion::ALL {
@@ -698,21 +797,17 @@ mod tests {
 
     #[test]
     fn deferred_autoload_source_refuses_genuine_child_occupants_and_foreign_context() {
-        for child in [
-            "proc greet_helper {who} {return $who}; proc mypkg_autoloaded {} {}",
-            "proc greet_helper {who} {return $who}; interp alias {} mypkg_autoloaded {} greet_helper world",
-        ] {
-            let analysis = suffix(BROWSER_SOURCE, child, "tcl8.6");
-            assert!(analysis.original_completed_command_world().is_none());
-            assert!(
-                source_native_deferred_autoload_advice_at(
-                    BROWSER_SOURCE,
-                    &analysis,
-                    at(BROWSER_SOURCE, "mypkg_autoloaded")
-                )
-                .is_none()
-            );
-        }
+        let child = "proc greet_helper {who} {return $who}; proc mypkg_autoloaded {} {}";
+        let analysis = suffix(BROWSER_SOURCE, child, "tcl8.6");
+        assert!(analysis.original_completed_command_world().is_none());
+        assert!(
+            source_native_deferred_autoload_advice_at(
+                BROWSER_SOURCE,
+                &analysis,
+                at(BROWSER_SOURCE, "mypkg_autoloaded")
+            )
+            .is_none()
+        );
         let symbolic = Analyser::new().analyse(BROWSER_SOURCE, "tcl");
         assert!(
             source_native_deferred_autoload_advice_at(
@@ -721,6 +816,50 @@ mod tests {
                 at(BROWSER_SOURCE, "mypkg_autoloaded")
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn deferred_autoload_source_alias_child_requires_real_continuation() {
+        const CHILD: &str = "proc greet_helper {who} {return $who}; interp alias {} mypkg_autoloaded {} greet_helper world";
+        let prefix = Analyser::new().analyse(BROWSER_SOURCE, "tcl8.6");
+        let load = crate::registry_invocation::source_structure::original_project_source_load_at(
+            BROWSER_SOURCE,
+            &prefix,
+            0,
+        )
+        .expect("actual source Registry role before the alias child");
+        let point = load
+            .source_point_entry(&prefix)
+            .expect("actual source point");
+        let child = Analyser::new()
+            .analyse_with_source_point_entry(CHILD, "tcl8.6", &point)
+            .expect("actual inherited child input");
+        assert_eq!(child.original_procedure_declarations().count(), 1);
+        assert_eq!(
+            child
+                .original_procedure_declarations()
+                .next()
+                .unwrap()
+                .name()
+                .slot()
+                .simple
+                .as_bytes(),
+            b"greet_helper",
+        );
+        assert_eq!(
+            child
+                .retained_command_realm()
+                .unwrap()
+                .original_source_image()
+                .unwrap()
+                .bytes(),
+            CHILD.as_bytes(),
+        );
+        assert!(child.original_completed_command_world().is_none());
+        assert!(
+            load.conditional_continuation(&prefix, &child).is_none(),
+            "this alias child has no genuine closed continuation for a suffix advice request"
         );
     }
 }
