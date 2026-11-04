@@ -286,6 +286,129 @@ pub fn qualified_symbol_hover(
     )))
 }
 
+/// Bounded source documentation from the original schema or selected root
+/// special-variable reference. This performs no procedure or alias lookup.
+#[must_use]
+pub fn source_documentation_hover(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<Hover> {
+    analysis
+        .analysis_context_unavailable
+        .is_none()
+        .then_some(())?;
+    let position =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?;
+    let cursor = position.offset();
+    let resolution = crate::definition::CallResolution::document_only()
+        .with_registry(position.context().registry());
+    if let std::ops::ControlFlow::Break(selected) =
+        crate::variable_symbol::select_navigation(source, analysis, line, character, resolution)
+    {
+        let selected = selected?;
+        let mut hover = match selected {
+            crate::variable_symbol::NavigationVariable::NativeRootSourceReference(reference) => {
+                selected_root_special_variable_source_hover(
+                    source,
+                    analysis,
+                    reference.occurrence(),
+                    cursor,
+                )
+            }
+            crate::variable_symbol::NavigationVariable::LogicalRootSourceReference(reference) => {
+                current_special_variable_source_hover(
+                    source,
+                    analysis,
+                    reference.occurrence(),
+                    cursor,
+                )
+            }
+            crate::variable_symbol::NavigationVariable::Original(occurrence) => {
+                current_special_variable_source_hover(source, analysis, occurrence, cursor)
+            }
+            _ => None,
+        }?;
+        hover
+            .value
+            .push_str("\n\n_Source documentation; the binding, availability and the current value are unresolved._");
+        return Some(hover);
+    }
+    if crate::source_structure::original_variable_reference_at(source, analysis, cursor).is_some() {
+        return None;
+    }
+    source_class_declaration_hover(source, analysis, cursor)
+        .or_else(|| original_registry::schema_only_hover(source, analysis, cursor))
+}
+
+fn source_class_declaration_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<Hover> {
+    use crate::original_declaration::OriginalDeclarationRole;
+    let rows = crate::original_declaration::declarations("hover://document", source, analysis)?;
+    let mut selected = rows.iter().filter(|row| {
+        matches!(
+            row.role(),
+            OriginalDeclarationRole::Class | OriginalDeclarationRole::Method(_)
+        ) && row.span().start() <= cursor
+            && cursor < row.span().end()
+    });
+    let identity = selected.next()?;
+    selected.next().is_none().then_some(())?;
+    identity
+        .is_current("hover://document", source, analysis)
+        .then_some(())?;
+    let class = identity.class_metadata(analysis)?;
+    let mut text = if identity.role() == OriginalDeclarationRole::Class {
+        class_hover_text(analysis, class.metadata())
+    } else {
+        let method = identity.method_metadata(analysis)?.metadata();
+        let mut text = format!(
+            "**{}** `{}::{}` ({} parameter(s))",
+            method.kind,
+            class.metadata().qualified_name,
+            identity.label(),
+            method.params.len()
+        );
+        if !method.doc.is_empty() {
+            text.push_str("\n\n");
+            text.push_str(&format_docstring(&method.doc));
+        }
+        text
+    };
+    text.push_str("\n\n_Source declaration; member and class availability depend on execution._");
+    Some(Hover::markdown(text))
+}
+
+pub(crate) fn source_documentation_region_owns_cursor(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    region: &tcl_compiler::command_binding::OriginalSourceConditionalRegion,
+) -> Option<bool> {
+    original_registry::region_owns_documentation_cursor(source, analysis, cursor, region)
+}
+
+/// Render one original procedure selected under its exact source owner.
+/// The source-view consumer independently joins its publication and region.
+pub(crate) fn original_source_procedure_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    identity: &crate::original_declaration::OriginalDeclarationIdentity,
+) -> Option<Hover> {
+    identity
+        .is_current(identity.uri(), source, analysis)
+        .then_some(())?;
+    let declaration = identity.procedure_metadata(analysis)?;
+    Some(Hover::markdown(format!(
+        "**Conditional source declaration**\n\n{}",
+        proc_hover_text(declaration.metadata()),
+    )))
+}
+
 /// Hover for a **namespace variable** declared in another document, rendered
 /// from that document's own analysis — the variable twin of
 /// [`qualified_symbol_hover`].
@@ -8067,5 +8190,81 @@ mod local_logical_hover_source_owner_tests {
             )
             .is_none()
         );
+    }
+}
+
+#[cfg(test)]
+mod source_documentation_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn source_documentation_preserves_exact_class_and_method_declaration_cards() {
+        let source = "source lib.tcl\noo::class create Widget {\n    method run {} {return 1}\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let class = source_documentation_hover(source, 1, 18, &analysis).unwrap();
+        assert!(class.value.contains("oo::class create ::Widget"));
+        assert!(class.value.contains("run"));
+        let method = source_documentation_hover(source, 2, 12, &analysis).unwrap();
+        assert!(method.value.contains("run"));
+        assert!(method.value.contains("availability depend on execution"));
+        let mut unavailable = analysis.clone();
+        unavailable.original_class_metadata.clear();
+        assert!(source_documentation_hover(source, 1, 18, &unavailable).is_none());
+    }
+
+    #[test]
+    fn source_documentation_does_not_borrow_schema_roles_for_variable_substitution() {
+        let source = "source lib.tcl\nset $missing value\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(source_documentation_hover(source, 1, 7, &analysis).is_none());
+        analysis.original_variable_symbols.clear();
+        analysis.original_variable_symbol_conflicts.clear();
+        assert!(source_documentation_hover(source, 1, 7, &analysis).is_none());
+        let source = "puts \"$missing\"";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(source_documentation_hover(source, 0, 9, &analysis).is_none());
+    }
+
+    #[test]
+    fn source_documentation_keeps_schema_and_root_special_cards_only() {
+        let source = "source lib.tcl\nset value 1\nputs $value\nputs $::env(PATH)\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let set = source_documentation_hover(source, 1, 1, &analysis).unwrap();
+        let puts = source_documentation_hover(source, 2, 1, &analysis).unwrap();
+        let special = source_documentation_hover(source, 3, 9, &analysis).unwrap();
+        assert!(set.value.contains("**`set`**"));
+        assert!(puts.value.contains("**`puts`**"));
+        assert!(puts.value.contains("command availability is unresolved"));
+        assert!(special.value.contains("env"));
+        assert!(
+            special
+                .value
+                .contains("binding, availability and the current value are unresolved")
+        );
+        assert!(source_documentation_hover(source, 2, 8, &analysis).is_none());
+        assert!(
+            source_documentation_hover(&source.replace("value 1", "value 2"), 1, 1, &analysis)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn source_documentation_withholds_known_shadow_and_local_variable_metadata() {
+        let source = "proc puts args {}\nputs 7\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(source_documentation_hover(source, 1, 1, &analysis).is_none());
+        let source = "proc p {env} {puts $env(PATH)}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let cursor = u32::try_from(source.find("env(PATH)").unwrap() + 1).unwrap();
+        assert!(source_documentation_hover(source, 0, cursor, &analysis).is_none());
+        let mut unavailable = analysis.clone();
+        unavailable.resolved_input = None;
+        assert!(source_documentation_hover(source, 0, cursor, &unavailable).is_none());
+        let source = "opaque\nputs 7";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let hover = source_documentation_hover(source, 1, 1, &analysis).unwrap();
+        assert!(hover.value.contains("Source documentation"));
+        assert!(hover.value.contains("command availability is unresolved"));
     }
 }

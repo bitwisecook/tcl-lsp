@@ -1961,6 +1961,14 @@ async fn foreign_factory_method_hover_requires_current_source_owners() {
         "position": { "line": 0, "character": source.find("go").unwrap() }
     }))
     .unwrap();
+    let route = backend
+        .original_source_view_hover_route(&caller, params.text_document_position_params.position)
+        .await
+        .unwrap();
+    assert!(
+        matches!(route, std::ops::ControlFlow::Continue(())),
+        "an ordinary factory source has no source-load interpretation requirement"
+    );
     let hover = backend.hover(params.clone()).await.unwrap().unwrap();
     let displayed = serde_json::to_string(&hover).unwrap();
     assert!(displayed.contains("Conditional source method of `Made`"));

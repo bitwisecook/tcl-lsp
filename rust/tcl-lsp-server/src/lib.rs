@@ -36954,12 +36954,12 @@ impl LanguageServer for Backend {
             .text_document
             .uri
             .clone();
+        let pos = params.text_document_position_params.position;
         let source_epoch = self.diag_inputs_epoch();
         let source_generation = self.live_publication_uri_generation(&uri);
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
-        let pos = params.text_document_position_params.position;
         // Run the provider over the memoised `file_analysis` query (no separate
         // hover result cache — walking the cached analysis is cheap, and the
         // query graph already avoids re-analysing).  Worker-offload via
@@ -36968,6 +36968,13 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await?;
+        if let std::ops::ControlFlow::Break(hover) = self
+            .original_source_view_hover_route_for_snapshot(&uri, &doc.text, &analysis, pos)
+            .await?
+        {
+            return Ok(hover.map(lift_hover));
+        }
+
         // `profile_for_dialect`, not `by_name`: this is a dialect ingress, and
         // `by_name` sinks the additive set-only spelling `tk` to the plain
         // fallback. That is not a repair — hover answers a `tk` document

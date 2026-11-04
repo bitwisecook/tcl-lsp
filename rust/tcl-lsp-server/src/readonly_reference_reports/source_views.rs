@@ -3400,6 +3400,231 @@ impl Backend {
     }
 }
 
+impl Backend {
+    #[cfg(test)]
+    pub(crate) async fn original_source_view_hover_route(
+        &self,
+        uri: &Uri,
+        position: tower_lsp_server::ls_types::Position,
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Option<tcl_lsp_core::hover::Hover>>> {
+        self.await_original_source_navigation_readiness(uri).await?;
+        let Some(document) = self.read_document(uri).await? else {
+            return Ok(std::ops::ControlFlow::Break(None));
+        };
+        let analysis = self
+            .analysis_for(uri, Arc::clone(&document.text), document.dialect)
+            .await?;
+        self.original_source_view_hover_route_for_snapshot(uri, &document.text, &analysis, position)
+            .await
+    }
+
+    /// Completed source interpretations keep their original declaration owners
+    /// through rendering. Ordinary source keeps its existing provider route.
+    pub(crate) async fn original_source_view_hover_route_for_snapshot(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+        position: tower_lsp_server::ls_types::Position,
+    ) -> DocumentSourceResult<std::ops::ControlFlow<Option<tcl_lsp_core::hover::Hover>>> {
+        if !self
+            .original_source_hover_is_required(uri, source, analysis)
+            .await?
+        {
+            return Ok(std::ops::ControlFlow::Continue(()));
+        }
+        let Some(settlement) = self.refresh_original_source_view_graph().await? else {
+            return Ok(std::ops::ControlFlow::Break(
+                self.original_source_authoring_hover(uri, position).await?,
+            ));
+        };
+        let Some(projection) = settlement.projection(uri, false) else {
+            return Ok(std::ops::ControlFlow::Break(
+                self.original_source_authoring_hover(uri, position).await?,
+            ));
+        };
+        let uri = uri.clone();
+        let computed = self
+            .compute_original_source_views(&projection, move |views| {
+                Some(Self::calculate_original_source_hover(views, &uri, position))
+            })
+            .await?;
+        let Some((owners, Some(output))) = computed else {
+            return Ok(std::ops::ControlFlow::Break(None));
+        };
+        let mut output = Some(output);
+        let result = self
+            .with_settled_original_source_scope(&projection, |views| {
+                Self::same_original_source_view_inventory(&owners, views).then_some(())?;
+                output.take()
+            })
+            .await?;
+        Ok(result.unwrap_or(std::ops::ControlFlow::Break(None)))
+    }
+
+    /// Positive source cards select this route. A declined route supplies no
+    /// absence, completion or permission to any existing provider.
+    async fn original_source_hover_is_required(
+        &self,
+        uri: &Uri,
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+    ) -> DocumentSourceResult<bool> {
+        let local =
+            tcl_lsp_core::workspace_index::WorkspaceOriginalSourceView::source_edges_for_analysis(
+                uri.as_str(),
+                source,
+                analysis,
+                analysis.original_source_region(),
+            );
+        if local.is_some_and(|edges| !edges.is_empty()) {
+            return Ok(true);
+        }
+        let ids = {
+            let table = self
+                .original_source_views
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            table.by_uri.get(uri).cloned().unwrap_or_default()
+        };
+        for id in ids {
+            if self
+                .with_current_original_source_view(id, |view| Some(view.draft.is_interpreted()))
+                .await?
+                == Some(true)
+            {
+                return Ok(true);
+            }
+        }
+        let Some(work) = self.original_source_root_work().await? else {
+            return Ok(false);
+        };
+        Ok(work.associated.contains(uri))
+    }
+
+    /// An unavailable graph can still document its current original source
+    /// vocabulary; this path grants no declaration, variable value or load.
+    async fn original_source_authoring_hover(
+        &self,
+        uri: &Uri,
+        position: tower_lsp_server::ls_types::Position,
+    ) -> DocumentSourceResult<Option<tcl_lsp_core::hover::Hover>> {
+        let epoch = self.diag_inputs_epoch();
+        let generation = *self.class_factory_generation.read().await;
+        let Some(snapshot) = self.read_document(uri).await? else {
+            return Ok(None);
+        };
+        let Some(owner) = self
+            .capture_workspace_symbol_analysis(uri, &snapshot)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(publication) = self.library_publication_source(uri, snapshot.clone()).await else {
+            return Ok(None);
+        };
+        let analysis = match &owner.kind {
+            super::WorkspaceSymbolAnalysisKind::Database(document) => {
+                Arc::clone(&document.analysis)
+            }
+            super::WorkspaceSymbolAnalysisKind::Fresh(document) => {
+                Arc::clone(&document.seed.analysis)
+            }
+        };
+        let text = Arc::clone(&snapshot.text);
+        let request_uri = uri.clone();
+        let mut hover = super::super::rt::spawn_blocking(move || {
+            tcl_lsp_core::hover::source_documentation_hover(
+                &text,
+                position.line,
+                position.character,
+                &analysis,
+            )
+        })
+        .await
+        .map_err(|_| super::super::DocumentSourceUnavailable::Worker { uri: request_uri })?;
+        let Some(saved) = self.readonly_saved_sources(&[&publication]).await? else {
+            return Ok(None);
+        };
+        let saved = saved
+            .iter()
+            .map(|source| (source.admission.as_ref(), source.bytes.as_slice()))
+            .collect::<Vec<_>>();
+        self.with_current_readonly_source_state(
+            epoch,
+            generation,
+            &[owner.admission()],
+            Some(&saved),
+            |state| {
+                (owner.matches_snapshot(uri, &snapshot)
+                    && owner.matches_current_state(state, epoch, generation))
+                .then_some(())
+            },
+            |_, ()| hover.take(),
+        )
+        .await
+    }
+
+    fn calculate_original_source_hover(
+        views: &[Arc<PublishedOriginalSourceView>],
+        uri: &Uri,
+        position: tower_lsp_server::ls_types::Position,
+    ) -> Option<std::ops::ControlFlow<Option<tcl_lsp_core::hover::Hover>>> {
+        let selected = views
+            .iter()
+            .filter(|view| &view.draft.physical.uri == uri)
+            .collect::<Vec<_>>();
+        let first = selected.first()?;
+        let source = &first.draft.physical.source;
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let offset = index.offset_at_utf16(
+            position.line,
+            tcl_lexer::Utf16Col::new(position.character),
+            source,
+        );
+        let actual = index.position_at_utf16(offset, source);
+        if actual.line != position.line || actual.character.get() != position.character {
+            return None;
+        }
+        let (publications, ancestors) = Self::original_source_view_labels(views)?;
+        let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
+        let mut rendered = Vec::new();
+        for publication in tcl_lsp_core::original_source_views::hover_publications(
+            uri.as_str(),
+            offset,
+            &inventory,
+        )? {
+            let hover = match tcl_lsp_core::original_source_views::prepare(
+                &publication,
+                offset,
+                &inventory,
+            ) {
+                Some(selected) => {
+                    tcl_lsp_core::original_source_views::procedure_hover(&selected, &inventory)
+                }
+                None => tcl_lsp_core::original_source_views::documentation_hover(
+                    &publication,
+                    offset,
+                    &inventory,
+                ),
+            }?;
+            if !rendered.contains(&hover) {
+                rendered.push(hover);
+            }
+        }
+        let first = rendered.first()?.clone();
+        let hover = tcl_lsp_core::hover::Hover {
+            value: rendered
+                .into_iter()
+                .map(|hover| hover.value)
+                .collect::<Vec<_>>()
+                .join("\n\n---\n\n"),
+            kind: first.kind,
+        };
+        Some(std::ops::ControlFlow::Break(Some(hover)))
+    }
+}
+
 type HostNavigationRoute = std::ops::ControlFlow<Option<Vec<tower_lsp_server::ls_types::Location>>>;
 impl Backend {
     fn calculate_original_source_navigation(
@@ -4249,6 +4474,348 @@ mod closed_source_child_ingress_tests {
         let view = Arc::clone(views.next().unwrap());
         assert!(views.next().is_none());
         view
+    }
+
+    #[tokio::test]
+    async fn pending_parent_does_not_mint_an_interpretation_or_completion_receipt() {
+        let (fixture, backend) = fixture().await;
+        open(
+            &backend,
+            &fixture.main,
+            "proc documented {value} {return $value}\n",
+        )
+        .await;
+        let parent = Uri::from_file_path(fixture.root.join("pending.tcl")).unwrap();
+        open(&backend, &parent, "source main.tcl\n").await;
+        backend
+            .documents
+            .lock("pending source parent")
+            .await
+            .get_mut(&parent)
+            .unwrap()
+            .publication = DocumentPublication::Pending;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(0, 7))
+            .await
+            .unwrap();
+        assert!(matches!(route, std::ops::ControlFlow::Continue(())));
+        let table = backend.original_source_views.lock().unwrap();
+        assert!(table.by_uri.get(&fixture.main).is_none());
+        assert!(table.by_uri.get(&parent).is_none());
+    }
+
+    #[tokio::test]
+    async fn ordinary_unknown_factory_hover_is_independent_of_unrelated_source_debt() {
+        let (fixture, backend) = fixture().await;
+        let caller = "UnknownFactory create Made {method go {} {return 1}}";
+        open(&backend, &fixture.main, caller).await;
+        let unrelated = Uri::from_file_path(fixture.root.join("unrelated.tcl")).unwrap();
+        open(&backend, &unrelated, "source missing.tcl\n").await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(0, 36))
+            .await
+            .unwrap();
+        assert!(matches!(route, std::ops::ControlFlow::Continue(())));
+    }
+
+    #[tokio::test]
+    async fn incoming_source_association_keeps_child_hover_in_its_inherited_namespace() {
+        let (fixture, backend) = fixture().await;
+        open(
+            &backend,
+            &fixture.main,
+            "namespace eval ::ns {source child.tcl}\n",
+        )
+        .await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.child, Position::new(0, 7))
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = route else {
+            panic!("inherited child documentation")
+        };
+        assert!(hover.value.contains("proc ::ns::helper"));
+        assert!(!hover.value.contains("proc ::helper"));
+    }
+
+    #[tokio::test]
+    async fn sourced_class_declaration_hover_keeps_its_own_original_metadata() {
+        let (fixture, backend) = fixture().await;
+        open(
+            &backend,
+            &fixture.main,
+            "source child.tcl\noo::class create Widget {\n    method run {} {return 1}\n}\n",
+        )
+        .await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(1, 18))
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = route else {
+            panic!("class source declaration card")
+        };
+        assert!(hover.value.contains("oo::class create ::Widget"));
+        assert!(hover.value.contains("run"));
+        assert!(hover.value.contains("availability depend on execution"));
+    }
+
+    #[tokio::test]
+    async fn sourced_schema_hover_survives_complete_and_unavailable_suffixes() {
+        let (fixture, backend) = fixture().await;
+        open(&backend, &fixture.main, "source child.tcl\nset value 1\n").await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(1, 1))
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = route else {
+            panic!("source schema card")
+        };
+        assert!(hover.value.contains("**`set`**"));
+        open(
+            &backend,
+            &fixture.main,
+            "source child.tcl\nset value 1\nputs $value\n",
+        )
+        .await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(2, 1))
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = route else {
+            panic!("source schema despite incomplete execution")
+        };
+        assert!(hover.value.contains("**`puts`**"));
+        assert!(hover.value.contains("command availability is unresolved"));
+    }
+
+    #[tokio::test]
+    async fn sourced_special_variable_hover_keeps_exact_root_source_role() {
+        let (fixture, backend) = fixture().await;
+        open(
+            &backend,
+            &fixture.main,
+            "source child.tcl\nputs $tcl_version\nputs $::env(PATH)\n",
+        )
+        .await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(2, 9))
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = route else {
+            panic!("root special source card")
+        };
+        assert!(hover.value.contains("env"));
+        assert!(
+            hover
+                .value
+                .contains("binding, availability and the current value are unresolved")
+        );
+        open(
+            &backend,
+            &fixture.main,
+            "source child.tcl\nproc p {env} {puts $env(PATH)}\n",
+        )
+        .await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(1, 20))
+            .await
+            .unwrap();
+        assert!(matches!(route, std::ops::ControlFlow::Break(None)));
+    }
+
+    #[tokio::test]
+    async fn bounded_source_documentation_keeps_live_source_and_input_leases() {
+        let (fixture, backend) = fixture().await;
+        open(&backend, &fixture.main, "source missing.tcl\nputs 7\n").await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(1, 1))
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = route else {
+            panic!("unavailable source vocabulary")
+        };
+        assert!(hover.value.contains("**`puts`**"));
+        assert!(hover.value.contains("command availability is unresolved"));
+        let snapshot = backend.read_document(&fixture.main).await.unwrap().unwrap();
+        let owner = backend
+            .capture_workspace_symbol_analysis(&fixture.main, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        let epoch = backend.diag_inputs_epoch();
+        let generation = *backend.class_factory_generation.read().await;
+        backend.invalidate_diag_inputs();
+        assert!(
+            backend
+                .with_current_readonly_source_state(
+                    epoch,
+                    generation,
+                    &[owner.admission()],
+                    None,
+                    |state| owner
+                        .matches_current_state(state, epoch, generation)
+                        .then_some(()),
+                    |_, ()| Some(())
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn ordinary_complete_hover_keeps_its_existing_provider_route() {
+        let (fixture, backend) = fixture().await;
+        open(&backend, &fixture.main, "set counter 1\n").await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(0, 1))
+            .await
+            .unwrap();
+        assert!(matches!(route, std::ops::ControlFlow::Continue(())));
+    }
+
+    #[tokio::test]
+    async fn source_hover_withdraws_when_actual_analyser_inputs_change() {
+        let (fixture, backend) = fixture().await;
+        let settlement = backend
+            .refresh_original_source_view_graph()
+            .await
+            .unwrap()
+            .unwrap();
+        let projection = settlement.projection(&fixture.main, false).unwrap();
+        assert!(
+            backend
+                .with_settled_original_source_scope(&projection, |_| Some(()))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        backend.invalidate_diag_inputs();
+        assert!(
+            backend
+                .with_settled_original_source_scope(&projection, |_| Some(()))
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn completed_source_hover_uses_inherited_unicode_parameter_metadata() {
+        use tower_lsp_server::LanguageServer;
+        use tower_lsp_server::ls_types::{
+            HoverParams, TextDocumentIdentifier, TextDocumentPositionParams,
+        };
+        let (fixture, backend) = fixture().await;
+        std::fs::write(
+            fixture.root.join("child.tcl"),
+            "# Documented helper\nproc helper {value {suffix 🧪}} {return $value}\n",
+        )
+        .unwrap();
+        let hover = backend
+            .hover(HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: fixture.main.clone(),
+                    },
+                    position: Position::new(1, 24),
+                },
+                work_done_progress_params: Default::default(),
+            })
+            .await
+            .unwrap()
+            .unwrap();
+        let text = serde_json::to_string(&hover).unwrap();
+        assert!(text.contains("Conditional source declaration"));
+        assert!(text.contains("proc ::helper {value {suffix 🧪}}"));
+        assert!(text.contains("Documented helper"));
+        let view = child_view(&fixture, &backend).await;
+        assert!(
+            view.draft
+                .inherited
+                .as_ref()
+                .unwrap()
+                .point
+                .matches_child_analysis(&view.draft.producer.seed.analysis)
+        );
+    }
+
+    #[tokio::test]
+    async fn source_hover_rechecks_changed_and_deleted_target_before_publication() {
+        for deleted in [false, true] {
+            let (fixture, backend) = fixture().await;
+            let settlement = backend
+                .refresh_original_source_view_graph()
+                .await
+                .unwrap()
+                .unwrap();
+            let projection = settlement.projection(&fixture.main, false).unwrap();
+            let uri = fixture.main.clone();
+            let (owners, output) = backend
+                .compute_original_source_views(&projection, move |views| {
+                    Some(Backend::calculate_original_source_hover(
+                        views,
+                        &uri,
+                        Position::new(1, 24),
+                    ))
+                })
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(matches!(
+                output,
+                Some(std::ops::ControlFlow::Break(Some(_)))
+            ));
+            if deleted {
+                std::fs::remove_file(fixture.root.join("child.tcl")).unwrap();
+            } else {
+                std::fs::write(fixture.root.join("child.tcl"), "proc changed {} {}\n").unwrap();
+            }
+            assert!(
+                backend
+                    .with_settled_original_source_scope(&projection, |views| {
+                        Backend::same_original_source_view_inventory(&owners, views).then_some(())
+                    })
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn source_hover_respects_known_replacement_in_the_same_suffix() {
+        let (fixture, backend) = fixture().await;
+        let source =
+            "source child.tcl\nproc helper {local} {}\nproc caller {} {return [helper 7]}\n";
+        open(&backend, &fixture.main, source).await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(2, 24))
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = route else {
+            panic!("expected selected replacement documentation")
+        };
+        assert!(hover.value.contains("proc ::helper {local}"));
+        assert!(!hover.value.contains("proc ::helper {value}"));
+    }
+
+    #[tokio::test]
+    async fn unavailable_source_hover_never_falls_through_to_lexical_names() {
+        let (fixture, backend) = fixture().await;
+        std::fs::remove_file(fixture.root.join("child.tcl")).unwrap();
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(1, 24))
+            .await
+            .unwrap();
+        assert!(matches!(route, std::ops::ControlFlow::Break(None)));
+        let other = Uri::from_file_path(fixture.root.join("other.tcl")).unwrap();
+        open(&backend, &other, "proc helper {wrong} {}\n").await;
+        let route = backend
+            .original_source_view_hover_route(&fixture.main, Position::new(1, 24))
+            .await
+            .unwrap();
+        assert!(matches!(route, std::ops::ControlFlow::Break(None)));
     }
 
     #[tokio::test]

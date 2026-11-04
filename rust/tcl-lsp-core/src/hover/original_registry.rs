@@ -40,6 +40,48 @@ pub(super) fn conditional_hover(
     schema_hover(analysis, &words, cursor).map(Hover::markdown)
 }
 
+/// Schema documentation only; declarations, aliases and runtime lookup stay
+/// with their independently selected owners.
+pub(super) fn schema_only_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<Hover> {
+    let command = documentation_command(source, analysis, cursor)?;
+    let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, &command,
+    )?;
+    schema_hover(analysis, &words, cursor).map(Hover::markdown)
+}
+
+pub(super) fn region_owns_documentation_cursor(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    region: &tcl_compiler::command_binding::OriginalSourceConditionalRegion,
+) -> Option<bool> {
+    region.matches_region_analysis(analysis).then_some(())?;
+    let command = documentation_command(source, analysis, cursor)?;
+    Some(region.owns_original_command_at(analysis, command.span.start()))
+}
+
+fn documentation_command(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<tcl_compiler::segmenter::SegmentedCommand> {
+    let structure = crate::source_structure::SourceStructure::capture(
+        source,
+        Some(analysis),
+        analysis.body_lexer_config?,
+    )?;
+    structure
+        .commands
+        .into_iter()
+        .filter(|command| contains(command.span, cursor))
+        .min_by_key(|command| command.span.end() - command.span.start())
+}
+
 pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
     // naming.core.original-registry-source-hover
     // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md

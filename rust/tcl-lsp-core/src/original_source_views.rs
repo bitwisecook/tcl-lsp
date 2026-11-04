@@ -190,6 +190,36 @@ pub fn cursor_publications(
     offset: u32,
     documents: &[OriginalSourceViewDocument<'_>],
 ) -> Option<Vec<OriginalSourceViewPublication>> {
+    projected_publications(uri, offset, documents, region_owns_cursor)
+}
+
+/// Exact schema operand ownership can select an interpreted documentation view.
+/// This grants no variable value, invocation target or execution authority.
+#[must_use]
+pub fn hover_publications(
+    uri: &str,
+    offset: u32,
+    documents: &[OriginalSourceViewDocument<'_>],
+) -> Option<Vec<OriginalSourceViewPublication>> {
+    projected_publications(uri, offset, documents, |owner, offset| {
+        if region_owns_cursor(owner, offset)? {
+            return Some(true);
+        }
+        crate::hover::source_documentation_region_owns_cursor(
+            owner.document.source,
+            owner.document.analysis,
+            offset,
+            owner.region?,
+        )
+    })
+}
+
+fn projected_publications(
+    uri: &str,
+    offset: u32,
+    documents: &[OriginalSourceViewDocument<'_>],
+    owns_cursor: impl Fn(&OriginalSourceViewDocument<'_>, u32) -> Option<bool>,
+) -> Option<Vec<OriginalSourceViewPublication>> {
     let owners = documents
         .iter()
         .filter(|row| row.document.uri == uri)
@@ -197,7 +227,7 @@ pub fn cursor_publications(
     let mut claims = Vec::new();
     for owner in &owners {
         owner.current()?;
-        if owner.region.is_some() && region_owns_cursor(owner, offset)? {
+        if owner.region.is_some() && owns_cursor(owner, offset)? {
             claims.push(*owner);
         }
     }
@@ -265,6 +295,61 @@ pub fn prepare(
         return None;
     }
     target(call, owner, documents)
+}
+
+/// Documentation from this exact selected interpretation and declaration.
+/// The host must retain and recheck the physical publication ancestry.
+#[must_use]
+pub fn procedure_hover(
+    selected: &OriginalSourceViewDeclaration,
+    documents: &[OriginalSourceViewDocument<'_>],
+) -> Option<crate::hover::Hover> {
+    let mut owners = documents
+        .iter()
+        .filter(|row| row.publication == &selected.publication);
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(())?;
+    owner.current()?;
+    owner.owns_declaration(&selected.identity).then_some(())?;
+    (owner.document.uri == selected.identity.uri()).then_some(())?;
+    crate::hover::original_source_procedure_hover(
+        owner.document.source,
+        owner.document.analysis,
+        &selected.identity,
+    )
+}
+
+/// Source-only schema or root-special-variable documentation from one exact
+/// current interpretation. The host independently leases its ancestry.
+#[must_use]
+pub fn documentation_hover(
+    publication: &OriginalSourceViewPublication,
+    offset: u32,
+    documents: &[OriginalSourceViewDocument<'_>],
+) -> Option<crate::hover::Hover> {
+    let mut owners = documents
+        .iter()
+        .filter(|row| row.publication == publication);
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(())?;
+    owner.current()?;
+    if let Some(region) = owner.region {
+        crate::hover::source_documentation_region_owns_cursor(
+            owner.document.source,
+            owner.document.analysis,
+            offset,
+            region,
+        )?
+        .then_some(())?;
+    }
+    let position = tcl_lexer::LineIndex::new_lsp(owner.document.source)
+        .position_at_utf16(offset, owner.document.source);
+    crate::hover::source_documentation_hover(
+        owner.document.source,
+        position.line,
+        position.character.get(),
+        owner.document.analysis,
+    )
 }
 
 /// Positive conditional procedure edges. Missing coverage is unavailable; an
@@ -506,6 +591,131 @@ mod region_call_cursor_tests {
             .analyse_source_region(&region, &parent, &child)
             .unwrap();
         (parent, child, region, caller)
+    }
+
+    #[test]
+    fn special_variable_documentation_selects_its_owned_suffix_command() {
+        let source = "source child.tcl; puts $::env(PATH)";
+        let (parent, child, region, caller) = fixture(source);
+        let root = OriginalSourceViewPublication::retain(1_u8);
+        let loaded = OriginalSourceViewPublication::retain(2_u8);
+        let suffix = OriginalSourceViewPublication::retain(3_u8);
+        let ancestors = [loaded.clone(), root.clone()];
+        let inventory = [
+            OriginalSourceViewDocument {
+                publication: &root,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &parent,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &loaded,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///child.tcl",
+                    source: CHILD,
+                    analysis: &child,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &suffix,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &caller,
+                },
+                region: Some(&region),
+                ancestors: &ancestors,
+            },
+        ];
+        let cursor = u32::try_from(source.find("env(PATH)").unwrap() + 1).unwrap();
+        assert_eq!(
+            hover_publications("file:///main.tcl", cursor, &inventory),
+            Some(vec![suffix.clone()])
+        );
+        let hover = documentation_hover(&suffix, cursor, &inventory).unwrap();
+        assert!(hover.value.contains("env"));
+        assert!(
+            hover
+                .value
+                .contains("binding, availability and the current value are unresolved")
+        );
+        assert!(documentation_hover(&loaded, cursor, &inventory).is_none());
+    }
+
+    #[test]
+    fn procedure_hover_requires_selected_publication_and_original_metadata_owner() {
+        let source = "source child.tcl; helper";
+        let (parent, child, region, caller) = fixture(source);
+        let root = OriginalSourceViewPublication::retain(1_u8);
+        let loaded = OriginalSourceViewPublication::retain(2_u8);
+        let suffix = OriginalSourceViewPublication::retain(3_u8);
+        let ancestors = [loaded.clone(), root.clone()];
+        let mut inventory = vec![
+            OriginalSourceViewDocument {
+                publication: &root,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &parent,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &loaded,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///child.tcl",
+                    source: CHILD,
+                    analysis: &child,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &suffix,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &caller,
+                },
+                region: Some(&region),
+                ancestors: &ancestors,
+            },
+        ];
+        let offset = u32::try_from(source.rfind("helper").unwrap()).unwrap();
+        let selected = prepare(&suffix, offset, &inventory).unwrap();
+        let hover = procedure_hover(&selected, &inventory).unwrap();
+        assert!(hover.value.contains("Conditional source declaration"));
+        assert!(hover.value.contains("proc ::helper {}"));
+        let foreign = Analyser::new().analyse(CHILD, "tcl8.6");
+        inventory[1].document.analysis = &foreign;
+        assert!(procedure_hover(&selected, &inventory).is_none());
+        inventory[1].document.analysis = &child;
+        inventory[1].document.source = "proc another {} {}";
+        assert!(procedure_hover(&selected, &inventory).is_none());
+        inventory[1].document.source = CHILD;
+        let mismatched = OriginalSourceViewDeclaration {
+            publication: suffix.clone(),
+            identity: selected.identity.clone(),
+        };
+        assert!(procedure_hover(&mismatched, &inventory).is_none());
+        inventory.push(OriginalSourceViewDocument {
+            publication: &loaded,
+            document: OriginalDeclarationDocument {
+                uri: "file:///child.tcl",
+                source: CHILD,
+                analysis: &child,
+            },
+            region: None,
+            ancestors: &[],
+        });
+        assert!(procedure_hover(&selected, &inventory).is_none());
     }
 
     #[test]
