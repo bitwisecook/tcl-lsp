@@ -134,6 +134,9 @@ pub fn line_delete_span(source: &str, span: Span) -> Span {
     while start > 0 && matches!(bytes.get(start - 1), Some(b' ' | b'\t')) {
         start -= 1;
     }
+    while matches!(bytes.get(end), Some(b' ' | b'\t')) {
+        end += 1;
+    }
     if end < bytes.len() && bytes[end] == b'\n' {
         end += 1;
     } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
@@ -356,6 +359,19 @@ mod tests {
     fn line_delete_span_at_end_of_script_keeps_the_span() {
         let source = "set a 1";
         assert_eq!(line_delete_span(source, Span::new(0, 7)), Span::new(0, 7));
+    }
+
+    #[test]
+    fn line_delete_span_takes_trailing_horizontal_whitespace() {
+        for ending in ["   \n", "\t \r\n"] {
+            let source = format!("  set a 1{ending}  puts $a\n");
+            let deleted = line_delete_span(&source, Span::new(2, 9));
+            assert_eq!(
+                source.get(deleted.as_range()),
+                Some(&source[..9 + ending.len()])
+            );
+            assert_eq!(&source[deleted.end() as usize..], "  puts $a\n");
+        }
     }
 
     #[test]
