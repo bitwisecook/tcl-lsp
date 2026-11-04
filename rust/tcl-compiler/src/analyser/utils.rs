@@ -1461,11 +1461,27 @@ pub fn scan_source_for_stubs(
     Vec<super::types::StubCommandDef>,
     Vec<super::types::StubExprDef>,
 ) {
+    let (commands, expressions, _) =
+        scan_source_for_stubs_with_outside(source, tcl_lexer::LexerConfig::default());
+    (commands, expressions)
+}
+
+/// Parse inline stubs and retain valid directives discarded outside a block.
+/// Comment positions come from the lexer, not from the directive grammar.
+pub fn scan_source_for_stubs_with_outside(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+) -> (
+    Vec<super::types::StubCommandDef>,
+    Vec<super::types::StubExprDef>,
+    Vec<Span>,
+) {
     let mut cmds = Vec::new();
     let mut exprs = Vec::new();
+    let mut outside_candidates = Vec::new();
     let mut in_block = false;
     let mut offset: u32 = 0;
-    for line in source.split_inclusive('\n') {
+    for (line_number, line) in source.split_inclusive('\n').enumerate() {
         let trimmed_line: &str = line.trim_end_matches('\n');
         let line_byte_len =
             u32::try_from(line.len()).expect("line length fits in u32 for in-memory source");
@@ -1487,6 +1503,15 @@ pub fn scan_source_for_stubs(
             continue;
         }
         if !in_block {
+            let after_prefix = strip_tcl_lsp_prefix(body);
+            if after_prefix != body
+                && (parse_expr_stub(after_prefix).is_some()
+                    || parse_command_stub(after_prefix, span).is_some())
+            {
+                if let Ok(line) = u32::try_from(line_number) {
+                    outside_candidates.push((line, span));
+                }
+            }
             continue;
         }
         // ``# tcl-lsp:`` prefix is optional inside a stubs block —
@@ -1509,7 +1534,31 @@ pub fn scan_source_for_stubs(
             cmds.push(stub);
         }
     }
-    (cmds, exprs)
+    let outside = if outside_candidates.is_empty() {
+        Vec::new()
+    } else {
+        let comments = tcl_lexer::comment_line_starts(source, config);
+        outside_candidates
+            .into_iter()
+            .filter_map(|(line, span)| comments.binary_search(&line).is_ok().then_some(span))
+            .collect()
+    };
+    (cmds, exprs, outside)
+}
+
+/// Report an authored declaration that the stub grammar parsed but could not
+/// install because no stub block owned its comment line.
+pub fn outside_stub_diagnostics(
+    spans: Vec<Span>,
+) -> impl Iterator<Item = super::types::Diagnostic> {
+    spans.into_iter().map(|span| {
+        super::types::Diagnostic::new(
+            tcl_core_types::DiagCode::W153,
+            span,
+            "Stub directive outside a stubs-begin/stubs-end block has no effect",
+            super::types::Severity::Warning,
+        )
+    })
 }
 
 /// Load the nearest workspace sidecar named `<dialect>.tcl.stubs` and parse
@@ -2264,14 +2313,34 @@ pub fn document_stub_declarations(
     Vec<super::types::StubCommandDef>,
     Vec<super::types::StubExprDef>,
 ) {
-    let (inline_cmds, inline_exprs) = scan_source_for_stubs(source);
+    let (commands, expressions, _) = document_stub_declarations_with_outside(
+        source,
+        file_path,
+        dialect,
+        tcl_lexer::LexerConfig::default(),
+    );
+    (commands, expressions)
+}
+
+/// The same declaration scan, including discarded authored directive spans.
+pub fn document_stub_declarations_with_outside(
+    source: &str,
+    file_path: Option<&str>,
+    dialect: &str,
+    config: tcl_lexer::LexerConfig,
+) -> (
+    Vec<super::types::StubCommandDef>,
+    Vec<super::types::StubExprDef>,
+    Vec<Span>,
+) {
+    let (inline_cmds, inline_exprs, outside) = scan_source_for_stubs_with_outside(source, config);
     let (mut cmds, mut exprs) = scan_sidecar_stubs(file_path, dialect);
     // The document-local declaration is nearest in scope and wins over a
     // workspace sidecar with the same name — `DeclaredSurface::declare`
     // keeps the last ingested one.
     cmds.extend(inline_cmds);
     exprs.extend(inline_exprs);
-    (cmds, exprs)
+    (cmds, exprs, outside)
 }
 
 /// The document's [`DeclaredSurface`](tcl_registry::model::DeclaredSurface) —

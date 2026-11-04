@@ -34,7 +34,9 @@ stub expr-func sizeof 1
 
 Stub blocks are bracketed by `# tcl-lsp: stubs-begin` and
 `# tcl-lsp: stubs-end` markers.  Multiple blocks per file are supported.
-Stubs outside a block are ignored.
+Valid `# tcl-lsp:` stub directives outside a block are ignored and emit W153
+on their comment line. Wrap them in `stubs-begin` / `stubs-end` markers to make
+them effective.
 
 ```tcl
 # tcl-lsp: stubs-begin

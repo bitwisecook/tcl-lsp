@@ -531,7 +531,11 @@ impl Analyser {
                 .insert(-1, file_codes.iter().cloned().collect());
         }
 
-        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
+        let (stub_cmds, stub_exprs, outside) =
+            super::utils::scan_source_for_stubs_with_outside(source, self.file_lexer_config());
+        self.result
+            .diagnostics
+            .extend(super::utils::outside_stub_diagnostics(outside));
         self.declared_commands = Some(super::types::build_declared_surface(&stub_cmds));
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;

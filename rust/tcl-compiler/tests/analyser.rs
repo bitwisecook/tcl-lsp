@@ -3057,6 +3057,59 @@ mod unresolved_command {
     }
 
     #[test]
+    fn stub_directive_outside_block_reports_its_own_line_2365() {
+        let line = "# tcl-lsp: stub db_eval {sql script:body}";
+        let body = "proc p {} {\n    db_eval {select 1} {puts row}\n}\np\n";
+        let unbounded = format!("{line}\n{body}");
+        let result = Analyser::new().analyse(&unbounded, "tcl8.6");
+        let notices = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W153")
+            .collect::<Vec<_>>();
+        assert_eq!(notices.len(), 1, "{:?}", result.diagnostics);
+        assert_eq!(notices[0].span.start(), 0);
+        assert_eq!(notices[0].span.end(), u32::try_from(line.len()).unwrap());
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.to_string() == "W123")
+        );
+
+        let bounded = format!("# tcl-lsp: stubs-begin\n{line}\n# tcl-lsp: stubs-end\n{body}");
+        let result = Analyser::new().analyse(&bounded, "tcl8.6");
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.code.to_string().as_str(), "W123" | "W153")),
+            "{:?}",
+            result.diagnostics
+        );
+
+        let embedded = "set x {\n# tcl-lsp: stub db_eval {sql script:body}\n}\n";
+        let result = Analyser::new().analyse(embedded, "tcl8.6");
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.to_string() == "W153")
+        );
+
+        let expression = "# tcl-lsp: stub expr-func pick 1\n# tcl-lsp: stub expr-op ::pick 2\n# tcl-lsp: stub incomplete\n";
+        let result = Analyser::new().analyse(expression, "tcl8.6");
+        let outside = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string() == "W153")
+            .collect::<Vec<_>>();
+        assert_eq!(outside.len(), 2, "{:?}", result.diagnostics);
+        assert_eq!(outside[0].span.start(), 0);
+        assert_eq!(outside[1].span.start(), 33);
+    }
+
+    #[test]
     fn alias_command_no_w123_and_alias_in_did_you_mean() {
         assert_eq!(
             w123("interp alias {} = {} expr\n= {1 + 2}"),

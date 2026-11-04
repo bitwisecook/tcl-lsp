@@ -41,7 +41,8 @@ command as if it were built in.
 ### Inline stubs (one file)
 
 Wrap the declarations in a `# tcl-lsp: stubs-begin` / `# tcl-lsp: stubs-end`
-block. Stubs outside the markers are ignored.
+block. Valid `# tcl-lsp:` stubs outside the markers have no effect and emit
+W153 on the directive line.
 
 ```tcl
 # tcl-lsp: stubs-begin

@@ -368,6 +368,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W153",
+    section: "warning",
+    description:
+      "A valid `# tcl-lsp:` stub directive is outside a `stubs-begin` / `stubs-end` block and has no effect.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description:

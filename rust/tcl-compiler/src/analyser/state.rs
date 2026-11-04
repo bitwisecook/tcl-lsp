@@ -2643,8 +2643,16 @@ impl Analyser {
         // overlay so analyser / compiler queries see the
         // user-declared stubs as first-class commands (without
         // mutating the global registry).
-        let (overlay_cmds, overlay_exprs) =
-            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
+        let (overlay_cmds, overlay_exprs, outside) =
+            super::utils::document_stub_declarations_with_outside(
+                source,
+                self.file_path.as_deref(),
+                dialect,
+                self.file_lexer_config(),
+            );
+        self.result
+            .diagnostics
+            .extend(super::utils::outside_stub_diagnostics(outside));
         self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
         self.result.stub_expr_defs = overlay_exprs;
@@ -3080,8 +3088,16 @@ impl Analyser {
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
         // resolution (W123 / W307 / param-trait inference) sees the same stub
         // surface and ``analyse_commands`` stays byte-identical to ``analyse``.
-        let (overlay_cmds, overlay_exprs) =
-            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
+        let (overlay_cmds, overlay_exprs, outside) =
+            super::utils::document_stub_declarations_with_outside(
+                source,
+                self.file_path.as_deref(),
+                dialect,
+                self.file_lexer_config(),
+            );
+        self.result
+            .diagnostics
+            .extend(super::utils::outside_stub_diagnostics(outside));
         self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
         self.result.stub_expr_defs = overlay_exprs;
