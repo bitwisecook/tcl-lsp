@@ -591,9 +591,9 @@ impl<'a> SourceCut<'a> {
             return Err(OriginalCommandRenameRefusal::StaleSource);
         }
         let reference = ordinary.as_ref().or_else(|| {
-            conditional
-                .as_ref()
-                .map(|reference| reference.source_reference())
+            conditional.as_ref().map(
+                tcl_compiler::registry_invocation::OriginalSourceCutBodyReference::source_reference,
+            )
         });
         Self::record_reference(reference, &lookup, &input, context, output)?;
         let source_offset = self

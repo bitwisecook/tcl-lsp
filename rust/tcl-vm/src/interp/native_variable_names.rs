@@ -819,6 +819,37 @@ impl Vm {
         Ok(Some((root, bytes)))
     }
 
+    fn confine_original_variable_binding(
+        &self,
+        root_bytes: &[u8],
+        binding: &VarBinding,
+        purpose: NativeVariableNameLookupPurpose,
+    ) -> Result<(), OriginalVariablePreparationError> {
+        if matches!(
+            purpose,
+            NativeVariableNameLookupPurpose::Write
+                | NativeVariableNameLookupPurpose::QuietWrite
+                | NativeVariableNameLookupPurpose::IncrementRead
+                | NativeVariableNameLookupPurpose::IncrementExisting
+                | NativeVariableNameLookupPurpose::ArrayMake
+                | NativeVariableNameLookupPurpose::Unset
+                | NativeVariableNameLookupPurpose::QuietUnset
+        ) {
+            self.confine_store_binding_bytes(
+                root_bytes,
+                binding,
+                self.current_level(),
+                matches!(
+                    purpose,
+                    NativeVariableNameLookupPurpose::Unset
+                        | NativeVariableNameLookupPurpose::QuietUnset
+                ),
+            )
+            .map_err(OriginalVariablePreparationError::Confined)?;
+        }
+        Ok(())
+    }
+
     fn prepare_native_original_variable_parts_entered(
         &mut self,
         original: &Value,
@@ -890,28 +921,7 @@ impl Vm {
             },
             original_names,
         )?;
-        if matches!(
-            purpose,
-            NativeVariableNameLookupPurpose::Write
-                | NativeVariableNameLookupPurpose::QuietWrite
-                | NativeVariableNameLookupPurpose::IncrementRead
-                | NativeVariableNameLookupPurpose::IncrementExisting
-                | NativeVariableNameLookupPurpose::ArrayMake
-                | NativeVariableNameLookupPurpose::Unset
-                | NativeVariableNameLookupPurpose::QuietUnset
-        ) {
-            self.confine_store_binding_bytes(
-                &root_bytes,
-                &binding,
-                self.current_level(),
-                matches!(
-                    purpose,
-                    NativeVariableNameLookupPurpose::Unset
-                        | NativeVariableNameLookupPurpose::QuietUnset
-                ),
-            )
-            .map_err(OriginalVariablePreparationError::Confined)?;
-        }
+        self.confine_original_variable_binding(&root_bytes, &binding, purpose)?;
         let resolved = self.ensure_native_original_root_entry(
             root.value(),
             (&root_bytes, element.as_deref()),
