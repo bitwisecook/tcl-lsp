@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374 | The exact guarded read of `a(j)` emits W210 for Tcl 8.4–9.1; Jim-profile analysis misses it. A same-element read after setting `a(k)` separately warns on base `a`. | Partial across profiles; adjacent false positive |
-| #2441 | The IR-stage repair passes all 100 Tcl 8.4–9.1 functional rows, including exact `x` and `y` spans, plus existing guard/query regressions. The corrected CFG fixture passes; a distinct-sentinel strengthening is pending. Jim still misses the combined report while its two warning controls fire. | C5 functional fix verified; Jim residual remains open |
+| #2441 | Snapshot `f2b927c5c` plus the IR-stage repair passes all 100 Tcl 8.4–9.1 functional rows, existing guard/query regressions and the corrected distinct-sentinel CFG control. Shared compiler changes require current-source revalidation. Jim still misses the combined report while its two warning controls fire. | Snapshot-scoped C5 fix verified; current revalidation and Jim gap remain |
 | #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Closed after coordinator proof review |
 | #2379 | Exact size/names/get and may-set/exists-then-get inputs are quiet for Tcl 8.4–9.1; Jim substitutions can still warn. Tcl `statistics`/`startsearch` error controls currently receive no W210. | Partial; Tcl report rows clear, Jim/adjacent controls remain |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
@@ -121,6 +121,17 @@ opaque call a distinct sentinel name, preserving both callback checks; that
 test-only rerun is pending. Fresh Jim-profile analysis still emits no W210 on
 the combined source, with working standalone-procedure and top-level controls.
 No #2441 closure or broader Native/source-purpose change is claimed.
+
+At the 21:28 checkpoint, the final sentinel fixture passes against the exact
+snapshot library, with its source and all 138 libraries unchanged. Its real
+opaque call uses `sentinel`, distinct from loop binder `x`; that name survives
+both lookup callbacks. The always-resolved callback excludes the wrapper's
+`x`, while the unresolved callback retains it. No iteration-binding proof is
+invented after an unknown mutation. A verified compressed archive preserves
+the old libraries and required link dependencies in 213,842,676 bytes. Current
+shared source has additional compiler changes, so the next allocation performs
+fresh current-source Clippy and integration-only compilation/runtime checks.
+The prior results remain explicitly scoped to their frozen product snapshot.
 
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
 
