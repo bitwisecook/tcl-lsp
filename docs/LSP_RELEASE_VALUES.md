@@ -15,7 +15,7 @@ also silent.
 | #2507 | Separate LSP report and action checks passed at `14b26b2e0`; see the optimiser validation record. |
 | #2131 | `type_infer` uses the `tcl-syntax` `MathResultClass` owner; execution pending. |
 | #2288 | At `e19c0acaa`, the prefixed list-built Tk callback is quiet and an interpolated Tk callback emits W105. `lsp_external_validation::issue_2288_prefixed_tk_bind_script`. |
-| #2440 | Selected script-argument roles avoid scanning the containing body. The focused integration regression passed before the final rebase, covering proc literal and proven use, conditional and iRules bodies, and braced data. Final-head rerun pending. |
+| #2440 | Selected script-argument roles avoid scanning the containing body. The focused integration regression passed on `073e6e942`, covering proc literal and proven use, conditional and iRules bodies, and braced data. |
 | #2436 | Tcl 8.4–9.1 reject both reported welded forms; Jim 0.84 rejects welded braces and accepts welded quotes. Shared per-command parse-cut API and analyser integration drafted; lexer regression passes, compiler integration pending. |
 | #2387, #2437, #2438, #2451–#2454, #2427 | Awaiting reproduction against current branch. |
 
@@ -23,7 +23,7 @@ The initial compiler test build was stopped before completion to honour the
 shared machine's compiler-build concurrency limit. The later `--lib` test
 build failed on 43 existing test-compilation errors, including unavailable
 sparse-checkout fixtures and private-module and ambiguous empty-array assertions
-(`/tmp/lsp-values-2440.log`). The focused integration test passed before the final rebase. Full gates have not run
+(`/tmp/lsp-values-2440.log`). The focused integration regression also passed on `073e6e942`. Full gates have not run
 in this checkout.
 
 
