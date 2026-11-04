@@ -694,7 +694,7 @@ fn a_workspace_pack_subcommand_arity_error_is_published() {
     assert_eq!(arity[0]["code"], "E002", "{arity:#?}");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic["code"] == "E002"
+            diagnostic["code"] == "E003"
                 && diagnostic["range"]["start"]["line"] == 4
                 && diagnostic["message"]
                     .as_str()
@@ -711,7 +711,7 @@ fn a_workspace_pack_subcommand_arity_error_is_published() {
     assert!(
         !repaired_diagnostics
             .iter()
-            .any(|diagnostic| diagnostic["code"] == "E002"),
+            .any(|diagnostic| diagnostic["code"] == "E002" || diagnostic["code"] == "E003"),
         "repair must clear both custom and built-in arity errors: {repaired_diagnostics:#?}"
     );
 
