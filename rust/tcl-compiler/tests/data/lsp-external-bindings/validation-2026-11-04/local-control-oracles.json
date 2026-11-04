@@ -1,0 +1,58 @@
+[
+  {
+    "input": "2501-without-lassign-control-local",
+    "oracle": "TCL_LSP_TCLSH86",
+    "exit": 0,
+    "stdout": "1 {can't read \"start\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "input": "2501-without-lassign-control-local",
+    "oracle": "TCL_LSP_TCLSH90",
+    "exit": 0,
+    "stdout": "1 {can't read \"start\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "input": "2501-without-lassign-control-local",
+    "oracle": "TCL_LSP_TCLSH91",
+    "exit": 0,
+    "stdout": "1 {can't read \"start\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "input": "2501-without-lassign-control-local",
+    "oracle": "TCL_LSP_JIMSH",
+    "exit": 0,
+    "stdout": "1 {can't read \"start\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "input": "2502-without-unpack-control-local",
+    "oracle": "TCL_LSP_TCLSH86",
+    "exit": 0,
+    "stdout": "1 {can't read \"radius\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "input": "2502-without-unpack-control-local",
+    "oracle": "TCL_LSP_TCLSH90",
+    "exit": 0,
+    "stdout": "1 {can't read \"radius\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "input": "2502-without-unpack-control-local",
+    "oracle": "TCL_LSP_TCLSH91",
+    "exit": 0,
+    "stdout": "1 {can't read \"radius\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "input": "2502-without-unpack-control-local",
+    "oracle": "TCL_LSP_JIMSH",
+    "exit": 0,
+    "stdout": "1 {can't read \"radius\": no such variable}\n",
+    "stderr": ""
+  }
+]

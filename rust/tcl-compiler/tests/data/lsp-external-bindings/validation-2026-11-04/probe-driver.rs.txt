@@ -1,0 +1,10 @@
+use std::io::Read;
+fn main() {
+    let dialect=std::env::args().nth(1).expect("dialect");
+    let mut source=String::new();
+    std::io::stdin().read_to_string(&mut source).unwrap();
+    let result=tcl_compiler::analyser::Analyser::new().analyse(&source,&dialect);
+    for finding in result.diagnostics {
+        println!("{} {} {} {:?}",finding.code,finding.span.start(),finding.span.end(),finding.message);
+    }
+}

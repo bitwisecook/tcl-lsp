@@ -1,0 +1,242 @@
+[
+  {
+    "oracle": "TCL_LSP_TCLSH84",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+    "input": "2501-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH84",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+    "input": "2502-exact",
+    "process_exit": 0,
+    "stdout": "1 {invalid command name \"dict\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH84",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+    "input": "2289-quoted-creator-called",
+    "process_exit": 0,
+    "stdout": "0 VALUE\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH84",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+    "input": "W210-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {can't read \"__binding_missing\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH84",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+    "input": "W140-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {could not find interpreter \"vectorCoreChild\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH85",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+    "input": "2501-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH85",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+    "input": "2502-exact",
+    "process_exit": 0,
+    "stdout": "1 {invalid command name \"lmap\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH85",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+    "input": "2289-quoted-creator-called",
+    "process_exit": 0,
+    "stdout": "0 VALUE\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH85",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+    "input": "W210-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {can't read \"__binding_missing\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH85",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+    "input": "W140-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {could not find interpreter \"vectorCoreChild\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH86",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+    "input": "2501-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH86",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+    "input": "2502-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH86",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+    "input": "2289-quoted-creator-called",
+    "process_exit": 0,
+    "stdout": "0 VALUE\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH86",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+    "input": "W210-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {can't read \"__binding_missing\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH86",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+    "input": "W140-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {could not find interpreter \"vectorCoreChild\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH90",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+    "input": "2501-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH90",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+    "input": "2502-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH90",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+    "input": "2289-quoted-creator-called",
+    "process_exit": 0,
+    "stdout": "0 VALUE\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH90",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+    "input": "W210-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {can't read \"__binding_missing\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH90",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+    "input": "W140-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {could not find interpreter \"vectorCoreChild\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH91",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+    "input": "2501-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH91",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+    "input": "2502-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH91",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+    "input": "2289-quoted-creator-called",
+    "process_exit": 0,
+    "stdout": "0 VALUE\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH91",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+    "input": "W210-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {can't read \"__binding_missing\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH91",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+    "input": "W140-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {could not find interpreter \"vectorCoreChild\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_JIMSH",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/jim-install/bin/jimsh",
+    "input": "2501-exact",
+    "process_exit": 0,
+    "stdout": "0 {}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_JIMSH",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/jim-install/bin/jimsh",
+    "input": "2502-exact",
+    "process_exit": 0,
+    "stdout": "1 {syntax error in expression: \"min(1, 2 / 2.0, 3 / 2.0)\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_JIMSH",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/jim-install/bin/jimsh",
+    "input": "2289-quoted-creator-called",
+    "process_exit": 0,
+    "stdout": "1 {wrong # args: should be \"interp\"}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_JIMSH",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/jim-install/bin/jimsh",
+    "input": "W210-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {can't read \"__binding_missing\": no such variable}\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_JIMSH",
+    "path": "/workspace/tcl-lsp/tmp/lsp-oracles/jim-install/bin/jimsh",
+    "input": "W140-positive-control",
+    "process_exit": 0,
+    "stdout": "1 {wrong # args: should be \"interp\"}\n",
+    "stderr": ""
+  }
+]

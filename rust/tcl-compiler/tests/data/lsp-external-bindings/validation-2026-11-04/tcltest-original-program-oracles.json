@@ -1,0 +1,44 @@
+[
+  {
+    "oracle": "TCL_LSP_TCLSH84",
+    "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+    "exit": 0,
+    "stdout": "direct {1 0}\ncaptured-alias {1 0}\n\n==== stopped setup-error FAILED\n==== Contents of test case:\nset ::bodyEntered 1; list $unreached\n---- Test setup failed:\nstop\n---- errorInfo(setup): stop\n    while executing\n\"error stop\"\n    (\"uplevel\" body line 1)\n    invoked from within\n\"uplevel 1 $setup\"\n---- errorCode(setup): NONE\n==== stopped FAILED\n\nstopped-setup {0 1}\nopaque-result 0\ncounts 4 3 1\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH85",
+    "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+    "exit": 0,
+    "stdout": "direct {1 0}\ncaptured-alias {1 0}\n\n\n==== stopped setup-error FAILED\n==== Contents of test case:\nset ::bodyEntered 1; list $unreached\n---- Test setup failed:\nstop\n---- errorInfo(setup): stop\n    while executing\n\"error stop\"\n    (\"uplevel\" body line 1)\n    invoked from within\n\"uplevel 1 $setup\"\n---- errorCode(setup): NONE\n==== stopped FAILED\n\nstopped-setup {0 1}\nopaque-result 0\ncounts 4 3 1\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH86",
+    "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+    "exit": 0,
+    "stdout": "direct {1 0}\ncaptured-alias {1 0}\n\n\n==== stopped setup-error FAILED\n==== Contents of test case:\nset ::bodyEntered 1; list $unreached\n---- Test setup failed:\nstop\n---- errorInfo(setup): stop\n    while executing\n\"error stop\"\n    (\"uplevel\" body line 1)\n    invoked from within\n\"uplevel 1 $setup\"\n---- errorCode(setup): NONE\n==== stopped FAILED\n\nstopped-setup {0 1}\nopaque-result 0\ncounts 4 3 1\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH90",
+    "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+    "exit": 0,
+    "stdout": "direct {1 0}\ncaptured-alias {1 0}\n\n\n==== stopped setup-error FAILED\n==== Contents of test case:\nset ::bodyEntered 1; list $unreached\n---- Test setup failed:\nstop\n---- errorInfo(setup): stop\n    while executing\n\"error stop\"\n    (\"uplevel\" body line 1)\n    invoked from within\n\"uplevel 1 $setup\"\n---- errorCode(setup): NONE\n==== stopped FAILED\n\nstopped-setup {0 1}\nopaque-result 0\ncounts 4 3 1\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_TCLSH91",
+    "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+    "exit": 0,
+    "stdout": "direct {1 0}\ncaptured-alias {1 0}\n\n\n==== stopped setup-error FAILED\n==== Contents of test case:\nset ::bodyEntered 1; list $unreached\n---- Test setup failed:\nstop\n---- errorInfo(setup): stop\n    while executing\n\"error stop\"\n    (\"uplevel\" body line 1)\n    invoked from within\n\"uplevel 1 $setup\"\n---- errorCode(setup): NONE\n==== stopped FAILED\n\nstopped-setup {0 1}\nopaque-result 0\ncounts 4 3 1\n",
+    "stderr": ""
+  },
+  {
+    "oracle": "TCL_LSP_JIMSH",
+    "binary": "/workspace/tcl-lsp/tmp/lsp-oracles/jim-install/bin/jimsh",
+    "exit": 1,
+    "stdout": "direct {1 0}\n",
+    "stderr": "/tmp/lsp-binding-2286-original-program.tcl:13: Error: wrong # args: should be \"interp\"\nTraceback (most recent call last):\n  File \"/tmp/lsp-binding-2286-original-program.tcl\", line 13\n    interp alias {} captured {} ::tcltest::test captured missing-read\n"
+  }
+]

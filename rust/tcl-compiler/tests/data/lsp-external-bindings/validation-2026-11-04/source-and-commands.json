@@ -1,0 +1,147 @@
+{
+  "product_commit": "b7b653dd2bf0ca65edfbc1a322bab4dcc768ba42",
+  "build_checkout_commit": "b71a4b31224b012b0d4bf0ed6d69fbede767dde1",
+  "build_checkout_tree": "e73fd62ad181188b0f64223e8780a4a04b4e67e9",
+  "build_checkout_product_equivalence": [
+    "docs/LSP_RELEASE_BINDINGS.md"
+  ],
+  "frozen_files_before": {
+    "rust/tcl-compiler/tests/lsp_external_binding_reports.rs": "b1f1f0aaa759ab0e0104a95754fdf01d84609feb6df344a7d2f6c82ceff42a22",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-1.tcl": "6debf1ef5b28a9d1f26e8e833180953eabefd7d841971ff9695022fee2f94d6f",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-2.tcl": "af672c76a19cdf7865b99cb52a144085419509efea2df41d2beffb94b836791c",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-3.tcl": "932d55bd7830bb4e7537ee99adcae283d3ac0d6e4051c919c1c9d8b0ae835e84",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-4.tcl": "5ae071eed47f8bcbde82750119efed9b7d1b518dcc8d31f30b8c8f2f058cd75f",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-linked.test": "a01f2975010afa12ba96b32a1263e7ead551b2ac2f260c2c343957ed879965ac",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2289-issue-1.tcl": "9a254d804c2863226326d55e8c0bb37af48550416a41906f4e8fb835a80b8a09",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2289-linked.test": "a31ae46a653ca3f45e1e2606778bb0a3792b55644c4b156a3d8424cf0e91c516",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2290-linked.tcl": "0a5a3fe68964e30b16dbe5e4c2622716f7fe320a5dda584b8618fc2262a8cf79",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2501-issue-1.tcl": "6b49208c44c40d36c8f36dafd7b7a8577846d2ab6488f84dce58323514ba75f9",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2502-issue-1.tcl": "1751e57ec7f056d414c1bb63780a3831cac71b45d2b4ea071036ae4e04fa3d25",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/provenance.json": "cf19b09930f21e2652841c14218da7e3b2f0897d617859947620e7ca4035ed2c"
+  },
+  "frozen_files_after": {
+    "rust/tcl-compiler/tests/lsp_external_binding_reports.rs": "b1f1f0aaa759ab0e0104a95754fdf01d84609feb6df344a7d2f6c82ceff42a22",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-1.tcl": "6debf1ef5b28a9d1f26e8e833180953eabefd7d841971ff9695022fee2f94d6f",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-2.tcl": "af672c76a19cdf7865b99cb52a144085419509efea2df41d2beffb94b836791c",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-3.tcl": "932d55bd7830bb4e7537ee99adcae283d3ac0d6e4051c919c1c9d8b0ae835e84",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-issue-4.tcl": "5ae071eed47f8bcbde82750119efed9b7d1b518dcc8d31f30b8c8f2f058cd75f",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2286-linked.test": "a01f2975010afa12ba96b32a1263e7ead551b2ac2f260c2c343957ed879965ac",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2289-issue-1.tcl": "9a254d804c2863226326d55e8c0bb37af48550416a41906f4e8fb835a80b8a09",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2289-linked.test": "a31ae46a653ca3f45e1e2606778bb0a3792b55644c4b156a3d8424cf0e91c516",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2290-linked.tcl": "0a5a3fe68964e30b16dbe5e4c2622716f7fe320a5dda584b8618fc2262a8cf79",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2501-issue-1.tcl": "6b49208c44c40d36c8f36dafd7b7a8577846d2ab6488f84dce58323514ba75f9",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/2502-issue-1.tcl": "1751e57ec7f056d414c1bb63780a3831cac71b45d2b4ea071036ae4e04fa3d25",
+    "rust/tcl-compiler/tests/data/lsp-external-bindings/provenance.json": "cf19b09930f21e2652841c14218da7e3b2f0897d617859947620e7ca4035ed2c"
+  },
+  "binaries": {
+    "/workspace/tcl-lsp/tmp/lsp-bindings/target/debug/deps/lsp_external_binding_reports-18065bf0a9ef6fd8": "e380e5ff3446207b38f34f73a147c1be159102c3999e936a3c0343b8fc15bfc8",
+    "/tmp/lsp-external-bindings-probe": "6916e5faa4148733cdbd9989772954c27f999d0b27fa13b72887879eb8f1ebd7",
+    "/workspace/tcl-lsp/tmp/lsp-bindings/target/debug/deps/libtcl_compiler-7218c0b87f45e798.rlib": "7a2a02b761a61dbaeafe64a57125eb28dd6feaedd292e4e8eaeb85c4fb77049d"
+  },
+  "build_command": "python3 /tmp/lsp-heavy-build.py cargo test --offline -p tcl-compiler --test lsp_external_binding_reports -- --nocapture --test-threads=1",
+  "build_result": "Compiled successfully in 2m03s. Standalone positive controls and the complete five-profile issue2286 test passed before interruption during issue2289. Not a complete six-test invocation.",
+  "remaining_tests_command": "target/debug/deps/lsp_external_binding_reports-18065bf0a9ef6fd8 --nocapture --test-threads=1 --skip issue_2286_tcltest_setup_body_and_cleanup",
+  "remaining_tests_result": "5 passed; 0 failed; 1 filtered out; 109.34s",
+  "final_tcltest_measurement": "/tmp/lsp-external-bindings-probe tcl9.1, stdin = each frozen linked file/snippet; same freshly compiled compiler rlib",
+  "record_count": 60,
+  "genuine_tcltest_read_control_results": [
+    {
+      "input": "historical-original-program",
+      "dialect": "tcl8.4",
+      "expected_w210": 2,
+      "observed_w210": 0
+    },
+    {
+      "input": "historical-original-program",
+      "dialect": "tcl8.5",
+      "expected_w210": 2,
+      "observed_w210": 0
+    },
+    {
+      "input": "historical-original-program",
+      "dialect": "tcl8.6",
+      "expected_w210": 2,
+      "observed_w210": 0
+    },
+    {
+      "input": "historical-original-program",
+      "dialect": "tcl9.0",
+      "expected_w210": 2,
+      "observed_w210": 0
+    },
+    {
+      "input": "historical-original-program",
+      "dialect": "tcl9.1",
+      "expected_w210": 2,
+      "observed_w210": 0
+    },
+    {
+      "input": "direct-missing-read",
+      "dialect": "tcl8.4",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "direct-missing-read",
+      "dialect": "tcl8.5",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "direct-missing-read",
+      "dialect": "tcl8.6",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "direct-missing-read",
+      "dialect": "tcl9.0",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "direct-missing-read",
+      "dialect": "tcl9.1",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "captured-alias-missing-read",
+      "dialect": "tcl8.4",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "captured-alias-missing-read",
+      "dialect": "tcl8.5",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "captured-alias-missing-read",
+      "dialect": "tcl8.6",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "captured-alias-missing-read",
+      "dialect": "tcl9.0",
+      "expected_w210": 1,
+      "observed_w210": 0
+    },
+    {
+      "input": "captured-alias-missing-read",
+      "dialect": "tcl9.1",
+      "expected_w210": 1,
+      "observed_w210": 0
+    }
+  ],
+  "scope": "Analyser::analyse diagnostics on retained source; not an editor transport test or full upstream package test suite.",
+  "fixture_local_commit": "c0e2cb13c076d48472a19f088ebd331d89a52d66",
+  "licence_local_commit": "17bf494673edef3458c9cbd43b105cf35ea973ae",
+  "fmt_check": {
+    "command": "cargo fmt --all --check",
+    "exit_code": 0,
+    "output": "fmt-check.log"
+  }
+}
