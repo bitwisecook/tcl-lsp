@@ -76,7 +76,8 @@ jobs:
       - name: Install pinned nextest
         run: |
           bash scripts/dev/nextest-tool/validate.sh --install
-          bash scripts/dev/nextest-tool/validate.sh --verify-install
+      - name: Verify pinned nextest installation
+        run: bash scripts/dev/nextest-tool/validate.sh --verify-install
       - name: Select native LSP tests
         run: |
           set -euo pipefail

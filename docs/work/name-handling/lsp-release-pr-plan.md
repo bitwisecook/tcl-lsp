@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 05:50 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP feature work is deferred. No PR or release exists. [Current state](current-state.md) records exact published checkpoints, execution and blockers. The dated observations below are historical, not a current validation recount.
+**ACTIVE — 04 November 2026, 07:42 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP features are deferred while linked VM/SpecTcl regressions remain critical. **Not release-ready.** Current Compiler6/6 passes; sealed RMWv6 aggregate fails (Engine1/6, hooks10/13, VM Jim1/1). Earlier Server7/native15+20+5 pass before current style/index changes. New reuse/host plans and adopted Kernel constructor controls are unexecuted; host integration remains private. Separate LSP bootstrap is terminal1success/3failure; ordinary CI and global proof remain failed/incomplete. [Current state](current-state.md) binds exact sources, receipts and publisher checkpoints. The dated observations below are historical, not a current validation recount. No PR or release exists.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,16 +61,17 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Complete current Compiler/Core proof controls. Preserve the typed
-   source-publication repair's 7/7 Main/scratch-equal Server controls, including
-   actual first-request definition and partial hover, and verify them through
-   the current default-feature native binary `7287fc0deff6`. Its sealed build
-   and protocol15/15+mandatory20/20 are complete; startup/packaging acceptance is still pending. Preserve
-   genuine absence, stale input, unrelated-scope and full reference-inventory
-   guards.
-2. Complete linked hook confinement tests and supported SpecTcl execution,
-   package/index vectors and cross-file lifecycle/configuration/retirement
-   controls. Separate VM/BIG-IP feature development remains deferred; linked
+1. Preserve current Compiler6/6 and earlier Core10/10 controls; execute the
+   reviewed Core11-control/15-vector reuse plan and genuine cold public-host
+   positive/negative matrix. Repeat Server7/7 and native15+20+5 on final source
+   after publication style/index changes; earlier passes do not certify them.
+   Preserve genuine absence, stale input, unrelated-scope and full reference
+   inventory guards. Require-first refusal is not a supported positive fixture.
+2. Resolve linked RMWv6 Engine5 error-pattern, hook2 budget and F5 abs failures.
+   Its sealed builds/custody pass, but Engine1/6, hooks10/13 and VM Jim1/1 do not
+   establish an aggregate pass. Private ScriptBytes test-only and closed-cut
+   constructor drafts require review/execution with genuine Normal, survey and
+   root-world premises. Separate VM/BIG-IP features stay deferred; linked
    regressions and mandatory gates remain in scope.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected
