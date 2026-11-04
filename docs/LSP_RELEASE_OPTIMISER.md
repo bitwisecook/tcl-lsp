@@ -111,6 +111,12 @@ negative return/argument controls include a proved computed `puts` head.
 The six-engine execution installs a mutating target after load, dispatches it
 through the public dynamic procedure and compares the resulting output.
 The sample README's dynamic-head row now says **not reported** and its former
-remaining-gap paragraph has been replaced. A rerun with the refreshed strict
-Jim reference and targeted Clippy is in progress. Older tooling
+remaining-gap paragraph has been replaced. The existing test binary also passed its single six-engine execution case
+with the refreshed Jim oracle (0.84-10-g82fb4d0), outside the build wrapper.
+The equivalent compilation rerun was cancelled to release the priority #940
+slot. The coordinator verified production lexer/compiler Clippy at
+`c80aa092d`, which includes the implementation fix; no duplicate library
+Clippy or unrelated regression matrix was run. The focused proof draft and
+machine-readable receipt are `/tmp/lsp-2218-comment.md` and
+`/tmp/lsp-2218-evidence.json`. Older tooling
 and allocation/setup drafts remain stashed.
