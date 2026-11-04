@@ -1524,7 +1524,7 @@ mod tests {
             for index in indices {
                 let point = &mut withdrawn.points[index];
                 Arc::make_mut(&mut point.state.baseline).metadata_context = owner.clone();
-                point.lookup_snapshot = std::sync::OnceLock::new();
+                point.invalidate_derived();
             }
             let binding = withdrawn.invocation_at_source("ensure", offset);
             assert!(binding.unknown, "{label}");
@@ -1547,7 +1547,7 @@ mod tests {
                 } else {
                     Arc::make_mut(&mut point.state.baseline).logical_source_input = None;
                 }
-                point.lookup_snapshot = std::sync::OnceLock::new();
+                point.invalidate_derived();
             }
             let binding = withdrawn.invocation_at_source("ensure", offset);
             assert!(binding.unknown);
@@ -1604,7 +1604,7 @@ mod tests {
         for index in indices {
             let point = &mut bindings.points[index];
             point.original_head_input = None;
-            point.lookup_snapshot = std::sync::OnceLock::new();
+            point.invalidate_derived();
         }
         let withdrawn = bindings.invocation_at_source("package", 0);
         assert!(withdrawn.unknown);

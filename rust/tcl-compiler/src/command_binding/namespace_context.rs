@@ -368,17 +368,41 @@ impl<K: Into<SourceNamespaceKey>, V> FromIterator<(K, V)> for SourceNamespaceMap
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub(super) struct SourceNamespaceSet(std::collections::BTreeSet<SourceNamespaceKey>);
+/// The source namespace inventory. Its advisory spelling list is derived
+/// once and shared with every binding that reports it; any change drops it.
+#[derive(Debug, Clone, Default)]
+pub(super) struct SourceNamespaceSet(
+    std::collections::BTreeSet<SourceNamespaceKey>,
+    std::sync::OnceLock<std::sync::Arc<[String]>>,
+);
+impl PartialEq for SourceNamespaceSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for SourceNamespaceSet {}
+impl std::hash::Hash for SourceNamespaceSet {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
 impl SourceNamespaceSet {
     pub(super) fn contains<Q: NamespaceKeyQuery + ?Sized>(&self, key: &Q) -> bool {
         self.0.contains(key.namespace_key().as_ref())
     }
     pub(super) fn insert(&mut self, key: impl Into<SourceNamespaceKey>) -> bool {
-        self.0.insert(key.into())
+        let inserted = self.0.insert(key.into());
+        if inserted {
+            self.1 = std::sync::OnceLock::new();
+        }
+        inserted
     }
     pub(super) fn remove<Q: NamespaceKeyQuery + ?Sized>(&mut self, key: &Q) -> bool {
-        self.0.remove(key.namespace_key().as_ref())
+        let removed = self.0.remove(key.namespace_key().as_ref());
+        if removed {
+            self.1 = std::sync::OnceLock::new();
+        }
+        removed
     }
     pub(super) fn iter(&self) -> impl Iterator<Item = &SourceNamespaceKey> {
         self.0.iter()
@@ -387,13 +411,30 @@ impl SourceNamespaceSet {
         self.0.len()
     }
     pub(super) fn retain(&mut self, keep: impl FnMut(&SourceNamespaceKey) -> bool) {
+        let before = self.0.len();
         self.0.retain(keep);
+        if self.0.len() != before {
+            self.1 = std::sync::OnceLock::new();
+        }
     }
     pub(super) fn extend<K: Into<SourceNamespaceKey>>(
         &mut self,
         keys: impl IntoIterator<Item = K>,
     ) {
+        let before = self.0.len();
         self.0.extend(keys.into_iter().map(Into::into));
+        if self.0.len() != before {
+            self.1 = std::sync::OnceLock::new();
+        }
+    }
+    /// Advisory spellings of every namespace, in key order, shared.
+    pub(super) fn advisory_names(&self) -> std::sync::Arc<[String]> {
+        std::sync::Arc::clone(self.1.get_or_init(|| {
+            self.0
+                .iter()
+                .filter_map(SourceNamespaceKey::advisory_key)
+                .collect()
+        }))
     }
 }
 impl<K: Into<SourceNamespaceKey>> FromIterator<K> for SourceNamespaceSet {

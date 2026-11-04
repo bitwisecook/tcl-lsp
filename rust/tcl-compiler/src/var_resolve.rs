@@ -49,6 +49,7 @@ mod namespace_identity;
 mod original_bytes;
 mod original_name_contents;
 mod original_name_write;
+pub use cell_key::SharedSet;
 pub use cell_key::{
     VariableCellKey, VariableCellKeyQuery, VariableCellSet, VariableCellTable,
     VariableNamespaceMembership, VariableNamespaceQuery, VariableNamespaceSet, namespace_contains,
@@ -528,9 +529,10 @@ pub struct ResolveContext {
     /// Exact namespace owner; presentation text is not its inverse.
     pub namespace_identity: Option<crate::command_binding::SourceNamespaceKey>,
     /// Reached namespace tables retaining independent component boundaries.
-    pub namespace_identities: HashSet<crate::command_binding::SourceNamespaceKey>,
+    pub namespace_identities: cell_key::SharedSet<crate::command_binding::SourceNamespaceKey>,
     /// Namespace incarnations reachable by a new written-address lookup.
-    pub namespace_addressable_identities: HashSet<crate::command_binding::SourceNamespaceKey>,
+    pub namespace_addressable_identities:
+        cell_key::SharedSet<crate::command_binding::SourceNamespaceKey>,
     /// Whether the retained namespace inventory closes missing table candidates.
     pub namespace_inventory: NamespaceInventoryClosure,
     /// Selected native variable-name input recipe.
@@ -554,9 +556,9 @@ pub struct ResolveContext {
     /// Proven current activation allocation site, when supplied by source execution.
     pub activation: Option<String>,
     /// Names under a `global` declaration.
-    pub globals: HashSet<String>,
+    pub globals: cell_key::SharedSet<String>,
     /// Names under a `variable` declaration.
-    pub ns_vars: HashSet<String>,
+    pub ns_vars: cell_key::SharedSet<String>,
     /// Local alias → caller target (`""` = dynamic/unresolvable).
     pub upvar_aliases: HashMap<String, String>,
     /// Names with an active `trace`.
@@ -571,7 +573,7 @@ pub struct ResolveContext {
     /// Traces whose incoming registration or operation list is unenumerated.
     pub untracked_traces: VariableCellSet,
     /// `TclOO` instance vars in scope.
-    pub instance_vars: HashSet<String>,
+    pub instance_vars: cell_key::SharedSet<String>,
     /// Advisory declared-state scope for `instance_vars`; never an object token.
     pub instance_owner: String,
     /// Typed selection of the current variable table.
@@ -673,7 +675,7 @@ pub struct ResolveContext {
     /// All current-frame bindings may have been retargeted by evaluated code.
     pub dynamic_bindings: bool,
     /// Namespace tables known to exist at this program point.
-    pub known_namespaces: HashSet<String>,
+    pub known_namespaces: cell_key::SharedSet<String>,
     /// Reaching namespace-cell allocation, used by Tcl8 global fallback.
     pub namespace_cells: NamespaceCellPresence,
     /// Root lifetimes changed by array or namespace destruction.
@@ -1635,8 +1637,8 @@ impl Default for ResolveContext {
         Self {
             namespace: "::".to_owned(),
             namespace_identity: None,
-            namespace_identities: HashSet::new(),
-            namespace_addressable_identities: HashSet::new(),
+            namespace_identities: cell_key::SharedSet::default(),
+            namespace_addressable_identities: cell_key::SharedSet::default(),
             namespace_inventory: NamespaceInventoryClosure::Open,
             namespace_name_protocol: None,
             execution_name_policy: None,
@@ -1647,15 +1649,15 @@ impl Default for ResolveContext {
             source_read_configuration: SourceReadConfiguration::Standalone,
             selected_frame: None,
             activation: None,
-            globals: HashSet::new(),
-            ns_vars: HashSet::new(),
+            globals: cell_key::SharedSet::default(),
+            ns_vars: cell_key::SharedSet::default(),
             upvar_aliases: HashMap::new(),
             traced: VariableCellSet::default(),
             trace_registrations: VariableCellTable::default(),
             trace_registration_receivers: VariableCellTable::default(),
             possible_trace_registrations: Vec::new(),
             untracked_traces: VariableCellSet::default(),
-            instance_vars: HashSet::new(),
+            instance_vars: cell_key::SharedSet::default(),
             instance_owner: String::new(),
             frame_kind: VariableFrameKind::Local,
             interpreter: None,
@@ -1696,7 +1698,7 @@ impl Default for ResolveContext {
             closed_array_roots: VariableCellSet::default(),
             unknown_bindings: VariableCellSet::default(),
             dynamic_bindings: false,
-            known_namespaces: HashSet::from(["::".to_owned()]),
+            known_namespaces: cell_key::SharedSet::from(["::".to_owned()]),
             namespace_cells: NamespaceCellPresence::default(),
             generations: VariableCellTable::default(),
             binding_identity: BindingIdentity::Legacy,
@@ -1773,7 +1775,7 @@ impl ResolveContext {
     pub fn for_namespace(namespace: impl Into<String>) -> Self {
         let namespace = namespace.into();
         Self {
-            known_namespaces: HashSet::from(["::".to_owned(), namespace.clone()]),
+            known_namespaces: cell_key::SharedSet::from(["::".to_owned(), namespace.clone()]),
             namespace,
             frame_kind: VariableFrameKind::Namespace,
             binding_identity: BindingIdentity::Bound,

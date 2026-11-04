@@ -132,7 +132,25 @@ pub struct CommandBindingRealm {
     source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
     source_call_advice: source_transition_advice::OriginalSourceTransitionAdviceCache,
     query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo,
+    stamped: StampedTokenMemo,
 }
+
+/// [`CommandBindingRealm::stamp_original_tokens`] is a pure function of the
+/// realm and the unstamped tokens, and the analyser asks it for the same
+/// command many times per walk. A copy starts empty, so a realm rebuilt by a
+/// `with_*` step never answers from its predecessor's interpretation.
+#[derive(Debug, Default)]
+struct StampedTokenMemo(
+    std::sync::Mutex<std::collections::HashMap<crate::ir::CommandTokens, crate::ir::CommandTokens>>,
+);
+
+impl Clone for StampedTokenMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+const MAX_STAMPED_COMMANDS: usize = 4096;
 
 // Derived preparation does not change the immutable retained interpretation.
 impl PartialEq for CommandBindingRealm {
@@ -154,6 +172,7 @@ impl CommandBindingRealm {
         settings: std::sync::Arc<crate::analyser::source_settings::OriginalAnalyserSourceSettings>,
     ) -> Self {
         self.bindings.retain_analyser_source_settings(settings);
+        self.stamped = StampedTokenMemo::default();
         self
     }
 
@@ -164,6 +183,7 @@ impl CommandBindingRealm {
         input: crate::analyser::ResolvedAnalysisInput,
     ) -> Self {
         self.source_input = Some(input);
+        self.stamped = StampedTokenMemo::default();
         self
     }
 
@@ -435,6 +455,30 @@ impl CommandBindingRealm {
     /// Each consumer must select its own purpose projection afterwards;
     /// attachment itself grants neither dispatch nor body-entry authority.
     pub fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
+        let retained = self
+            .stamped
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&*tokens)
+            .cloned();
+        if let Some(stamped) = retained {
+            *tokens = stamped;
+            return;
+        }
+        let unstamped = tokens.clone();
+        self.stamp_original_tokens_uncached(tokens);
+        let mut entries = self
+            .stamped
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if entries.len() < MAX_STAMPED_COMMANDS {
+            entries.insert(unstamped, tokens.clone());
+        }
+    }
+
+    fn stamp_original_tokens_uncached(&self, tokens: &mut crate::ir::CommandTokens) {
         // Implementation contract: naming.source.original-invocation-projection-memo
         // docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
         self.bindings
@@ -673,6 +717,7 @@ impl CommandBindingRealm {
                 source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
             query_memo:
                 crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
+            stamped: StampedTokenMemo::default(),
         };
         Some((script, realm))
     }
@@ -1146,6 +1191,7 @@ fn realm_from_source_bindings(
         source_call_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(
         ),
         query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),
+        stamped: StampedTokenMemo::default(),
     }
 }
 

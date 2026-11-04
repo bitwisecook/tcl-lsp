@@ -25,6 +25,77 @@ struct NamespaceGeometry {
     allocation: Option<CommandAllocationSite>,
 }
 
+/// The world's namespace rows, shared copy-on-write between flow snapshots,
+/// with a lazily built first-row index so a key lookup is not a scan.
+#[derive(Debug, Clone, Default)]
+struct NamespaceLedger {
+    rows: Arc<Vec<NamespaceGeometry>>,
+    first: std::sync::OnceLock<Arc<rustc_hash::FxHashMap<SourceNamespaceKey, usize>>>,
+}
+
+impl NamespaceLedger {
+    fn push(&mut self, row: NamespaceGeometry) {
+        Arc::make_mut(&mut self.rows).push(row);
+        self.first = std::sync::OnceLock::new();
+    }
+
+    fn retain(&mut self, mut keep: impl FnMut(&NamespaceGeometry) -> bool) {
+        let kept: Vec<bool> = self.rows.iter().map(&mut keep).collect();
+        if kept.iter().all(|&kept| kept) {
+            return;
+        }
+        let mut kept = kept.into_iter();
+        Arc::make_mut(&mut self.rows).retain(|_| kept.next().unwrap_or(false));
+        self.first = std::sync::OnceLock::new();
+    }
+
+    /// The first row for `key`, as a scan from the front would find it.
+    fn first_for(&self, key: &SourceNamespaceKey) -> Option<&NamespaceGeometry> {
+        let index = self.first.get_or_init(|| {
+            let mut index = rustc_hash::FxHashMap::default();
+            for (position, row) in self.rows.iter().enumerate() {
+                index.entry(row.key.clone()).or_insert(position);
+            }
+            Arc::new(index)
+        });
+        index.get(key).map(|&position| &self.rows[position])
+    }
+
+    fn has_key(&self, key: &SourceNamespaceKey) -> bool {
+        self.first_for(key).is_some()
+    }
+}
+
+impl From<Vec<NamespaceGeometry>> for NamespaceLedger {
+    fn from(rows: Vec<NamespaceGeometry>) -> Self {
+        Self {
+            rows: Arc::new(rows),
+            first: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+impl std::ops::Deref for NamespaceLedger {
+    type Target = [NamespaceGeometry];
+    fn deref(&self) -> &Self::Target {
+        &self.rows
+    }
+}
+
+impl PartialEq for NamespaceLedger {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.rows, &other.rows) || self.rows == other.rows
+    }
+}
+
+impl Eq for NamespaceLedger {}
+
+impl std::hash::Hash for NamespaceLedger {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.rows.hash(state);
+    }
+}
+
 /// Category of an original source publication, without runtime-kind authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OriginalCommandPublicationKind {
@@ -327,13 +398,31 @@ fn original_covered_alias_target(
     Some((publication.clone(), allocation.clone()))
 }
 
+/// A borrowed [`SignatureNamespaceScope`].
+#[derive(Clone, Copy)]
+pub(super) enum SignatureNamespaceScopeView<'a> {
+    Symbolic,
+    C(&'a tcl_core_types::ByteNamespacePath),
+    Jim,
+}
+
+impl<'a> From<&'a SignatureNamespaceScope> for SignatureNamespaceScopeView<'a> {
+    fn from(scope: &'a SignatureNamespaceScope) -> Self {
+        match scope {
+            SignatureNamespaceScope::Symbolic(_) => Self::Symbolic,
+            SignatureNamespaceScope::C(path) => Self::C(path),
+            SignatureNamespaceScope::Jim(_) => Self::Jim,
+        }
+    }
+}
+
 /// Private flow-sensitive source ledger. Full structural equality participates
 /// in the same immutable snapshot and join semantics as the command table.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub(super) struct OriginalSourceCommandWorld {
     policy: Option<NamePolicyProtocol>,
     unavailable: bool,
-    namespaces: Vec<NamespaceGeometry>,
+    namespaces: NamespaceLedger,
     // Original rows are immutable across flow snapshots. A changed row must
     // detach; ledger order and full row equality/hash remain semantic.
     publications: Vec<Arc<OriginalCommandPublication>>,
@@ -378,7 +467,7 @@ impl OriginalSourceCommandWorld {
             && self.policy == Some(policy)
             && state
                 .source_root_namespace_key()
-                .is_some_and(|root| self.namespaces.iter().any(|entry| entry.key == root))
+                .is_some_and(|root| self.namespaces.has_key(&root))
         {
             return OriginalSourceCommandQuery {
                 world: std::borrow::Cow::Borrowed(self),
@@ -485,7 +574,7 @@ impl OriginalSourceCommandWorld {
             return world;
         }
         world.policy = Some(policy);
-        world.namespaces = namespaces;
+        world.namespaces = namespaces.into();
         world.unavailable = false;
         world
     }
@@ -522,7 +611,7 @@ impl OriginalSourceCommandWorld {
             && !state.baseline.unknown_entry;
         self.policy = Some(policy);
         let root = state.source_root_namespace_key()?;
-        if !self.namespaces.iter().any(|entry| entry.key == root) {
+        if !self.namespaces.has_key(&root) {
             self.namespaces.push(NamespaceGeometry {
                 key: root,
                 scope: SignatureNamespaceScope::root(Some(policy)),
@@ -548,7 +637,7 @@ impl OriginalSourceCommandWorld {
                 );
                 if state.namespaces.contains(&namespace)
                     && !state.unknown_lookup_namespaces.contains(&namespace)
-                    && !self.namespaces.iter().any(|entry| entry.key == namespace)
+                    && !self.namespaces.has_key(&namespace)
                 {
                     self.namespaces.push(NamespaceGeometry {
                         key: namespace,
@@ -632,7 +721,7 @@ impl OriginalSourceCommandWorld {
                     return None;
                 }
                 Arc::make_mut(&mut state.namespaces).insert(key.clone());
-                if !self.namespaces.iter().any(|entry| entry.key == key) {
+                if !self.namespaces.has_key(&key) {
                     self.namespaces.push(NamespaceGeometry {
                         key,
                         scope,
@@ -689,8 +778,7 @@ impl OriginalSourceCommandWorld {
             }
             _ => self
                 .namespaces
-                .iter()
-                .find(|entry| &entry.key == key)
+                .first_for(key)
                 .map(|entry| entry.scope.clone()),
         }
     }
@@ -708,6 +796,34 @@ impl OriginalSourceCommandWorld {
         matches.next().is_none().then_some(selected)
     }
 
+    /// [`Self::scope`] without materialising it: a C scope borrows its path.
+    pub(super) fn scope_view<'a>(
+        &'a self,
+        key: &'a SourceNamespaceKey,
+        policy: NamePolicyProtocol,
+    ) -> Option<SignatureNamespaceScopeView<'a>> {
+        if self.unavailable || self.policy.is_some_and(|selected| selected != policy) {
+            return None;
+        }
+        let retained = || {
+            self.namespaces
+                .first_for(key)
+                .map(|entry| SignatureNamespaceScopeView::from(&entry.scope))
+        };
+        match key {
+            SourceNamespaceKey::Native(context) => match policy.recipe() {
+                NativeNameProtocol::C(_) => Some(SignatureNamespaceScopeView::C(&context.path)),
+                NativeNameProtocol::Jim084 => retained(),
+            },
+            SourceNamespaceKey::Allocated { path, .. }
+                if matches!(policy.recipe(), NativeNameProtocol::C(_)) =>
+            {
+                Some(SignatureNamespaceScopeView::C(path))
+            }
+            _ => retained(),
+        }
+    }
+
     pub(super) fn scope(
         &self,
         key: &SourceNamespaceKey,
@@ -721,8 +837,7 @@ impl OriginalSourceCommandWorld {
                 NativeNameProtocol::C(_) => Some(SignatureNamespaceScope::C(context.path.clone())),
                 NativeNameProtocol::Jim084 => self
                     .namespaces
-                    .iter()
-                    .find(|entry| &entry.key == key)
+                    .first_for(key)
                     .map(|entry| entry.scope.clone()),
             },
             SourceNamespaceKey::Allocated { path, .. }
@@ -732,8 +847,7 @@ impl OriginalSourceCommandWorld {
             }
             _ => self
                 .namespaces
-                .iter()
-                .find(|entry| &entry.key == key)
+                .first_for(key)
                 .map(|entry| entry.scope.clone()),
         }
     }
@@ -2027,7 +2141,7 @@ impl CapturedOriginalCommandTransfer {
                         let Some(path) = parent.exact_native_path() else {
                             continue;
                         };
-                        if !self.world.namespaces.iter().any(|entry| &entry.key == parent) {
+                        if !self.world.namespaces.has_key(parent) {
                             self.world.namespaces.push(NamespaceGeometry {
                                 key: parent.clone(),
                                 scope: SignatureNamespaceScope::C(path.clone()),
@@ -2044,7 +2158,7 @@ impl CapturedOriginalCommandTransfer {
             self.world.withdraw();
             return;
         }
-        if !self.world.namespaces.iter().any(|entry| entry.key == key) {
+        if !self.world.namespaces.has_key(&key) {
             self.world.namespaces.push(NamespaceGeometry {
                 key,
                 scope,

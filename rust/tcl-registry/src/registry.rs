@@ -1087,9 +1087,47 @@ impl Hash for RegistrySnapshot {
     }
 }
 
+impl RegistrySemanticKey {
+    /// Share one allocation between every live snapshot of an equal store, so
+    /// the hot equality check is a pointer comparison rather than a walk of
+    /// the whole command inventory.
+    fn interned(key: RegistrySnapshotKey) -> Self {
+        use std::collections::HashMap;
+        use std::sync::{Mutex, Weak};
+        static LIVE: OnceLock<Mutex<HashMap<u64, Vec<Weak<RegistrySemanticKeyData>>>>> =
+            OnceLock::new();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        let fingerprint = hasher.finish();
+        let mut live = LIVE
+            .get_or_init(Mutex::default)
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let bucket = live.entry(fingerprint).or_default();
+        bucket.retain(|weak| weak.strong_count() > 0);
+        if let Some(shared) = bucket
+            .iter()
+            .filter_map(Weak::upgrade)
+            .find(|data| data.key == key)
+        {
+            return Self(shared);
+        }
+        let data = Arc::new(RegistrySemanticKeyData { key, fingerprint });
+        bucket.push(Arc::downgrade(&data));
+        if live.len() > 256 {
+            live.retain(|_, bucket| {
+                bucket.retain(|weak| weak.strong_count() > 0);
+                !bucket.is_empty()
+            });
+        }
+        Self(data)
+    }
+}
+
 impl PartialEq for RegistrySemanticKey {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || self.0.key == other.0.key
+        Arc::ptr_eq(&self.0, &other.0)
+            || (self.0.fingerprint == other.0.fingerprint && self.0.key == other.0.key)
     }
 }
 impl Eq for RegistrySemanticKey {}
@@ -2010,13 +2048,8 @@ impl CommandRegistry {
                     snapshot: OnceLock::new(),
                     native_registrations: Arc::clone(&self.native_registrations),
                 };
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                key.hash(&mut hasher);
                 RegistrySnapshot(Arc::new(RegistrySnapshotData {
-                    semantic_key: RegistrySemanticKey(Arc::new(RegistrySemanticKeyData {
-                        key,
-                        fingerprint: hasher.finish(),
-                    })),
+                    semantic_key: RegistrySemanticKey::interned(key),
                     registry: Arc::new(registry),
                     descriptor_coordinates: OnceLock::new(),
                 }))
@@ -19679,6 +19712,24 @@ mod registry_snapshot_tests {
     }
 
     #[test]
+    fn equal_live_snapshots_share_one_semantic_key() {
+        let first = CommandRegistry::build_default().snapshot();
+        let second = CommandRegistry::build_default().snapshot();
+        assert!(Arc::ptr_eq(
+            &first.0.semantic_key.0,
+            &second.0.semantic_key.0
+        ));
+        let mut registry = CommandRegistry::build_default();
+        registry.insert_ambient_package("SnapshotShare", "1.0");
+        let different = registry.snapshot();
+        assert!(!Arc::ptr_eq(
+            &first.0.semantic_key.0,
+            &different.0.semantic_key.0
+        ));
+        assert_ne!(first.semantic_key(), different.semantic_key());
+    }
+
+    #[test]
     fn equal_hashes_never_make_different_snapshot_contents_equal() {
         let first = CommandRegistry::build_default().snapshot();
         let mut registry = CommandRegistry::build_default();
@@ -19686,9 +19737,12 @@ mod registry_snapshot_tests {
         let mut second = registry.snapshot();
         drop(registry);
         let second_data = Arc::get_mut(&mut second.0).expect("unique test snapshot");
-        Arc::get_mut(&mut second_data.semantic_key.0)
-            .expect("unique semantic key")
-            .fingerprint = first.0.semantic_key.0.fingerprint;
+        // The interner holds only a weak reference, so the strong owner can
+        // still be unwrapped and re-sealed under the colliding fingerprint.
+        let shared = std::mem::replace(&mut second_data.semantic_key, first.0.semantic_key.clone());
+        let mut data = Arc::try_unwrap(shared.0).expect("unique semantic key");
+        data.fingerprint = first.0.semantic_key.0.fingerprint;
+        second_data.semantic_key = RegistrySemanticKey(Arc::new(data));
         assert_ne!(first, second);
     }
 }
