@@ -1,0 +1,76 @@
+{
+  "source_sha256": "42c7208b5ddfe635af2ef93793b3feb86dc43647449de14e4c0066a520f6b8f1",
+  "source": "# tcl-lsp \u2014 a language server and toolchain for Tcl\n# Copyright (C) 2026 James Deucker (bitwisecook)\n# SPDX-License-Identifier: AGPL-3.0-or-later\nset have_rep [expr {[llength [info commands ::tcl::unsupported::representation]] != 0}]\nset records {}\nset x 0\nforeach i {1 2 3} {\n    incr x\n    if {$have_rep} {\n        lappend records [list before [::tcl::unsupported::representation $x]]\n    }\n    lindex $x 0\n    if {$have_rep} {\n        lappend records [list after [::tcl::unsupported::representation $x]]\n    }\n}\nputs [list patchlevel [info patchlevel] final $x observations [llength $records]]\nforeach record $records {puts $record}\n",
+  "jim_commit": "82fb4d0caf90240d94352a31fcbd16adf52658a7",
+  "rows": [
+    {
+      "version": "8.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4",
+        "/tmp/lsp-940-foreach-cycle-oracle.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "patchlevel 8.4.20 final 3 observations 0\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "version": "8.5",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5",
+        "/tmp/lsp-940-foreach-cycle-oracle.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "patchlevel 8.5.19 final 3 observations 0\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "version": "8.6",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6",
+        "/tmp/lsp-940-foreach-cycle-oracle.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "patchlevel 8.6.18 final 3 observations 6\nbefore {value is a int with a refcount of 2, object pointer at 0x557b0b760800, internal representation 0x1:0x557b0b75f8d0, no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x557b0b760800, internal representation 0x557b0b7725d0:(nil), string representation \"1\"}\nbefore {value is a int with a refcount of 2, object pointer at 0x557b0b760800, internal representation 0x2:(nil), no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x557b0b760800, internal representation 0x557b0b774e20:(nil), string representation \"2\"}\nbefore {value is a int with a refcount of 2, object pointer at 0x557b0b760800, internal representation 0x3:(nil), no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x557b0b760800, internal representation 0x557b0b7723d0:(nil), string representation \"3\"}\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "version": "9.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0",
+        "/tmp/lsp-940-foreach-cycle-oracle.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "patchlevel 9.0.4 final 3 observations 6\nbefore {value is a int with a refcount of 2, object pointer at 0x5584cf2c7ee0, internal representation 0x1:0x5584cf2ca4f0, no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x5584cf2c7ee0, internal representation 0x5584cf2f8660:0x0, string representation \"1\"}\nbefore {value is a int with a refcount of 2, object pointer at 0x5584cf2c7ee0, internal representation 0x2:0x5584cf2c7eb0, no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x5584cf2c7ee0, internal representation 0x5584cf2fb6f0:0x0, string representation \"2\"}\nbefore {value is a int with a refcount of 2, object pointer at 0x5584cf2c7ee0, internal representation 0x3:0x5584cf2c83f0, no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x5584cf2c7ee0, internal representation 0x5584cf2f8720:0x0, string representation \"3\"}\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "version": "9.1",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1",
+        "/tmp/lsp-940-foreach-cycle-oracle.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "patchlevel 9.1.0 final 3 observations 6\nbefore {value is a int with a refcount of 2, object pointer at 0x565364380060, internal representation 0x1:0x565364337fa0, no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x565364380060, internal representation 0x5653643b6c20:0x0, string representation \"1\"}\nbefore {value is a int with a refcount of 2, object pointer at 0x565364380060, internal representation 0x2:0x565364337fa0, no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x565364380060, internal representation 0x5653643b69a0:0x0, string representation \"2\"}\nbefore {value is a int with a refcount of 2, object pointer at 0x565364380060, internal representation 0x3:0x565364337fa0, no string representation}\nafter {value is a list with a refcount of 2, object pointer at 0x565364380060, internal representation 0x5653643b6e20:0x0, string representation \"3\"}\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "version": "jim",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh",
+        "/tmp/lsp-940-foreach-cycle-oracle.tcl"
+      ],
+      "returncode": 0,
+      "stdout": "patchlevel 0.84-10-g82fb4d0 final 3 observations 0\n",
+      "stderr": "",
+      "passed": true
+    }
+  ],
+  "scope": "All six return final 3; object representation introspection is available and checked only in Tcl 8.6/9.0/9.1.",
+  "recorded_at": "2026-11-04 14:47 UTC",
+  "product_status": "Native reference evidence only. No S100/S102 implementation result or #940 fix is certified."
+}
