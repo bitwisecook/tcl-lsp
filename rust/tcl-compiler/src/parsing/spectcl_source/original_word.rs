@@ -86,14 +86,27 @@ impl LocalPackSourceWord {
         if parent.depth >= 32
             || container.group().kind != WordKind::Braced
             || self.statement.config != parent.local.statement.config.nested()
-            || parent.local.captured_text().as_bytes() != self.statement.image.bytes()
-            || parent
-                .local
-                .statement
-                .image
-                .bytes()
-                .get(container.content_span().ok()?.as_range())
-                != Some(self.statement.image.bytes())
+        {
+            return None;
+        }
+        // Every word segmented from one body shares that body's image, so the
+        // byte comparisons below, which read only the parent, the root and the
+        // image, have the same answer for all of them; comparing the whole
+        // body again per word made binding a pack's body quadratic in its size.
+        let verified = VERIFIED_BODY.with(|last| {
+            last.borrow()
+                .as_ref()
+                .is_some_and(|last| last.covers(parent, &self.statement.image))
+        });
+        if !verified
+            && (parent.local.captured_text().as_bytes() != self.statement.image.bytes()
+                || parent
+                    .local
+                    .statement
+                    .image
+                    .bytes()
+                    .get(container.content_span().ok()?.as_range())
+                    != Some(self.statement.image.bytes()))
         {
             return None;
         }
@@ -117,8 +130,53 @@ impl LocalPackSourceWord {
         // 1.9 s without. The root is debug-asserted in `in_document`, and
         // `every_bound_body_word_satisfies_the_full_chain_proof` asserts the
         // full chain on every bound word of nested packs.
-        candidate.matches_parent_link().then_some(candidate)
+        if verified {
+            return Some(candidate);
+        }
+        if !candidate.matches_parent_link() {
+            return None;
+        }
+        VERIFIED_BODY.with(|last| {
+            *last.borrow_mut() = Some(VerifiedBody {
+                parent: Arc::clone(&parent.local.statement),
+                parent_ordinal: parent.local.ordinal,
+                parent_base: parent.base,
+                root: parent.root.clone(),
+                image: self.statement.image.clone(),
+            });
+        });
+        Some(candidate)
     }
+}
+
+/// The last parent/body pair [`LocalPackSourceWord::in_body`] proved on this
+/// thread. It holds the parent statement and both images, so their buffers
+/// stay allocated while it names them by address.
+struct VerifiedBody {
+    parent: Arc<LocalStatement>,
+    parent_ordinal: usize,
+    parent_base: u32,
+    root: SourceImage,
+    image: SourceImage,
+}
+
+impl VerifiedBody {
+    fn covers(&self, parent: &OriginalPackSourceWord, image: &SourceImage) -> bool {
+        fn same_buffer(a: &SourceImage, b: &SourceImage) -> bool {
+            std::ptr::eq(a.bytes().as_ptr(), b.bytes().as_ptr())
+                && a.bytes().len() == b.bytes().len()
+        }
+        Arc::ptr_eq(&self.parent, &parent.local.statement)
+            && self.parent_ordinal == parent.local.ordinal
+            && self.parent_base == parent.base
+            && same_buffer(&self.root, &parent.root)
+            && same_buffer(&self.image, image)
+    }
+}
+
+thread_local! {
+    static VERIFIED_BODY: std::cell::RefCell<Option<VerifiedBody>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 /// Full original document and the actual selected braced-container path to one
