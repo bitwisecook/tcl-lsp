@@ -1,0 +1,276 @@
+{
+  "kind": "actual-native-lsp-diagnostic-publication",
+  "source_head": "ed015db7846aa3d90d91c5b0106a4202bcf75f64",
+  "local_debug_patch_sha256": "5d575f56ae37e962327d52d19201661a2ce8f435bb605e264b1c3fe0d5a4e878",
+  "debug_env_enabled": false,
+  "binary_sha256": "354fc046092de24ac68c339c52ee28d2968549b911d1b584e5521d60fa55e163",
+  "probe_sha256": "854926cc44d82f7e2854b8304481729290af06096594503a75c10a73f6ca39f8",
+  "configurations": {
+    "default": {
+      "lineLength": 117
+    },
+    "off": {
+      "lineLength": 117,
+      "shimmer": {
+        "enabled": false
+      }
+    },
+    "error": {
+      "lineLength": 117,
+      "diagnosticSeverity": {
+        "S100": "error"
+      }
+    }
+  },
+  "config_barrier": "getEffectiveConfig line_length == 117 following workspace/configuration",
+  "method": "Push publication, then currentDiagnostics with exact whole source and client version; current complete report identity reborrowed with validateDiagnosticPublication except policy-disabled control.",
+  "limits": [
+    "Top-level S100 only; named procedures and S102 remain unverified.",
+    "The noqa and shimmer-off rows show policy suppression, not absence of source-level findings.",
+    "Report IDs are scoped to each independently started server session.",
+    "Local trace instrumentation was disabled by environment for these S100 runs."
+  ],
+  "cases": [
+    {
+      "suite": "default",
+      "fixture": "positive",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-fstgapjn/positive.tcl",
+        "version": 1,
+        "source": "set s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1",
+        "diagnostics": [
+          {
+            "range": {
+              "start": {
+                "line": 0,
+                "character": 44
+              },
+              "end": {
+                "line": 0,
+                "character": 46
+              }
+            },
+            "severity": 3,
+            "code": "S100",
+            "source": "tcl-lsp",
+            "message": "variable 'n' may be converted from int to list by 'lindex'"
+          }
+        ]
+      },
+      "reborrow": {
+        "status": "current",
+        "uri": "file:///tmp/s100-native-fstgapjn/positive.tcl",
+        "version": 1,
+        "source": "set s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1"
+      }
+    },
+    {
+      "suite": "default",
+      "fixture": "literal",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-fstgapjn/literal.tcl",
+        "version": 1,
+        "source": "set n {1 2}; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-2",
+        "diagnostics": []
+      },
+      "reborrow": {
+        "status": "current",
+        "uri": "file:///tmp/s100-native-fstgapjn/literal.tcl",
+        "version": 1,
+        "source": "set n {1 2}; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-2"
+      }
+    },
+    {
+      "suite": "default",
+      "fixture": "font_braced",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-fstgapjn/font_braced.tcl",
+        "version": 1,
+        "source": "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-3",
+        "diagnostics": []
+      },
+      "reborrow": {
+        "status": "current",
+        "uri": "file:///tmp/s100-native-fstgapjn/font_braced.tcl",
+        "version": 1,
+        "source": "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-3"
+      }
+    },
+    {
+      "suite": "default",
+      "fixture": "font_list",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-fstgapjn/font_list.tcl",
+        "version": 1,
+        "source": "set fontSizes [list 10.0 12.0 16.0 24.0]\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-4",
+        "diagnostics": []
+      },
+      "reborrow": {
+        "status": "current",
+        "uri": "file:///tmp/s100-native-fstgapjn/font_list.tcl",
+        "version": 1,
+        "source": "set fontSizes [list 10.0 12.0 16.0 24.0]\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-4"
+      }
+    },
+    {
+      "suite": "default",
+      "fixture": "suppressed",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-fstgapjn/suppressed.tcl",
+        "version": 1,
+        "source": "# noqa: S100\nset s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-5",
+        "diagnostics": []
+      },
+      "reborrow": {
+        "status": "current",
+        "uri": "file:///tmp/s100-native-fstgapjn/suppressed.tcl",
+        "version": 1,
+        "source": "# noqa: S100\nset s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-5"
+      }
+    },
+    {
+      "suite": "default",
+      "fixture": "unrelated_noqa",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-fstgapjn/unrelated_noqa.tcl",
+        "version": 1,
+        "source": "# noqa: W999\nset s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-6",
+        "diagnostics": [
+          {
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 44
+              },
+              "end": {
+                "line": 1,
+                "character": 46
+              }
+            },
+            "severity": 3,
+            "code": "S100",
+            "source": "tcl-lsp",
+            "message": "variable 'n' may be converted from int to list by 'lindex'"
+          }
+        ]
+      },
+      "reborrow": {
+        "status": "current",
+        "uri": "file:///tmp/s100-native-fstgapjn/unrelated_noqa.tcl",
+        "version": 1,
+        "source": "# noqa: W999\nset s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-6"
+      }
+    },
+    {
+      "suite": "off",
+      "fixture": "positive",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-t6omg37f/positive.tcl",
+        "version": 1,
+        "source": "set s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1",
+        "diagnostics": []
+      }
+    },
+    {
+      "suite": "error",
+      "fixture": "positive",
+      "report": {
+        "status": "complete",
+        "uri": "file:///tmp/s100-native-1_sgfku9/positive.tcl",
+        "version": 1,
+        "source": "set s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1",
+        "diagnostics": [
+          {
+            "range": {
+              "start": {
+                "line": 0,
+                "character": 44
+              },
+              "end": {
+                "line": 0,
+                "character": 46
+              }
+            },
+            "severity": 1,
+            "code": "S100",
+            "source": "tcl-lsp",
+            "message": "variable 'n' may be converted from int to list by 'lindex'"
+          }
+        ]
+      },
+      "reborrow": {
+        "status": "current",
+        "uri": "file:///tmp/s100-native-1_sgfku9/positive.tcl",
+        "version": 1,
+        "source": "set s abc; set n [string length $s]; lindex $n 0\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1"
+      }
+    }
+  ]
+}
