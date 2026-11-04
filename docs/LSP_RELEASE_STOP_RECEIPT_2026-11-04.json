@@ -1,0 +1,27 @@
+{
+  "recorded_at": "2026-11-04T22:14:16.528698+00:00",
+  "user_directive": "Stop after next fixed issue; push everything to remote rust and update appropriate issues/internal status.",
+  "newly_closed_issue": 2131,
+  "closure_comment": "https://github.com/bitwisecook/tcl-lsp/issues/2131#issuecomment-6643420031",
+  "closure_comment_sha256": "1f4a19b258a0c35c89556a9b690f1a5c099ac3b627ab6c18e81bb64af4bab6c4",
+  "closure_readback_exact": true,
+  "closed_state_verified": true,
+  "verification_commit": "4abc966f1c",
+  "open_progress_comments": {
+    "940": "https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912",
+    "2441": "https://github.com/bitwisecook/tcl-lsp/issues/2441#issuecomment-6643275900",
+    "1956": "https://github.com/bitwisecook/tcl-lsp/issues/1956#issuecomment-6643349824",
+    "2243": "https://github.com/bitwisecook/tcl-lsp/issues/2243#issuecomment-6643352406"
+  },
+  "external_comments_verified": 19,
+  "excluded_issue": 2021,
+  "external_closures": 0,
+  "development_checkpoints": {
+    "940": "c490f32b8ae5c1c4357a0b3c91c18da4aba23949",
+    "Jim_empty_iteration": "cf77ac5566",
+    "Clay_inventory": "cc80104c68"
+  },
+  "full_gates": "Not passed on the final combined development source.",
+  "integration_target": "refs/heads/rust",
+  "integration_method": "Normal merge preserving both work and existing rust commits; no force push."
+}

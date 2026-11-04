@@ -6,14 +6,14 @@ also silent.
 
 | Issue | Current evidence and status |
 | --- | --- |
-| #940 | Published top-level S100 and fixed-count S102 have genuine native LSP controls (`cab14d1a4`, receipts below). Original font and conditional-append coverage remains incomplete. The newer list-event draft is unpublished after nested-operation graph failures; its genuine C5 controls pass. |
+| #940 | Published top-level S100 and fixed-count S102 have genuine native LSP controls (`cab14d1a4`, receipts below). Original font and conditional-append coverage remains incomplete. The unfinished list/substitution draft is pushed as `c490f32b8a`; genuine C5 controls pass, but foreign-parent custody and nested-operation failures remain, with latest repairs unrun. |
 | #2498, #2500, #2504 | At `5755cd79d`, each reported warning is quiet, but all three genuine shimmer controls below also produce no warning. The results are inconclusive. |
 | #2499 | At `e19c0acaa`, the dynamic read is quiet and the dynamic write control emits W212. `lsp_external_validation::issue_2499_dynamic_variable_read`. |
 | #2503 | At `e19c0acaa`, the quoted expression is quiet and a direct nested expression emits W114. `lsp_external_validation::issue_2503_nested_expr_inside_quoted_result`. |
 | #2505 | At `e19c0acaa`, multiline and single-line list-built scripts are quiet and an interpolated script emits W301. `lsp_external_validation::issue_2505_multiline_list_uplevel`. |
 | #2506 | At `0c7b97c9d`, the boolean comparison remains quiet and `set raw [gets stdin]; expr {$raw + 1}` emits T100 for `raw`. The exact control is committed in `lsp_external_taint_validation::issue_2506_boolean_comparison_taint`. |
 | #2507 | Separate LSP report and action checks passed at `14b26b2e0`; see the optimiser validation record. |
-| #2131 | Shared `MathFuncSpec::result_class` ownership and the compiler's focused classifier test are verified. Native rows are output/`string is` evidence only; public nested-expression inference remains unverified. See the [permanent receipt](../evidence/compiler/mathfunc-result-class-2131/README.md). |
+| #2131 | Closed after [proof-comment readback](https://github.com/bitwisecook/tcl-lsp/issues/2131#issuecomment-6643420031). Shared `MathFuncSpec::result_class` ownership and the compiler's focused classifier test are verified. Native rows are output/`string is` evidence only; public nested-expression inference remains unverified. See the [permanent receipt](../evidence/compiler/mathfunc-result-class-2131/README.md). |
 | #2288 | At `e19c0acaa`, the prefixed list-built Tk callback is quiet and an interpolated Tk callback emits W105. `lsp_external_validation::issue_2288_prefixed_tk_bind_script`. |
 | #2440 | Selected script-argument roles avoid scanning the containing body. The focused integration regression passed on `073e6e942`, covering proc literal and proven use, conditional and iRules bodies, and braced data. |
 | #2436 | The earlier draft is superseded by the verified fix in `1eefbc317`. Two lexer tests and four production/reference tests passed against Tcl 8.4–9.1 and the verified current Jim build; see `docs/LSP_RELEASE_STATUS.md`. |

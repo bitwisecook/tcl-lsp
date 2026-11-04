@@ -32,11 +32,16 @@
           "path": "experiments/shimmer-940/foreach-native-2026-11-04/manifest.json",
           "commit": "b4ddcb777",
           "scope": "Native reference only; Tcl9 foreach preserves numeric representations."
+        },
+        {
+          "path": "experiments/shimmer-940/list-substitution-handoff-2026-11-04/README.md",
+          "commit": "c490f32b8a",
+          "scope": "Unfinished development checkpoint; observed custody failure and unrun repairs."
         }
       ],
-      "comment_body_sha256": "da59cb8d64878b219980560946571adca6b4649156ea692ca78513a638fe1e93",
+      "comment_body_sha256": "e2cf1e70c29e0a5bdc4db7e1ad08522e3cc12dfbc9608a4559f22038f9042e45",
       "comment_readback_exact": true,
-      "comment_readback_at": "2026-11-04T21:29:49.574416+00:00"
+      "comment_readback_at": "2026-11-04T22:14:16.527845+00:00"
     },
     {
       "issue": 2181,
