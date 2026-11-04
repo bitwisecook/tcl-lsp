@@ -11409,6 +11409,41 @@ mod tests {
     }
 
     #[test]
+    fn an_unscoped_pack_override_beats_a_scoped_shipped_spec() {
+        let mut registry = CommandRegistry::build_default();
+        let shipped = synthetic_spec(
+            "d6_pack_override_precedence",
+            Some(SpecSurface::TCL86),
+            Traits::empty(),
+        );
+        let override_spec = synthetic_spec("d6_pack_override_precedence", None, Traits::empty());
+        registry.insert_pack_origin(
+            override_spec,
+            crate::pack_origin::PackOrigin {
+                pack: "precedence-test".to_owned(),
+                content_hash: 1,
+                vocabulary_version: "2.0".to_owned(),
+            },
+        );
+
+        let query = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        assert_eq!(
+            registry
+                .best_visible(&[override_spec, shipped], query)
+                .map(|s| s as *const _),
+            Some(override_spec as *const _),
+            "an installed pack override has provenance precedence over core scope"
+        );
+        assert_eq!(
+            registry
+                .best_visible(&[shipped, override_spec], query)
+                .map(|s| s as *const _),
+            Some(override_spec as *const _),
+            "candidate registration order does not let a scoped core row take precedence"
+        );
+    }
+
+    #[test]
     fn best_visible_prefers_the_nearer_core_point() {
         use tcl_dialect::model::CorePoints;
 
