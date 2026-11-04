@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 11:34 UTC. Not release-ready.** CoreV3 fresh0/all15semantic+1observation pass captured source, but overall exit1 final Main spec_packs drift rejects custody; Corev4 dependency-closure harness is pending review. RMWv8 freshEngine0 is similarly rejected, with separate4/6 diagnostic exposing error-global/dict cleanup failures; adopted38abcef90+4VM controls await reviewed RMWv10. New trace/lease/host-isolation changes and ServerV7 remain unvalidated beyond stated syntax checks. ClippyV20 failed2diagnostics;09cada7e8 repairs them and V21 is running, not passed; fmt11:17 predates later edits. CI traces/active Native do not establish final acceptance. Global2171 pre-correction errors remain unrecounted;20 Python-binding work is private. [Current state](current-state.md) owns exact limits and interrupted publisher receipts. No PR/release exists; older dated material below is historical.
+**ACTIVE — 04 November 2026, 11:58 UTC. Not release-ready.** Scoped ClippyV22 passes8packages/alltargets with unchanged custody after reviewed719d repairs; no full rust-check/prep-pr/drift pass follows. RMWv11 is running28tests/15jobs, Corev5 prepared/unrun, ServerV7 stale after extraction. Browser trace establishes actual hit-owner refusal, not its Origin cause; autoload remainsnull and branch unobserved. Current lease/real-host controls remain unexecuted.20-Python source-only repair6052963c4 is adopted after Root authenticated comparisons and verifier/Ruff passes; global2171 count is unchanged. Publication recovered after an auth interruption, without uninterrupted cadence. [Current state](current-state.md) owns exact scopes; no PR/release exists. Older material below is historical.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,12 +61,12 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Review Corev4 dependency-closure rules: tested inputs are fatal on change,
+1. Execute reviewed Corev5 on its exact46b2 input: tested dependencies are fatal on change,
    scratch remains immutable, unrelated Main drift is recorded. Repeat all15
    semantic controls on fresh sealed inputs; captured-source CoreV3 passes do
-   not waive its custody rejection. Complete ServerV7's17+observation, byte
+   not waive its custody rejection. Establish browser metadata/Origin cause and repin stale ServerV7's17+observation, byte
    lease/decoder, formal UI/provider and actual native two-file controls.
-2. Review and execute prepared RMWv11's28tests/15jobs against adopted38abcef90, including
+2. Complete running RMWv11's28tests/15jobs against adopted38abcef90/09cada7e8, including
    four new VM controls. Preserve RMWv8's error-global/dict-cleanup failures
    and all confinement/budget guards. Run actual hosts with original mixed
    negative preserved and isolated positive last; syntax is not host acceptance.

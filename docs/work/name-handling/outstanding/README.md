@@ -1,16 +1,16 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 11:34 UTC. **Not release-ready.** See [current state](../current-state.md) for exact sources and receipts.
+Updated 04 November 2026, 11:58 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact sources and receipts.
 
 | Work | Open acceptance |
 | --- | --- |
-| Rename/reference producer |CoreV3 fresh0/all15semantic+1observation pass captured inputs, overall exit1 final Main spec_packs custody rejection. Overlay currently absent by direct normal-source equality; false restoration receipt retained. Review Corev4 dependency-closure harness, repeat fresh sealed controls and actual native edits. |
-| Navigation/metadata |KernelV8 11/11 scoped pass; adopted tracea769/byte-leasee58 new3+decoder controls unexecuted. ServerV7 preparing17+observation. Formal UI/provider/final host validation remains required. |
-| Autoload |Recorded Core reuse11/11 and installed15/15 pass narrowly. Matched cold-host plans remain unexecuted; strict startup fails. Require-first refusal is not a positive. |
-| Linked hook containment |RMWv8 freshEngine0 then custody rejection; separate diagnostic4/6 fails caught-error globals/dict cleanup after prior array/unset cases pass. Adopted38abcef90+4VM controls unexecuted; RMWv10 reviewed28tests/15jobs pending. Preserve earlier RMW failures and guards. |
-| Lint/drift |ClippyV20 fails2diagnostics; reviewed09cada7e8 repairs them and V21 is running without an outcome. Fmt11:17 predates later edits; final rust-check/prep-pr/drift unpassed. |
-| Proof provenance |Global2171errors remains before two authenticated Registry bindings; no post-correction total/pass.20 Python-binding correction privately planned/unadopted;425 appliance joins unresolved. |
-| Hosts/packages/performance |Host-isolationa0fd302f0 syntax only; original mixed negative retained, new isolated positive last. TraceCI41819715741 on5d0b90295 builds11:29 before later repairs;45c Native active/no terminal counts, failed hosts unchanged. No final package/performance/host pass. |
-| Integration/release |Publisher278694 alive, bounded5 race-recovery attempts, last inspected success11:27:57 eac7ed46. Historical interruptions/gateway failure remain explicit. Complete gates and temporary-material cleanup; no PR/merge/tag/release. |
+| Rename/reference producer |Reviewed Corev5 prepared/unrun on46b2 with same15semantic+observation/dependency metadata. Captured-source CoreV3 passes do not waive final custody failure; actual native two-file edits remain unaccepted. |
+| Navigation/metadata |Browser trace proves candidate→hit-owner refusal→no mapped rows, originalsymbolnull. Actual Origin comparison unobserved; static mismatch candidate not established cause. ServerV7 pins stale after719d extraction; repin after actual fix/review. Byte-lease3+decoder and final UI/providers unexecuted. |
+| Autoload |Recorded reuse11/11+installed15/15 pass narrowly; browserid4null persists. Early source-view terminal branch statically possible but unobserved; private probe unexecuted. Matched startup/cold-host gates remain open. |
+| Linked containment |Reviewed RMWv11 running28tests/15jobs, all11 pins match; no result. Preserve RMWv7/v8 caught-error/dict-cleanup and earlier failures while validating38ab/09cada+4VM controls. |
+| Lint/drift |ClippyV22 passes selected8packages/alltargets warnings-denied with unchanged custody; V21 failed20unique/23messages,719d fixes7files without suppressions. Final fmt/rust-check/prep-pr/drift unpassed. |
+| Proof provenance |2171 remains pre-two-Registry-correction count.20-Python source-only patch reviewed/Root authenticated/verifier20pass but not adopted yet; no global subtraction/recount/pass.425 appliance joins unresolved. |
+| Hosts/packages/performance |TraceCI5d0b builds then fails naming; current lease absent.45c Native active/no terminal counts, prior failed hosts retained. Host isolation syntax only; preserve mixed negative and isolated positive last. No final package/performance/host pass. |
+| Integration/release |Publisher278694 alive; auth interruption retained, manual11:50/daemon11:52 successes restore publication. Bounded retries/safe merges continue, no uninterrupted cadence. Complete all gates/cleanup; no PR/merge/tag/release. |
 
 Separate VM/BIG-IP features remain deferred; linked dependencies and reproducible oracle evidence remain critical.
