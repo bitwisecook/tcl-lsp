@@ -15,10 +15,23 @@
       "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912",
       "comment_id": 6629102912,
       "verified_on_github": true,
-      "outcome": "Partial: authenticated top-level S100 publication and quiet controls pass; reopened conditional S102 report remains unresolved.",
+      "outcome": "Partial: authenticated native S100 and fixed-count S102 paths pass; original conditional accumulators remain unverified.",
       "follow_up_verified_on_github": true,
-      "follow_up_receipt": "docs/LSP_RELEASE_S100_PROTOCOL_RECEIPT.json",
-      "follow_up_receipt_commit": "4202c8f90"
+      "follow_up_receipt": "docs/LSP_RELEASE_S102_PROTOCOL_RECEIPT.json",
+      "follow_up_receipt_commit": "987e6a73a",
+      "follow_up_receipts": [
+        {
+          "path": "docs/LSP_RELEASE_S100_PROTOCOL_RECEIPT.json",
+          "commit": "4202c8f90"
+        },
+        {
+          "path": "docs/LSP_RELEASE_S102_PROTOCOL_RECEIPT.json",
+          "commit": "987e6a73a"
+        }
+      ],
+      "comment_body_sha256": "bd00efc3ea1fea39a3d5f6752fcd3a6b3585f748c165c404e3b90e4a0fa855c7",
+      "comment_readback_exact": true,
+      "comment_readback_at": "2026-11-04T20:36:21Z"
     },
     {
       "issue": 2181,
@@ -106,7 +119,7 @@
       "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2500#issuecomment-6629106024",
       "comment_id": 6629106024,
       "verified_on_github": true,
-      "outcome": "Inconclusive: genuine shimmer controls also emit no warning; full example supported only on Tcl 8.5\u20139.1."
+      "outcome": "Inconclusive: genuine shimmer controls also emit no warning; full example supported only on Tcl 8.5–9.1."
     },
     {
       "issue": 2501,
@@ -165,8 +178,8 @@
       "outcome": "Verified W100/O111/scan recommendation and safe action behavior; seven tests pass."
     }
   ],
-  "last_follow_up_at": "2026-11-04 16:59 UTC",
-  "last_inventory_at": "2026-11-04 18:27 UTC",
+  "last_follow_up_at": "2026-11-04T20:36:21Z",
+  "last_inventory_at": "2026-11-04T20:37:34Z",
   "open_external_count_at_last_inventory": 20,
   "requested_external_count_at_last_inventory": 19
 }

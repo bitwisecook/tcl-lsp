@@ -1,20 +1,21 @@
 # External issue validation comments
 
-Inventory rechecked 2026-11-04 18:27 UTC: the same 20 external issues remain open. Evidence revisions and measured scope remain in the comments. All **19 requested issue comments** were posted and
+Inventory rechecked 2026-11-04 20:37 UTC: the same 20 external issues remain open. Evidence revisions and measured scope remain in the comments. All **19 requested issue comments** were posted and
 reread on GitHub. **#2021 was excluded and received no comment from this sweep.**
 No external issue was closed by this work. Revisions, commands, native-oracle
 versions, controls and scope limits are in the linked comments.
 
 A quiet reported example is not called fixed when its genuine positive control
-also fails. The top-level S100 LSP path now has an authenticated positive and
-quiet controls, but the reopened S102 report in #940 remains unresolved.
+also fails. The native top-level S100 and fixed-count S102 paths now have authenticated
+positive and refusal controls. The original conditional-accumulator report in
+#940 remains unresolved because its body coverage is not yet established.
 #2498, #2500 and #2504 retain their earlier inconclusive assessments;
 #2286, #2501 and #2502 retain missing-read gaps, and #2181 has unverified UI and
 broader lifecycle paths. The LSP is not release-ready on this evidence alone.
 
 | Issue | Validation outcome | Evidence comment |
 | --- | --- | --- |
-| #940 | Partial: authenticated top-level S100 publication and quiet controls pass; reopened conditional S102 report remains unresolved. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912) |
+| #940 | Partial: authenticated native S100 and fixed-count S102 paths pass; original conditional accumulators remain unverified. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912) |
 | #2181 | Partial: routed-environment edit/reopen and focused role changes pass; UI and broader lifecycle paths remain unverified. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2181#issuecomment-6629241452) |
 | #2242 | Verified native LSP arity publication and repair under Tcl 8.6/9.0. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2242#issuecomment-6629219439) |
 | #2265 | Verified exact Core token extents and geometry control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2265#issuecomment-6629091417) |
@@ -38,3 +39,9 @@ The full linked inputs, hashes, upstream licences and compiler receipts are unde
 `rust/tcl-compiler/tests/data/lsp-external-bindings/`. Values and protocol details
 remain in their `LSP_RELEASE_*.md` lane records. A machine-readable comment audit
 is in [LSP_RELEASE_ISSUE_COMMENTS_2026-11-04.json](LSP_RELEASE_ISSUE_COMMENTS_2026-11-04.json).
+
+The #940 proof comment was updated and read back exactly at 20:36 UTC with
+the published recurrence foundation and [native S102 protocol receipt](LSP_RELEASE_S102_PROTOCOL_RECEIPT.json).
+The generic versioned noqa action remains available; no source-context compiler
+rewrite is granted by the conditional diagnostic. Its original accumulator
+examples remain coverage-inconclusive, and the issue stays open.
