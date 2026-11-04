@@ -717,7 +717,11 @@ fn issue_2384() {
 
 #[test]
 fn issue_2384_literal_false_loop_is_still_reported() {
-    for source in ["while 0 {puts never}\n", "for {} 0 {} {puts never}\n"] {
+    for source in [
+        "while 0 {puts never}\n",
+        "for {} 0 {} {puts never}\n",
+        "# tcl-lsp: stubs-begin\n# tcl-lsp: stub spin {cond:expr body:body} -loop\n# tcl-lsp: stubs-end\nspin 0 {puts never}\n",
+    ] {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let result = analyse(source, dialect);
             assert!(
