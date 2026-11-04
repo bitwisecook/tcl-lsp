@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374 | The exact guarded read of `a(j)` emits W210 for Tcl 8.4–9.1; Jim-profile analysis misses it. A same-element read after setting `a(k)` separately warns on base `a`. | Partial across profiles; adjacent false positive |
-| #2441 | Fresh exact combined report warns for top-level `y` but misses procedure `x` under Tcl 8.4–9.1; Jim misses both. The diagnostic-only classifier compiles, but its first exact Tcl 8.4 runtime assertions still miss `x`. | Reproduced residual; candidate runtime fails |
+| #2441 | Fresh exact combined report warns for top-level `y` but misses procedure `x` under Tcl 8.4–9.1; Jim misses both. The first classifier failed. A narrower IR-stage repair is reviewed, with genuine opaque/unseen and nested-write baseline controls; its 100-row compiler matrix remains unbuilt. | Reproduced residual; reviewed repair awaits verification |
 | #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Closed after coordinator proof review |
 | #2379 | Exact size/names/get and may-set/exists-then-get inputs are quiet for Tcl 8.4–9.1; Jim substitutions can still warn. Tcl `statistics`/`startsearch` error controls currently receive no W210. | Partial; Tcl report rows clear, Jim/adjacent controls remain |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
@@ -89,6 +89,15 @@ reviewed and awaits its cached compiler allocation after the priority S102 and
 database jobs. The evidence-format check passes 1,647 current records; that is
 a metadata check, not a compiler test result. No caller resolver, source graph
 or Native admission edit is part of the pending repair.
+
+At the 20:35 checkpoint, sparse fixture cleanup preserves the approved product
+patch and untracked regression byte-for-byte. Restoring only 29 exact compile
+fixtures (104,050 bytes) returns the compiler preflight to 221 available
+includes and zero unresolved paths. All Git history, stashes, targets and
+libraries are preserved. The earlier priority job stopped at its resource
+guard without ENOSPC; this lane still has no new compiler result and awaits
+its allocated retry. Production Clippy is prepared to run before no-run
+compilation so a baseline lint failure cannot consume a full test build.
 
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
 
