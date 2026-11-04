@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
 
-## Exact evidence
+## Historical references
 
-- `receiver-whole-source609-82b2015aa5fe` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). SHA-256 `4716d9bc5dd50d631e33d2e35b5a4a8192d710b0fdfb1a0f587874a24327574e`. Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
+- `receiver-whole-source609-82b2015aa5fe` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
 
 ## Source inspection
 

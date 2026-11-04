@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

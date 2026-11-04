@@ -62,18 +62,18 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.6-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json). SHA-256 `1f2ab0a781a94daebd07529eecac560364863c83707cac9562331d61ce263f04`. JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl8.6-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json). SHA-256 `1f2ab0a781a94daebd07529eecac560364863c83707cac9562331d61ce263f04`. JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.0-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json). SHA-256 `baa7d12e616e768725d3bb6acd84e6dfd8f8c515b1863c32d9487d23848b02f6`. JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.0-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json). SHA-256 `baa7d12e616e768725d3bb6acd84e6dfd8f8c515b1863c32d9487d23848b02f6`. JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.1-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json). SHA-256 `3a00e747c86e65b22fa48f69cebd207cee60e1ff22afa58d17e869f360148b7d`. JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.1-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json). SHA-256 `3a00e747c86e65b22fa48f69cebd207cee60e1ff22afa58d17e869f360148b7d`. JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
+- `tcl8.6-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
+- `tcl8.6-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
+- `tcl9.0-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
+- `tcl9.0-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
+- `tcl9.1-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
+- `tcl9.1-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoObjectVariablesCmd`, lines 728–753. Full-source SHA-256 `309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b`; snippet SHA-256 `dab27f68c49bdc1f4b47b394a55e9b231a54f8f6e37e16c5c69d811ae285993f`; retained evidence `tcl8.6-InfoObjectVariablesCmd`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoObjectVariablesCmd`, lines 728–753. Retained reference `tcl8.6-InfoObjectVariablesCmd`.
 
 ```text
 InfoObjectVariablesCmd(
@@ -105,7 +105,7 @@ InfoObjectVariablesCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoClassVariablesCmd`, lines 1408–1433. Full-source SHA-256 `309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b`; snippet SHA-256 `760b068365fd4f7faa0e4524dbaed0f50de5fbf42928d774f83077201bab2e8e`; retained evidence `tcl8.6-InfoClassVariablesCmd`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoClassVariablesCmd`, lines 1408–1433. Retained reference `tcl8.6-InfoClassVariablesCmd`.
 
 ```text
 InfoClassVariablesCmd(
@@ -137,7 +137,7 @@ InfoClassVariablesCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoObjectVariablesCmd`, lines 877–923. Full-source SHA-256 `a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b`; snippet SHA-256 `11f88242b0ca9fa562da1df1a31d82f85634a7f306f43422ca4a69c77f53adb0`; retained evidence `tcl9.0-InfoObjectVariablesCmd`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoObjectVariablesCmd`, lines 877–923. Retained reference `tcl9.0-InfoObjectVariablesCmd`.
 
 ```text
 InfoObjectVariablesCmd(
@@ -190,7 +190,7 @@ InfoObjectVariablesCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoClassVariablesCmd`, lines 1683–1729. Full-source SHA-256 `a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b`; snippet SHA-256 `b4b4ace6a2895515056741375bb0ce49b1e9fba36f31d161c2f90916b582dfdb`; retained evidence `tcl9.0-InfoClassVariablesCmd`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoClassVariablesCmd`, lines 1683–1729. Retained reference `tcl9.0-InfoClassVariablesCmd`.
 
 ```text
 InfoClassVariablesCmd(
@@ -243,7 +243,7 @@ InfoClassVariablesCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoObjectVariablesCmd`, lines 944–990. Full-source SHA-256 `5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9`; snippet SHA-256 `6f0e63143063b06be3dbc8feb0d8f7f0f845e88bdf0d3b9e869bbfa55dd1990a`; retained evidence `tcl9.1-InfoObjectVariablesCmd`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoObjectVariablesCmd`, lines 944–990. Retained reference `tcl9.1-InfoObjectVariablesCmd`.
 
 ```text
 InfoObjectVariablesCmd(
@@ -296,7 +296,7 @@ InfoObjectVariablesCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoClassVariablesCmd`, lines 1675–1721. Full-source SHA-256 `5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9`; snippet SHA-256 `dbff1bcf6ab71f390e0baf690ed69e1c789a1e8ddc484f98702f5aff51d11ef1`; retained evidence `tcl9.1-InfoClassVariablesCmd`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoClassVariablesCmd`, lines 1675–1721. Retained reference `tcl9.1-InfoClassVariablesCmd`.
 
 ```text
 InfoClassVariablesCmd(

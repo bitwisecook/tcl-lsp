@@ -62,22 +62,22 @@ Status: `not-tested`. Version: not measured. Build: not recorded. Channel: No in
 
 No observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `probe-v1` (input): [rust/tcl-registry/tests/data/native_coroutine_publication/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/probe.c). SHA-256 `e47227595500d3399848c7a42fe0867de33df4f25c87a8f7b765692f7ee397bb`. Exact immutable original-object v1 probe source; count constructors, pointer timing, per-stage getters and untested API branches are inspectable.
-- `probe-v2` (input): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c). SHA-256 `ab41e399af2ba7e074d779a1ee7e76fd9fe16e127c9d07f060010e2c1aae6a44`. Exact v2 probe, adding separate info-coroutine fullname controls without changing the v1 outcomes.
-- `tcl9.1-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/receipt.json). SHA-256 `13209de752ec751ea45bb1c8136d13959a3d54f4001b79fefce9f2f06405734f`. Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl9.1-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv). SHA-256 `94805bbf1a96f65176a2aff451195912444e292b6ceec360898ebb1204830d04`. Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl9.1-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact process stderr, separate from guest completion.
-- `tcl9.1-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json). SHA-256 `9bd5decf3fa0e8b465b817c8eef53551aa674896bfe582592011660c006300a6`. Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl9.1-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv). SHA-256 `acaa106607bb5e8cbc663efaf2d39bc08cbcf5fe754fb8bb9524e743ae3429d3`. Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl9.1-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact process stderr, separate from guest completion.
-- `source-3` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json). SHA-256 `ef5ccbf8675a6c164c672a128a6eab1cf44a59017558788e48d8c09dbc54c306`. JSON pointer `/3/snippet`. Exact pinned TclNRCoroInjectObjCmd source window, independent of result observations.
-- `source-4` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json). SHA-256 `ef5ccbf8675a6c164c672a128a6eab1cf44a59017558788e48d8c09dbc54c306`. JSON pointer `/4/snippet`. Exact pinned InjectHandler source window, independent of result observations.
+- `probe-v1` (input): [rust/tcl-registry/tests/data/native_coroutine_publication/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/probe.c). Exact immutable original-object v1 probe source; count constructors, pointer timing, per-stage getters and untested API branches are inspectable.
+- `probe-v2` (input): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c). Exact v2 probe, adding separate info-coroutine fullname controls without changing the v1 outcomes.
+- `tcl9.1-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
+- `tcl9.1-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
+- `tcl9.1-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr). Exact process stderr, separate from guest completion.
+- `tcl9.1-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
+- `tcl9.1-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
+- `tcl9.1-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr). Exact process stderr, separate from guest completion.
+- `source-3` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json). JSON pointer `/3/snippet`. Exact pinned TclNRCoroInjectObjCmd source window, independent of result observations.
+- `source-4` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json). JSON pointer `/4/snippet`. Exact pinned InjectHandler source window, independent of result observations.
 
 ## Source inspection
 
-tcl9.1 9.1.0, revision `Pinned full source, independently associated by captured receipt required_sha256`, `generic/tclBasic.c`, function `TclNRCoroInjectObjCmd`, lines 9757–9801. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `8106daf2ef964305777d79d1eb43d803882bf9f498a07a638ceafa1dd2b90fd5`; retained evidence `source-3`.
+tcl9.1 9.1.0, revision `Pinned full source, independently associated by captured receipt required_sha256`, `generic/tclBasic.c`, function `TclNRCoroInjectObjCmd`, lines 9757–9801. Retained reference `source-3`.
 
 ```text
 static int
@@ -128,7 +128,7 @@ TclNRCoroInjectObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned full source, independently associated by captured receipt required_sha256`, `generic/tclBasic.c`, function `InjectHandler`, lines 9897–9941. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `460c39ff6a22464d466d32fa04d2cae9d1c2018a2236f2b2c1c6cc401dc4634b`; retained evidence `source-4`.
+tcl9.1 9.1.0, revision `Pinned full source, independently associated by captured receipt required_sha256`, `generic/tclBasic.c`, function `InjectHandler`, lines 9897–9941. Retained reference `source-4`.
 
 ```text
 static int

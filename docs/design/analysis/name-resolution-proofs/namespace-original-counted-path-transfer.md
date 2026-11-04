@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No interpreter execution is claimed for this Rust source-transfer invariant.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

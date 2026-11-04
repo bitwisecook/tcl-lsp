@@ -25,6 +25,32 @@ SPEC.loader.exec_module(migration)
 
 
 class EvidenceMigrationTests(unittest.TestCase):
+    def test_retired_proof_index_does_not_write_legacy_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            manifest = root / migration.LEGACY
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('{"proofs": []}')
+            records = root / "records.json"
+            records.write_text('{"proofs": []}')
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT.with_name("update-name-resolution-proof-index.py")),
+                    "--root",
+                    str(root),
+                    "--records",
+                    str(records),
+                    "--render",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("legacy proof index is retired", result.stderr)
+            self.assertEqual(manifest.read_text(), '{"proofs": []}')
+
     def test_legacy_check_entry_point_uses_the_new_evidence_gate(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

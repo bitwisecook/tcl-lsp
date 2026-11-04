@@ -122,15 +122,15 @@ Status: `not-tested`. Version: not measured. Build: not measured. Channel: not t
 
 No original Tcl parser final-token capture for this provider is attached.
 
-## Exact evidence
+## Historical references
 
-- `input` (input): [rust/tcl-registry/tests/data/native_namespace_final_token/probe.c](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/probe.c). SHA-256 `a214b64e5b00a25d50b9293f7815cfcaf68c374eefcc1543ed25162f9d18dfa4`. Eight exact parser sources and final-token observer.
-- `receipt` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json). SHA-256 `95c5e4a4742fa223cf7cb2dbb2696ce3f247067c00b4c966acebae7d40177641`. Complete original release-associated parser outputs.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt). SHA-256 `27e021244fa30d67ba0d80527a84fcb36a8e7232eeffd9a918d17d1770daeb98`. Exact original parser token/count/hex output.
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt). SHA-256 `27e021244fa30d67ba0d80527a84fcb36a8e7232eeffd9a918d17d1770daeb98`. Exact original parser token/count/hex output.
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt). SHA-256 `27e021244fa30d67ba0d80527a84fcb36a8e7232eeffd9a918d17d1770daeb98`. Exact original parser token/count/hex output.
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt). SHA-256 `27e021244fa30d67ba0d80527a84fcb36a8e7232eeffd9a918d17d1770daeb98`. Exact original parser token/count/hex output.
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt). SHA-256 `27e021244fa30d67ba0d80527a84fcb36a8e7232eeffd9a918d17d1770daeb98`. Exact original parser token/count/hex output.
+- `input` (input): [rust/tcl-registry/tests/data/native_namespace_final_token/probe.c](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/probe.c). Eight exact parser sources and final-token observer.
+- `receipt` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json). Complete original release-associated parser outputs.
+- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt). Exact original parser token/count/hex output.
+- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt). Exact original parser token/count/hex output.
+- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt). Exact original parser token/count/hex output.
+- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt). Exact original parser token/count/hex output.
+- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt). Exact original parser token/count/hex output.
 
 ## Source inspection
 

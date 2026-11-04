@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No interpreter observation establishes this Rust metadata selection invariant.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

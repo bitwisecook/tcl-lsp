@@ -62,14 +62,14 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (observation): [rust/tcl-registry/tests/data/native_property_owners/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_owners/manifest.json). SHA-256 `447d2fe2ba34bc7acc4f6855ef8141de6cc93a4a10b72a10381fe280adcca6a9`. Exact successful private-header compile/run receipt and build/probe/executable hashes.
-- `e1` (input): [rust/tcl-registry/tests/data/native_property_owners/probe.c](../../../../rust/tcl-registry/tests/data/native_property_owners/probe.c). SHA-256 `816d811eb93e055f1f5389071e5690fcc9ba6a09e7b65aa7eeecc4c77d44589b`. Exact property enumeration, list-header copy, definition mutation and cache inspection order.
-- `e2` (observation): [rust/tcl-registry/tests/data/native_property_owners/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_owners/native.tsv). SHA-256 `124315feba04c07a36ff10b961bf66642ccf4c2f05cf617baca2815e211b1ac0`. All eight exact rows; each question uses only its stated snapshot window.
-- `names-supplement-probe.c` (input): [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c). SHA-256 `d8d45219397efbb3ace20232576030f87b77d06b7f2ab9b9787283eecbd9c5e4`. Independent full original11-row property-name probe; its earlier scoped rows are byte-equal to the current property-owner output, while later accessor-child duplicate windows remain separate.
-- `names-supplement-manifest.json` (provider): [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json). SHA-256 `62716a386cf1022111c59359b4783ea36a0206f66150dedb0be9ffccf3dde5b8`. Independent original compile/process/build/source metadata and full11-row captured stdout.
-- `names-supplement-native.tsv` (observation): [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv). SHA-256 `9e9b96d1fe13e4267e47425ae247b3355dc438fad86aa43c144f2b81b8bdbafd`. Lines 8–8. Original full output; this question uses rows7–7 (zero-based), independently equal to the original property-owner controls.
+- `e0` (observation): [rust/tcl-registry/tests/data/native_property_owners/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_owners/manifest.json). Exact successful private-header compile/run receipt and build/probe/executable hashes.
+- `e1` (input): [rust/tcl-registry/tests/data/native_property_owners/probe.c](../../../../rust/tcl-registry/tests/data/native_property_owners/probe.c). Exact property enumeration, list-header copy, definition mutation and cache inspection order.
+- `e2` (observation): [rust/tcl-registry/tests/data/native_property_owners/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_owners/native.tsv). All eight exact rows; each question uses only its stated snapshot window.
+- `names-supplement-probe.c` (input): [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c). Independent full original11-row property-name probe; its earlier scoped rows are byte-equal to the current property-owner output, while later accessor-child duplicate windows remain separate.
+- `names-supplement-manifest.json` (provider): [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json). Independent original compile/process/build/source metadata and full11-row captured stdout.
+- `names-supplement-native.tsv` (observation): [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv). Lines 8–8. Original full output; this question uses rows7–7 (zero-based), independently equal to the original property-owner controls.
 
 ## Source inspection
 

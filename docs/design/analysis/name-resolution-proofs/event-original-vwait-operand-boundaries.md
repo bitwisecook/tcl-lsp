@@ -62,18 +62,18 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No native execution receipt attached to this implementation contract.
 
-## Exact evidence
+## Historical references
 
-- `vwait-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). SHA-256 `33f1825b8a356f2da3ba38ace91c5947272a622a5f42c512c663e99d145c22a5`. JSON pointer `/source_anchors/0/snippet`. tcl8.4 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). SHA-256 `33f1825b8a356f2da3ba38ace91c5947272a622a5f42c512c663e99d145c22a5`. JSON pointer `/source_anchors/1/snippet`. tcl8.5 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). SHA-256 `33f1825b8a356f2da3ba38ace91c5947272a622a5f42c512c663e99d145c22a5`. JSON pointer `/source_anchors/2/snippet`. tcl8.6 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). SHA-256 `33f1825b8a356f2da3ba38ace91c5947272a622a5f42c512c663e99d145c22a5`. JSON pointer `/source_anchors/3/snippet`. tcl9.0 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). SHA-256 `33f1825b8a356f2da3ba38ace91c5947272a622a5f42c512c663e99d145c22a5`. JSON pointer `/source_anchors/4/snippet`. tcl9.1 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). SHA-256 `33f1825b8a356f2da3ba38ace91c5947272a622a5f42c512c663e99d145c22a5`. JSON pointer `/source_anchors/5/snippet`. jim complete actual JimELVwaitCommand argv/global-name owner; no execution claim.
+- `vwait-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. tcl8.4 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
+- `vwait-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/1/snippet`. tcl8.5 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
+- `vwait-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/2/snippet`. tcl8.6 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
+- `vwait-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/3/snippet`. tcl9.0 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
+- `vwait-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/4/snippet`. tcl9.1 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
+- `vwait-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/5/snippet`. jim complete actual JimELVwaitCommand argv/global-name owner; no execution claim.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1176–1216. Full-source SHA-256 `020cc8b9d0b020c2b1dac904f08b03c3e59889dd2ff493677f04696524d40673`; snippet SHA-256 `6117bf697fab5489ba53c274b7005467765bf95873a49254663c7debe7732019`; retained evidence `vwait-source-0`.
+tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1176–1216. Retained reference `vwait-source-0`.
 
 ```text
 Tcl_VwaitObjCmd(clientData, interp, objc, objv)
@@ -120,7 +120,7 @@ Tcl_VwaitObjCmd(clientData, interp, objc, objv)
 
 ```
 
-tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1321–1368. Full-source SHA-256 `3d05eb479c767520e0b44459e91a0b4930cdb47139c4bfdb86e0beba6d04fb90`; snippet SHA-256 `9ff79bc365fe5c1d8fcd49c9e20952ade0a27047471acf230d1f7b828a3565e8`; retained evidence `vwait-source-1`.
+tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1321–1368. Retained reference `vwait-source-1`.
 
 ```text
 Tcl_VwaitObjCmd(
@@ -174,7 +174,7 @@ Tcl_VwaitObjCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1387–1447. Full-source SHA-256 `81c0e0b655ecd46bd981750c9d710ec11dd1368b7f3f156886e0965c81788dd6`; snippet SHA-256 `45bcd5ebc9f3698b24dc6870eaaebe6d566f3f63d3b6ca1776ab81cb10d9629e`; retained evidence `vwait-source-2`.
+tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1387–1447. Retained reference `vwait-source-2`.
 
 ```text
 Tcl_VwaitObjCmd(
@@ -241,7 +241,7 @@ Tcl_VwaitObjCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1498–1867. Full-source SHA-256 `e6b69ac0fc6c9c335af90623398d06eb2d8ef7d2df5574327a52f622a37e31e4`; snippet SHA-256 `3eedef538883ce9408f9ff24e41cda7486d35f6ae993a1f1f461010c47e76d5c`; retained evidence `vwait-source-3`.
+tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1498–1867. Retained reference `vwait-source-3`.
 
 ```text
 Tcl_VwaitObjCmd(
@@ -617,7 +617,7 @@ Tcl_VwaitObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1536–1906. Full-source SHA-256 `9451a2c540dcd5ed61675c15f833f5ad677b551b61deb210ee6837216f477a54`; snippet SHA-256 `42de7ddac7c57ee5a81aabdad7c25d8ea7111c9edf4b5bc16a2ba33a0f414932`; retained evidence `vwait-source-4`.
+tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclEvent.c`, function `Tcl_VwaitObjCmd`, lines 1536–1906. Retained reference `vwait-source-4`.
 
 ```text
 Tcl_VwaitObjCmd(
@@ -994,7 +994,7 @@ Tcl_VwaitObjCmd(
 
 ```
 
-jim 0.84, revision `Retained pinned original Jim source identified by complete file digest`, `rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c`, function `JimELVwaitCommand`, lines 565–645. Full-source SHA-256 `b9536f7021919026f8ee2cfcdb35a59305db07a23e60daa50d5da966d52a1a12`; snippet SHA-256 `3d99136eae976cc1fe0e0dfe0a038996e2498b30d859f7cf711597996df3e11c`; retained evidence `vwait-source-5`.
+jim 0.84, revision `Retained pinned original Jim source identified by complete file digest`, `rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c`, function `JimELVwaitCommand`, lines 565–645. Retained reference `vwait-source-5`.
 
 ```text
 static int JimELVwaitCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)

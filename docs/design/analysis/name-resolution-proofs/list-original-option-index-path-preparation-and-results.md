@@ -62,67 +62,67 @@ Status: `not-tested`. Version: not tested. Build: No appliance process for these
 
 Measured C Tcl and Jim objects do not establish a BIG-IP/TMM storage or execution protocol.
 
-## Exact evidence
+## Historical references
 
-- `original-counted-probe` (input): [runtime/rust/tests/data/native_original_option_index636/probe.c](../../../../runtime/rust/tests/data/native_original_option_index636/probe.c). SHA-256 `64ddd81e75f7cd64c4ae8321b7ec6523441255a1919413ec3b566005231b64af`. Exact counted path constructors, original alias roles and one explicit independent observer reference per distinct observed child. Reached snapshots precede the result getter.
-- `original-request` (input): [runtime/rust/tests/data/native_original_option_index636/request.json](../../../../runtime/rust/tests/data/native_original_option_index636/request.json). SHA-256 `e782ddfbfc1b2bdae9b8b19419ec75ef4cb38cd96e34885bd567361ee27a32a7`. Original problem, all 32 cases, counted NUL inputs, observer ownership and actual command argument schedules; no expected answers.
-- `actual-case-projection` (observation): [runtime/rust/tests/data/native_original_option_index636/interpretation.json](../../../../runtime/rust/tests/data/native_original_option_index636/interpretation.json). SHA-256 `acd131643250aa63ae2b9ff80d58d2897659aa0d9431bc4ddc2f5fc71fdf6d84`. All 192 original process rows and separately observed Guest codes, original path/member caches, key and result fields. Raw streams and receipts remain independent evidence.
-- `exact-input-map` (provider): [runtime/rust/tests/data/native_original_option_index636/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_option_index636/pinned-input-map.json). SHA-256 `e513e872ee846cf1386adcbee9445e43bc46cf95a22840d47fa374d94dccef16`. Every actual input pin joined to complete independently verified archive members.
-- `exact-input-bytes` (provider): [runtime/rust/tests/data/native_original_option_index636/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_option_index636/pinned-input-bytes.tar.gz). SHA-256 `ddd2892ed91ccd335d2bbba92bc7dad59484e5c075f3cccde20e6185cd930eae`. Whole measured source/header/configuration/library/compiler/CLI/input bytes, losslessly compressed. No complete build/load closure is inferred.
-- `all-original-retention` (provider): [runtime/rust/tests/data/native_original_option_index636/retention.json](../../../../runtime/rust/tests/data/native_original_option_index636/retention.json). SHA-256 `706d9c55e1d18266fbf8f90f4f988277ccc279e2478ff81834eb78641db534d2`. Every original receipt, raw stream and all 12 original driver/version ELFs retained and round-trip verified.
-- `source-window-0` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/0/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-1` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/1/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-2` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/2/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-3` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/3/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-4` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/4/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-5` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/5/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-6` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/6/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-7` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/7/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-8` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/8/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-9` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/9/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-10` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/10/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-11` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/11/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-12` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/12/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-13` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/13/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-14` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/14/snippet`. TclIndexEncode: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-15` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/15/snippet`. TclIndexDecode: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-16` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/16/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-17` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/17/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-18` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/18/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-19` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/19/snippet`. TclIndexEncode: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-20` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/20/snippet`. TclIndexDecode: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-21` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/21/snippet`. Jim_LsearchCoreCommand: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-22` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/22/snippet`. Jim_LsortCoreCommand: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-23` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). SHA-256 `e633892b0b98cea06b8c5e2f496fad95d25768b1467613056f403bbadb1217b9`. JSON pointer `/anchors/23/snippet`. Jim_GetIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `tcl8.4-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/receipt.json). SHA-256 `a9d3b25b89063779004a1797ad4d2f2f95d1bceebd796d34fd015999d265d756`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
-- `tcl8.4-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.4.20/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/cli-version.stdout). SHA-256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl8.4-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/receipt.json). SHA-256 `85135ea3c8e274339efd7edd96740b0e47e5e68735a5fde30d2735c34fad4b00`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl8.4-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/execute.stdout). SHA-256 `ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl8.5-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/receipt.json). SHA-256 `ed326f50db204116a82844abe0dab3a0b80f6f2924ef50ce51b38a912da89e27`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
-- `tcl8.5-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.5.19/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/cli-version.stdout). SHA-256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl8.5-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/receipt.json). SHA-256 `a325f03f584ddaafe4198234e9a428ef8dfa828f3a6d4ed3a68a06d53f7166df`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl8.5-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/execute.stdout). SHA-256 `1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl8.6-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/receipt.json). SHA-256 `7d0d38765f803315a412dd74fd91ea93d3db00321fc8ede38254603e6f342e54`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
-- `tcl8.6-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.6.18/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/cli-version.stdout). SHA-256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl8.6-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/receipt.json). SHA-256 `61e01239b894338940589b3d90b10999415b4c7f5cc126ae2c1a7f4d9d79f691`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl8.6-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/execute.stdout). SHA-256 `dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/receipt.json). SHA-256 `cf53da92db2c6fc0cb74bae0889db611ead6ea085bf048ed877be0d348e6223e`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
-- `tcl9.0-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.0.4/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/cli-version.stdout). SHA-256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/receipt.json). SHA-256 `84d030d345a38be558f2a369a560e33a15b85b2ec92ae67b534d37bbaa4bc73f`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/execute.stdout). SHA-256 `d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/receipt.json). SHA-256 `97bce4b251a007c76a352c32f36e57c54b46bf2fb0ff1b3a7c1d5d9dff9f50e7`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
-- `tcl9.1-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.1.0/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/cli-version.stdout). SHA-256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/receipt.json). SHA-256 `65dabd4ede279732484487750fcafdeffedadb57ba61713913bb06f4d96c944d`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/execute.stdout). SHA-256 `b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `jim-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/Jim/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/receipt.json). SHA-256 `e64c9fc6d4201a2fdaeb351fec8455a6630b487c92e81b387620ee852315eaf1`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
-- `jim-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/cli-version.stdout). SHA-256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`. Actual selected CLI version output, independently bound by the original receipt.
-- `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/receipt.json). SHA-256 `718684d7ec677c446ab78d7045d732043a8192e973438d4c610da0bfb0e20b03`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/execute.stdout). SHA-256 `d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `original-core-source-control-95f0d3f9b18a` (implementation): [rust/tcl-cmd-core/src/native_option_index.rs](../../../../rust/tcl-cmd-core/src/native_option_index.rs). SHA-256 `9a9fa1100274956570640a8d14af2fc484009c5c773ca3e01f59b84c8ed76b25`. Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows.
+- `original-counted-probe` (input): [runtime/rust/tests/data/native_original_option_index636/probe.c](../../../../runtime/rust/tests/data/native_original_option_index636/probe.c). Exact counted path constructors, original alias roles and one explicit independent observer reference per distinct observed child. Reached snapshots precede the result getter.
+- `original-request` (input): [runtime/rust/tests/data/native_original_option_index636/request.json](../../../../runtime/rust/tests/data/native_original_option_index636/request.json). Original problem, all 32 cases, counted NUL inputs, observer ownership and actual command argument schedules; no expected answers.
+- `actual-case-projection` (observation): [runtime/rust/tests/data/native_original_option_index636/interpretation.json](../../../../runtime/rust/tests/data/native_original_option_index636/interpretation.json). All 192 original process rows and separately observed Guest codes, original path/member caches, key and result fields. Raw streams and receipts remain independent evidence.
+- `exact-input-map` (provider): [runtime/rust/tests/data/native_original_option_index636/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_option_index636/pinned-input-map.json). Every actual input pin joined to complete independently verified archive members.
+- `exact-input-bytes` (provider): [runtime/rust/tests/data/native_original_option_index636/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_option_index636/pinned-input-bytes.tar.gz). Whole measured source/header/configuration/library/compiler/CLI/input bytes, losslessly compressed. No complete build/load closure is inferred.
+- `all-original-retention` (provider): [runtime/rust/tests/data/native_original_option_index636/retention.json](../../../../runtime/rust/tests/data/native_original_option_index636/retention.json). Every original receipt, raw stream and all 12 original driver/version ELFs retained and round-trip verified.
+- `source-window-0` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/0/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-1` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/1/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-2` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/2/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-3` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/3/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-4` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/4/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-5` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/5/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-6` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/6/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-7` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/7/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-8` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/8/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-9` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/9/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-10` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/10/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-11` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/11/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-12` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/12/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-13` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/13/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-14` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/14/snippet`. TclIndexEncode: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-15` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/15/snippet`. TclIndexDecode: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-16` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/16/snippet`. Tcl_LsearchObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-17` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/17/snippet`. Tcl_LsortObjCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-18` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/18/snippet`. SelectObjFromSublist: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-19` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/19/snippet`. TclIndexEncode: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-20` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/20/snippet`. TclIndexDecode: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-21` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/21/snippet`. Jim_LsearchCoreCommand: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-22` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/22/snippet`. Jim_LsortCoreCommand: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-23` (source-anchor): [runtime/rust/tests/data/native_original_option_index636/source-windows.json](../../../../runtime/rust/tests/data/native_original_option_index636/source-windows.json). JSON pointer `/anchors/23/snippet`. Jim_GetIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `tcl8.4-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
+- `tcl8.4-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.4.20/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl8.4-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl8.4-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.4.20/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl8.5-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
+- `tcl8.5-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.5.19/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl8.5-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl8.5-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.5.19/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl8.6-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
+- `tcl8.6-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.6.18/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl8.6-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl8.6-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/8.6.18/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
+- `tcl9.0-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.0.4/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.0.4/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
+- `tcl9.1-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.1.0/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/9.1.0/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `jim-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/Jim/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 32 process receipts.
+- `jim-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_option_index636/Jim/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `original-core-source-control-95f0d3f9b18a` (implementation): [rust/tcl-cmd-core/src/native_option_index.rs](../../../../rust/tcl-cmd-core/src/native_option_index.rs). Pure source/layout control derives the local C9 ListStore field/alignment bound and checks fixed standard narrow/wide coordinate, range-error and sentinel arithmetic. These large bounds and foreign-library ABI were not measured by the finite public command rows; no original object/getter, callback, allocation or entered-operation authority follows.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 3179–3593. Line unit: physical LF only. Original byte range [92032, 102811). Full-source SHA-256 `92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a`; snippet SHA-256 `c2b93805a6359498e6411f821fcae457c46a72b8e7325a7498150da2039d5670`; retained evidence `source-window-0`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 3179–3593. Line unit: physical LF only. Original byte range [92032, 102811). Retained reference `source-window-0`.
 
 ```text
 Tcl_LsearchObjCmd(clientData, interp, objc, objv)
@@ -543,7 +543,7 @@ Tcl_LsearchObjCmd(clientData, interp, objc, objv)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 3693–3860. Line unit: physical LF only. Original byte range [105199, 110020). Full-source SHA-256 `92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a`; snippet SHA-256 `dc4b8ba6ded04d4954a0f22f43ac2ebc3f9ae60c353718035c90318292b36746`; retained evidence `source-window-1`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 3693–3860. Line unit: physical LF only. Original byte range [105199, 110020). Retained reference `source-window-1`.
 
 ```text
 Tcl_LsortObjCmd(clientData, interp, objc, objv)
@@ -717,7 +717,7 @@ Tcl_LsortObjCmd(clientData, interp, objc, objv)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 2331–2381. Line unit: physical LF only. Original byte range [62656, 64092). Full-source SHA-256 `26a0bb5644999077e8a6a82a7ab1bbcf73787f889a35d7ede5369788c66d2e4c`; snippet SHA-256 `c5e3e71cdf92aebc7d1b3d26977965108fe533b9b65063cf629c812bb80709a2`; retained evidence `source-window-2`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 2331–2381. Line unit: physical LF only. Original byte range [62656, 64092). Retained reference `source-window-2`.
 
 ```text
 TclGetIntForIndex(interp, objPtr, endValue, indexPtr)
@@ -774,7 +774,7 @@ TclGetIntForIndex(interp, objPtr, endValue, indexPtr)
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 2714–3358. Line unit: physical LF only. Original byte range [73953, 90109). Full-source SHA-256 `51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e`; snippet SHA-256 `571db4dbc941586692c11f3c287e88ea79b0a4ce3ac0cb6250bb5dd36b23a3ce`; retained evidence `source-window-3`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 2714–3358. Line unit: physical LF only. Original byte range [73953, 90109). Retained reference `source-window-3`.
 
 ```text
 Tcl_LsearchObjCmd(
@@ -1425,7 +1425,7 @@ Tcl_LsearchObjCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 3463–3809. Line unit: physical LF only. Original byte range [92458, 101651). Full-source SHA-256 `51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e`; snippet SHA-256 `19cc1713563ff916f4497118c54a1f92d06d6f42be2e6b165104187c506f54a9`; retained evidence `source-window-4`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 3463–3809. Line unit: physical LF only. Original byte range [92458, 101651). Retained reference `source-window-4`.
 
 ```text
 Tcl_LsortObjCmd(
@@ -1778,7 +1778,7 @@ Tcl_LsortObjCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 4174–4230. Line unit: physical LF only. Original byte range [111735, 113002). Full-source SHA-256 `51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e`; snippet SHA-256 `93c4250502ac40e79f2940ecad6435384392ae9e371bf7eb5ed2764f36174e98`; retained evidence `source-window-5`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 4174–4230. Line unit: physical LF only. Original byte range [111735, 113002). Retained reference `source-window-5`.
 
 ```text
 SelectObjFromSublist(
@@ -1841,7 +1841,7 @@ SelectObjFromSublist(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3234–3325. Line unit: physical LF only. Original byte range [92509, 94743). Full-source SHA-256 `67be2e4aed576288b31069a98a1ddacf8354c87ca1a8c8e85e53421364a989cd`; snippet SHA-256 `a7968238557112ae80779f5b5ade88692a05399b891743a618062eb81edf7b56`; retained evidence `source-window-6`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3234–3325. Line unit: physical LF only. Original byte range [92509, 94743). Retained reference `source-window-6`.
 
 ```text
 TclGetIntForIndex(
@@ -1939,7 +1939,7 @@ TclGetIntForIndex(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 2897–3546. Line unit: physical LF only. Original byte range [79518, 96039). Full-source SHA-256 `26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23`; snippet SHA-256 `7580f776666aa4ba531d64648921ee0e985a52541172cea8393a31f966cad894`; retained evidence `source-window-7`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 2897–3546. Line unit: physical LF only. Original byte range [79518, 96039). Retained reference `source-window-7`.
 
 ```text
 Tcl_LsearchObjCmd(
@@ -2595,7 +2595,7 @@ Tcl_LsearchObjCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 3651–4140. Line unit: physical LF only. Original byte range [98374, 112093). Full-source SHA-256 `26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23`; snippet SHA-256 `e41e2f5ddccb8c1b781542b54104f5d87d6ecc879cee8c5da3e255e7c56412e7`; retained evidence `source-window-8`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 3651–4140. Line unit: physical LF only. Original byte range [98374, 112093). Retained reference `source-window-8`.
 
 ```text
 Tcl_LsortObjCmd(
@@ -3091,7 +3091,7 @@ Tcl_LsortObjCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 4507–4555. Line unit: physical LF only. Original byte range [122318, 123547). Full-source SHA-256 `26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23`; snippet SHA-256 `cdd4605b64ba29460a63f154165e95f6bda18e68154cfa683548f3ccc45d81af`; retained evidence `source-window-9`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 4507–4555. Line unit: physical LF only. Original byte range [122318, 123547). Retained reference `source-window-9`.
 
 ```text
 SelectObjFromSublist(
@@ -3146,7 +3146,7 @@ SelectObjFromSublist(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3634–3714. Line unit: physical LF only. Original byte range [101826, 103787). Full-source SHA-256 `452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372`; snippet SHA-256 `4afd7808861ad1c1108aded9122cad8a8a0879b96160adb8579cdf9d8b222812`; retained evidence `source-window-10`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3634–3714. Line unit: physical LF only. Original byte range [101826, 103787). Retained reference `source-window-10`.
 
 ```text
 TclGetIntForIndex(
@@ -3233,7 +3233,7 @@ TclGetIntForIndex(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 3256–4017. Line unit: physical LF only. Original byte range [87244, 107092). Full-source SHA-256 `af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7`; snippet SHA-256 `69a634e1c7733c0391b9ec2a23fea990c652a637b6e469b4ab460dd11b4ab462`; retained evidence `source-window-11`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 3256–4017. Line unit: physical LF only. Original byte range [87244, 107092). Retained reference `source-window-11`.
 
 ```text
 Tcl_LsearchObjCmd(
@@ -4001,7 +4001,7 @@ Tcl_LsearchObjCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 4502–4999. Line unit: physical LF only. Original byte range [118534, 132520). Full-source SHA-256 `af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7`; snippet SHA-256 `171a21c273f72d476126292094ff2364b5096aeaf3d8cbe379564aee9734cadc`; retained evidence `source-window-12`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 4502–4999. Line unit: physical LF only. Original byte range [118534, 132520). Retained reference `source-window-12`.
 
 ```text
 Tcl_LsortObjCmd(
@@ -4505,7 +4505,7 @@ Tcl_LsortObjCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 5474–5532. Line unit: physical LF only. Original byte range [145315, 146855). Full-source SHA-256 `af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7`; snippet SHA-256 `5288c6da56271357610be9de0bc2b5d37482331729f26794f974f0a07d99027c`; retained evidence `source-window-13`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 5474–5532. Line unit: physical LF only. Original byte range [145315, 146855). Retained reference `source-window-13`.
 
 ```text
 SelectObjFromSublist(
@@ -4570,7 +4570,7 @@ SelectObjFromSublist(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `TclIndexEncode`, lines 3832–3960. Line unit: physical LF only. Original byte range [109478, 114222). Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `05a3b46c888b4d3203098ad88547dfc8851410b1ef93cbb47fb926fe85ff4cc8`; retained evidence `source-window-14`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `TclIndexEncode`, lines 3832–3960. Line unit: physical LF only. Original byte range [109478, 114222). Retained reference `source-window-14`.
 
 ```text
 TclIndexEncode(
@@ -4705,7 +4705,7 @@ rangeerror:
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `TclIndexDecode`, lines 3978–3990. Line unit: physical LF only. Original byte range [114608, 114914). Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `9bfada7cf347fe989e181ee63fbb2436da5d977b166d8f1157ad67f5c8e374a0`; retained evidence `source-window-15`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `TclIndexDecode`, lines 3978–3990. Line unit: physical LF only. Original byte range [114608, 114914). Retained reference `source-window-15`.
 
 ```text
 TclIndexDecode(
@@ -4724,7 +4724,7 @@ TclIndexDecode(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 3105–3868. Line unit: physical LF only. Original byte range [83869, 103763). Full-source SHA-256 `d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a`; snippet SHA-256 `5e94bfcdb9110c8126f28e11ff59dc6d0b7006cc69ecb79833c94bd4906ff4fc`; retained evidence `source-window-16`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c`, function `Tcl_LsearchObjCmd`, lines 3105–3868. Line unit: physical LF only. Original byte range [83869, 103763). Retained reference `source-window-16`.
 
 ```text
 Tcl_LsearchObjCmd(
@@ -5494,7 +5494,7 @@ Tcl_LsearchObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 4349–4848. Line unit: physical LF only. Original byte range [115160, 129177). Full-source SHA-256 `d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a`; snippet SHA-256 `7bb22efb0b7796eb59a74039370eccc249544c0042617e4cae4dc4b69b5c42be`; retained evidence `source-window-17`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c`, function `Tcl_LsortObjCmd`, lines 4349–4848. Line unit: physical LF only. Original byte range [115160, 129177). Retained reference `source-window-17`.
 
 ```text
 Tcl_LsortObjCmd(
@@ -6000,7 +6000,7 @@ Tcl_LsortObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 5323–5381. Line unit: physical LF only. Original byte range [141983, 143570). Full-source SHA-256 `d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a`; snippet SHA-256 `66e31ab1fd9b95183e86458bcbdce8ce16f9ef8f5be09aebdb3f2952742dd472`; retained evidence `source-window-18`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdIL.c`, function `SelectObjFromSublist`, lines 5323–5381. Line unit: physical LF only. Original byte range [141983, 143570). Retained reference `source-window-18`.
 
 ```text
 SelectObjFromSublist(
@@ -6065,7 +6065,7 @@ SelectObjFromSublist(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `TclIndexEncode`, lines 3898–4026. Line unit: physical LF only. Original byte range [111682, 116426). Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `05a3b46c888b4d3203098ad88547dfc8851410b1ef93cbb47fb926fe85ff4cc8`; retained evidence `source-window-19`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `TclIndexEncode`, lines 3898–4026. Line unit: physical LF only. Original byte range [111682, 116426). Retained reference `source-window-19`.
 
 ```text
 TclIndexEncode(
@@ -6200,7 +6200,7 @@ rangeerror:
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `TclIndexDecode`, lines 4044–4056. Line unit: physical LF only. Original byte range [116812, 117118). Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `9bfada7cf347fe989e181ee63fbb2436da5d977b166d8f1157ad67f5c8e374a0`; retained evidence `source-window-20`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `TclIndexDecode`, lines 4044–4056. Line unit: physical LF only. Original byte range [116812, 117118). Retained reference `source-window-20`.
 
 ```text
 TclIndexDecode(
@@ -6219,7 +6219,7 @@ TclIndexDecode(
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_LsearchCoreCommand`, lines 13502–13723. Line unit: physical LF only. Original byte range [426846, 433891). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `3742058c8190d20d29d3714260771f665e113836dfc18144cf68f753e803ee45`; retained evidence `source-window-21`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_LsearchCoreCommand`, lines 13502–13723. Line unit: physical LF only. Original byte range [426846, 433891). Retained reference `source-window-21`.
 
 ```text
 static int Jim_LsearchCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
@@ -6447,7 +6447,7 @@ static int Jim_LsearchCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_LsortCoreCommand`, lines 13831–13970. Line unit: physical LF only. Original byte range [436968, 441634). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `c1dbc5858d2381b482116362a40b49e1479aa7dd9be1d6e3f64149b9dca3e96d`; retained evidence `source-window-22`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_LsortCoreCommand`, lines 13831–13970. Line unit: physical LF only. Original byte range [436968, 441634). Retained reference `source-window-22`.
 
 ```text
 static int Jim_LsortCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const argv[])
@@ -6593,7 +6593,7 @@ badindex:
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetIndex`, lines 8326–8344. Line unit: physical LF only. Original byte range [259686, 260276). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `e69392d845af7ada0d169c8703b7ec2127156f90f1755797a93e0b0ba85152d9`; retained evidence `source-window-23`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetIndex`, lines 8326–8344. Line unit: physical LF only. Original byte range [259686, 260276). Retained reference `source-window-23`.
 
 ```text
 int Jim_GetIndex(Jim_Interp *interp, Jim_Obj *objPtr, int *indexPtr)

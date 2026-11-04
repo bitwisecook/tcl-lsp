@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust captured workspace advice-mode question. No native provider observation or executed Rust result is attached; logical source configuration does not attest an interpreter build or edit permission.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

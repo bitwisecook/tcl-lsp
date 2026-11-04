@@ -62,16 +62,16 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No appliance capture for this exact program is attached; C Tcl and Jim outcomes do not establish BIG-IP load or event behaviour.
 
-## Exact evidence
+## Historical references
 
-- `source` (input): [rust/tcl-compiler/tests/data/native_activation_presence/source.tcl](../../../../rust/tcl-compiler/tests/data/native_activation_presence/source.tcl). SHA-256 `98c1c686dcc688818bc004f8a6ff0d6704a79219db83c8aaf473586c1b4db239`. Exact retained root assignment and two original procedure-local existence queries.
-- `receipt` (provider): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). SHA-256 `2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b`. Six original shell/source/status/stream associations.
-- `row-tcl8.4` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). SHA-256 `2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b`. JSON pointer `/rows/0`. Actual process0, stdout0 0 and empty stderr.
-- `row-tcl8.5` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). SHA-256 `2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b`. JSON pointer `/rows/1`. Actual process0, stdout0 0 and empty stderr.
-- `row-tcl8.6` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). SHA-256 `2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b`. JSON pointer `/rows/2`. Actual process0, stdout0 0 and empty stderr.
-- `row-tcl9.0` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). SHA-256 `2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b`. JSON pointer `/rows/3`. Actual process0, stdout0 0 and empty stderr.
-- `row-tcl9.1` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). SHA-256 `2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b`. JSON pointer `/rows/4`. Actual process0, stdout0 0 and empty stderr.
-- `row-jim` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). SHA-256 `2ac19c5eedbe02f084e7d04ada23ef475681ecd9e964b4d4c80833d6007dd50b`. JSON pointer `/rows/5`. Actual process0, stdout0 0 and empty stderr.
+- `source` (input): [rust/tcl-compiler/tests/data/native_activation_presence/source.tcl](../../../../rust/tcl-compiler/tests/data/native_activation_presence/source.tcl). Exact retained root assignment and two original procedure-local existence queries.
+- `receipt` (provider): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). Six original shell/source/status/stream associations.
+- `row-tcl8.4` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). JSON pointer `/rows/0`. Actual process0, stdout0 0 and empty stderr.
+- `row-tcl8.5` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). JSON pointer `/rows/1`. Actual process0, stdout0 0 and empty stderr.
+- `row-tcl8.6` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). JSON pointer `/rows/2`. Actual process0, stdout0 0 and empty stderr.
+- `row-tcl9.0` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). JSON pointer `/rows/3`. Actual process0, stdout0 0 and empty stderr.
+- `row-tcl9.1` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). JSON pointer `/rows/4`. Actual process0, stdout0 0 and empty stderr.
+- `row-jim` (observation): [rust/tcl-compiler/tests/data/native_activation_presence/manifest.json](../../../../rust/tcl-compiler/tests/data/native_activation_presence/manifest.json). JSON pointer `/rows/5`. Actual process0, stdout0 0 and empty stderr.
 
 ## Source inspection
 

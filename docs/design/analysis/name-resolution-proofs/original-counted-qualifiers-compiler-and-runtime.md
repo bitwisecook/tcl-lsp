@@ -62,56 +62,56 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this finite question.
 
-## Exact evidence
+## Historical references
 
-- `counted-input` (input): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/probe.c](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/probe.c). SHA-256 `acaa00f436a2989628a335890f8c54fdff45de85979783012a86e53f0bcdf9fc`. Exact counted NewString object-vector argv, twenty fixed native byte inputs and independent fixed ASCII procedure source.
-- `actual-captures` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/receipt.json). SHA-256 `5098a6eb11ba9300a4bd072e066f7f1869438235f87cce3d9b5ca7d6711a255f`. All six exact actual version/header/library/executable/compiler/stream joins and process exit codes.
-- `capture-protocol` (input): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/capture.py](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/capture.py). SHA-256 `a0b3dab590c32bf2c0c4784df80df6ef206520b9c14f5df786b60e4766d615c3`. Retained exact capture runner; replay requires its recorded executable and source paths. This file supplies no execution result.
-- `source-anchors` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors`. Exact pinned direct/compiler/last-find/index/range source windows; full source and LF snippet SHA joins.
-- `source-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/0/snippet`. NamespaceQualifiersCmd for tcl8.4
-- `source-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/1/snippet`. NamespaceQualifiersCmd for tcl8.5
-- `source-window-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/2/snippet`. NamespaceQualifiersCmd for tcl8.6
-- `source-window-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/3/snippet`. TclCompileNamespaceQualifiersCmd for tcl8.6
-- `source-window-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/4/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl8.6
-- `source-window-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/5/snippet`. NamespaceQualifiersCmd for tcl9.0
-- `source-window-6` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/6/snippet`. TclCompileNamespaceQualifiersCmd for tcl9.0
-- `source-window-7` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/7/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl9.0
-- `source-window-8` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/8/snippet`. TclStringLast for tcl9.0
-- `source-window-9` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/9/snippet`. NamespaceQualifiersCmd for tcl9.1
-- `source-window-10` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/10/snippet`. TclCompileNamespaceQualifiersCmd for tcl9.1
-- `source-window-11` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/11/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl9.1
-- `source-window-12` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/12/snippet`. TclStringLast for tcl9.1
-- `source-window-13` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/13/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl8.6
-- `source-window-14` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/14/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl8.6
-- `source-window-15` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/15/snippet`. Tcl_GetRange for tcl8.6
-- `source-window-16` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/16/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl9.0
-- `source-window-17` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/17/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl9.0
-- `source-window-18` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/18/snippet`. Tcl_GetRange for tcl9.0
-- `source-window-19` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/19/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl9.1
-- `source-window-20` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/20/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl9.1
-- `source-window-21` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). SHA-256 `0336de3190e39509e79bc936c4766f9b4c962009b34053cfc06d4a8aeaf27627`. JSON pointer `/source_anchors/21/snippet`. Tcl_GetRange for tcl9.1
-- `tcl8.4-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv). SHA-256 `cebd16540e7c7c47af0be709fc56d8733d7c632550d96b0a1f191cedd59303b3`. Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/receipt.json). SHA-256 `287ef2409e4281f8af462412ecbb149bc56a3766a2a94a7a3b29f1d97c1a6779`. Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Actual empty stderr for the retained successful process.
-- `tcl8.5-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv). SHA-256 `f7fd51e2953c9dbfce66bb9b4b360af4b09a53b2f608e4b18020bcf5f429cf7a`. Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/receipt.json). SHA-256 `9e6a7d3e7eef9373a6d113f108578fe9dd75ad68d08831ab6d8d11786df5ed09`. Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Actual empty stderr for the retained successful process.
-- `tcl8.6-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv). SHA-256 `64301c22fd4577649a10cd1c81a9ed643b97e4c8fa9642647ba7d5e90a27d4bd`. Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/receipt.json). SHA-256 `4f096fc1e2c89affc4de1d14f854b9e60be871b563ebe81e236b8b376994ea15`. Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Actual empty stderr for the retained successful process.
-- `tcl9.0-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv). SHA-256 `2dfd4ba32ec34bdd1a58c4668ea4addd8de05ed3c499871cf66d35f5113e67aa`. Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/receipt.json). SHA-256 `7c89163687605b5b8d0bc60e1465ef4fa1a440558c43b32f2e441a560027f70b`. Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Actual empty stderr for the retained successful process.
-- `tcl9.1-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv). SHA-256 `4febf2740a06d0c1c32b205ad10ae52ca7357a82e8dad7b95476fa3874f57b41`. Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/receipt.json). SHA-256 `827f5c29a79070df330790f772d42fc372e4b13876bd416317aab59df2f041eb`. Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Actual empty stderr for the retained successful process.
-- `jim-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv). SHA-256 `bb9560655b3c6a98892008245a1099873d2b9d19d634f6be7d01e9c753e83991`. Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/receipt.json). SHA-256 `8966894b913e7fa760d614a0cfdb14cb5f409314fa2a216a8007d33e66183257`. Exact actual provider compilation/process/stream/header/library/executable joins.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Actual empty stderr for the retained successful process.
+- `counted-input` (input): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/probe.c](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/probe.c). Exact counted NewString object-vector argv, twenty fixed native byte inputs and independent fixed ASCII procedure source.
+- `actual-captures` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/receipt.json). All six exact actual version/header/library/executable/compiler/stream joins and process exit codes.
+- `capture-protocol` (input): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/capture.py](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/capture.py). Retained exact capture runner; replay requires its recorded executable and source paths. This file supplies no execution result.
+- `source-anchors` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors`. Exact pinned direct/compiler/last-find/index/range source windows; full source and LF snippet SHA joins.
+- `source-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/0/snippet`. NamespaceQualifiersCmd for tcl8.4
+- `source-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/1/snippet`. NamespaceQualifiersCmd for tcl8.5
+- `source-window-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/2/snippet`. NamespaceQualifiersCmd for tcl8.6
+- `source-window-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/3/snippet`. TclCompileNamespaceQualifiersCmd for tcl8.6
+- `source-window-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/4/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl8.6
+- `source-window-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/5/snippet`. NamespaceQualifiersCmd for tcl9.0
+- `source-window-6` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/6/snippet`. TclCompileNamespaceQualifiersCmd for tcl9.0
+- `source-window-7` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/7/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl9.0
+- `source-window-8` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/8/snippet`. TclStringLast for tcl9.0
+- `source-window-9` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/9/snippet`. NamespaceQualifiersCmd for tcl9.1
+- `source-window-10` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/10/snippet`. TclCompileNamespaceQualifiersCmd for tcl9.1
+- `source-window-11` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/11/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl9.1
+- `source-window-12` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/12/snippet`. TclStringLast for tcl9.1
+- `source-window-13` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/13/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl8.6
+- `source-window-14` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/14/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl8.6
+- `source-window-15` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/15/snippet`. Tcl_GetRange for tcl8.6
+- `source-window-16` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/16/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl9.0
+- `source-window-17` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/17/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl9.0
+- `source-window-18` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/18/snippet`. Tcl_GetRange for tcl9.0
+- `source-window-19` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/19/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl9.1
+- `source-window-20` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/20/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl9.1
+- `source-window-21` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/21/snippet`. Tcl_GetRange for tcl9.1
+- `tcl8.4-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
+- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
+- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stderr). Actual empty stderr for the retained successful process.
+- `tcl8.5-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
+- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
+- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stderr). Actual empty stderr for the retained successful process.
+- `tcl8.6-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
+- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
+- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stderr). Actual empty stderr for the retained successful process.
+- `tcl9.0-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
+- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
+- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stderr). Actual empty stderr for the retained successful process.
+- `tcl9.1-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
+- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
+- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stderr). Actual empty stderr for the retained successful process.
+- `jim-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
+- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
+- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stderr). Actual empty stderr for the retained successful process.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Retained Tcl 8.4.20 release source; complete file digest identifies exact bytes`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 3589–3627. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `c57733f48cb492b436843ff94ece9106cf2e1d3d4a5d5e9c0003bc1173a6789c`; retained evidence `source-window-0`.
+tcl8.4 8.4.20, revision `Retained Tcl 8.4.20 release source; complete file digest identifies exact bytes`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 3589–3627. Retained reference `source-window-0`.
 
 ```text
 NamespaceQualifiersCmd(dummy, interp, objc, objv)
@@ -156,7 +156,7 @@ NamespaceQualifiersCmd(dummy, interp, objc, objv)
 
 ```
 
-tcl8.5 8.5.19, revision `Retained Tcl 8.5.19 release source; complete file digest identifies exact bytes`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4137–4175. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `b05d1996aa8ce6ab03894e8ba84fd382833a730d7e8f8df314c01c96c67eda43`; retained evidence `source-window-1`.
+tcl8.5 8.5.19, revision `Retained Tcl 8.5.19 release source; complete file digest identifies exact bytes`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4137–4175. Retained reference `source-window-1`.
 
 ```text
 NamespaceQualifiersCmd(
@@ -201,7 +201,7 @@ NamespaceQualifiersCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4165–4203. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `3bfcbd109fb690ab1630ab8cd9b39b794afee511ee49c90ae8fd2e21c6ca8f8c`; retained evidence `source-window-2`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4165–4203. Retained reference `source-window-2`.
 
 ```text
 NamespaceQualifiersCmd(
@@ -246,7 +246,7 @@ NamespaceQualifiersCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclCompCmdsGR.c`, function `TclCompileNamespaceQualifiersCmd`, lines 1882–1915. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `3981d8ff88955229aa51d6aadc113b942c945374689ac006bdc2444a43d8c34e`; retained evidence `source-window-3`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclCompCmdsGR.c`, function `TclCompileNamespaceQualifiersCmd`, lines 1882–1915. Retained reference `source-window-3`.
 
 ```text
 TclCompileNamespaceQualifiersCmd(
@@ -286,7 +286,7 @@ TclCompileNamespaceQualifiersCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_INDEX case)`, lines 5561–5594. Full-source SHA-256 `2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491`; snippet SHA-256 `c2d7ec5712a7c4efa7c5e4aa7c3c24f15a4895a51368e61fc4204f112ea5c7d4`; retained evidence `source-window-4`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_INDEX case)`, lines 5561–5594. Retained reference `source-window-4`.
 
 ```text
     case INST_STR_INDEX:
@@ -326,7 +326,7 @@ tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file diges
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4360–4398. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `cbea0c6142eee96e5be46e4bf4a00c1d2c4c291f481728359eed172a9edd6bd6`; retained evidence `source-window-5`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4360–4398. Retained reference `source-window-5`.
 
 ```text
 NamespaceQualifiersCmd(
@@ -371,7 +371,7 @@ NamespaceQualifiersCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclCompCmdsGR.c`, function `TclCompileNamespaceQualifiersCmd`, lines 1724–1756. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `3b42f710d85c039ce853d79eadeaefffbf4b02b8d314885bcbd76494c6ad4ee9`; retained evidence `source-window-6`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclCompCmdsGR.c`, function `TclCompileNamespaceQualifiersCmd`, lines 1724–1756. Retained reference `source-window-6`.
 
 ```text
 TclCompileNamespaceQualifiersCmd(
@@ -410,7 +410,7 @@ TclCompileNamespaceQualifiersCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_INDEX case)`, lines 5336–5381. Full-source SHA-256 `0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a`; snippet SHA-256 `75c9c03f06d84e8f2c5bc65c0ed86168f3d806cdba881700f026392aa0c7a97c`; retained evidence `source-window-7`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_INDEX case)`, lines 5336–5381. Retained reference `source-window-7`.
 
 ```text
     case INST_STR_INDEX:
@@ -462,7 +462,7 @@ tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest 
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclStringObj.c`, function `TclStringLast`, lines 3948–4014. Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `ee6667121c96e71f80a06d4a2b11d37e99dabdce1e925cf27b32c9db661312ac`; retained evidence `source-window-8`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclStringObj.c`, function `TclStringLast`, lines 3948–4014. Retained reference `source-window-8`.
 
 ```text
 TclStringLast(
@@ -535,7 +535,7 @@ TclStringLast(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4333–4371. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `c0e0e23fa5ab7ccaf3d0057f6ce534a19bd38f3db1e2a7a3b9513707b37f9a94`; retained evidence `source-window-9`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4333–4371. Retained reference `source-window-9`.
 
 ```text
 NamespaceQualifiersCmd(
@@ -580,7 +580,7 @@ NamespaceQualifiersCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclCompCmdsGR.c`, function `TclCompileNamespaceQualifiersCmd`, lines 2198–2229. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `2927c76ca773c2a4fcd0329cf38a821fd7fcc877d06e7f189d59f0592e8f8b86`; retained evidence `source-window-10`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclCompCmdsGR.c`, function `TclCompileNamespaceQualifiersCmd`, lines 2198–2229. Retained reference `source-window-10`.
 
 ```text
 TclCompileNamespaceQualifiersCmd(
@@ -618,7 +618,7 @@ TclCompileNamespaceQualifiersCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_INDEX case)`, lines 5672–5719. Full-source SHA-256 `9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4`; snippet SHA-256 `3fc7b6a36de064af13ed495d29a8e8804bdc668a2198fee6183d10906e542fd0`; retained evidence `source-window-11`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_INDEX case)`, lines 5672–5719. Retained reference `source-window-11`.
 
 ```text
     case INST_STR_INDEX:
@@ -672,7 +672,7 @@ tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest 
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclStringObj.c`, function `TclStringLast`, lines 3956–4022. Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `ee6667121c96e71f80a06d4a2b11d37e99dabdce1e925cf27b32c9db661312ac`; retained evidence `source-window-12`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclStringObj.c`, function `TclStringLast`, lines 3956–4022. Retained reference `source-window-12`.
 
 ```text
 TclStringLast(
@@ -745,7 +745,7 @@ TclStringLast(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_FIND_LAST case)`, lines 5902–5922. Full-source SHA-256 `2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491`; snippet SHA-256 `32f04cf652ca0b813b108766fcae302ac38748e7d48cd61fdf98d1c0c33af157`; retained evidence `source-window-13`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_FIND_LAST case)`, lines 5902–5922. Retained reference `source-window-13`.
 
 ```text
     case INST_STR_FIND_LAST:
@@ -772,7 +772,7 @@ tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file diges
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5595–5620. Full-source SHA-256 `2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491`; snippet SHA-256 `9cb81189df94562c71956e4615d5204fd195643b71eac9ae47cfb188c1e913d8`; retained evidence `source-window-14`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5595–5620. Retained reference `source-window-14`.
 
 ```text
     case INST_STR_RANGE:
@@ -804,7 +804,7 @@ tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file diges
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 741–829. Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `3233dcf7e82eabc6d832cbd7cc7afc8e9f57871d1b08de1a46353eb9458dc80e`; retained evidence `source-window-15`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 741–829. Retained reference `source-window-15`.
 
 ```text
 Tcl_GetRange(
@@ -899,7 +899,7 @@ Tcl_GetRange(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_FIND_LAST case)`, lines 5562–5568. Full-source SHA-256 `0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a`; snippet SHA-256 `6feb9a18245e6d9e90ec927cd69b3dfeb23aa359b2a34c3d7575910dac6437ab`; retained evidence `source-window-16`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_FIND_LAST case)`, lines 5562–5568. Retained reference `source-window-16`.
 
 ```text
     case INST_STR_FIND_LAST:
@@ -912,7 +912,7 @@ tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest 
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5382–5407. Full-source SHA-256 `0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a`; snippet SHA-256 `47ef1b03ed6a6205ce33c5a6adfe4badd6680b254778642eeeaade6b5ac29310`; retained evidence `source-window-17`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5382–5407. Retained reference `source-window-17`.
 
 ```text
     case INST_STR_RANGE:
@@ -944,7 +944,7 @@ tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest 
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 725–802. Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-18`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 725–802. Retained reference `source-window-18`.
 
 ```text
 Tcl_GetRange(
@@ -1028,7 +1028,7 @@ Tcl_GetRange(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_FIND_LAST case)`, lines 5896–5901. Full-source SHA-256 `9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4`; snippet SHA-256 `d2e6e3c9705bd61ba7401a52d4d96d17f431d0dcba03413412495af348fda239`; retained evidence `source-window-19`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_FIND_LAST case)`, lines 5896–5901. Retained reference `source-window-19`.
 
 ```text
     case INST_STR_FIND_LAST:
@@ -1040,7 +1040,7 @@ tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest 
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5720–5741. Full-source SHA-256 `9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4`; snippet SHA-256 `adad4234758fc47ff03eb916de99f41776fd25358aea2a14c9b29027fc0219ef`; retained evidence `source-window-20`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5720–5741. Retained reference `source-window-20`.
 
 ```text
     case INST_STR_RANGE:
@@ -1068,7 +1068,7 @@ tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest 
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 728–805. Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-21`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 728–805. Retained reference `source-window-21`.
 
 ```text
 Tcl_GetRange(

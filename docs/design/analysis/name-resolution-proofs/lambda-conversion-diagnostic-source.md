@@ -62,17 +62,17 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not t
 
 No appliance observation or source implementation claim.
 
-## Exact evidence
+## Historical references
 
-- `source-tcl8.5` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json). SHA-256 `8ac9f251d44c1441661f1ff847f86f665cd40f199cc2bcc09fb79e155d021bf5`. JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json). SHA-256 `773e75efb834c8399af7f26a3dd3c6f4074c9f1546b56685dca3e89a1b6e9e45`. JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json). SHA-256 `4620a8dc0abc7286957878aa6b24157d756cb25bd584424eae8f4ffa5f6d385e`. JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json). SHA-256 `d82218e744d7d78e4211276c60b9bc96739fcf7d9b8f3da0cdd35959a9ff4764`. JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-jim` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json). SHA-256 `56621837c60ddd53b582335d50b9ace806cfe1b38b4ba32e84c5b1cbf672256c`. JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
+- `source-tcl8.5` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
+- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
+- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
+- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
+- `source-jim` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
 
 ## Source inspection
 
-tcl8.5 8.5.19, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2444–2618. Full-source SHA-256 `9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6`; snippet SHA-256 `2f8640854c3126f44bc70645556bf64709b93e4146ae9bd160218e2483d6b428`; retained evidence `source-tcl8.5`.
+tcl8.5 8.5.19, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2444–2618. Retained reference `source-tcl8.5`.
 
 ```text
 SetLambdaFromAny(
@@ -252,7 +252,7 @@ SetLambdaFromAny(
 }
 ```
 
-tcl8.6 8.6.18, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2424–2596. Full-source SHA-256 `c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3`; snippet SHA-256 `560d0f671e99f6195baa9d16fa67e1436234ac87aae929c5251e4448d171dcfd`; retained evidence `source-tcl8.6`.
+tcl8.6 8.6.18, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2424–2596. Retained reference `source-tcl8.6`.
 
 ```text
 SetLambdaFromAny(
@@ -430,7 +430,7 @@ SetLambdaFromAny(
 }
 ```
 
-tcl9.0 9.0.4, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2449–2624. Full-source SHA-256 `ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110`; snippet SHA-256 `dd11b7b6c22500e77ab0c7847387cd75bdbe422619c28fe2f18432afbea95f56`; retained evidence `source-tcl9.0`.
+tcl9.0 9.0.4, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2449–2624. Retained reference `source-tcl9.0`.
 
 ```text
 SetLambdaFromAny(
@@ -611,7 +611,7 @@ SetLambdaFromAny(
 }
 ```
 
-tcl9.1 9.1.0, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2458–2651. Full-source SHA-256 `2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a`; snippet SHA-256 `a4cf4d6f797a284f3e24167ae0274eded5e33e104b852a1925e24fcb2b983e27`; retained evidence `source-tcl9.1`.
+tcl9.1 9.1.0, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c`, function `SetLambdaFromAny`, lines 2458–2651. Retained reference `source-tcl9.1`.
 
 ```text
 SetLambdaFromAny(
@@ -810,7 +810,7 @@ SetLambdaFromAny(
 }
 ```
 
-jim 0.84-9-g5bac7c9, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_ApplyCoreCommand`, lines 14546–14589. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `9a280f8a6cc600e726c9b6d006bf7bf729c91954a69436ba36788d884b6cd95c`; retained evidence `source-jim`.
+jim 0.84-9-g5bac7c9, revision `recorded configured source association; Jim 5bac7c9`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_ApplyCoreCommand`, lines 14546–14589. Retained reference `source-jim`.
 
 ```text
 static int Jim_ApplyCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)

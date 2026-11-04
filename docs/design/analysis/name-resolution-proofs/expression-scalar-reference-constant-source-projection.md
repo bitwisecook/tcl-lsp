@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-expression-scalar-reference-constant-source-projection-expr_simplify.rs` (implementation): [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs). SHA-256 `fe48f2c1942811fc51d7818cd3972f5f9ff5c60cb0dc11662f6266c5c9535859`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-expression-scalar-reference-constant-source-projection-expr_simplify.rs` (implementation): [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

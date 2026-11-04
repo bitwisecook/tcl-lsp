@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
 
-## Exact evidence
+## Historical references
 
-- `receipt-0` (observation): [runtime/rust/tests/data/native_return_instructions/manifest.json](../../../../runtime/rust/tests/data/native_return_instructions/manifest.json). SHA-256 `5ae70175d2666f506f06924b959bfa56f305979aa5cfe99e20a56150c98cecb9`. Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-1` (observation): [runtime/rust/tests/data/native_return_instructions/observations.tsv](../../../../runtime/rust/tests/data/native_return_instructions/observations.tsv). SHA-256 `1e462d1cc22e6d41bf4e2848d29bd414a4ecaca678d58cbcd309e1bd9c0e9da6`. Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-2` (input): [runtime/rust/tests/data/native_return_instructions/probe.c](../../../../runtime/rust/tests/data/native_return_instructions/probe.c). SHA-256 `881e6ce2c426772db97409add707e1a25d046544e37d4e7139e5bde91768cb00`. Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
+- `receipt-0` (observation): [runtime/rust/tests/data/native_return_instructions/manifest.json](../../../../runtime/rust/tests/data/native_return_instructions/manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
+- `artifact-1` (observation): [runtime/rust/tests/data/native_return_instructions/observations.tsv](../../../../runtime/rust/tests/data/native_return_instructions/observations.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
+- `artifact-2` (input): [runtime/rust/tests/data/native_return_instructions/probe.c](../../../../runtime/rust/tests/data/native_return_instructions/probe.c). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
 
 ## Source inspection
 

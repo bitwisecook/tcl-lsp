@@ -62,20 +62,20 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.6-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json). SHA-256 `1e59a32224a0aa5e24a76430cb53f148e399adc5f7856ebc040400d394dbb1c3`. JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
-- `tcl8.6-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json). SHA-256 `1e59a32224a0aa5e24a76430cb53f148e399adc5f7856ebc040400d394dbb1c3`. JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
-- `tcl9.0-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). SHA-256 `de0ccdf3e41cb0575321f9d1b122909c7609440e9253f01402924a5110601cd9`. JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
-- `tcl9.0-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). SHA-256 `de0ccdf3e41cb0575321f9d1b122909c7609440e9253f01402924a5110601cd9`. JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
-- `tcl9.0-TclOOLookupObjectVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). SHA-256 `de0ccdf3e41cb0575321f9d1b122909c7609440e9253f01402924a5110601cd9`. JSON pointer `/windows/2/snippet`. Exact retained whole native function LF window.
-- `tcl9.1-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). SHA-256 `b40be910b05f8c76750b4ad776faa65e67701d3262a53d993fdc7165d8579197`. JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
-- `tcl9.1-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). SHA-256 `b40be910b05f8c76750b4ad776faa65e67701d3262a53d993fdc7165d8579197`. JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
-- `tcl9.1-TclOOLookupObjectVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). SHA-256 `b40be910b05f8c76750b4ad776faa65e67701d3262a53d993fdc7165d8579197`. JSON pointer `/windows/2/snippet`. Exact retained whole native function LF window.
+- `tcl8.6-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
+- `tcl8.6-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
+- `tcl9.0-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
+- `tcl9.0-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
+- `tcl9.0-TclOOLookupObjectVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). JSON pointer `/windows/2/snippet`. Exact retained whole native function LF window.
+- `tcl9.1-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
+- `tcl9.1-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
+- `tcl9.1-TclOOLookupObjectVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). JSON pointer `/windows/2/snippet`. Exact retained whole native function LF window.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c`, function `TclOO_Object_LinkVar`, lines 576–665. Full-source SHA-256 `1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98`; snippet SHA-256 `c2b48e19cc31fbdb0ce94323a86bd94a46fc67bb8677aa87fc40de29f4d94de5`; retained evidence `tcl8.6-TclOO_Object_LinkVar`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c`, function `TclOO_Object_LinkVar`, lines 576–665. Retained reference `tcl8.6-TclOO_Object_LinkVar`.
 
 ```text
 TclOO_Object_LinkVar(
@@ -171,7 +171,7 @@ TclOO_Object_LinkVar(
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c`, function `TclOO_Object_VarName`, lines 678–776. Full-source SHA-256 `1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98`; snippet SHA-256 `e46d60160dc85d8db376acfe6bb2e6281bfc4dbc07b630d67f03e758d79e2af6`; retained evidence `tcl8.6-TclOO_Object_VarName`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c`, function `TclOO_Object_VarName`, lines 678–776. Retained reference `tcl8.6-TclOO_Object_VarName`.
 
 ```text
 TclOO_Object_VarName(
@@ -276,7 +276,7 @@ TclOO_Object_VarName(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOO_Object_LinkVar`, lines 943–1032. Full-source SHA-256 `5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68`; snippet SHA-256 `979cdaaf1cd8e0a80213d7385c94ac8334a257844523f62e2402537e5f0224b0`; retained evidence `tcl9.0-TclOO_Object_LinkVar`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOO_Object_LinkVar`, lines 943–1032. Retained reference `tcl9.0-TclOO_Object_LinkVar`.
 
 ```text
 TclOO_Object_LinkVar(
@@ -372,7 +372,7 @@ TclOO_Object_LinkVar(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOO_Object_VarName`, lines 1160–1206. Full-source SHA-256 `5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68`; snippet SHA-256 `7f0ff9041a944d00216eefb2279f5754fda8278c237286104d14d8d45a51b328`; retained evidence `tcl9.0-TclOO_Object_VarName`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOO_Object_VarName`, lines 1160–1206. Retained reference `tcl9.0-TclOO_Object_VarName`.
 
 ```text
 TclOO_Object_VarName(
@@ -425,7 +425,7 @@ TclOO_Object_VarName(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOOLookupObjectVar`, lines 1047–1147. Full-source SHA-256 `5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68`; snippet SHA-256 `b199d8173ed5f55768e98d22ee83ca7f44600ba4c7802924933e1efcc07bb0c3`; retained evidence `tcl9.0-TclOOLookupObjectVar`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOOLookupObjectVar`, lines 1047–1147. Retained reference `tcl9.0-TclOOLookupObjectVar`.
 
 ```text
 TclOOLookupObjectVar(
@@ -532,7 +532,7 @@ TclOOLookupObjectVar(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOO_Object_LinkVar`, lines 998–1087. Full-source SHA-256 `d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158`; snippet SHA-256 `bf0582a1c70a927f3021e259882ac3711a0684e9f910891ff84d9f9c53c43ed6`; retained evidence `tcl9.1-TclOO_Object_LinkVar`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOO_Object_LinkVar`, lines 998–1087. Retained reference `tcl9.1-TclOO_Object_LinkVar`.
 
 ```text
 TclOO_Object_LinkVar(
@@ -628,7 +628,7 @@ TclOO_Object_LinkVar(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOO_Object_VarName`, lines 1217–1263. Full-source SHA-256 `d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158`; snippet SHA-256 `0bf7a895345db95744de9296f6857961afa70870cf7e285e75e2cd75f3a1383e`; retained evidence `tcl9.1-TclOO_Object_VarName`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOO_Object_VarName`, lines 1217–1263. Retained reference `tcl9.1-TclOO_Object_VarName`.
 
 ```text
 TclOO_Object_VarName(
@@ -681,7 +681,7 @@ TclOO_Object_VarName(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOOLookupObjectVar`, lines 1102–1204. Full-source SHA-256 `d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158`; snippet SHA-256 `7859fc98401df3a549e1773dbe7eaf67737922ec396cab46540155899715b090`; retained evidence `tcl9.1-TclOOLookupObjectVar`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOOLookupObjectVar`, lines 1102–1204. Retained reference `tcl9.1-TclOOLookupObjectVar`.
 
 ```text
 TclOOLookupObjectVar(

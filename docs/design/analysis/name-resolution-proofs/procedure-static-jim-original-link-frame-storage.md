@@ -62,15 +62,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
 
-## Exact evidence
+## Historical references
 
-- `eff22ac40e9a48ac6eeb4` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). SHA-256 `7256048337a923c625817234614a05cb782691def11f84b4a5badad7e90b5e94`. JSON pointer `/source_anchors/0/snippet`. Exact pinned Jim_Obj *Jim_GetVariable LF function bytes; recursive getter/storage/free-order only.
-- `ed7cf30ba937eadca0e2a` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). SHA-256 `7256048337a923c625817234614a05cb782691def11f84b4a5badad7e90b5e94`. JSON pointer `/source_anchors/1/snippet`. Exact pinned static Jim_CallFrame *JimCreateCallFrame LF function bytes; recursive getter/storage/free-order only.
-- `ee128a2f09a96f35b50dc` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). SHA-256 `7256048337a923c625817234614a05cb782691def11f84b4a5badad7e90b5e94`. JSON pointer `/source_anchors/2/snippet`. Exact pinned static void JimFreeCallFrame LF function bytes; recursive getter/storage/free-order only.
+- `eff22ac40e9a48ac6eeb4` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). JSON pointer `/source_anchors/0/snippet`. Exact pinned Jim_Obj *Jim_GetVariable LF function bytes; recursive getter/storage/free-order only.
+- `ed7cf30ba937eadca0e2a` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). JSON pointer `/source_anchors/1/snippet`. Exact pinned static Jim_CallFrame *JimCreateCallFrame LF function bytes; recursive getter/storage/free-order only.
+- `ee128a2f09a96f35b50dc` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). JSON pointer `/source_anchors/2/snippet`. Exact pinned static void JimFreeCallFrame LF function bytes; recursive getter/storage/free-order only.
 
 ## Source inspection
 
-jim 0.84-9-g5bac7c9, revision `Source revision not recorded by this frame probe; exact full source SHA-256 retained.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `Jim_GetVariable`, lines 4937–4974. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `178b3e058f606f88129c613eb578d23e05d1af15898f0b2409cbe6c9cfd26585`; retained evidence `eff22ac40e9a48ac6eeb4`.
+jim 0.84-9-g5bac7c9, revision `Source revision not recorded by this frame probe; exact full source SHA-256 retained.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `Jim_GetVariable`, lines 4937–4974. Retained reference `eff22ac40e9a48ac6eeb4`.
 
 ```text
 Jim_Obj *Jim_GetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
@@ -113,7 +113,7 @@ Jim_Obj *Jim_GetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
 }
 ```
 
-jim 0.84-9-g5bac7c9, revision `Source revision not recorded by this frame probe; exact full source SHA-256 retained.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `JimCreateCallFrame`, lines 5260–5292. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `0c51da137fb2885f5f439805dd2efe4c218a76369dd7b0247cd61e1663d23378`; retained evidence `ed7cf30ba937eadca0e2a`.
+jim 0.84-9-g5bac7c9, revision `Source revision not recorded by this frame probe; exact full source SHA-256 retained.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `JimCreateCallFrame`, lines 5260–5292. Retained reference `ed7cf30ba937eadca0e2a`.
 
 ```text
 static Jim_CallFrame *JimCreateCallFrame(Jim_Interp *interp, Jim_CallFrame *parent, Jim_Obj *nsObj)
@@ -151,7 +151,7 @@ static Jim_CallFrame *JimCreateCallFrame(Jim_Interp *interp, Jim_CallFrame *pare
 }
 ```
 
-jim 0.84-9-g5bac7c9, revision `Source revision not recorded by this frame probe; exact full source SHA-256 retained.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `JimFreeCallFrame`, lines 5387–5403. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `b829f65933d57fd3dfa7c0e31590f3d3f8a1df66192b7e9c2d88bd71660a85de`; retained evidence `ee128a2f09a96f35b50dc`.
+jim 0.84-9-g5bac7c9, revision `Source revision not recorded by this frame probe; exact full source SHA-256 retained.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `JimFreeCallFrame`, lines 5387–5403. Retained reference `ee128a2f09a96f35b50dc`.
 
 ```text
 static void JimFreeCallFrame(Jim_Interp *interp, Jim_CallFrame *cf, int action)

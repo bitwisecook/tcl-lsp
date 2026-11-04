@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

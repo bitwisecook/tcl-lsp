@@ -62,15 +62,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This is a Rust implementation contract; no native or appliance execution for this question is attached.
 
-## Exact evidence
+## Historical references
 
-- `jim-static-lookup-source-0` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). SHA-256 `088b41b3abb7ec1bb8e04f258bc17c6e8286a89f9aa030acdb5b29b673b4d172`. JSON pointer `/source_anchors/0/snippet`. Exact pinned JimCreateProcedureStatics snippet; source inspection only.
-- `jim-static-lookup-source-1` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). SHA-256 `088b41b3abb7ec1bb8e04f258bc17c6e8286a89f9aa030acdb5b29b673b4d172`. JSON pointer `/source_anchors/1/snippet`. Exact pinned SetVariableFromAny snippet; source inspection only.
-- `jim-static-lookup-source-2` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). SHA-256 `088b41b3abb7ec1bb8e04f258bc17c6e8286a89f9aa030acdb5b29b673b4d172`. JSON pointer `/source_anchors/2/snippet`. Exact pinned Jim_GetVariable snippet; source inspection only.
+- `jim-static-lookup-source-0` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). JSON pointer `/source_anchors/0/snippet`. Exact pinned JimCreateProcedureStatics snippet; source inspection only.
+- `jim-static-lookup-source-1` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). JSON pointer `/source_anchors/1/snippet`. Exact pinned SetVariableFromAny snippet; source inspection only.
+- `jim-static-lookup-source-2` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). JSON pointer `/source_anchors/2/snippet`. Exact pinned Jim_GetVariable snippet; source inspection only.
 
 ## Source inspection
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimCreateProcedureStatics`, lines 4211–4310. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `a9c9c664c37ca9e060c887aef048d5d3ceffd094181073a79eef24635e24ba10`; retained evidence `jim-static-lookup-source-0`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimCreateProcedureStatics`, lines 4211–4310. Retained reference `jim-static-lookup-source-0`.
 
 ```text
 /* Create the named static variables declared for a proc body. */
@@ -176,7 +176,7 @@ static int JimCreateProcedureStatics(Jim_Interp *interp, Jim_Cmd *cmdPtr, Jim_Ob
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `SetVariableFromAny`, lines 4620–4689. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `0535e59eed4cc5585c36111e7b595effdc66168d9721f138f859d26a2c6cb1d6`; retained evidence `jim-static-lookup-source-1`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `SetVariableFromAny`, lines 4620–4689. Retained reference `jim-static-lookup-source-1`.
 
 ```text
  * JIM_ERR if it does not exist, JIM_DICT_SUGAR if it's not
@@ -252,7 +252,7 @@ static Jim_Obj *JimDictSugarGet(Jim_Interp *interp, Jim_Obj *objPtr, int flags);
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `Jim_GetVariable`, lines 4933–4975. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `df8d47c3f0c411b74c7801f8b1b27b413f666af46f97bbdd5e0f2991ea680f5f`; retained evidence `jim-static-lookup-source-2`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `Jim_GetVariable`, lines 4933–4975. Retained reference `jim-static-lookup-source-2`.
 
 ```text
  * in a dictionary which is shared, the array variable value is duplicated first.

@@ -62,12 +62,12 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
 
-## Exact evidence
+## Historical references
 
-- `receipt-0` (observation): [rust/tcl-registry/tests/data/native_return_single_result/manifest.json](../../../../rust/tcl-registry/tests/data/native_return_single_result/manifest.json). SHA-256 `acde11a63fdfc6c6c97c31d383c44ef7b3f7f0a7ec3252bf687eba682ed29000`. Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-1` (input): [rust/tcl-registry/tests/data/native_return_single_result/option_pair_source.tcl](../../../../rust/tcl-registry/tests/data/native_return_single_result/option_pair_source.tcl). SHA-256 `f76bce27b46f7cc062aa6de963010b5d0e89fd34e666086a1a41f5fdd08c764e`. Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-2` (input): [rust/tcl-registry/tests/data/native_return_single_result/source.tcl](../../../../rust/tcl-registry/tests/data/native_return_single_result/source.tcl). SHA-256 `928761b316e4bd61a979c8d6f41597fa756b1e237d69b15411cdd94de70093fd`. Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `maintained-source-replayer` (implementation): [scripts/dev/replay-grammar-native-source.py](../../../../scripts/dev/replay-grammar-native-source.py). SHA-256 `a19ace0e42037b34b6493703885b22a55167e88c4ef91c8ac097a33e45fa88e6`. Maintained source-only replay adapter; no fresh native execution is recorded by this contribution.
+- `receipt-0` (observation): [rust/tcl-registry/tests/data/native_return_single_result/manifest.json](../../../../rust/tcl-registry/tests/data/native_return_single_result/manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
+- `artifact-1` (input): [rust/tcl-registry/tests/data/native_return_single_result/option_pair_source.tcl](../../../../rust/tcl-registry/tests/data/native_return_single_result/option_pair_source.tcl). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
+- `artifact-2` (input): [rust/tcl-registry/tests/data/native_return_single_result/source.tcl](../../../../rust/tcl-registry/tests/data/native_return_single_result/source.tcl). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
+- `maintained-source-replayer` (implementation): [scripts/dev/replay-grammar-native-source.py](../../../../scripts/dev/replay-grammar-native-source.py). Maintained source-only replay adapter; no fresh native execution is recorded by this contribution.
 
 ## Source inspection
 

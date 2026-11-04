@@ -62,23 +62,23 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `compiled-local-formal-8.4.20-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c). SHA-256 `a1f1bfec21e2f0937dda2a21ebe7a8a540ac2d234c94e92419d3fc2f93a03a6b`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.4.20-tclCompile.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c). SHA-256 `0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.5.19-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c). SHA-256 `00d8864d624381e7a112cb82246cc99d2a2e83483d77d9a4567db5a002ea2599`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.5.19-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c). SHA-256 `9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.6.18-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c). SHA-256 `65846249809bd4bc1980b40f48b64a55c17f4d9acc538c41608dbb82670509ff`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.6.18-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c). SHA-256 `c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.0.4-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c). SHA-256 `57f490a48ad62ac09ad843c1675dd7ad6ac9e8ce44655942f9bba17015d9813a`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.0.4-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c). SHA-256 `ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.1.0-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c). SHA-256 `57f490a48ad62ac09ad843c1675dd7ad6ac9e8ce44655942f9bba17015d9813a`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.1.0-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c). SHA-256 `2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/request.json](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/request.json). SHA-256 `746c08449fe3bfd8b85b2c038c4974bbeb89743306eb217740c3b4a033dd5883`. Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-8.4.20-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-8.4.20-tclCompile.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-8.5.19-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-8.5.19-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-8.6.18-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-8.6.18-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-9.0.4-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-9.0.4-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-9.1.0-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-9.1.0-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
+- `compiled-local-formal-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/request.json](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/request.json). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.c`, function `TclInitCompiledLocals`, lines 2348–2387. Full-source SHA-256 `0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8`; snippet SHA-256 `a1f1bfec21e2f0937dda2a21ebe7a8a540ac2d234c94e92419d3fc2f93a03a6b`; retained evidence `compiled-local-formal-8.4.20-tclCompile.c`.
+tcl8.4 8.4.20, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompile.c`, function `TclInitCompiledLocals`, lines 2348–2387. Retained reference `compiled-local-formal-8.4.20-tclCompile.c`.
 
 ```text
     for (localPtr = framePtr->procPtr->firstLocalPtr;
@@ -124,7 +124,7 @@ tcl8.4 8.4.20, revision `Pinned complete original provider source; read-only ins
 
 ```
 
-tcl8.5 8.5.19, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c`, function `TclInitCompiledLocals`, lines 1265–1304. Full-source SHA-256 `9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6`; snippet SHA-256 `00d8864d624381e7a112cb82246cc99d2a2e83483d77d9a4567db5a002ea2599`; retained evidence `compiled-local-formal-8.5.19-tclProc.c`.
+tcl8.5 8.5.19, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclProc.c`, function `TclInitCompiledLocals`, lines 1265–1304. Retained reference `compiled-local-formal-8.5.19-tclProc.c`.
 
 ```text
 	    if (localPtr->resolveInfo->deleteProc) {
@@ -170,7 +170,7 @@ tcl8.5 8.5.19, revision `Pinned complete original provider source; read-only ins
 
 ```
 
-tcl8.6 8.6.18, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c`, function `TclInitCompiledLocals`, lines 1214–1253. Full-source SHA-256 `c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3`; snippet SHA-256 `65846249809bd4bc1980b40f48b64a55c17f4d9acc538c41608dbb82670509ff`; retained evidence `compiled-local-formal-8.6.18-tclProc.c`.
+tcl8.6 8.6.18, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclProc.c`, function `TclInitCompiledLocals`, lines 1214–1253. Retained reference `compiled-local-formal-8.6.18-tclProc.c`.
 
 ```text
 	    if (localPtr->resolveInfo->deleteProc) {
@@ -216,7 +216,7 @@ tcl8.6 8.6.18, revision `Pinned complete original provider source; read-only ins
 
 ```
 
-tcl9.0 9.0.4, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c`, function `InitResolvedLocals`, lines 1188–1227. Full-source SHA-256 `ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110`; snippet SHA-256 `57f490a48ad62ac09ad843c1675dd7ad6ac9e8ce44655942f9bba17015d9813a`; retained evidence `compiled-local-formal-9.0.4-tclProc.c`.
+tcl9.0 9.0.4, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c`, function `InitResolvedLocals`, lines 1188–1227. Retained reference `compiled-local-formal-9.0.4-tclProc.c`.
 
 ```text
 	    if (localPtr->resolveInfo->deleteProc) {
@@ -262,7 +262,7 @@ tcl9.0 9.0.4, revision `Pinned complete original provider source; read-only insp
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c`, function `InitResolvedLocals`, lines 1183–1222. Full-source SHA-256 `2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a`; snippet SHA-256 `57f490a48ad62ac09ad843c1675dd7ad6ac9e8ce44655942f9bba17015d9813a`; retained evidence `compiled-local-formal-9.1.0-tclProc.c`.
+tcl9.1 9.1.0, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclProc.c`, function `InitResolvedLocals`, lines 1183–1222. Retained reference `compiled-local-formal-9.1.0-tclProc.c`.
 
 ```text
 	    if (localPtr->resolveInfo->deleteProc) {

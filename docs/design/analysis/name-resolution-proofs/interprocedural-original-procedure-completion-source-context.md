@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
 
-## Exact evidence
+## Historical references
 
-- `naming-interprocedural-original-procedure-completion-source-context-completion-definition` (implementation): [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs). SHA-256 `5506988874b676378a195e548f896927ff872eefc1e170cb3007dfb655189c29`. Complete original Module/source-entry purpose owns the Logical completion walk; held Native Jim remains distinct even when the raw input qualifies for Logical naming.
-- `naming-interprocedural-original-procedure-completion-source-context-call-definition` (implementation): [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs). SHA-256 `21a304963f1ee3c4d46a673ccd61c2c435c5af00dd83e66c9e38d8486c7b5175`. Original Module/procedure/header/body correspondence and current invocation metadata precede genuine Logical procedure-call/parameter source models; labels and raw input flags grant no allocation or execution.
+- `naming-interprocedural-original-procedure-completion-source-context-completion-definition` (implementation): [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs). Complete original Module/source-entry purpose owns the Logical completion walk; held Native Jim remains distinct even when the raw input qualifies for Logical naming.
+- `naming-interprocedural-original-procedure-completion-source-context-call-definition` (implementation): [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs). Original Module/procedure/header/body correspondence and current invocation metadata precede genuine Logical procedure-call/parameter source models; labels and raw input flags grant no allocation or execution.
 
 ## Source inspection
 

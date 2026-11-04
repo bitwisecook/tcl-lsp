@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This database declaration-header/arity invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `database-source-owner` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `e23c9f7a7e27f6022df1bff310c9bede5be64b761cf924973599f9a2f815c8ad`. Current body-free header aggregation, exact byte/policy arity key, shared lookup matcher and concrete cache regression assertions.
+- `database-source-owner` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). Current body-free header aggregation, exact byte/policy arity key, shared lookup matcher and concrete cache regression assertions.
 
 ## Source inspection
 

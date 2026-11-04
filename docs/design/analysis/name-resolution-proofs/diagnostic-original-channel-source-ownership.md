@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

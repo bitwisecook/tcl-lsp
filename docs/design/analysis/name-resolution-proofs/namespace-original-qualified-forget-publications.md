@@ -62,17 +62,17 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native execution of this Rust implementation question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.4-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c). SHA-256 `cdf4fc501f93d695978f1948b83163420b8495fe4bd60310dcb1a5e1c6d62beb`. tcl8.4 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c). SHA-256 `833f6c7d8701b081d8fe56c780d8ba00babcc3ff0ab722f4472b77e858df220e`. tcl8.5 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c). SHA-256 `81f45437cb2e50407306616208b896466ea4de99111a8f421c4d06fbf6672cb6`. tcl8.6 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c). SHA-256 `536ff4f1c34a6a3583f728221650f9b40ca9401c0313ca0617b50cc084999e3e`. tcl9.0 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c). SHA-256 `aa8db5fb3fb28787e9774bd108cb4521b07abe4f9728c6d343d863b90fcb72cf`. tcl9.1 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl8.4-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c). tcl8.4 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl8.5-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c). tcl8.5 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl8.6-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c). tcl8.6 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl9.0-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c). tcl9.0 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl9.1-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c). tcl9.1 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1334–1428. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `cdf4fc501f93d695978f1948b83163420b8495fe4bd60310dcb1a5e1c6d62beb`; retained evidence `tcl8.4-Tcl_ForgetImport-source`.
+tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1334–1428. Retained reference `tcl8.4-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(interp, namespacePtr, pattern)
@@ -173,7 +173,7 @@ Tcl_ForgetImport(interp, namespacePtr, pattern)
 
 ```
 
-tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1736–1844. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `833f6c7d8701b081d8fe56c780d8ba00babcc3ff0ab722f4472b77e858df220e`; retained evidence `tcl8.5-Tcl_ForgetImport-source`.
+tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1736–1844. Retained reference `tcl8.5-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(
@@ -288,7 +288,7 @@ Tcl_ForgetImport(
 
 ```
 
-tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1786–1894. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `81f45437cb2e50407306616208b896466ea4de99111a8f421c4d06fbf6672cb6`; retained evidence `tcl8.6-Tcl_ForgetImport-source`.
+tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1786–1894. Retained reference `tcl8.6-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(
@@ -403,7 +403,7 @@ Tcl_ForgetImport(
 
 ```
 
-tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1939–2048. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `536ff4f1c34a6a3583f728221650f9b40ca9401c0313ca0617b50cc084999e3e`; retained evidence `tcl9.0-Tcl_ForgetImport-source`.
+tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1939–2048. Retained reference `tcl9.0-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(
@@ -519,7 +519,7 @@ Tcl_ForgetImport(
 
 ```
 
-tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1937–2045. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `aa8db5fb3fb28787e9774bd108cb4521b07abe4f9728c6d343d863b90fcb72cf`; retained evidence `tcl9.1-Tcl_ForgetImport-source`.
+tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1937–2045. Retained reference `tcl9.1-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(

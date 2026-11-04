@@ -99,11 +99,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native observation of this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c). SHA-256 `40d46d5a6becb34ef483c8d29a49abe0e74408880d72532b7bf5ebe6b7db2393`. Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json). SHA-256 `97b25f18972514555ff9e9af486c2a7ba42691a2c5c52af8c4efdda9cde00002`. Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-jim` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt). SHA-256 `13ea60dc1dc2aca746dfd5a86b22f061928fcfe2c3027deb52fb9ee7f6ff82a2`. Original retained full stream; provider answer selects only this question's relevant windows.
+- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
+- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
+- `rows-jim` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt). Original retained full stream; provider answer selects only this question's relevant windows.
 
 ## Source inspection
 

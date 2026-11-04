@@ -181,19 +181,19 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_frame_levels/manifest.json](../../../../rust/tcl-syntax/tests/data/native_frame_levels/manifest.json). SHA-256 `16f09e74eae120f9e1f131612052ebf3736ad8aadc0cd5bb6cff062dffd097ef`. Five original C library and complete output hashes; 16 windows per engine.
-- `e1` (provider): [rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json). SHA-256 `49fb08a00bd9832ac668506753d4eee30332a1535539ccc0c09c75c88d9e0b42`. Original Jim library/binary/output hashes, 21 windows and process exit.
-- `e2` (input): [rust/tcl-syntax/tests/data/native_frame_levels/probe.c](../../../../rust/tcl-syntax/tests/data/native_frame_levels/probe.c). SHA-256 `cadd230a808b1d4932c457633110ae3cbd9cf98b38791d0e5b53002a8954d502`. Exact original C object constructors/argv/procedure activation probe.
-- `e3` (input): [rust/tcl-syntax/tests/data/native_frame_levels/jim-probe.c](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim-probe.c). SHA-256 `88735df6f48baeda381918f6cfd32cfa6a4bd0e8a45a336d17ff68ce1de2aa20`. Exact independent Jim object constructors and activation probe.
-- `e4` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.4.20.jsonl). SHA-256 `0549ad40b61857df057f28ce4d7af585e284e7ad1857eaf7af82f40d3c6cba2d`. All 16 original before/after cache, completion and result-hex windows.
-- `e5` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.5.19.jsonl). SHA-256 `88edaf514ebfa5266e4d3aca2f7615fcbc106a5444b32f4fe661b5ed59f9dd0d`. All 16 original before/after cache, completion and result-hex windows.
-- `e6` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.6.18.jsonl). SHA-256 `c5244d86a60462c341631fa4d4f6eafc5455ea984c8432b66251f80c180404ad`. All 16 original before/after cache, completion and result-hex windows.
-- `e7` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/9.0.4.jsonl). SHA-256 `b9fa336b681e6e8eea48358038eb0917c1ef7391a2c97e03a6cd5109ea39eab5`. All 16 original before/after cache, completion and result-hex windows.
-- `e8` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/9.1.0.jsonl). SHA-256 `b9fa336b681e6e8eea48358038eb0917c1ef7391a2c97e03a6cd5109ea39eab5`. All 16 original before/after cache, completion and result-hex windows.
-- `e9` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl). SHA-256 `a80131c7003b8b881a42f876efef2daff6ed088f49128f7ef86045eaae0c79ba`. All 21 independent original Jim cache/completion/result windows.
-- `e10` (input): [rust/tcl-syntax/tests/data/native_frame_levels/README.md](../../../../rust/tcl-syntax/tests/data/native_frame_levels/README.md). SHA-256 `7df70505dd35afcbb5e6618138ff6e1368724ca5e2034ab421ec9490c0e0df82`. Separate C and Jim compile/replay protocols and bounded measurement explanation.
+- `e0` (provider): [rust/tcl-syntax/tests/data/native_frame_levels/manifest.json](../../../../rust/tcl-syntax/tests/data/native_frame_levels/manifest.json). Five original C library and complete output hashes; 16 windows per engine.
+- `e1` (provider): [rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json). Original Jim library/binary/output hashes, 21 windows and process exit.
+- `e2` (input): [rust/tcl-syntax/tests/data/native_frame_levels/probe.c](../../../../rust/tcl-syntax/tests/data/native_frame_levels/probe.c). Exact original C object constructors/argv/procedure activation probe.
+- `e3` (input): [rust/tcl-syntax/tests/data/native_frame_levels/jim-probe.c](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim-probe.c). Exact independent Jim object constructors and activation probe.
+- `e4` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.4.20.jsonl). All 16 original before/after cache, completion and result-hex windows.
+- `e5` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.5.19.jsonl). All 16 original before/after cache, completion and result-hex windows.
+- `e6` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.6.18.jsonl). All 16 original before/after cache, completion and result-hex windows.
+- `e7` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/9.0.4.jsonl). All 16 original before/after cache, completion and result-hex windows.
+- `e8` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/9.1.0.jsonl). All 16 original before/after cache, completion and result-hex windows.
+- `e9` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl). All 21 independent original Jim cache/completion/result windows.
+- `e10` (input): [rust/tcl-syntax/tests/data/native_frame_levels/README.md](../../../../rust/tcl-syntax/tests/data/native_frame_levels/README.md). Separate C and Jim compile/replay protocols and bounded measurement explanation.
 
 ## Source inspection
 

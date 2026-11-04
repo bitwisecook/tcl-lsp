@@ -87,16 +87,16 @@ Status: `not-tested`. Version: not measured. Build: not measured. Channel: not t
 
 No original import-chain namespace-origin script capture for this provider is attached.
 
-## Exact evidence
+## Historical references
 
-- `payload` (input): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). SHA-256 `867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121`. JSON pointer `/source`. Exact original source payload and described presenter.
-- `windows` (observation): [runtime/rust/tests/data/native_namespace_origin/windows.tsv](../../../../runtime/rust/tests/data/native_namespace_origin/windows.tsv). SHA-256 `364d2ee3d3513627873268c4706e9850d74ca4fd7f04ea36f1d62622563f193d`. Original payload hex, guest completion and counted result hex.
-- `receipt` (provider): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). SHA-256 `867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121`. Independent original shell/source/result associations.
-- `provider-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). SHA-256 `867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121`. JSON pointer `/runs/0`. Exact original caught script result and launched shell association.
-- `provider-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). SHA-256 `867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121`. JSON pointer `/runs/1`. Exact original caught script result and launched shell association.
-- `provider-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). SHA-256 `867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121`. JSON pointer `/runs/2`. Exact original caught script result and launched shell association.
-- `provider-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). SHA-256 `867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121`. JSON pointer `/runs/3`. Exact original caught script result and launched shell association.
-- `provider-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). SHA-256 `867b10f594c09c68e990f9ac08c4c89abdd5bee7bd917c502bc1d69ff1ab4121`. JSON pointer `/runs/4`. Exact original caught script result and launched shell association.
+- `payload` (input): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/source`. Exact original source payload and described presenter.
+- `windows` (observation): [runtime/rust/tests/data/native_namespace_origin/windows.tsv](../../../../runtime/rust/tests/data/native_namespace_origin/windows.tsv). Original payload hex, guest completion and counted result hex.
+- `receipt` (provider): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). Independent original shell/source/result associations.
+- `provider-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/0`. Exact original caught script result and launched shell association.
+- `provider-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/1`. Exact original caught script result and launched shell association.
+- `provider-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/2`. Exact original caught script result and launched shell association.
+- `provider-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/3`. Exact original caught script result and launched shell association.
+- `provider-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/4`. Exact original caught script result and launched shell association.
 
 ## Source inspection
 

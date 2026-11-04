@@ -66,10 +66,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `source-owner` (implementation): [rust/tcl-compiler/src/analyser/diagnostic_subject.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject.rs). SHA-256 `dbb548238c723389b0e79b272bca143f32ebd0376feebff1d4d69d492d17c91b`. Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
-- `reporting-transport` (implementation): [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs). SHA-256 `eefaf8bacaaaec50bae4761b1e73553873331775f616206974eb243f783c41f6`. Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
+- `source-owner` (implementation): [rust/tcl-compiler/src/analyser/diagnostic_subject.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject.rs). Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
+- `reporting-transport` (implementation): [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs). Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
 
 ## Source inspection
 

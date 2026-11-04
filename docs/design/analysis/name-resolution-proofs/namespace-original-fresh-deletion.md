@@ -62,27 +62,27 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No native execution receipt is attached to this source implementation contract.
 
-## Exact evidence
+## Historical references
 
-- `delete-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/0/snippet`. tcl8.4 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/1/snippet`. tcl8.4 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/2/snippet`. tcl8.4 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/3/snippet`. tcl8.5 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/4/snippet`. tcl8.5 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/5/snippet`. tcl8.5 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-6` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/6/snippet`. tcl8.6 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-7` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/7/snippet`. tcl8.6 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-8` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/8/snippet`. tcl8.6 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-9` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/9/snippet`. tcl9.0 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-10` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/10/snippet`. tcl9.0 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-11` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/11/snippet`. tcl9.0 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-12` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/12/snippet`. tcl9.1 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-13` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/13/snippet`. tcl9.1 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-14` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). SHA-256 `7db407e31fcbbe8182bb36e51cf6bea479cfffc8369397c0aac4abebc9d7e93d`. JSON pointer `/source_anchors/14/snippet`. tcl9.1 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
+- `delete-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. tcl8.4 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
+- `delete-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/1/snippet`. tcl8.4 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
+- `delete-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/2/snippet`. tcl8.4 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
+- `delete-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/3/snippet`. tcl8.5 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
+- `delete-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/4/snippet`. tcl8.5 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
+- `delete-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/5/snippet`. tcl8.5 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
+- `delete-source-6` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/6/snippet`. tcl8.6 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
+- `delete-source-7` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/7/snippet`. tcl8.6 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
+- `delete-source-8` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/8/snippet`. tcl8.6 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
+- `delete-source-9` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/9/snippet`. tcl9.0 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
+- `delete-source-10` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/10/snippet`. tcl9.0 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
+- `delete-source-11` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/11/snippet`. tcl9.0 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
+- `delete-source-12` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/12/snippet`. tcl9.1 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
+- `delete-source-13` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/13/snippet`. tcl9.1 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
+- `delete-source-14` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/14/snippet`. tcl9.1 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 2870–2916. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `dd823315076c14b8bdc59661daaa6c0d5093202a207de84ad4acd6d52ecfdeb2`; retained evidence `delete-source-0`.
+tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 2870–2916. Retained reference `delete-source-0`.
 
 ```text
 NamespaceDeleteCmd(dummy, interp, objc, objv)
@@ -135,7 +135,7 @@ NamespaceDeleteCmd(dummy, interp, objc, objv)
 
 ```
 
-tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 576–656. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `f8b63c78ebc07621717f46199046e1e69fbdcbff1785f4e34a072cb5d4438843`; retained evidence `delete-source-1`.
+tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 576–656. Retained reference `delete-source-1`.
 
 ```text
 Tcl_DeleteNamespace(namespacePtr)
@@ -222,7 +222,7 @@ Tcl_DeleteNamespace(namespacePtr)
 
 ```
 
-tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclProc.c`, function `TclProcDeleteProc`, lines 1605–1614. Full-source SHA-256 `bfeecc7c08dabce16946efad9c0e7eb3cacf43d4a5376bf622fa4b69483eb879`; snippet SHA-256 `7b5b030e47c17f1d3dde75c7fde84d143eadd87e8d4c73d3cab9b5d02e9567d4`; retained evidence `delete-source-2`.
+tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclProc.c`, function `TclProcDeleteProc`, lines 1605–1614. Retained reference `delete-source-2`.
 
 ```text
 TclProcDeleteProc(clientData)
@@ -238,7 +238,7 @@ TclProcDeleteProc(clientData)
 
 ```
 
-tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3177–3224. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `d024fde7fa0afa81770b0d31ec2ada21c8c20a9821a5897e9e0ae0126bf6b8f9`; retained evidence `delete-source-3`.
+tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3177–3224. Retained reference `delete-source-3`.
 
 ```text
 NamespaceDeleteCmd(
@@ -292,7 +292,7 @@ NamespaceDeleteCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 945–1062. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `a13b9b9393b1f4818381bf426cda0ee888d8816b54f989f63233a81aae6c0342`; retained evidence `delete-source-4`.
+tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 945–1062. Retained reference `delete-source-4`.
 
 ```text
 Tcl_DeleteNamespace(
@@ -416,7 +416,7 @@ Tcl_DeleteNamespace(
 
 ```
 
-tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2130–2139. Full-source SHA-256 `9adc0419de1af0c81c7718e1e682fb50f4e2873f7b2d07a0f3cbe380f7d2dce6`; snippet SHA-256 `f44ba1ba2b25da80d92c5182de7839e3fb10f877781652f8a602362543d030c6`; retained evidence `delete-source-5`.
+tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2130–2139. Retained reference `delete-source-5`.
 
 ```text
 TclProcDeleteProc(
@@ -432,7 +432,7 @@ TclProcDeleteProc(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3185–3232. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `d15a5140e95b53e0193c02372e1e51843801c74a298c2cd36fa40b37f31d8d1e`; retained evidence `delete-source-6`.
+tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3185–3232. Retained reference `delete-source-6`.
 
 ```text
 NamespaceDeleteCmd(
@@ -486,7 +486,7 @@ NamespaceDeleteCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 882–1040. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `e29adfd56e61548caa6529324244f690dc3c9984a23e341d378e54d01552e837`; retained evidence `delete-source-7`.
+tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 882–1040. Retained reference `delete-source-7`.
 
 ```text
 Tcl_DeleteNamespace(
@@ -651,7 +651,7 @@ Tcl_DeleteNamespace(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2106–2114. Full-source SHA-256 `c1ddd801a69b0e39bf923e97838134489ca4937fb7d081eccc0814b6811f71b3`; snippet SHA-256 `dec1e7fcb9de3af28b8e02be00acf2750cc82af95386a5ebf3189d1cffd1038d`; retained evidence `delete-source-8`.
+tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2106–2114. Retained reference `delete-source-8`.
 
 ```text
 TclProcDeleteProc(
@@ -666,7 +666,7 @@ TclProcDeleteProc(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3391–3438. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `aff64b3315c8da516cf06d7b6054e5397ea067c32a6a4b5f771f3bc4340ef0ce`; retained evidence `delete-source-9`.
+tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3391–3438. Retained reference `delete-source-9`.
 
 ```text
 NamespaceDeleteCmd(
@@ -720,7 +720,7 @@ NamespaceDeleteCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 1012–1175. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `8bc75e485083864ec8cf1307512f59d3545d7d2632447debf34988382de6e7ae`; retained evidence `delete-source-10`.
+tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 1012–1175. Retained reference `delete-source-10`.
 
 ```text
 Tcl_DeleteNamespace(
@@ -890,7 +890,7 @@ Tcl_DeleteNamespace(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2124–2132. Full-source SHA-256 `ef5ef608fbb22c68d35317e09637f099380457e5d01ff8e1b67f2a8eeb70c110`; snippet SHA-256 `17200e534b0f3185ba7cb1f6b896c812094a24b1daaf034824259fb69b97102c`; retained evidence `delete-source-11`.
+tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2124–2132. Retained reference `delete-source-11`.
 
 ```text
 TclProcDeleteProc(
@@ -905,7 +905,7 @@ TclProcDeleteProc(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3363–3410. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `2ea84b5b6d7c10b50af49cfd740f1859ab8641fc19fb6b32a4fc4aec2ed4df1d`; retained evidence `delete-source-12`.
+tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `NamespaceDeleteCmd`, lines 3363–3410. Retained reference `delete-source-12`.
 
 ```text
 NamespaceDeleteCmd(
@@ -959,7 +959,7 @@ NamespaceDeleteCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 1011–1174. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `f50a1411dda58926a03dc4ef88d4048b3ebcb9c9c5b39bbe0d5aaaf7108639dc`; retained evidence `delete-source-13`.
+tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_DeleteNamespace`, lines 1011–1174. Retained reference `delete-source-13`.
 
 ```text
 Tcl_DeleteNamespace(
@@ -1129,7 +1129,7 @@ Tcl_DeleteNamespace(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2122–2130. Full-source SHA-256 `2c5cf8968a3176aa8e5c316063594186f50109cecd2fbe3c3dff2f3035cefd1a`; snippet SHA-256 `17200e534b0f3185ba7cb1f6b896c812094a24b1daaf034824259fb69b97102c`; retained evidence `delete-source-14`.
+tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclProc.c`, function `TclProcDeleteProc`, lines 2122–2130. Retained reference `delete-source-14`.
 
 ```text
 TclProcDeleteProc(

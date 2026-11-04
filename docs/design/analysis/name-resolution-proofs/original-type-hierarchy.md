@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This precise Rust source contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation-source` (implementation): [rust/tcl-lsp-core/src/type_hierarchy.rs](../../../../rust/tcl-lsp-core/src/type_hierarchy.rs). SHA-256 `45eee7ef9a95cade17dc9e12ad58b11909ce827072ff39c3e01bd341a8b9a886`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
+- `implementation-source` (implementation): [rust/tcl-lsp-core/src/type_hierarchy.rs](../../../../rust/tcl-lsp-core/src/type_hierarchy.rs). Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

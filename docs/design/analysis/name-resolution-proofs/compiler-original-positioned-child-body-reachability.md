@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-compiler-original-positioned-child-body-reachability-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). SHA-256 `84296710bfa218e5a0f0f6017acfe811e694800e986ff636e1b5238560c4524e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-compiler-original-positioned-child-body-reachability-interprocedural.rs` (implementation): [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs). SHA-256 `02ae211cc258d4d2ba96c6b86d1a963478e9663231ea9776ae83162b50ed14cb`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-compiler-original-positioned-child-body-reachability-realm.rs` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). SHA-256 `1ec2575611039c76ce295b3af3440073c74b622baab70413d5b389e25e57d07e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-interprocedural.rs` (implementation): [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-compiler-original-positioned-child-body-reachability-realm.rs` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

@@ -97,11 +97,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.c). SHA-256 `d1e56adf155f6fff0818a1a18fedc138751323dfb8b0c0a7245e4ddc4cf9b58c`. Exact original public/private observer and declared reference ownership.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json). SHA-256 `af16b31c27a19cdaa44e528d75b34fce13bbd74ca38da9423bc2ae908ea2460d`. Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
-- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.txt). SHA-256 `fd02218da3f15cca5e8f4eb9e2fe58e8f34652edbe3a4dd228133a502367514c`. Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
+- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.c). Exact original public/private observer and declared reference ownership.
+- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries_provenance.json). Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
+- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.txt). Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
 
 ## Source inspection
 

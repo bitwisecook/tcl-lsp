@@ -62,22 +62,22 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: No origin
 
 No original external provider process or source comparison answers this Jim software concatenation ownership contract.
 
-## Exact evidence
+## Historical references
 
-- `jim-cat-whole-source` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`. Unchanged official whole original Jim source, shared byte-exact; source interpretation only, no new execution.
-- `jim-cat-source-audit` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json). SHA-256 `851f7b30d45fec677e538043ad17763db9725360c82953e78651e19c047bc13a`. Exact original source revision/hash/window index from the accepted source packet; immutable source interpretation, not provider observation.
-- `jim-cat-source-window-0` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt). SHA-256 `6f8d5ff9cb1f9a93363096779fc91b9ec85d87ce8b7d55e679994dc9a203e5b5`. Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-source-window-1` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt). SHA-256 `239e74aca4a954ec667f14ea5e218b2cf64fd2b60d5b9dd8ba1652f9a8490faf`. Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-source-window-2` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt). SHA-256 `2f4138f46aab99c3925068ce459014f5bdee29d303ea05014937fadcf6d1885b`. Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-source-window-3` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt). SHA-256 `795ee733eee38d695d4035e4f018dfb14693e2c470043dad4b67dad8e0ea4a51`. Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-version-recipe` (source-anchor): [rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json](../../../../rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json). SHA-256 `8228eae6950ab50c2ee30c2789e055dc6755ec8fe8f610bff88887b2d8534c19`. Unchanged current-Jim request retains the exact source/version recipe; its independent public mathop/helper outputs do not measure zero/unary cat or private ownership.
-- `sourceperf-original-owner-1c948d5e5d07` (implementation): [rust/tcl-cmd-core/src/native_cat.rs](../../../../rust/tcl-cmd-core/src/native_cat.rs). SHA-256 `9c81c48f748a9f77d5e7d631011202ed31df30e97aac34d1a53e754e9eb2319f`. The shared Jim cat worker preserves empty, unary and multiple-input ownership and append order. Checked callers supply original String and currentness checks plus full-cause retention.
-- `sourceperf-original-owner-672e02c53fec` (implementation): [rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs](../../../../rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs). SHA-256 `cb1e5a75ce7670ae29545d4f92d75be24e23a6dd470e4541eaed25557fcae882`. The registered software controls describe original ownership, getter/cache refusal and Guest/Host settlement. They carry no attached owned assertion outcome, external provider observation or Native private-header/callback chronology.
-- `sourceperf-original-owner-0cf3af8ba484` (implementation): [rust/tcl-vm/src/value_ops.rs](../../../../rust/tcl-vm/src/value_ops.rs). SHA-256 `17cfbde2438be9076a11813637da5e16c0cf5447fe355eb44c23cd881d550b0e`. Original Jim cat inherits or enters its actual scope before the shared String worker and retains the full first cause before cleanup or legacy error projection; authored materialization stays independently selected.
+- `jim-cat-whole-source` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). Unchanged official whole original Jim source, shared byte-exact; source interpretation only, no new execution.
+- `jim-cat-source-audit` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json). Exact original source revision/hash/window index from the accepted source packet; immutable source interpretation, not provider observation.
+- `jim-cat-source-window-0` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
+- `jim-cat-source-window-1` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
+- `jim-cat-source-window-2` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
+- `jim-cat-source-window-3` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
+- `jim-cat-version-recipe` (source-anchor): [rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json](../../../../rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json). Unchanged current-Jim request retains the exact source/version recipe; its independent public mathop/helper outputs do not measure zero/unary cat or private ownership.
+- `sourceperf-original-owner-1c948d5e5d07` (implementation): [rust/tcl-cmd-core/src/native_cat.rs](../../../../rust/tcl-cmd-core/src/native_cat.rs). The shared Jim cat worker preserves empty, unary and multiple-input ownership and append order. Checked callers supply original String and currentness checks plus full-cause retention.
+- `sourceperf-original-owner-672e02c53fec` (implementation): [rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs](../../../../rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs). The registered software controls describe original ownership, getter/cache refusal and Guest/Host settlement. They carry no attached owned assertion outcome, external provider observation or Native private-header/callback chronology.
+- `sourceperf-original-owner-0cf3af8ba484` (implementation): [rust/tcl-vm/src/value_ops.rs](../../../../rust/tcl-vm/src/value_ops.rs). Original Jim cat inherits or enters its actual scope before the shared String worker and retains the full first cause before cleanup or legacy error projection; authored materialization stays independently selected.
 
 ## Source inspection
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `SetStringFromAny`, lines 2467–2490. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `6f8d5ff9cb1f9a93363096779fc91b9ec85d87ce8b7d55e679994dc9a203e5b5`; retained evidence `jim-cat-whole-source`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `SetStringFromAny`, lines 2467–2490. Retained reference `jim-cat-whole-source`.
 
 ```text
 {
@@ -107,7 +107,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `StringAppendString`, lines 2561–2595. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `239e74aca4a954ec667f14ea5e218b2cf64fd2b60d5b9dd8ba1652f9a8490faf`; retained evidence `jim-cat-whole-source`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `StringAppendString`, lines 2561–2595. Retained reference `jim-cat-whole-source`.
 
 ```text
 static void StringAppendString(Jim_Obj *objPtr, const char *str, int len)
@@ -148,7 +148,7 @@ static void StringAppendString(Jim_Obj *objPtr, const char *str, int len)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_AppendObj`, lines 2596–2610. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `2f4138f46aab99c3925068ce459014f5bdee29d303ea05014937fadcf6d1885b`; retained evidence `jim-cat-whole-source`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_AppendObj`, lines 2596–2610. Retained reference `jim-cat-whole-source`.
 
 ```text
 void Jim_AppendString(Jim_Interp *interp, Jim_Obj *objPtr, const char *str, int len)
@@ -169,7 +169,7 @@ void Jim_AppendObj(Jim_Interp *interp, Jim_Obj *objPtr, Jim_Obj *appendObjPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `OPT_CAT`, lines 14849–14871. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `795ee733eee38d695d4035e4f018dfb14693e2c470043dad4b67dad8e0ea4a51`; retained evidence `jim-cat-whole-source`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `OPT_CAT`, lines 14849–14871. Retained reference `jim-cat-whole-source`.
 
 ```text
         case OPT_CAT:{

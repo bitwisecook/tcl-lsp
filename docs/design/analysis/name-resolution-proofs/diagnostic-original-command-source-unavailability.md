@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original source-unavailability metadata and transport contract has no native provider execution receipt.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

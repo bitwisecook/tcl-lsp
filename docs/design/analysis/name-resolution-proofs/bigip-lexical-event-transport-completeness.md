@@ -62,9 +62,9 @@ Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1. Channel: E
 
 The retained inventories expose missing sequences and incomplete assembled payloads. They do not certify the complete lexical matrix for those events; complete HTTP_REQUEST and hosted-context outputs remain independent evidence. A reached marker and partial transport are preserved without treating absent chunks as observed results.
 
-## Exact evidence
+## Historical references
 
-- `artifact-0` (limitation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json). SHA-256 `2870ac829611d095b04482ca1f6627317c8a028ffdac6b64537653d199048a6a`. Actual chunk completeness/missing-sequence inventory; retains incomplete transport and grants no result for missing event rows.
+- `artifact-0` (limitation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json). Actual chunk completeness/missing-sequence inventory; retains incomplete transport and grants no result for missing event rows.
 
 ## Source inspection
 

@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native provider was invoked for this Rust callback-consumer contract.
 
-## Exact evidence
+## Historical references
 
-- `database-callback-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `e23c9f7a7e27f6022df1bff310c9bede5be64b761cf924973599f9a2f815c8ad`. Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression.
+- `database-callback-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression.
 
 ## Source inspection
 

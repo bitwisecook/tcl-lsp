@@ -66,10 +66,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This precise Rust source contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs). SHA-256 `a456a2eab5d830a739f30271c56be1e5544eb21e746107f7664d8a7d9d473325`. Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs). SHA-256 `91db4c494d015b4d1506b205f04b59b48a03eb392d10bba481023766c6a12f1b`. Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs). Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs). Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
 
 ## Source inspection
 

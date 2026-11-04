@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested for this Rust edit contract. Build: no
 
 No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
 
-## Exact evidence
+## Historical references
 
-- `plan` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d`. Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
+- `plan` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
 
 ## Source inspection
 

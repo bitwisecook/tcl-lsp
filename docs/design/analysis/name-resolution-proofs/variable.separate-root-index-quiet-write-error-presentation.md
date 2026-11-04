@@ -72,15 +72,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-manifest.json). SHA-256 `49d48d1288142c7f8cf14a7f732db4791056057f0d8d244381375ce0dc590e7a`. Exact original compiler/header/library/executable hashes, process receipts and native source anchors where supplied.
-- `e1` (input): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose.c). SHA-256 `efe67f6038caad6144573c9b2cda7031310af2f4463f26a7c0f6d849809c8bdc`. Complete original C translation unit; selected public API and reporter stages are retained.
-- `e2` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.4.20.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.4.20.stdout). SHA-256 `a3e053e31e3a13b2f4b2941b494d322e5a6c95080a367a25f6330f77496cc883`. 8.4.20 complete original captured native transcript.
-- `e3` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.5.19.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.5.19.stdout). SHA-256 `fd3336675b55faafc973f2d5f2d1ef7f20f5bb10324a4f48695e037e7d9eff3b`. 8.5.19 complete original captured native transcript.
-- `e4` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.6.18.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.6.18.stdout). SHA-256 `63b30c93ba7d57316f36855a221922e8e56ead2c1d79eea0702ee6d68f68cd1f`. 8.6.18 complete original captured native transcript.
-- `e5` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.0.4.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.0.4.stdout). SHA-256 `83adbed1d6246c132eece05613773d1de05c88dc9454976c2b207700a8e7e7cb`. 9.0.4 complete original captured native transcript.
-- `e6` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.1.0.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.1.0.stdout). SHA-256 `8dcb3783e29fdc22e7f93116d429378303420be99b124ecf960af45ae06147f8`. 9.1.0 complete original captured native transcript.
+- `e0` (provider): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-manifest.json). Exact original compiler/header/library/executable hashes, process receipts and native source anchors where supplied.
+- `e1` (input): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose.c). Complete original C translation unit; selected public API and reporter stages are retained.
+- `e2` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.4.20.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.4.20.stdout). 8.4.20 complete original captured native transcript.
+- `e3` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.5.19.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.5.19.stdout). 8.5.19 complete original captured native transcript.
+- `e4` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.6.18.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-8.6.18.stdout). 8.6.18 complete original captured native transcript.
+- `e5` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.0.4.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.0.4.stdout). 9.0.4 complete original captured native transcript.
+- `e6` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.1.0.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/part2-purpose-9.1.0.stdout). 9.1.0 complete original captured native transcript.
 
 ## Source inspection
 

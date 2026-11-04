@@ -176,12 +176,12 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [runtime/rust/tests/data/native_dictionary_scope_traces/manifest.json](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/manifest.json). SHA-256 `1290e1622af8bf16ef630d92f08024df221045dfbbd9248f460bd62bc157acf1`. 96 separate shell executions with command/binary/source/observer hashes, exit status, empty stderr and exact stdout.
-- `e1` (input): [runtime/rust/tests/data/native_dictionary_scope_traces/cases.json](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/cases.json). SHA-256 `70af6114d0b6e0a46b5b54aff51cdc311af5720792b9dad9355be5ace9ac31f9`. Retained exact cases.json; original source/object inputs and reporter boundary, independent of Rust implementation.
-- `e2` (input): [runtime/rust/tests/data/native_dictionary_scope_traces/run.py](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/run.py). SHA-256 `01208afb973abd2ae64ce032506bd07d807a6bbf963cda480eecff650657221d`. Retained exact run.py; original source/object inputs and reporter boundary, independent of Rust implementation.
-- `e3` (observation): [runtime/rust/tests/data/native_dictionary_scope_traces/controls.tsv](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/controls.tsv). SHA-256 `20affe2c0579b09bfd6baa264acde2e03f5f43c6b726da357dbcc8e0f0a76efc`. 96 exact source/code/result rows; inner completion tuple remains part of the outer result.
+- `e0` (provider): [runtime/rust/tests/data/native_dictionary_scope_traces/manifest.json](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/manifest.json). 96 separate shell executions with command/binary/source/observer hashes, exit status, empty stderr and exact stdout.
+- `e1` (input): [runtime/rust/tests/data/native_dictionary_scope_traces/cases.json](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/cases.json). Retained exact cases.json; original source/object inputs and reporter boundary, independent of Rust implementation.
+- `e2` (input): [runtime/rust/tests/data/native_dictionary_scope_traces/run.py](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/run.py). Retained exact run.py; original source/object inputs and reporter boundary, independent of Rust implementation.
+- `e3` (observation): [runtime/rust/tests/data/native_dictionary_scope_traces/controls.tsv](../../../../runtime/rust/tests/data/native_dictionary_scope_traces/controls.tsv). 96 exact source/code/result rows; inner completion tuple remains part of the outer result.
 
 ## Source inspection
 

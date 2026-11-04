@@ -62,22 +62,22 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-TraceVarProc.txt). SHA-256 `618870335b0cc62363ca52dab51e139c86c693754a521bd68393d1a95e22e742`. Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e1` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-source-object-dispatch.txt). SHA-256 `6e9e91803affdfa4a238cb96b062404da2d83d275b0391b55fd28d1b46dec217`. Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e2` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-TraceVarProc.txt). SHA-256 `4ef99a3dacfa9511cef6379a2f79b577f90622abbe791978866606c25802d682`. Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e3` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-source-object-dispatch.txt). SHA-256 `25b8dbbfb632e54e6cd57fac4c4ed181158a70566f7ad8c9beca212750e83c61`. Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e4` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-TraceVarProc.txt). SHA-256 `6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a`. Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e5` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-source-object-dispatch.txt). SHA-256 `a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2`. Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e6` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-TraceVarProc.txt). SHA-256 `6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a`. Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e7` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-source-object-dispatch.txt). SHA-256 `a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2`. Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-TraceVarProc.txt). SHA-256 `6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a`. Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-source-object-dispatch.txt). SHA-256 `a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2`. Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
+- `e0` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
+- `e1` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
+- `e2` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
+- `e3` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
+- `e4` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
+- `e5` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
+- `e6` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
+- `e7` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
+- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
+- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCmdMZ.c`, function `TraceVarProc`, lines 4927–4944. Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `618870335b0cc62363ca52dab51e139c86c693754a521bd68393d1a95e22e742`; retained evidence `e0`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCmdMZ.c`, function `TraceVarProc`, lines 4927–4944. Retained reference `e0`.
 
 ```text
 
@@ -101,7 +101,7 @@ tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCmdMZ.c`, funct
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclBasic.c`, function `EvalEx`, lines 4256–4273. Full-source SHA-256 `cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a`; snippet SHA-256 `6e9e91803affdfa4a238cb96b062404da2d83d275b0391b55fd28d1b46dec217`; retained evidence `e1`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclBasic.c`, function `EvalEx`, lines 4256–4273. Retained reference `e1`.
 
 ```text
 	    eeFrame.cmd.str.len = parse.commandSize;
@@ -125,7 +125,7 @@ tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclBasic.c`, funct
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclTrace.c`, function `TraceVarProc`, lines 2045–2062. Full-source SHA-256 `d974ce7d57afd060edbc9a858975e17c9577c7905f5dfaf6df477fa409ef89e6`; snippet SHA-256 `4ef99a3dacfa9511cef6379a2f79b577f90622abbe791978866606c25802d682`; retained evidence `e2`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclTrace.c`, function `TraceVarProc`, lines 2045–2062. Retained reference `e2`.
 
 ```text
 	     * double-free might occur depending on what the eval does.
@@ -149,7 +149,7 @@ tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclTrace.c`, funct
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclBasic.c`, function `TclEvalEx`, lines 4461–4478. Full-source SHA-256 `d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63`; snippet SHA-256 `25b8dbbfb632e54e6cd57fac4c4ed181158a70566f7ad8c9beca212750e83c61`; retained evidence `e3`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclBasic.c`, function `TclEvalEx`, lines 4461–4478. Retained reference `e3`.
 
 ```text
 		    parsePtr->commandStart + parsePtr->commandSize - 1) {
@@ -173,7 +173,7 @@ tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclBasic.c`, funct
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclTrace.c`, function `TraceVarProc`, lines 2056–2073. Full-source SHA-256 `8034d0a6da9f529bebeedfa4ab8af88f944bf858ad8c498719a972ac81d503a9`; snippet SHA-256 `6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a`; retained evidence `e4`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclTrace.c`, function `TraceVarProc`, lines 2056–2073. Retained reference `e4`.
 
 ```text
 	    /*
@@ -197,7 +197,7 @@ tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclTrace.c`, funct
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclBasic.c`, function `TclEvalEx`, lines 5448–5465. Full-source SHA-256 `19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198`; snippet SHA-256 `a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2`; retained evidence `e5`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclBasic.c`, function `TclEvalEx`, lines 5448–5465. Retained reference `e5`.
 
 ```text
 
@@ -221,7 +221,7 @@ tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclBasic.c`, funct
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclTrace.c`, function `TraceVarProc`, lines 1921–1938. Full-source SHA-256 `b091fe603d801002a17d6d4c18de08f43e7aa7851abc64849ab2b1f7aac52904`; snippet SHA-256 `6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a`; retained evidence `e6`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclTrace.c`, function `TraceVarProc`, lines 1921–1938. Retained reference `e6`.
 
 ```text
 	    /*
@@ -245,7 +245,7 @@ tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclTrace.c`, functio
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclBasic.c`, function `TclEvalEx`, lines 5621–5638. Full-source SHA-256 `6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67`; snippet SHA-256 `a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2`; retained evidence `e7`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclBasic.c`, function `TclEvalEx`, lines 5621–5638. Retained reference `e7`.
 
 ```text
 
@@ -269,7 +269,7 @@ tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclBasic.c`, functio
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclTrace.c`, function `TraceVarProc`, lines 1926–1943. Full-source SHA-256 `b39de1869c493f1405355c9f92537bdd5d9839a42a10da78b18a725309d71847`; snippet SHA-256 `6e0697a1677220d78ca1db76fd16057f61024abb332bd54ad39d4af738e1bb5a`; retained evidence `e8`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclTrace.c`, function `TraceVarProc`, lines 1926–1943. Retained reference `e8`.
 
 ```text
 	    /*
@@ -293,7 +293,7 @@ tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclTrace.c`, functio
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, function `TclEvalEx`, lines 5579–5596. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `a25037c1d9ed2c3bc155a6d877a78067c448205c3093686f5424d7992d4f60d2`; retained evidence `e9`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, function `TclEvalEx`, lines 5579–5596. Retained reference `e9`.
 
 ```text
 

@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

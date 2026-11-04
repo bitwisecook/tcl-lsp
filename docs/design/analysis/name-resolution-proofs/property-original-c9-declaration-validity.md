@@ -62,13 +62,13 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No guest execution of this Rust implementation question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json). SHA-256 `3049c32917c8ca493a5013e2bdd9f5558c6e9ba75542cb1ce06f932a35d78f3d`. JSON pointer `/source_anchors`. Retained complete C function snippets, original full file hashes and exact line ranges for independently selected bootstrap or declaration purposes.
+- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json). JSON pointer `/source_anchors`. Retained complete C function snippets, original full file hashes and exact line ranges for independently selected bootstrap or declaration purposes.
 
 ## Source inspection
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOProp.c`, function `InstallStdPropertyImpls`, lines 968–1029. Full-source SHA-256 `43f16f2b596af56b27320ff5e735c3073e081dbf183b05b5aa785ff7a2b57789`; snippet SHA-256 `ccd689670c416a23bc7a90416577491406555611761d216d8e5f7e407f76270c`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOProp.c`, function `InstallStdPropertyImpls`, lines 968–1029. Retained reference `c-source`.
 
 ```text
 InstallStdPropertyImpls(
@@ -136,7 +136,7 @@ InstallStdPropertyImpls(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOProp.c`, function `InstallStdPropertyImpls`, lines 1077–1138. Full-source SHA-256 `c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf`; snippet SHA-256 `c137d59523fe20c072a1a3fec4a7b441ef8eb83aedf65a1e4e40b4b9d890349c`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOProp.c`, function `InstallStdPropertyImpls`, lines 1077–1138. Retained reference `c-source`.
 
 ```text
 InstallStdPropertyImpls(

@@ -66,7 +66,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

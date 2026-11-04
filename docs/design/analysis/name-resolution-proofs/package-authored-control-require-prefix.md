@@ -92,11 +92,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not t
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
 
-## Exact evidence
+## Historical references
 
-- `file-0` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). SHA-256 `4859b6b5c25aeeb3c3e50bf18d2a98391567305cd514a51caf24285169fb0df2`. Exact retained capture/provenance artifact; purpose is limited to this question.
-- `exact-tcl8.4` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). SHA-256 `4859b6b5c25aeeb3c3e50bf18d2a98391567305cd514a51caf24285169fb0df2`. JSON pointer `/1`. Exact original program and caught result/native process streams.
-- `exact-tcl9.0` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). SHA-256 `4859b6b5c25aeeb3c3e50bf18d2a98391567305cd514a51caf24285169fb0df2`. JSON pointer `/19`. Exact original program and caught result/native process streams.
+- `file-0` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). Exact retained capture/provenance artifact; purpose is limited to this question.
+- `exact-tcl8.4` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). JSON pointer `/1`. Exact original program and caught result/native process streams.
+- `exact-tcl9.0` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). JSON pointer `/19`. Exact original program and caught result/native process streams.
 
 ## Source inspection
 

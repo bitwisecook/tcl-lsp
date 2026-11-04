@@ -123,10 +123,10 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json). SHA-256 `fc63dd3a41039235ef22369e3c229029e0cafc64a621536ee62340ab17923b6f`. Original C8.5 caught execution body/result/visited and wrapper-source hashes.
-- `e1` (input): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs). SHA-256 `a6e9f2dd5461cc1e40cddb327c89e54e6e0269b6aafcc7933f374f1d16bddae0`. Exact current eight body/code/result/visited tuples copied from the original execution capture.
+- `e0` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json). Original C8.5 caught execution body/result/visited and wrapper-source hashes.
+- `e1` (input): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs). Exact current eight body/code/result/visited tuples copied from the original execution capture.
 
 ## Source inspection
 

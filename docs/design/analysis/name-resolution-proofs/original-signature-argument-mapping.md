@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_invocation.rs](../../../../rust/tcl-lsp-core/src/original_invocation.rs). SHA-256 `f2acb596d82079353262dba943a2b6daa9e6a1d3f43432227fca9a47c5a89d56`. Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/signature_help.rs](../../../../rust/tcl-lsp-core/src/signature_help.rs). SHA-256 `94e13e2eb905f9eeaa3a68e41c9f1018d97af570abd67e7163b2382e9ad8978c`. Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_invocation.rs](../../../../rust/tcl-lsp-core/src/original_invocation.rs). Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/signature_help.rs](../../../../rust/tcl-lsp-core/src/signature_help.rs). Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
 
 ## Source inspection
 

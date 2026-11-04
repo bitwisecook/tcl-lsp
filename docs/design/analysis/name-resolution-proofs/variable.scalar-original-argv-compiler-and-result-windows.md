@@ -156,17 +156,17 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-registry/tests/data/native_scalar_compilation/manifest.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/manifest.json). SHA-256 `f4b7cb94b7ee39d8a040b69a676874d3f37a20e9da7c4633eb491a2a28376dfb`. All five original compile/run commands, header/archive/probe hashes and stdout/stderr hex.
-- `e1` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/probe.c](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/probe.c). SHA-256 `d60649c8ccecd9c9d88781fda3b5c4006b96f3fa99eecec52e118d8f69fb96ca`. Actual 15-body procedure, original three-byte argv, private bytecode and object/result inspection.
-- `e2` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/cases.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/cases.json). SHA-256 `1620d5110cda29a730e268f0a4d06e3e3086e783638deeeef1de74c7784c7cec`. Exact shared 15-body roster.
-- `e3` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/cases.rs](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/cases.rs). SHA-256 `2c4d16f01383ca329bb1e25e1b92b5869832e5296e823ddc9c698817e1b221d8`. Same bodies consumed by the current Rust comparison.
-- `e4` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv). SHA-256 `a6e55904a11165e0a275405a1235d6511e7405594b830def4377e66efb0ce12a`. All fifteen opcode/completion/result/type/cache/refcount/identity windows.
-- `e5` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv). SHA-256 `411b1ad6b1a9015329801fd0db66900f47a8f18f48a934b141a29e5839d577c0`. All fifteen opcode/completion/result/type/cache/refcount/identity windows.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv). SHA-256 `135f35d392c8075b5191659035a939b76272e4f77a01d10781ac505100b4fbe6`. All fifteen opcode/completion/result/type/cache/refcount/identity windows.
-- `e7` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv). SHA-256 `135f35d392c8075b5191659035a939b76272e4f77a01d10781ac505100b4fbe6`. All fifteen opcode/completion/result/type/cache/refcount/identity windows.
-- `e8` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv). SHA-256 `36c33c4b676bead216dabd1b96327ff3762634c36fb5f2ac0b7a3269746a4691`. All fifteen opcode/completion/result/type/cache/refcount/identity windows.
+- `e0` (provider): [rust/tcl-registry/tests/data/native_scalar_compilation/manifest.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/manifest.json). All five original compile/run commands, header/archive/probe hashes and stdout/stderr hex.
+- `e1` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/probe.c](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/probe.c). Actual 15-body procedure, original three-byte argv, private bytecode and object/result inspection.
+- `e2` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/cases.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/cases.json). Exact shared 15-body roster.
+- `e3` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/cases.rs](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/cases.rs). Same bodies consumed by the current Rust comparison.
+- `e4` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.4.20.tsv). All fifteen opcode/completion/result/type/cache/refcount/identity windows.
+- `e5` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.5.19.tsv). All fifteen opcode/completion/result/type/cache/refcount/identity windows.
+- `e6` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/8.6.18.tsv). All fifteen opcode/completion/result/type/cache/refcount/identity windows.
+- `e7` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.0.4.tsv). All fifteen opcode/completion/result/type/cache/refcount/identity windows.
+- `e8` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/9.1.0.tsv). All fifteen opcode/completion/result/type/cache/refcount/identity windows.
 
 ## Source inspection
 

@@ -62,14 +62,14 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This exact original-object C9.1 probe has no observation for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [runtime/rust/tests/data/native_property_opaque/probe.c](../../../../runtime/rust/tests/data/native_property_opaque/probe.c). SHA-256 `04294ffd4e1b4ba00693f23b1e570260b16587ba62d36c5d1bc3a172396c4679`. Exact original-object constructors, invocation and pre-render cache observer.
-- `receipt` (provider): [runtime/rust/tests/data/native_property_opaque/manifest.json](../../../../runtime/rust/tests/data/native_property_opaque/manifest.json). SHA-256 `f3440403a0c3fae844c59052acc5d5754fffdbfa409f228b70244b3db21456de`. Original compile/process status, original source/header/library/executable digests, environment and full streams.
-- `rows` (observation): [runtime/rust/tests/data/native_property_opaque/native.tsv](../../../../runtime/rust/tests/data/native_property_opaque/native.tsv). SHA-256 `5346337dee62ff9f9af8f5bdf5e0cf376435cb0e033346afaf0848728f9cd004`. Exact full original stdout retained separately.
-- `capture` (limitation): [runtime/rust/tests/data/native_property_opaque/capture.py](../../../../runtime/rust/tests/data/native_property_opaque/capture.py). SHA-256 `dcd2625f990e870186919efc794031323dcfdacfca83fdddeb182925376e0934`. Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier.
-- `receiver-current642-3130fecefbdfb6d3` (implementation): [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs). SHA-256 `0ecb26738bc7a0740d53a635badb71ffa62489c058404d4a52544ef9b31f7b65`. Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
-- `receiver-current642-8ce69af7c7160e4b` (implementation): [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs). SHA-256 `7dcb4b9ac8026652e71d6260660878501782be4a37f361d9be96c5338db5df5d`. Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
+- `probe` (input): [runtime/rust/tests/data/native_property_opaque/probe.c](../../../../runtime/rust/tests/data/native_property_opaque/probe.c). Exact original-object constructors, invocation and pre-render cache observer.
+- `receipt` (provider): [runtime/rust/tests/data/native_property_opaque/manifest.json](../../../../runtime/rust/tests/data/native_property_opaque/manifest.json). Original compile/process status, original source/header/library/executable digests, environment and full streams.
+- `rows` (observation): [runtime/rust/tests/data/native_property_opaque/native.tsv](../../../../runtime/rust/tests/data/native_property_opaque/native.tsv). Exact full original stdout retained separately.
+- `capture` (limitation): [runtime/rust/tests/data/native_property_opaque/capture.py](../../../../runtime/rust/tests/data/native_property_opaque/capture.py). Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier.
+- `receiver-current642-3130fecefbdfb6d3` (implementation): [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs). Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
+- `receiver-current642-8ce69af7c7160e4b` (implementation): [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs). Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
 
 ## Source inspection
 

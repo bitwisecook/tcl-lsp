@@ -62,19 +62,19 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `info-original-named-member-hooks262-inspection` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json). SHA-256 `2f24d93e85026c050702cdc1bb483dbf44f053f93fe995cd8d47d30b33f687cd`. Exact read-only source inspection table/selector line ranges, original full source and excerpt digests; no native or Rust process observation.
-- `info-named-member-source-8.4.20` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c). SHA-256 `92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a`. Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-8.5.19` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c). SHA-256 `51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e`. Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-8.6.18` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c). SHA-256 `26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23`. Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-9.0.4` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c). SHA-256 `af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7`. Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-9.1.0` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c). SHA-256 `d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a`. Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `naming-info-original-named-member-source-hooks-info_.rs` (implementation): [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs). SHA-256 `14e41c412fc150394a3f7f1a184a7255d572e52b7b2cdc70311fd18aa1e74c5e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `info-original-named-member-hooks262-inspection` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json). Exact read-only source inspection table/selector line ranges, original full source and excerpt digests; no native or Rust process observation.
+- `info-named-member-source-8.4.20` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
+- `info-named-member-source-8.5.19` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
+- `info-named-member-source-8.6.18` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
+- `info-named-member-source-9.0.4` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
+- `info-named-member-source-9.1.0` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
+- `naming-info-original-named-member-source-hooks-info_.rs` (implementation): [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c`, function `subCmds`, lines 425–435. Full-source SHA-256 `92695cd7731ce21ab5441fb6ce2d23e5cb44f020256a607397ebe836b5a9b14a`; snippet SHA-256 `b4bfdb3fb6e7dbf4f781d0f95064579d75d4b75453b24a6d48f65df175da96a6`; retained evidence `info-named-member-source-8.4.20`.
+tcl8.4 8.4.20, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c`, function `subCmds`, lines 425–435. Retained reference `info-named-member-source-8.4.20`.
 
 ```text
     static CONST char *subCmds[] = {
@@ -91,7 +91,7 @@ tcl8.4 8.4.20, revision `Pinned complete original provider source`, `/workspace/
 
 ```
 
-tcl8.5 8.5.19, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c`, function `defaultInfoMap`, lines 155–179. Full-source SHA-256 `51be49bd7e373aa319cb2affb341853473cbbf089694650bfff7689d3c925d8e`; snippet SHA-256 `995bafaf40d8072c0cc4184721765f5da7bed258bca61e58142d87f0ac2a32f3`; retained evidence `info-named-member-source-8.5.19`.
+tcl8.5 8.5.19, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c`, function `defaultInfoMap`, lines 155–179. Retained reference `info-named-member-source-8.5.19`.
 
 ```text
 static const EnsembleImplMap defaultInfoMap[] = {
@@ -122,7 +122,7 @@ static const EnsembleImplMap defaultInfoMap[] = {
 
 ```
 
-tcl8.6 8.6.18, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c`, function `defaultInfoMap`, lines 155–181. Full-source SHA-256 `26d3d423720df253aefd7ad412e939165282a1f80fd6cd8c42900875d9627a23`; snippet SHA-256 `703fc9501224cc267f80172c041d74b0b5497403423e4ae8767c34c949c4d48a`; retained evidence `info-named-member-source-8.6.18`.
+tcl8.6 8.6.18, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c`, function `defaultInfoMap`, lines 155–181. Retained reference `info-named-member-source-8.6.18`.
 
 ```text
 static const EnsembleImplMap defaultInfoMap[] = {
@@ -155,7 +155,7 @@ static const EnsembleImplMap defaultInfoMap[] = {
 
 ```
 
-tcl9.0 9.0.4, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c`, function `defaultInfoMap`, lines 151–180. Full-source SHA-256 `af564d5d77f8f70cf120dbd49509a8580130cc89352f52424a01920fb0da4fa7`; snippet SHA-256 `f009f3959451b71592a39bd08dc04346eace9fb33f17d9d199f09d39dfc6a664`; retained evidence `info-named-member-source-9.0.4`.
+tcl9.0 9.0.4, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c`, function `defaultInfoMap`, lines 151–180. Retained reference `info-named-member-source-9.0.4`.
 
 ```text
 static const EnsembleImplMap defaultInfoMap[] = {
@@ -191,7 +191,7 @@ static const EnsembleImplMap defaultInfoMap[] = {
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c`, function `tclInfoImplMap`, lines 152–181. Full-source SHA-256 `d5b92a5b9c8c923142db6b76f816cbe6ca857255861a3c3dc53787fa9b335e5a`; snippet SHA-256 `28b0dddebe9a2046b4220c08e3c970fbb246f8f88402c4417988a90421cf63fd`; retained evidence `info-named-member-source-9.1.0`.
+tcl9.1 9.1.0, revision `Pinned complete original provider source`, `/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c`, function `tclInfoImplMap`, lines 152–181. Retained reference `info-named-member-source-9.1.0`.
 
 ```text
 const EnsembleImplMap tclInfoImplMap[] = {

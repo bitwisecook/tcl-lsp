@@ -87,15 +87,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/probe.c](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/probe.c). SHA-256 `95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4`. Exact original command/data role and source-order programs.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/manifest.json](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/manifest.json). SHA-256 `0dad3f8b7aa1e5d82d14766412ffaef6f1e5f7578ee395f1194978585f37e2ed`. Original full stream digest, release association and recorded build fields; absence of compile status/header fields is not repaired from current builds.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.4.20.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.4.20.txt). SHA-256 `8afe2e9e967f23f2972f9eb088c67c299245202260304d845a7f28f6d6c1ada9`. Full exact captured stream; relevant stages ['probe'].
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.5.19.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.5.19.txt). SHA-256 `be8bc459681ef04aa6da6b3238eaece719d6a76a296922cd2d6d7bf56d070f3e`. Full exact captured stream; relevant stages ['probe'].
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.6.18.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.6.18.txt). SHA-256 `51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f`. Full exact captured stream; relevant stages ['probe'].
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.0.4.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.0.4.txt). SHA-256 `51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f`. Full exact captured stream; relevant stages ['probe'].
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.1.0.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.1.0.txt). SHA-256 `51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f`. Full exact captured stream; relevant stages ['probe'].
+- `probe` (input): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/probe.c](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/probe.c). Exact original command/data role and source-order programs.
+- `receipt` (provider): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/manifest.json](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/manifest.json). Original full stream digest, release association and recorded build fields; absence of compile status/header fields is not repaired from current builds.
+- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.4.20.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.4.20.txt). Full exact captured stream; relevant stages ['probe'].
+- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.5.19.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.5.19.txt). Full exact captured stream; relevant stages ['probe'].
+- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.6.18.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/8.6.18.txt). Full exact captured stream; relevant stages ['probe'].
+- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.0.4.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.0.4.txt). Full exact captured stream; relevant stages ['probe'].
+- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.1.0.txt](../../../../rust/tcl-vm/tests/data/native_literal_pools/command-actions/9.1.0.txt). Full exact captured stream; relevant stages ['probe'].
 
 ## Source inspection
 

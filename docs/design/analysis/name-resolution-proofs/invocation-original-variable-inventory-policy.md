@@ -66,7 +66,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

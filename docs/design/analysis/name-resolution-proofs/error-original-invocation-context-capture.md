@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
 
-## Exact evidence
+## Historical references
 
-- `naming.error.original-invocation-context-capture.definition.0` (implementation): [rust/tcl-vm/src/interp/native_error_stack.rs](../../../../rust/tcl-vm/src/interp/native_error_stack.rs). SHA-256 `3090f391be31fa5cf9433bfd1a0ec4e2a9334987f94788c793e489ab875270f1`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-- `naming.error.original-invocation-context-capture.definition.1` (implementation): [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs). SHA-256 `cf39cb9e07d0dc05abc73093b19e283d888b993964cd7e06d635640b924391c5`. The original error-context capture and owned return-options shape query preserve live-header, selected protocol and member ownership checks without reaching child String getters. This implementation digest carries no assertion result, provider observation or execution admission.
-- `naming.error.original-invocation-context-capture.definition.2` (implementation): [rust/tcl-vm/src/native_list_backing.rs](../../../../rust/tcl-vm/src/native_list_backing.rs). SHA-256 `249ae2d65c1febdba256cdc106ffd75b3e066df3382f034a914acac1fd645af5`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
+- `naming.error.original-invocation-context-capture.definition.0` (implementation): [rust/tcl-vm/src/interp/native_error_stack.rs](../../../../rust/tcl-vm/src/interp/native_error_stack.rs). Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
+- `naming.error.original-invocation-context-capture.definition.1` (implementation): [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs). The original error-context capture and owned return-options shape query preserve live-header, selected protocol and member ownership checks without reaching child String getters. This implementation digest carries no assertion result, provider observation or execution admission.
+- `naming.error.original-invocation-context-capture.definition.2` (implementation): [rust/tcl-vm/src/native_list_backing.rs](../../../../rust/tcl-vm/src/native_list_backing.rs). Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
 
 ## Source inspection
 

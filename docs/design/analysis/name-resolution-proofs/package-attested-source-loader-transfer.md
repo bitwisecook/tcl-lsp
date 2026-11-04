@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This Rust attested source-model transfer has no native provider execution receipt.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

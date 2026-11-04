@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
 
-## Exact evidence
+## Historical references
 
-- `data-group-lookup-source-implementation-0` (implementation): [rust/tcl-registry/src/source_configuration_reference.rs](../../../../rust/tcl-registry/src/source_configuration_reference.rs). SHA-256 `66d633f91abb3d648b612ded9359734c4ad8400049b56e29e01bc7721edb427b`. Reviewed selected conditional source layout and metadata only; no executed Rust or Native provider result.
-- `data-group-lookup-source-implementation-1` (implementation): [rust/tcl-registry/src/commands/irules/class.rs](../../../../rust/tcl-registry/src/commands/irules/class.rs). SHA-256 `02bdc9503133db6f3e6c1749ff43a65319ef509c52a57b0ce4239b9244210315`. Reviewed selected conditional source layout and metadata only; no executed Rust or Native provider result.
+- `data-group-lookup-source-implementation-0` (implementation): [rust/tcl-registry/src/source_configuration_reference.rs](../../../../rust/tcl-registry/src/source_configuration_reference.rs). Reviewed selected conditional source layout and metadata only; no executed Rust or Native provider result.
+- `data-group-lookup-source-implementation-1` (implementation): [rust/tcl-registry/src/commands/irules/class.rs](../../../../rust/tcl-registry/src/commands/irules/class.rs). Reviewed selected conditional source layout and metadata only; no executed Rust or Native provider result.
 
 ## Source inspection
 

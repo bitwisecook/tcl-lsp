@@ -138,15 +138,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json). SHA-256 `fc63dd3a41039235ef22369e3c229029e0cafc64a621536ee62340ab17923b6f`. C8.5 original source body/log hashes, binary hash and compiler frontier answers; execution subset is separately documented.
-- `e1` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json). SHA-256 `d1bc42c9d7f785f885f6f74bcf717d661e1aba5afba446b400bb1e3e79e6da8b`. 45 modern individual script/status/nsupvar-count/source/binary provenance records.
-- `e2` (input): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs). SHA-256 `7fff38f03a603ae40e0b633f8986718101ab3b574823459ce87251c5af52e937`. Exact fifteen original bodies, with escaped/quoted/braced/empty/expanded/partial locals.
-- `e3` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv). SHA-256 `fcd5396c08a0a349f7159b2cbc0efb32cd615271a3b4759f81d59d56b595f00b`. Fifteen original opcode/local/literal frontiers, plus field header.
-- `e4` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv). SHA-256 `af2621ad53a54fe0c56b7302bc9a8be3382b56599ddb727e573c3778bc1debe3`. Fifteen original opcode/local/literal frontiers, plus field header.
-- `e5` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv). SHA-256 `af2621ad53a54fe0c56b7302bc9a8be3382b56599ddb727e573c3778bc1debe3`. Fifteen original opcode/local/literal frontiers, plus field header.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv). SHA-256 `af2621ad53a54fe0c56b7302bc9a8be3382b56599ddb727e573c3778bc1debe3`. Fifteen original opcode/local/literal frontiers, plus field header.
+- `e0` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json). C8.5 original source body/log hashes, binary hash and compiler frontier answers; execution subset is separately documented.
+- `e1` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json). 45 modern individual script/status/nsupvar-count/source/binary provenance records.
+- `e2` (input): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs). Exact fifteen original bodies, with escaped/quoted/braced/empty/expanded/partial locals.
+- `e3` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
+- `e4` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
+- `e5` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
+- `e6` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
 
 ## Source inspection
 

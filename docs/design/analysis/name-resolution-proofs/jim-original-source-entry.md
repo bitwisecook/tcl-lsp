@@ -62,25 +62,25 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No in
 
 No C/appliance source or execution comparison for this Jim object-primary question.
 
-## Exact evidence
+## Historical references
 
-- `jim-source-0` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/0/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-1` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/1/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-2` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/2/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-3` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/3/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-4` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/4/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-5` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/5/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-6` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/6/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-7` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/7/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-8` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). SHA-256 `9e1e7d02735ac9d4e32bbdab2a1c10241b1f71b2725b7d771bfe17cafe2964f1`. JSON pointer `/8/snippet`. Original Jim catch helper evaluates the retained argv script object; source inspection only.
-- `jim-full` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`. Exact pinned full Jim source supporting the selected source windows and full-file correspondence.
-- `jim-error-frame-0` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). SHA-256 `3d9b96a5213219a9ba932288336c535479cb257ed0dedd9672a12cb87084e14c`. JSON pointer `/0/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
-- `jim-error-frame-1` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). SHA-256 `3d9b96a5213219a9ba932288336c535479cb257ed0dedd9672a12cb87084e14c`. JSON pointer `/1/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
-- `jim-error-frame-2` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). SHA-256 `3d9b96a5213219a9ba932288336c535479cb257ed0dedd9672a12cb87084e14c`. JSON pointer `/2/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
+- `jim-source-0` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/0/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-1` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/1/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-2` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/2/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-3` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/3/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-4` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/4/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-5` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/5/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-6` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/6/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-7` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/7/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
+- `jim-source-8` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/8/snippet`. Original Jim catch helper evaluates the retained argv script object; source inspection only.
+- `jim-full` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). Exact pinned full Jim source supporting the selected source windows and full-file correspondence.
+- `jim-error-frame-0` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). JSON pointer `/0/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
+- `jim-error-frame-1` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). JSON pointer `/1/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
+- `jim-error-frame-2` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). JSON pointer `/2/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
 
 ## Source inspection
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `ScriptObjAddTokens`, lines 3635–3647. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `daf4e2428d85f8cf71d5a54da0238010064b7d3cd5d6cef93a90d35e60ef4661`; retained evidence `jim-source-0`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `ScriptObjAddTokens`, lines 3635–3647. Retained reference `jim-source-0`.
 
 ```text
             const ParseToken *t = &tokenlist->list[i++];
@@ -99,7 +99,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetSourceInfo`, lines 3727–3747. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `0bb79aca785137c131e8755b68d6dfd8924bf9535c586df5750058f240a4444b`; retained evidence `jim-source-1`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetSourceInfo`, lines 3727–3747. Retained reference `jim-source-1`.
 
 ```text
 Jim_Obj *Jim_GetSourceInfo(Jim_Interp *interp, Jim_Obj *objPtr, int *lineptr)
@@ -126,7 +126,7 @@ Jim_Obj *Jim_GetSourceInfo(Jim_Interp *interp, Jim_Obj *objPtr, int *lineptr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_SetSourceInfo`, lines 3749–3758. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `35e9e861f6e1c593cf6fc3909275de4d7ff5661badba6828f3af6f17efc169b3`; retained evidence `jim-source-2`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_SetSourceInfo`, lines 3749–3758. Retained reference `jim-source-2`.
 
 ```text
 void Jim_SetSourceInfo(Jim_Interp *interp, Jim_Obj *objPtr,
@@ -142,7 +142,7 @@ void Jim_SetSourceInfo(Jim_Interp *interp, Jim_Obj *objPtr,
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimSetScriptFromAny`, lines 3791–3844. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `f6c402b64a7486ae6b886b7307c31f8ed4cd10ef688a8ad808ba2e140b678f44`; retained evidence `jim-source-3`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimSetScriptFromAny`, lines 3791–3844. Retained reference `jim-source-3`.
 
 ```text
 static void JimSetScriptFromAny(Jim_Interp *interp, struct Jim_Obj *objPtr)
@@ -202,7 +202,7 @@ static void JimSetScriptFromAny(Jim_Interp *interp, struct Jim_Obj *objPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimAddStackFrame`, lines 6151–6168. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `4ba750a4d923b20a06b846475ed11b4608fcbbcb6374a65de857a011178179b3`; retained evidence `jim-source-4`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimAddStackFrame`, lines 6151–6168. Retained reference `jim-source-4`.
 
 ```text
 static void JimAddStackFrame(Jim_Interp *interp, Jim_EvalFrame *frame, Jim_Obj *listObj)
@@ -226,7 +226,7 @@ static void JimAddStackFrame(Jim_Interp *interp, Jim_EvalFrame *frame, Jim_Obj *
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimSetErrorStack`, lines 6180–6205. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `db70fab854b7998d42a9790361b714bec939a259756b19d46c6cd8e07134b6fe`; retained evidence `jim-source-5`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimSetErrorStack`, lines 6180–6205. Retained reference `jim-source-5`.
 
 ```text
 static void JimSetErrorStack(Jim_Interp *interp, ScriptObj *script)
@@ -258,7 +258,7 @@ static void JimSetErrorStack(Jim_Interp *interp, ScriptObj *script)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalSource`, lines 12068–12081. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `852961cf3bad4c9297bb5b101aabb63420585bcc4aace3e4c52804c1db88d55b`; retained evidence `jim-source-6`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalSource`, lines 12068–12081. Retained reference `jim-source-6`.
 
 ```text
 int Jim_EvalSource(Jim_Interp *interp, const char *filename, int lineno, const char *script)
@@ -278,7 +278,7 @@ int Jim_EvalSource(Jim_Interp *interp, const char *filename, int lineno, const c
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalFile`, lines 12120–12168. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `4dcbe0c82d53aff2760380ea9daed26891e9400aea9c272d8510940734f8df8b`; retained evidence `jim-source-7`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalFile`, lines 12120–12168. Retained reference `jim-source-7`.
 
 ```text
 int Jim_EvalFile(Jim_Interp *interp, const char *filename)
@@ -333,7 +333,7 @@ int Jim_EvalFile(Jim_Interp *interp, const char *filename)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimCatchTryHelper`, lines 15319–15330. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `0c9bb7938a26a9b55db95c6aa641511d40ec1f10dfe5faea798c8e2b13905f46`; retained evidence `jim-source-8`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimCatchTryHelper`, lines 15319–15330. Retained reference `jim-source-8`.
 
 ```text
 
@@ -351,7 +351,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalObj`, lines 11568–11575. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `f2df84187410d03f1d7f3d867fe7f6a1d4c178ad93b0d746dc5bdf92e7ef9ddb`; retained evidence `jim-error-frame-0`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalObj`, lines 11568–11575. Retained reference `jim-error-frame-0`.
 
 ```text
 
@@ -365,7 +365,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalObj`, lines 11626–11636. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `36c4ba3eb9ba119dab9896a94105b57f623e8000bc30c331d5afb374e71966ca`; retained evidence `jim-error-frame-1`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalObj`, lines 11626–11636. Retained reference `jim-error-frame-1`.
 
 ```text
     script->inUse++;
@@ -382,7 +382,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalObj`, lines 11780–11786. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `8987c30883d1d34fb12f5c5ab407b3d4e9d9e47d3874ab942ec49fe803c90ffe`; retained evidence `jim-error-frame-2`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_EvalObj`, lines 11780–11786. Retained reference `jim-error-frame-2`.
 
 ```text
     /* Possibly add to the error stack trace */

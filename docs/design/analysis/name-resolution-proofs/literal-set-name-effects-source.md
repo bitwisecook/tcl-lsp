@@ -62,47 +62,47 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileSetCmd.txt`. SHA-256 `a67197c79da42a0467050b5fdb76930a8d8b502ef2e8ca68d787b4ad45a3a76f`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
+- `e0`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
 
-- `e1`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclPushVarName.txt`. SHA-256 `b9fd87d654b758367c00fbd16fe8394e91c5f95dedc6b681d9ba699468b45107`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
+- `e1`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
 
-- `e2`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileTokens.txt`. SHA-256 `28cc01627a3f5190822bbbf9a864d45696cb8727a2cfbf3def2c7f09da492afa`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
+- `e2`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
 
-- `e3`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclFindCompiledLocal.txt`. SHA-256 `c719316f477c7007c60b313b7ca0b00b12bf22372981a3819bdbf232eb3dde79`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
+- `e3`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
 
-- `e4`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileSetCmd.txt`. SHA-256 `ef1e582aeeed894fe50713e0f8ce8a99a06c94f2466e1f94cd9f4e1c5d849dcf`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
+- `e4`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
 
-- `e5`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-PushVarName.txt`. SHA-256 `93765f759ed489263582d7d4f2b86f58fab7e0a7cf1232323fb9dcef835c0210`. Exact full PushVarName definition; source full-file hash and line range retained independently.
+- `e5`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-PushVarName.txt`. Exact full PushVarName definition; source full-file hash and line range retained independently.
 
-- `e6`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileTokens.txt`. SHA-256 `f6f5b99e924c9008a95360d1e7a247721f85fbd997611560b5fe350837a4a3a5`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
+- `e6`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
 
-- `e7`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclFindCompiledLocal.txt`. SHA-256 `917731c247b97d3ce1ec4f6331879334c90f0eb0d1cc37c9ec2194b5954c00ff`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
+- `e7`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
 
-- `e8`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileSetCmd.txt`. SHA-256 `ec6366d9632f55a840c255b1cb09270653daeba0155e462257ef175f3b0e84e9`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
+- `e8`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
 
-- `e9`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclPushVarName.txt`. SHA-256 `414e0c602ecd47ea0909bc2af3016540dd61de38a199e3512377e4b06a328fba`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
+- `e9`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
 
-- `e10`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileTokens.txt`. SHA-256 `0ac0749c57f793286af6437c49c109c4146287f3bb34658926e5802980819dd7`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
+- `e10`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
 
-- `e11`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclFindCompiledLocal.txt`. SHA-256 `b4c836c0f9b9e6e7cf8515b2d2b32b4ab04e6442a41ef69a02ef5ded83dc134f`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
+- `e11`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
 
-- `e12`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileSetCmd.txt`. SHA-256 `34baed7dde71e469973938c03e11e8b92217cd3cf56e7430109715edb6e61098`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
+- `e12`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
 
-- `e13`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclPushVarName.txt`. SHA-256 `26b20fe759673164bffb8c6201656258f3eba27f3200c3d7fadf21af5e6b5d30`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
+- `e13`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
 
-- `e14`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileTokens.txt`. SHA-256 `2f8084251e4df3b7d823a494d9d8b1e7b38ec050a58ca905efab16dd0b52ed33`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
+- `e14`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
 
-- `e15`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclFindCompiledLocal.txt`. SHA-256 `a87ffe2b6f62282e8c4c51da0e7e6b045d3470c4c40c9e44ceef8a3519f4f347`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
+- `e15`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
 
-- `e16`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileSetCmd.txt`. SHA-256 `9ab577969f25ab94cd5720caff9bc0e85081472c78b0ac071eb24d2475cf41bf`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
+- `e16`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
 
-- `e17`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclPushVarName.txt`. SHA-256 `8c671c78715232e3ba32aa25ded0482b4c4b7644f96bb23d5eceab79c589ea45`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
+- `e17`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
 
-- `e18`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileTokens.txt`. SHA-256 `0192854ccad7c779a5db78f6ab91a9c47d6edcf50c2ffd889e0384ffab8ee5ba`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
+- `e18`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
 
-- `e19`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclFindCompiledLocal.txt`. SHA-256 `49bb8900d55b9cd0c4bec628d60e387147c71948cac15462778a850635653ab2`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
+- `e19`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
 
 ## Source inspection
 

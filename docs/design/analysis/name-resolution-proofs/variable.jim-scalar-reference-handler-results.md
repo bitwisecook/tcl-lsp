@@ -73,11 +73,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json). SHA-256 `4f1b613ed346e1c135187b0775fbaa620af65e4a623bebfb5accc553f8668b6b`. Original Jim binary/source hashes, argv, exit and stdout/stderr hex.
-- `e1` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl). SHA-256 `8e4c58a12d2e2f07d42a6e357b8274a89845062bc0b74fe4b82c052adfce9409`. Actual independent ASCII reference handler script.
-- `e2` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt). SHA-256 `167fa8d83c3e1845f38036d3cf906224e8544811cce0e2889ab1e58de4207ceb`. Exact eight result/caught-diagnostic lines.
+- `e0` (provider): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json). Original Jim binary/source hashes, argv, exit and stdout/stderr hex.
+- `e1` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl). Actual independent ASCII reference handler script.
+- `e2` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt). Exact eight result/caught-diagnostic lines.
 
 ## Source inspection
 

@@ -68,9 +68,9 @@ Status: `not-tested`. Version: not tested for this Rust edit contract. Build: no
 
 No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
 
-## Exact evidence
+## Historical references
 
-- `plan` (implementation): [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs). SHA-256 `c092cce1049b6bb88e3d39e65301e27fbdbbde5e48113dde387c8b88cefe1647`. Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
+- `plan` (implementation): [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs). Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
 
 ## Source inspection
 

@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not tested. Build: No original external-provider 
 
 No external-provider observation for this Rust borrowing contract.
 
-## Exact evidence
+## Historical references
 
-- `original-world-query-owner` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). SHA-256 `ce135a7d49494c862497f733471d2880643963d8686a8ae869222bf7767f32ce`. Current actual borrowed/owned source-world query, same original policy guard and three direct software test definitions. No successful executable inventory or assertion outcome is attached.
-- `original-world-query-consumers` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `c44ea509aa5c225acdc07ab7140c8dc55a783b77b2d670f7fb1210f9c96b99ea`. Seven actual readonly table/geometry consumers delegate the same query owner and count only reached owned clone work. Source linkage supplies no timing improvement, Native completion or producer result.
-- `authored-compiler-registry633-0ecd91ca3830` (implementation): [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs). SHA-256 `d45aede37bba7f0c117a2bb9abccf575c6ee5ae37b6fe61474e01cff2176143c`. Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
+- `original-world-query-owner` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). Current actual borrowed/owned source-world query, same original policy guard and three direct software test definitions. No successful executable inventory or assertion outcome is attached.
+- `original-world-query-consumers` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). Seven actual readonly table/geometry consumers delegate the same query owner and count only reached owned clone work. Source linkage supplies no timing improvement, Native completion or producer result.
+- `authored-compiler-registry633-0ecd91ca3830` (implementation): [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs). Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
 
 ## Source inspection
 

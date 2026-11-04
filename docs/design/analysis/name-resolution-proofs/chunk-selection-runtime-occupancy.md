@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested for this Rust contract. Build: not rec
 
 No native interpreter executes this compiler-carrier contract.
 
-## Exact evidence
+## Historical references
 
-- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). SHA-256 `26e7cde53ba40f33001cd1a8908eccba17b6f1704e04fcd666f13ad02f2ad06b`. Actual central compiler selector and finite discriminating unit test; digest is source correspondence, not execution evidence.
+- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). Actual central compiler selector and finite discriminating unit test; digest is source correspondence, not execution evidence.
 
 ## Source inspection
 

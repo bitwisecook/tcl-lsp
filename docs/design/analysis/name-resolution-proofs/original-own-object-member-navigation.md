@@ -62,12 +62,12 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This question is a Rust readonly consumer contract. No executed native observation is attached.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs). SHA-256 `db46e174fcef0ea57f181c7ed5eb7d21acbd0b25a3eb9c24a7cbf34954c41dcf`. The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). SHA-256 `a4d76d8b8eb4d2a06cf2680c8fb57bb2960b3bcd7c7ea766a92ead79d34cb84d`. The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
-- `implementation-2` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). SHA-256 `2fb2df2a8b110a27c0119df4d1d2a6a804e75d6dfc58d18921644cec31b4012e`. The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
-- `implementation-3` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). SHA-256 `1e72c30cdc65eb27bc88a2ff4f1234959f22bf34ff72a13db2c19fe117407be1`. The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
+- `implementation-2` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
+- `implementation-3` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
 
 ## Source inspection
 

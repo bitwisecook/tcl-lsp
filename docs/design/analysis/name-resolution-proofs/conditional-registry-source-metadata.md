@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
 
-## Exact evidence
+## Historical references
 
-- `authored-compiler-registry633-0ecd91ca3830` (implementation): [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs). SHA-256 `d45aede37bba7f0c117a2bb9abccf575c6ee5ae37b6fe61474e01cff2176143c`. Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
+- `authored-compiler-registry633-0ecd91ca3830` (implementation): [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs). Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
 
 ## Source inspection
 

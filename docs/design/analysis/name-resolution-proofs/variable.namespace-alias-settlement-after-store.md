@@ -72,16 +72,16 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `capture` (provider): [runtime/rust/tests/data/native_namespace_alias_settlement/manifest.json](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/manifest.json). SHA-256 `7c39e18ba5d7d3ded4aeaae7d112ba160e0fab9c86038a5954d6326fae0535d6`. Exact original native provenance/captured observations.
-- `input-source.tcl` (input): [runtime/rust/tests/data/native_namespace_alias_settlement/source.tcl](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/source.tcl). SHA-256 `e0bf753afe5e94ebb1a96da5d515278b17dc2b6538619c521f877354ad09b65a`. Retained exact script/case bytes for the stated question.
-- `input-probe.c` (input): [runtime/rust/tests/data/native_namespace_alias_settlement/probe.c](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/probe.c). SHA-256 `7759c929348a994705c71747e8ad3b2cc14db6ae67bca5ec7c221d0e5b6bcbe4`. Retained exact script/case bytes for the stated question.
-- `rows-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/8.4.20.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/8.4.20.txt). SHA-256 `cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7`. Exact three completed native catch/result/post-store rows.
-- `rows-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/8.5.19.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/8.5.19.txt). SHA-256 `cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7`. Exact three completed native catch/result/post-store rows.
-- `rows-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/8.6.18.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/8.6.18.txt). SHA-256 `cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7`. Exact three completed native catch/result/post-store rows.
-- `rows-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/9.0.4.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/9.0.4.txt). SHA-256 `cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7`. Exact three completed native catch/result/post-store rows.
-- `rows-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/9.1.0.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/9.1.0.txt). SHA-256 `cbc0925ac5c82f88bc4f183b68f1e7bd4249200d8545418f6fba2d2d9a035df7`. Exact three completed native catch/result/post-store rows.
+- `capture` (provider): [runtime/rust/tests/data/native_namespace_alias_settlement/manifest.json](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/manifest.json). Exact original native provenance/captured observations.
+- `input-source.tcl` (input): [runtime/rust/tests/data/native_namespace_alias_settlement/source.tcl](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/source.tcl). Retained exact script/case bytes for the stated question.
+- `input-probe.c` (input): [runtime/rust/tests/data/native_namespace_alias_settlement/probe.c](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/probe.c). Retained exact script/case bytes for the stated question.
+- `rows-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/8.4.20.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/8.4.20.txt). Exact three completed native catch/result/post-store rows.
+- `rows-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/8.5.19.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/8.5.19.txt). Exact three completed native catch/result/post-store rows.
+- `rows-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/8.6.18.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/8.6.18.txt). Exact three completed native catch/result/post-store rows.
+- `rows-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/9.0.4.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/9.0.4.txt). Exact three completed native catch/result/post-store rows.
+- `rows-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_alias_settlement/9.1.0.txt](../../../../runtime/rust/tests/data/native_namespace_alias_settlement/9.1.0.txt). Exact three completed native catch/result/post-store rows.
 
 ## Source inspection
 

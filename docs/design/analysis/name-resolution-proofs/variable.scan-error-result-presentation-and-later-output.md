@@ -72,15 +72,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/manifest.json). SHA-256 `f968d1f1f56c58e024b7031e36f9c2d7e70f650d03a14f2a32c1fb6ad04c1cd1`. Exact original compiler/header/library/executable hashes, process receipts and native source anchors where supplied.
-- `e1` (input): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/probe.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/probe.c). SHA-256 `aef5792cdeb95ce9150ea40a004fdd42f59ee74aade5a7c17c72d95b4e663a20`. Complete original C translation unit; selected public API and reporter stages are retained.
-- `e2` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.4.20-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.4.20-run.stdout). SHA-256 `6ab89933f7a3d4af625c31481b6ba817966727ff134b4b818d6861c8c19c4b63`. 8.4.20 complete original captured native transcript.
-- `e3` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.5.19-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.5.19-run.stdout). SHA-256 `c73131461327172dcc74df263f984a80f9ccc0974e4966dd95a58368f0c979fd`. 8.5.19 complete original captured native transcript.
-- `e4` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.6.18-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.6.18-run.stdout). SHA-256 `c95356a303ce44747d05d50b7ea0a956ad32fc2318c181f42d68de7250f24a6f`. 8.6.18 complete original captured native transcript.
-- `e5` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.0.4-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.0.4-run.stdout). SHA-256 `1b566d3a2759ec9bef83e8e0ed39b617832ce36e206e4cf960094019d8f224e3`. 9.0.4 complete original captured native transcript.
-- `e6` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.1.0-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.1.0-run.stdout). SHA-256 `7ff3dbbcc9243f18e10ba7efcd6216caf9e1010ebc7c90d282780d1fb53cc373`. 9.1.0 complete original captured native transcript.
+- `e0` (provider): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/manifest.json). Exact original compiler/header/library/executable hashes, process receipts and native source anchors where supplied.
+- `e1` (input): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/probe.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/probe.c). Complete original C translation unit; selected public API and reporter stages are retained.
+- `e2` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.4.20-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.4.20-run.stdout). 8.4.20 complete original captured native transcript.
+- `e3` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.5.19-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.5.19-run.stdout). 8.5.19 complete original captured native transcript.
+- `e4` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.6.18-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/8.6.18-run.stdout). 8.6.18 complete original captured native transcript.
+- `e5` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.0.4-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.0.4-run.stdout). 9.0.4 complete original captured native transcript.
+- `e6` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.1.0-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/9.1.0-run.stdout). 9.1.0 complete original captured native transcript.
 
 ## Source inspection
 

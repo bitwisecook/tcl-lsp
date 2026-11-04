@@ -62,248 +62,248 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileAppendCmd.txt). SHA-256 `32160b47b172a269422ac6fa3759b4180a62b5c6fba1206f9e4f9dcc8c1054a4`. Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e1` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLappendCmd.txt). SHA-256 `b90938702183df8b023ba463e82e36df7588c194fbcf646c281425a029cffb8b`. Exact complete TclCompileLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e2` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileSetCmd.txt). SHA-256 `a67197c79da42a0467050b5fdb76930a8d8b502ef2e8ca68d787b4ad45a3a76f`. Exact complete TclCompileSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e3` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileIncrCmd.txt). SHA-256 `abc1951ec56d1495c582cad2efcacb315d7526ed9b330c81c4879bce56797edc`. Exact complete TclCompileIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e4` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileVariableCmd.txt). SHA-256 `b908516e1b917928c01502a3b648afdb35b221465903733ab450e8ba479b8d73`. Exact complete TclCompileVariableCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e5` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileListCmd.txt). SHA-256 `9d50c7e45abb284280ab9fbecdddabc9f8bfaa52ae38b68e5fafe07210fdf6da`. Exact complete TclCompileListCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e6` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLindexCmd.txt). SHA-256 `756617778414a79219c5c9fdac1741e79aff6a67452b39b92e9824bc314951c2`. Exact complete TclCompileLindexCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e7` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLlengthCmd.txt). SHA-256 `3cb9c02b8ec848d12a51491f8b244100ad5622457a96f946622fbfc9ae364021`. Exact complete TclCompileLlengthCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLsetCmd.txt). SHA-256 `1bcfbca0a8c152badeee6c8fdb16d53694f36db82483572202a10605bca8fa14`. Exact complete TclCompileLsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileReturnCmd.txt). SHA-256 `bee5dc023859b31d0127676e0037e9b58e99b4c145067d0908e7499fb4e09528`. Exact complete TclCompileReturnCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e10` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileBreakCmd.txt). SHA-256 `4864acccac077a87b0380f5710804a9ca03b4ac4f6842699de95fe0e18056f52`. Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e11` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileContinueCmd.txt). SHA-256 `abf09904cd49c6c4a5cb89d0e837204a6b4987209d0b9e4384944972dd5cba4f`. Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e12` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileRegexpCmd.txt). SHA-256 `51388a492074a2d4ab7b389085fc976a8685682c63a44bc455e92de3c83ad9e5`. Exact complete TclCompileRegexpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e13` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileStringCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileStringCmd.txt). SHA-256 `6505f40fa84a529d547f0e30658a216dc37a0f011373bd0d4f13318a1ce44087`. Exact complete TclCompileStringCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e14` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclPushVarName.txt). SHA-256 `b9fd87d654b758367c00fbd16fe8394e91c5f95dedc6b681d9ba699468b45107`. Exact complete TclPushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e15` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileTokens.txt). SHA-256 `28cc01627a3f5190822bbbf9a864d45696cb8727a2cfbf3def2c7f09da492afa`. Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e16` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclFindCompiledLocal.txt). SHA-256 `c719316f477c7007c60b313b7ca0b00b12bf22372981a3819bdbf232eb3dde79`. Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e17` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileAppendCmd.txt). SHA-256 `6b0e69ea1023182594c535e81a2f9e20f75a0b287370dd80dd091c362875443b`. Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e18` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLappendCmd.txt). SHA-256 `a1678bba7016307baf0e95560e31b6f0d839414bdba4dea579842de626518a88`. Exact complete TclCompileLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e19` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileSetCmd.txt). SHA-256 `ef1e582aeeed894fe50713e0f8ce8a99a06c94f2466e1f94cd9f4e1c5d849dcf`. Exact complete TclCompileSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e20` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileIncrCmd.txt). SHA-256 `6d0f396144ba393eb244b99653dfd2de0ed76210ec847d9f8c31f7ee4ee08895`. Exact complete TclCompileIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e21` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileUpvarCmd.txt). SHA-256 `81b53b16796352505e235a8a4fb8aeab6987cadc95737f7262b3b9a406141703`. Exact complete TclCompileUpvarCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e22` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileGlobalCmd.txt). SHA-256 `e9ad0fe3d2fd9db5ad0ff510987cc1d48711f0e1337a76a6497508944f0c9ab9`. Exact complete TclCompileGlobalCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e23` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileVariableCmd.txt). SHA-256 `7f23de07a746882b18027cb0b1aa3fc525ea3813cce4f5554a4f6a97464d8f21`. Exact complete TclCompileVariableCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e24` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLassignCmd.txt). SHA-256 `0a4c7c4cf69dca253ca19282f8fe8735a9a46e34965b825c640b9217ed3d6f78`. Exact complete TclCompileLassignCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e25` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileListCmd.txt). SHA-256 `e1ed332b242f1e89773e204bd7908e12d0e1b323130cc2419f8ea63c3a6c2cdf`. Exact complete TclCompileListCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e26` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLindexCmd.txt). SHA-256 `5af47c89800e6cdd2d785f21daaff43bcadab046b22550890c4b90f7b91de933`. Exact complete TclCompileLindexCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e27` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLlengthCmd.txt). SHA-256 `873f71704cc9f9bead3e468632d10e1c3b6de5afb56358939530f0a4050fa5b6`. Exact complete TclCompileLlengthCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e28` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLsetCmd.txt). SHA-256 `e0b2eec7511fcb282ca6c88c935a67e5b272d79ac348eed8dcec740bdd85e0d2`. Exact complete TclCompileLsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e29` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileReturnCmd.txt). SHA-256 `0d383efbf833e4ef22faf2050959d74daa75e0dfd597a6f650ba3df78a5cf0d5`. Exact complete TclCompileReturnCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e30` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileBreakCmd.txt). SHA-256 `93ce588ce69950d74f71bbb3e77a614c4bc755690a2abc35bc86e4bc1b2d48f1`. Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e31` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileContinueCmd.txt). SHA-256 `92eab1ea9428ff1ebb81c0346fc700985778f990e6f3e0320e8a2e8e23b3c373`. Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e32` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileInfoExistsCmd.txt). SHA-256 `a932f4ecc3d2e44151ada37be332dda0149f2056ec0aac20f1b70b87d8bba015`. Exact complete TclCompileInfoExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e33` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileNamespaceCmd.txt). SHA-256 `bcf21afbcb3eb1623c68e871c1dcd2a76b3f30aa8664f0005388a938ee40f1d1`. Exact complete TclCompileNamespaceCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e34` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileRegexpCmd.txt). SHA-256 `12df42d9efdd2e2dac8cdad59a50b2d5de02ff87be8a75050063a5e2bcfc579d`. Exact complete TclCompileRegexpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e35` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringEqualCmd.txt). SHA-256 `16089cd76329d8467ebb8e8c866d0353244b449e30b2b41d925c9c398e511343`. Exact complete TclCompileStringEqualCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e36` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringLenCmd.txt). SHA-256 `e0939fa1a3384cfc07885e72c29050e3aa3f01109b47f7ec4132787ff5317ed2`. Exact complete TclCompileStringLenCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e37` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringMatchCmd.txt). SHA-256 `78e588fc11a7480f4486f4fd461c6ef06f3a8c32b04d08332a29c95e402bd0c6`. Exact complete TclCompileStringMatchCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e38` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictAppendCmd.txt). SHA-256 `c42b23ccc72346262be1f9ca22b9c1eb49fdfb21bca14a1b95b8efa9eab1a80c`. Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e39` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictLappendCmd.txt). SHA-256 `21d12a055f512e869be958361d4b88937f95bb3503ed23eda6dd34516de0cb00`. Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e40` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictGetCmd.txt). SHA-256 `21c0f5e3231817afd09c5946e78be82bd506ca547b994c32bbc7b618717923a8`. Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e41` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictIncrCmd.txt). SHA-256 `1393e27369bf33796a7725debab512c03ced3adb40d729d4744945198305122f`. Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e42` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictSetCmd.txt). SHA-256 `7f8c4cef26fdeadeb385e6c5be44e94b0ecc91fb1089fc43b82fadd7c640d68b`. Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e43` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileUnaryOpCmd.txt). SHA-256 `9fef3e976c023424c239a4cae95398f2abb9784e9b43a35d5f2bca3a50dc11d8`. Exact complete CompileUnaryOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e44` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileAssociativeBinaryOpCmd.txt). SHA-256 `d58c6f78dd394fb2321036a0b975796889f4fe78e2730715f7b407caa71b79ab`. Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e45` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileStrictlyBinaryOpCmd.txt). SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`. Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e46` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileComparisonOpCmd.txt). SHA-256 `796e2e19758b73db94f07bcafec8c59e920347f8ab8244c858bf0fd7a59649ec`. Exact complete CompileComparisonOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e47` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-PushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-PushVarName.txt). SHA-256 `93765f759ed489263582d7d4f2b86f58fab7e0a7cf1232323fb9dcef835c0210`. Exact complete PushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e48` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileTokens.txt). SHA-256 `f6f5b99e924c9008a95360d1e7a247721f85fbd997611560b5fe350837a4a3a5`. Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e49` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclFindCompiledLocal.txt). SHA-256 `917731c247b97d3ce1ec4f6331879334c90f0eb0d1cc37c9ec2194b5954c00ff`. Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e50` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileAppendCmd.txt). SHA-256 `a3c8a943e920bbe04fd22d3e4a6c1e229efac8bf7c012c7753541402b43a88af`. Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e51` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileConcatCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileConcatCmd.txt). SHA-256 `cf75c8b1e60cb72e67e623a3c9a8d066f6715b95ec52f7ee5e91fb490546f3ca`. Exact complete TclCompileConcatCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e52` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileErrorCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileErrorCmd.txt). SHA-256 `1d778848cdc954339032e0ea60011e14fbc78b05b7f68e2cf9c5779be2b0853e`. Exact complete TclCompileErrorCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e53` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileBreakCmd.txt). SHA-256 `5ef913f31f37d7afa2279416ff250559aa876f4173ebfdc312fed1db98ae1315`. Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e54` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileContinueCmd.txt). SHA-256 `3265dabfa7afc60beda0e5ccd8c92a801997de219bba20317fea39be8c13005d`. Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e55` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictAppendCmd.txt). SHA-256 `d934062cb5e7983b45c27c600d712e1b4ae5b442a7f0921ee19f9ecd5cbe4705`. Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e56` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictLappendCmd.txt). SHA-256 `a19f2eca7a9bdc1cbd3e945a22163cd97fe499973ea0929e05c5def76dae8109`. Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e57` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictCreateCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictCreateCmd.txt). SHA-256 `a779233d6dd21a76bc0e7226d94cdb80e5009906b165e651ce942ee35afe39fe`. Exact complete TclCompileDictCreateCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e58` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictExistsCmd.txt). SHA-256 `510a9e5f5d49c6e7563718fcdacdcb89ccb083994a1c3c9eb0f05e0cad3466ee`. Exact complete TclCompileDictExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e59` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictGetCmd.txt). SHA-256 `c9db073f21dad4c0fd28690811d78d8b0be9a307db7f652f5e28b5b438f4c85e`. Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e60` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictIncrCmd.txt). SHA-256 `7c1b7b9a6b1c5b61fd7d47a2affaf5d471edf34a695ea1e480e3911485cfeba7`. Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e61` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictMergeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictMergeCmd.txt). SHA-256 `05ef1a95488ae857a564d6352110c39b6c41bd62b3078b49229129b14de1144f`. Exact complete TclCompileDictMergeCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e62` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictSetCmd.txt). SHA-256 `481cac17febddb2eac6c342be6a92758d7ff9a0b07068d6a48eb28bfad1c2d11`. Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e63` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictUnsetCmd.txt). SHA-256 `86fe763b73e2784cf4c4da4ff54f9dc048f487e4c3253bf824099d1de713ad0c`. Exact complete TclCompileDictUnsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e64` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclPushVarName.txt). SHA-256 `414e0c602ecd47ea0909bc2af3016540dd61de38a199e3512377e4b06a328fba`. Exact complete TclPushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e65` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLappendCmd.txt). SHA-256 `b00b3ce1ca8401244c78d85c9ec2ded2049a75f76e89aca142d63c9bc015c4cc`. Exact complete TclCompileLappendCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e66` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileIncrCmd.txt). SHA-256 `d0842df5697eaf40eb0fc3c4123813bb582a4cf467c4db00fbb8cdc3d74d9399`. Exact complete TclCompileIncrCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e67` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUpvarCmd.txt). SHA-256 `320df733490b23aa0c420db306555b0057fce2b8108f7aad1ec717076fa9d2cc`. Exact complete TclCompileUpvarCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e68` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileGlobalCmd.txt). SHA-256 `7f742ced4e39ccb26097f758dfde97da5b6bd0cab69118e43f9807f4767555e4`. Exact complete TclCompileGlobalCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e69` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileVariableCmd.txt). SHA-256 `bf2038ca7ade3949b4130ae10ee697c8817093e40e6fb5b783e35997d74f2d01`. Exact complete TclCompileVariableCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e70` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLassignCmd.txt). SHA-256 `ef8fcd3d2677f9db53c8dd4847a5525d478f12482217997e1f1e3d999ebfce85`. Exact complete TclCompileLassignCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e71` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileListCmd.txt). SHA-256 `1ba89fa2eeaf4828ee3c38710e0b5a66cceb2b40b2559ab13f100052b6b34298`. Exact complete TclCompileListCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e72` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLindexCmd.txt). SHA-256 `0ba7d8b42db89a004ff51f73f09c3cacb57c55bd17e09229715206ec99d59b96`. Exact complete TclCompileLindexCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e73` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLlengthCmd.txt). SHA-256 `660098cec4a87a2582859897832cab54b1bca582faf88d07301d89e3f836ad93`. Exact complete TclCompileLlengthCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e74` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLrangeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLrangeCmd.txt). SHA-256 `7cf306aa2578bf794b09c7494af992d118b8757bcbb0ac2fa865d6d0892fba3a`. Exact complete TclCompileLrangeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e75` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLinsertCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLinsertCmd.txt). SHA-256 `7a4fa9eb9746fafb0228a03521a5375f0f3c9cc10f7fa1d89500d061b4aa2b82`. Exact complete TclCompileLinsertCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e76` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLsetCmd.txt). SHA-256 `700d968c5c7f53607d750d29a1bd87aeecdefe6681d57d4e411fbe30ee2fa0b0`. Exact complete TclCompileLsetCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e77` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileReturnCmd.txt). SHA-256 `d58a1f438e498ee419c0710273f8f5bca2d12b4eccd4547a309d836394e2b2ef`. Exact complete TclCompileReturnCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e78` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoExistsCmd.txt). SHA-256 `1330a56fad8dfaa85de767aa2ad9017eaedca1a5458fae9accd0b9f69d027a47`. Exact complete TclCompileInfoExistsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e79` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoLevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoLevelCmd.txt). SHA-256 `ba86cb672d6225e703cb02cbde1ab453402e083394481248d9e253d1a15b567f`. Exact complete TclCompileInfoLevelCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e80` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCurrentCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCurrentCmd.txt). SHA-256 `3b76d9f38f557c0ed2644c0a0b37da66c45d1fe197846bea6b2a5872ed19024f`. Exact complete TclCompileNamespaceCurrentCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e81` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCodeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCodeCmd.txt). SHA-256 `eb7ccd937566fd1bb524d8f309f913365035806c9dd0597428084c394c4faf91`. Exact complete TclCompileNamespaceCodeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e82` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceOriginCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceOriginCmd.txt). SHA-256 `c4c33827efe97f6f89d505ad1ae523bd583b18da6f02dcb20208ec9f2e5230ca`. Exact complete TclCompileNamespaceOriginCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e83` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoCommandsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoCommandsCmd.txt). SHA-256 `14c65a37e4dc66f267757ce77887c1c422fac133b46387bacd865b34fba33cc6`. Exact complete TclCompileInfoCommandsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e84` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileRegexpCmd.txt). SHA-256 `2bc5bbf3ebc07add9b203835d278b77957da8f2ad013a738af3ee4896d7a218a`. Exact complete TclCompileRegexpCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e85` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextCmd.txt). SHA-256 `59b281bddfc020df4b7af5df12f0b4b823c1a7d380fe53eb8592998d4fbee670`. Exact complete TclCompileObjectNextCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e86` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextToCmd.txt). SHA-256 `f6a61356b78b116abc3401b7cf2bcfc4d3ad766967dd2191eaa4665077869c19`. Exact complete TclCompileObjectNextToCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e87` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectSelfCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectSelfCmd.txt). SHA-256 `5080f407d5c935b593fe57c1401b649d8a142d7b44aae631261766d8c5a3bc84`. Exact complete TclCompileObjectSelfCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e88` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectClassCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectClassCmd.txt). SHA-256 `fa63f6dc79f074c5e538aeddbd5f152c7eb26ef64b3ecb07d61a21e8cbff9a48`. Exact complete TclCompileInfoObjectClassCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e89` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectNamespaceCmd.txt). SHA-256 `0c0dc5793b8c5d66e4029bc8d75de05e3e69bca2a7c6dcb4e2a241e7dab30946`. Exact complete TclCompileInfoObjectNamespaceCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e90` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectIsACmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectIsACmd.txt). SHA-256 `cd1d110d7bbb2b1c7256d48af3a8134f0a1ce6716dea60c882ac730c41cd69c8`. Exact complete TclCompileInfoObjectIsACmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e91` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileSetCmd.txt). SHA-256 `ec6366d9632f55a840c255b1cb09270653daeba0155e462257ef175f3b0e84e9`. Exact complete TclCompileSetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e92` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUnsetCmd.txt). SHA-256 `14b6ed05c8cf16e50465e007e220d9a4d547c45baa07707a400bc5eeeb70749d`. Exact complete TclCompileUnsetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e93` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTailcallCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTailcallCmd.txt). SHA-256 `59412d13735903a55a13d844f762b552715d567741e39aa11b0da0a209711c90`. Exact complete TclCompileTailcallCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e94` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldCmd.txt). SHA-256 `cff279c6b028eeda02fa04d43afb1e5e29759e9b90b53b08d71030681b3a6727`. Exact complete TclCompileYieldCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e95` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldToCmd.txt). SHA-256 `6b684eac38073f2349164c29dcefa53f0d19bf103a09daa579c53930184de33f`. Exact complete TclCompileYieldToCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e96` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringEqualCmd.txt). SHA-256 `2c4463939422df28bf92b1297967db5a0e93005cbba7acb16d9e31a2bbb0d9ba`. Exact complete TclCompileStringEqualCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e97` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringLenCmd.txt). SHA-256 `69e5dd8c041aaa5a2b50c887ec10757a2c909821e048328327afad534bbc0e74`. Exact complete TclCompileStringLenCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e98` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringMatchCmd.txt). SHA-256 `9ca231c1da352e279aa0d91a6a61f71359e35f7277770747ab631aab2cf95ee2`. Exact complete TclCompileStringMatchCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e99` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimCmd.txt). SHA-256 `2f922a43fae2dd12c80eb2c49edbe36a8838d95eb2df2017a0016c10a45fb9e3`. Exact complete TclCompileStringTrimCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e100` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimLCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimLCmd.txt). SHA-256 `8e805a3ba1ca6e0c811194f19109eaa27ba215e85e0eb9b474b2a5935d6e4065`. Exact complete TclCompileStringTrimLCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e101` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimRCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimRCmd.txt). SHA-256 `766a0aac2bab3d48b7f661af1ba8f2b59e141827231342b5b39571be4a99c597`. Exact complete TclCompileStringTrimRCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e102` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileUnaryOpCmd.txt). SHA-256 `f7ba3550c76631836435b2465fdfe0a580d44914f2daa49670fab5963723c644`. Exact complete CompileUnaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e103` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileAssociativeBinaryOpCmd.txt). SHA-256 `4c3b112f85f65a27e3ad925c9a440c35fd6631e9220c56bfb013876869193e0d`. Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e104` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileStrictlyBinaryOpCmd.txt). SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`. Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e105` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileComparisonOpCmd.txt). SHA-256 `456a2d9a34c61665eee6a4533faa14b3dd328dcf26093812db6d8919bbf8cdaf`. Exact complete CompileComparisonOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e106` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTokens.txt). SHA-256 `0ac0749c57f793286af6437c49c109c4146287f3bb34658926e5802980819dd7`. Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e107` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclFindCompiledLocal.txt). SHA-256 `b4c836c0f9b9e6e7cf8515b2d2b32b4ab04e6442a41ef69a02ef5ded83dc134f`. Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e108` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileCmdLiteral.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileCmdLiteral.txt). SHA-256 `c8b90891b2bce5c2d0e3c0d86110f2c18cd7a5377654ae556f7c200707d725f5`. Exact complete CompileCmdLiteral definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e109` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInvocation.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInvocation.txt). SHA-256 `c28e722c22e117a4ab2cbdd7eeff0cbe58f736f4ed2a91e8b0cb25278945308a`. Exact complete TclCompileInvocation definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e110` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileAppendCmd.txt). SHA-256 `a3c8a943e920bbe04fd22d3e4a6c1e229efac8bf7c012c7753541402b43a88af`. Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e111` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileConcatCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileConcatCmd.txt). SHA-256 `4feb23b04049f16294bd21cc573d6c30b35ad1cbe8043b4012a8e0c58a63df04`. Exact complete TclCompileConcatCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e112` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileErrorCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileErrorCmd.txt). SHA-256 `0029db0dfe0513b6ccbd2b14b148a2f995a62112776c2771a2d5035a84dcfc1c`. Exact complete TclCompileErrorCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e113` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileBreakCmd.txt). SHA-256 `9ca4c5c4ae7f7a89bf71f1c5128454b669759aca6374e3678dd43e473b271f06`. Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e114` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileContinueCmd.txt). SHA-256 `331146c7d605b33be6bad143f92b610516ff910f21d073b6c2b48cba7598332d`. Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e115` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictAppendCmd.txt). SHA-256 `1b1a2a9b5ff8d562e0b4e98a37a0e1cafd088093a8ac4c309d9e3aaf60b06b07`. Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e116` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictLappendCmd.txt). SHA-256 `a19f2eca7a9bdc1cbd3e945a22163cd97fe499973ea0929e05c5def76dae8109`. Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e117` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictCreateCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictCreateCmd.txt). SHA-256 `3585da8cf64836127b023f84ecc57780a65ab58b31a7d89df30623dde5d1ec50`. Exact complete TclCompileDictCreateCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e118` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictExistsCmd.txt). SHA-256 `53b76cb7c755dd5761518b7c83005d4c7c834a913801f97e1eee1b9c70c74d7f`. Exact complete TclCompileDictExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e119` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetCmd.txt). SHA-256 `b788e241a1c70cdcd0c0bf4d0e48a699b9fd0e8b53207dcde172776732bcd0b8`. Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e120` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetWithDefaultCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetWithDefaultCmd.txt). SHA-256 `e0e799f1bbd299d32f550c10212bf04d750868df49b9d35eb6fb178bb0440bb1`. Exact complete TclCompileDictGetWithDefaultCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e121` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictIncrCmd.txt). SHA-256 `481eb4f56a2833030bbfacde2b306b8c0dd67f344c2bcb1590205395a7eb57c1`. Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e122` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictMergeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictMergeCmd.txt). SHA-256 `4b071cedfac81642346052942e59239c32c3761e5e07eb3c60ffb55b18289a89`. Exact complete TclCompileDictMergeCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e123` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictSetCmd.txt). SHA-256 `fd3af585d78d311ab6767bb1a2d629d96faa13e57e49d19039a8031bc75e0b6d`. Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e124` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictUnsetCmd.txt). SHA-256 `9d1be7eaf5325110ad6954bbff00faf66d51c9047a6003945c422f426439edec`. Exact complete TclCompileDictUnsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e125` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclPushVarName.txt). SHA-256 `26b20fe759673164bffb8c6201656258f3eba27f3200c3d7fadf21af5e6b5d30`. Exact complete TclPushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e126` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLappendCmd.txt). SHA-256 `59c52b8c137e47157ce33f44b68689ff64b7db0ae8532d4e8f831f2e1dc805b5`. Exact complete TclCompileLappendCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e127` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileIncrCmd.txt). SHA-256 `0718b95207be6d02e7bcb1941af2c7771d003d46fcb1f3c1547c843d5b66b8d6`. Exact complete TclCompileIncrCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e128` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUpvarCmd.txt). SHA-256 `2ef2d01e4c0fcd0cc0138872096d58eb182dd342eeff92378aaab75c7fbd8f3f`. Exact complete TclCompileUpvarCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e129` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileGlobalCmd.txt). SHA-256 `670d3b3b85a24125f21a1fa46ce368134928bbef4e742a27113a1cf760cf59f7`. Exact complete TclCompileGlobalCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e130` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileVariableCmd.txt). SHA-256 `d6998652a81626eabf4810ee8715308a2c76c521fff065a07b910f6a8f31b1d8`. Exact complete TclCompileVariableCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e131` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLassignCmd.txt). SHA-256 `8b94a931b5a686607a08b1bf39f6c3870cfaaf8e0eb55dcc9716f4a9e84d32a4`. Exact complete TclCompileLassignCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e132` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileListCmd.txt). SHA-256 `396ac82cf4c7b1512f085e76904078c7716cd576c2c05f7e6662d48538bcb97c`. Exact complete TclCompileListCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e133` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLindexCmd.txt). SHA-256 `6fbdc0a31b6e195a2bfc163b74e3461a46f6aaea1a818fa7e8e82fead5fc1c95`. Exact complete TclCompileLindexCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e134` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLlengthCmd.txt). SHA-256 `9a02f3b34e468d0a9c4a1ed71727d9f9440932bfd4867d29427cb3cc501a4e9e`. Exact complete TclCompileLlengthCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e135` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLrangeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLrangeCmd.txt). SHA-256 `31ece79c385e7b99b1ffd9b2c2d17a08190cd33a3abd823481584b0302276fe5`. Exact complete TclCompileLrangeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e136` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLinsertCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLinsertCmd.txt). SHA-256 `fea2c8f614ff81428a103d6d029b6d4a92b0b1ed28cf7fb14a8d0cc22af77afe`. Exact complete TclCompileLinsertCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e137` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLsetCmd.txt). SHA-256 `02a130a8b5e1862c66d28ce4431f27b486d0b9a6d17eda3b41d8cfbdca162a7a`. Exact complete TclCompileLsetCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e138` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileReturnCmd.txt). SHA-256 `9beacdc247e86debc792c96818430799284f58a3f5747db857bc6e01a6fcbae6`. Exact complete TclCompileReturnCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e139` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoExistsCmd.txt). SHA-256 `c1b67cc6b531b375a2daf26c530cd95e8dbdc6ba0870864bb50c1e022d28ac51`. Exact complete TclCompileInfoExistsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e140` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoLevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoLevelCmd.txt). SHA-256 `82b022dfce733b58bd61711ee52bde424f00213a2bec6f3cb639c20a1a10fa1d`. Exact complete TclCompileInfoLevelCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e141` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCurrentCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCurrentCmd.txt). SHA-256 `d94e602b62cafda0508bd1596d600d5fca1dd97b570f971a7f22e163d6baea90`. Exact complete TclCompileNamespaceCurrentCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e142` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCodeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCodeCmd.txt). SHA-256 `c5ffb59e1b01384b2716ff2bbbd23133759817896ec160b737451455c4c009d6`. Exact complete TclCompileNamespaceCodeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e143` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceOriginCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceOriginCmd.txt). SHA-256 `6d8005cbb896bb0e2e6cd8dc0aa5bac7386f24d3d0e81e54e4910c9d2198150f`. Exact complete TclCompileNamespaceOriginCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e144` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoCommandsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoCommandsCmd.txt). SHA-256 `84e094c18fbde9fc47e5ac631a90261ec63d880698f7722a2f0c7e6a7c57be62`. Exact complete TclCompileInfoCommandsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e145` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileRegexpCmd.txt). SHA-256 `1841f19af5d22cc029c88adf96dc352b22c878438eb01528eb17b13da80db1f9`. Exact complete TclCompileRegexpCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e146` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextCmd.txt). SHA-256 `5a5c8b2fbbf82c8fa3d9bf6060dbf626d302a600245ee09211e3841709c65a84`. Exact complete TclCompileObjectNextCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e147` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextToCmd.txt). SHA-256 `c1d7fd927a2d1634173a37aa8f3557a581931d870d0671d0ff44a330b61e71bb`. Exact complete TclCompileObjectNextToCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e148` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectSelfCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectSelfCmd.txt). SHA-256 `35828e80727649c229abc8ff2fcd7c99e749e063efc6b5a9a88905c1aa2a136d`. Exact complete TclCompileObjectSelfCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e149` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectClassCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectClassCmd.txt). SHA-256 `f5c0b6cf844534fb6ad6fadcafa909270771309965eada7de3b2464fc4cd9681`. Exact complete TclCompileInfoObjectClassCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e150` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectNamespaceCmd.txt). SHA-256 `c7ede9832c2a034aa1e07a8fa251b8da032003a9231842414f8eb74a0063864a`. Exact complete TclCompileInfoObjectNamespaceCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e151` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectIsACmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectIsACmd.txt). SHA-256 `1b22eb7f18a27555ca3b5f8523e591b549047b00fd489b4df7641aaca8ceea47`. Exact complete TclCompileInfoObjectIsACmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e152` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileSetCmd.txt). SHA-256 `34baed7dde71e469973938c03e11e8b92217cd3cf56e7430109715edb6e61098`. Exact complete TclCompileSetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e153` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUnsetCmd.txt). SHA-256 `99faceec9a42c887d3ac56c263405c0f3a19b4eb49c20f25436eaf551d3098ee`. Exact complete TclCompileUnsetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e154` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTailcallCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTailcallCmd.txt). SHA-256 `804a3ae79821188bb980d9cfa7fdbc22dc2a80a791820dbeddc9e38cd68a526d`. Exact complete TclCompileTailcallCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e155` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldCmd.txt). SHA-256 `d2dade91d55b5a8ee2c4f88ecdcda3ed00ed77122751a3fca196c0ec9c9c1268`. Exact complete TclCompileYieldCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e156` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldToCmd.txt). SHA-256 `5afbf670bfebe1eabc05a0971ec7f90e1bde2b028a1cc9241243adf41a6d5f40`. Exact complete TclCompileYieldToCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e157` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringEqualCmd.txt). SHA-256 `1582e1f8b3a4bc9cf60a7044d499896e3efe0e75e6f6eef95444210f5d29ff92`. Exact complete TclCompileStringEqualCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e158` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringLenCmd.txt). SHA-256 `c97673fb45260a9cedb41b3143b524e3721194eb591f72f4dcc329cba97b3304`. Exact complete TclCompileStringLenCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e159` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringMatchCmd.txt). SHA-256 `d696ea7903195b628977ea491ccb35e4c8b7a379c6d55d8f75f0c76fc961d4e8`. Exact complete TclCompileStringMatchCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e160` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimCmd.txt). SHA-256 `80b1a8de0778d667f9bd98553657c0e78986d97565d11fcf88ab6a342da49d67`. Exact complete TclCompileStringTrimCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e161` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimLCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimLCmd.txt). SHA-256 `399bff6af8ee670a448553fd2f23e1cc6217b25385f2eeb8ebaa1b9f3b4477f6`. Exact complete TclCompileStringTrimLCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e162` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimRCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimRCmd.txt). SHA-256 `9216ed600d832746737ca0ecdf4ecfba465a89ad7a61e905091c712e5504dbaa`. Exact complete TclCompileStringTrimRCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e163` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileUnaryOpCmd.txt). SHA-256 `f7ba3550c76631836435b2465fdfe0a580d44914f2daa49670fab5963723c644`. Exact complete CompileUnaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e164` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileAssociativeBinaryOpCmd.txt). SHA-256 `c6f72e97dcc0826b9774a189636584aa2f0472d03b48f2c446ec9ae1e7af80f0`. Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e165` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileStrictlyBinaryOpCmd.txt). SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`. Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e166` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileComparisonOpCmd.txt). SHA-256 `1f31e76ae74a8a6ee16ce6c2ab4594a4f8b899e6f07b5d8c3c9339482465ee66`. Exact complete CompileComparisonOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e167` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTokens.txt). SHA-256 `2f8084251e4df3b7d823a494d9d8b1e7b38ec050a58ca905efab16dd0b52ed33`. Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e168` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclFindCompiledLocal.txt). SHA-256 `a87ffe2b6f62282e8c4c51da0e7e6b045d3470c4c40c9e44ceef8a3519f4f347`. Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e169` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileCmdLiteral.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileCmdLiteral.txt). SHA-256 `e9019efa06c81502b1447710bf8511e0a0f87cad73ab026dae1904ad274646d6`. Exact complete CompileCmdLiteral definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e170` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInvocation.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInvocation.txt). SHA-256 `9bd4d8933d417013981e8092930091d54f2b19dee6547c346601843b67eb2e73`. Exact complete TclCompileInvocation definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e171` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileAppendCmd.txt). SHA-256 `c8e3468cc8dde5572760cc2ec79b8f0c705e480d620078937595a32c048a981b`. Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e172` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileConcatCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileConcatCmd.txt). SHA-256 `dcb70614e88074a4d113e161e13801047c8b74edea6fe8f31c8d3fa8ac40b4f8`. Exact complete TclCompileConcatCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e173` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileErrorCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileErrorCmd.txt). SHA-256 `b864c8811f28a785fe1b11b5c4f383f7f8606d7ea7a1bde0137ae2219cc17d45`. Exact complete TclCompileErrorCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e174` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileBreakCmd.txt). SHA-256 `a60eedd0c8de354becb597afc5d1ad05371071baee6b34fccb31c638dfb40a84`. Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e175` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileContinueCmd.txt). SHA-256 `3bdd7d0736a91b1f4011a1da7c7263b3373a150df375b4db436a0aef13a73f30`. Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e176` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictAppendCmd.txt). SHA-256 `4867c2c6a84eda510d7bad4a838c70a00a825505c9bb35865ff2af122de3da74`. Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e177` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictLappendCmd.txt). SHA-256 `949acc6290b2fcc9171dfb101054c1ebab4072fd91701e769a637988628f1e34`. Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e178` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictCreateCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictCreateCmd.txt). SHA-256 `9f3219d49121821caa966b0f7b9d603ef1cae4954a5d6c49c6ecb3ccba9d1d38`. Exact complete TclCompileDictCreateCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e179` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictExistsCmd.txt). SHA-256 `9a1bb3d632df568a603cf3a83c29cab0c4f15aeef2a32bd75b49f261239a91d2`. Exact complete TclCompileDictExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e180` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetCmd.txt). SHA-256 `96760cd03877f5cdd6df7fb70afaa193af1a232801f8e06a46797e27ed824703`. Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e181` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetWithDefaultCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetWithDefaultCmd.txt). SHA-256 `0497ee872e1967d97da88ebf8046a86c8ada3ddfd106f679993ed2a60f3c43e4`. Exact complete TclCompileDictGetWithDefaultCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e182` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictIncrCmd.txt). SHA-256 `c609730ee2df58bd293f1a0889ada265fa3643dbbdcf5c01b4fafd2be015985d`. Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e183` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictMergeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictMergeCmd.txt). SHA-256 `1e486850ed47233dbf0c964342a82f9542d37c782daff14ae77adcff2568be2f`. Exact complete TclCompileDictMergeCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e184` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictRemoveCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictRemoveCmd.txt). SHA-256 `62bf8bf2056d448805870565cfaa8807da0127f3297f2c6c5a4ee499d03b5618`. Exact complete TclCompileDictRemoveCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e185` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictReplaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictReplaceCmd.txt). SHA-256 `245ed42365cab316cc2b00c6ac45377998ea0648b3c80680960dd1d766e22515`. Exact complete TclCompileDictReplaceCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e186` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictSetCmd.txt). SHA-256 `42204fa7b7d23b538dc153df2522e05ca28a07740b7d7322cc856d611d325993`. Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e187` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictUnsetCmd.txt). SHA-256 `9f027cc25af3524cc2b9fa71a011cbf41ee760d2275d6844ee914aed4e4824df`. Exact complete TclCompileDictUnsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
-- `e188` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLappendCmd.txt). SHA-256 `719b7b48f5976d2c11f63e1b929c32279740dcaf4b484a7922a3f55fe45928cb`. Exact complete TclCompileLappendCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e189` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileIncrCmd.txt). SHA-256 `1ce407173389db60fe9cb51214650ff963ea3c934335d17b2e203470bcb1f431`. Exact complete TclCompileIncrCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e190` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUpvarCmd.txt). SHA-256 `f0ae7c71f907dc36c5a78601cbdf19d6ed1a48e5a4d225ca8a68d4ed475276c7`. Exact complete TclCompileUpvarCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e191` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileGlobalCmd.txt). SHA-256 `0e3757b497c2192a97bb556c066c5fd7d3c95197cc56fff14792d4031d591498`. Exact complete TclCompileGlobalCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e192` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileVariableCmd.txt). SHA-256 `2b5e9f0d6cc7e5dbf884b0b7deb3844eafaf6df5673cb137febbce3dd2484834`. Exact complete TclCompileVariableCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e193` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLassignCmd.txt). SHA-256 `8fa26a16386e530ee1a91f14037cddabf3153bb7ede358663763f11cd13daa6a`. Exact complete TclCompileLassignCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e194` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileListCmd.txt). SHA-256 `c4cf080cc147d8aba99f32e188da14eb86628d9b593307041ba070070d8d8418`. Exact complete TclCompileListCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e195` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLindexCmd.txt). SHA-256 `00d60720bc3f54dcfc7b700db0f417bb41a0c0cd453e4864a360a237ca40920f`. Exact complete TclCompileLindexCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e196` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLlengthCmd.txt). SHA-256 `16e7c49b5c4f6d0f3d59a8d642acbf86015ae1a6a2bc851260e98dfbbfbb23e6`. Exact complete TclCompileLlengthCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e197` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLrangeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLrangeCmd.txt). SHA-256 `05e96680e0c9b76f0fa87feb01f9a944bd49d66c0767c8d4e945beb6ac5ad3a6`. Exact complete TclCompileLrangeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e198` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLinsertCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLinsertCmd.txt). SHA-256 `5a74f5c5ec05d6f3515e6b8a06c184c21154bcb78eac821c53996e1c669faf11`. Exact complete TclCompileLinsertCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e199` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLsetCmd.txt). SHA-256 `7e824460acf76be911c494461570c988b7783ebc189510cf4a805be1c165f595`. Exact complete TclCompileLsetCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e200` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileReturnCmd.txt). SHA-256 `dfb5bfa29bd131cd524cd0e5f20a7db0e3b985daf9d9c0d7cf58a6f4f635850d`. Exact complete TclCompileReturnCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e201` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoExistsCmd.txt). SHA-256 `fa8e37e742795aaac5facc93aa4fa2c9736970933fb3df9d79998339bc9f19aa`. Exact complete TclCompileInfoExistsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e202` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoLevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoLevelCmd.txt). SHA-256 `9e635296eeac2b537526761aa7d2632af5a4e7bc9cec04f5670105b0d622db05`. Exact complete TclCompileInfoLevelCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e203` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCurrentCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCurrentCmd.txt). SHA-256 `8230d756069c612e768a90cdfedf49e8a8aef6f3540b6aefc2a023c0876dd003`. Exact complete TclCompileNamespaceCurrentCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e204` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCodeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCodeCmd.txt). SHA-256 `26db52e07afd78bb1715aa03d70fc5c494972b9d54a31c013522eca5d040e5b9`. Exact complete TclCompileNamespaceCodeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e205` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceOriginCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceOriginCmd.txt). SHA-256 `e756994420d07210728c622d1cf98d402e89dd8216db1029c27c590fd0e58fe3`. Exact complete TclCompileNamespaceOriginCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e206` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoCommandsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoCommandsCmd.txt). SHA-256 `1c2348ddfb3faf51481b425932d1a8ab08b99378b8b096bab2d5d7a763a86285`. Exact complete TclCompileInfoCommandsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e207` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileRegexpCmd.txt). SHA-256 `313a40c34bad8955d8dfdf30bb3a4e24a63a7466427c5f5bb0eec4b8e1989c5a`. Exact complete TclCompileRegexpCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e208` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextCmd.txt). SHA-256 `e4505d9314151f2ddb28461f0e6e1624179bd1770c16159e5a26a4e682922e19`. Exact complete TclCompileObjectNextCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e209` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextToCmd.txt). SHA-256 `5c1bead211f476ec946664d56bcf43e08e3e106973e6f6af4eeb471f0548adaf`. Exact complete TclCompileObjectNextToCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e210` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectSelfCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectSelfCmd.txt). SHA-256 `027dd16716be7a5072ff997dcbf1ea116bba419d573676f844f7dcb1cf2bba78`. Exact complete TclCompileObjectSelfCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e211` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectClassCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectClassCmd.txt). SHA-256 `b20fa72c4fc99b4fa6a15a4ee44d02a4b38fead82ece39b20bc77d49ac2f6add`. Exact complete TclCompileInfoObjectClassCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e212` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectNamespaceCmd.txt). SHA-256 `1be2665abdd7c7197ce67a5f6b9d5c9670725a445017187bd16e0ac75c1aca54`. Exact complete TclCompileInfoObjectNamespaceCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e213` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectIsACmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectIsACmd.txt). SHA-256 `919a2be68ffcabbfab8455b2bfa18852ce6ab0ba5eda796f5bfbfffefc2174fb`. Exact complete TclCompileInfoObjectIsACmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e214` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectCreationIdCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectCreationIdCmd.txt). SHA-256 `5599ed960fde3c627337b20cd33761fe498e776eb2931e02aa650506d611c573`. Exact complete TclCompileInfoObjectCreationIdCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
-- `e215` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileSetCmd.txt). SHA-256 `9ab577969f25ab94cd5720caff9bc0e85081472c78b0ac071eb24d2475cf41bf`. Exact complete TclCompileSetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e216` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUnsetCmd.txt). SHA-256 `afaac110392d29880d2899b2677b1457153411ac595b3dec628e1371f94aa15b`. Exact complete TclCompileUnsetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e217` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTailcallCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTailcallCmd.txt). SHA-256 `822537cdfcc8e4de947bdbc43c2d9862e5568c98f224d8066174099114976aa2`. Exact complete TclCompileTailcallCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e218` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldCmd.txt). SHA-256 `544d90bf91cf5ab4378b7d22b7d91d00a9b8d2f8a46a9df572a86644766ebbba`. Exact complete TclCompileYieldCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e219` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldToCmd.txt). SHA-256 `9b48c1c9c101e244eb84a820f99485142e50cf67f5226ace6a924067e4be1403`. Exact complete TclCompileYieldToCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e220` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUplevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUplevelCmd.txt). SHA-256 `b7d00d882537fe399715d31fc3b74e6a6513efa56ebc4e059f14f30587021f9a`. Exact complete TclCompileUplevelCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e221` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringEqualCmd.txt). SHA-256 `3c0c5aca1ea6a673bf2737ef29e374dd1ee905cb97dc6962d540d29cc548e53f`. Exact complete TclCompileStringEqualCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e222` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringLenCmd.txt). SHA-256 `1dcaac8d3d99ad169ad41f2eb9261fa4fd32bea35e50c5cf6b23933d5714691d`. Exact complete TclCompileStringLenCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e223` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringMatchCmd.txt). SHA-256 `fc28e39e8f4f38aaffcc01d7187618db25d7ce1c06f5f030c10ccbd30f35ae8e`. Exact complete TclCompileStringMatchCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e224` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimCmd.txt). SHA-256 `4e35732bcdf2884f7f130198c8e1f328a692685fa5d9cf34da8596c23ba24e6f`. Exact complete TclCompileStringTrimCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e225` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimLCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimLCmd.txt). SHA-256 `5fcd6eefb70696926683630b6e215ca58a397fcbe2a25007db0bce5a54754c60`. Exact complete TclCompileStringTrimLCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e226` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimRCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimRCmd.txt). SHA-256 `3b8e2371b47affec89a5e91e844cbf6421c1e115f323555d196047d90f363d98`. Exact complete TclCompileStringTrimRCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e227` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileUnaryOpCmd.txt). SHA-256 `d00cdcee692d205741b0afcf542415f7391da2923b403afe32166e4cb7f0c735`. Exact complete CompileUnaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e228` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileAssociativeBinaryOpCmd.txt). SHA-256 `df9cbc133874a0b728bc3ce3c8161a375246cca84204fa7801d3a5b37c7c28d5`. Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e229` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileStrictlyBinaryOpCmd.txt). SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`. Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e230` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileComparisonOpCmd.txt). SHA-256 `fe9fc70e3537e8c26afb71d9110811ddf778e36402f5c938e0c0d071840fcd72`. Exact complete CompileComparisonOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
-- `e231` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTokens.txt). SHA-256 `0192854ccad7c779a5db78f6ab91a9c47d6edcf50c2ffd889e0384ffab8ee5ba`. Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e232` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclFindCompiledLocal.txt). SHA-256 `49bb8900d55b9cd0c4bec628d60e387147c71948cac15462778a850635653ab2`. Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e233` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclPushVarName.txt). SHA-256 `8c671c78715232e3ba32aa25ded0482b4c4b7644f96bb23d5eceab79c589ea45`. Exact complete TclPushVarName definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e234` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileCmdLiteral.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileCmdLiteral.txt). SHA-256 `9714b771ad2733b216981a44fd4dbf74c11450eb27d4f6af0c6b2da1619e3b40`. Exact complete CompileCmdLiteral definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
-- `e235` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInvocation.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInvocation.txt). SHA-256 `c6b07756f513672edd5bc611a0604d6f640ddc590882ba307a681baf0e9bb7e4`. Exact complete TclCompileInvocation definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e0` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileAppendCmd.txt). Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e1` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLappendCmd.txt). Exact complete TclCompileLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e2` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileSetCmd.txt). Exact complete TclCompileSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e3` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileIncrCmd.txt). Exact complete TclCompileIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e4` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileVariableCmd.txt). Exact complete TclCompileVariableCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e5` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileListCmd.txt). Exact complete TclCompileListCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e6` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLindexCmd.txt). Exact complete TclCompileLindexCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e7` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLlengthCmd.txt). Exact complete TclCompileLlengthCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileLsetCmd.txt). Exact complete TclCompileLsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileReturnCmd.txt). Exact complete TclCompileReturnCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e10` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileBreakCmd.txt). Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e11` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileContinueCmd.txt). Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e12` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileRegexpCmd.txt). Exact complete TclCompileRegexpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e13` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileStringCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileStringCmd.txt). Exact complete TclCompileStringCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e14` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclPushVarName.txt). Exact complete TclPushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e15` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclCompileTokens.txt). Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e16` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.4.20-TclFindCompiledLocal.txt). Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e17` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileAppendCmd.txt). Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e18` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLappendCmd.txt). Exact complete TclCompileLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e19` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileSetCmd.txt). Exact complete TclCompileSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e20` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileIncrCmd.txt). Exact complete TclCompileIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e21` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileUpvarCmd.txt). Exact complete TclCompileUpvarCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e22` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileGlobalCmd.txt). Exact complete TclCompileGlobalCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e23` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileVariableCmd.txt). Exact complete TclCompileVariableCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e24` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLassignCmd.txt). Exact complete TclCompileLassignCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e25` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileListCmd.txt). Exact complete TclCompileListCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e26` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLindexCmd.txt). Exact complete TclCompileLindexCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e27` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLlengthCmd.txt). Exact complete TclCompileLlengthCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e28` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileLsetCmd.txt). Exact complete TclCompileLsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e29` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileReturnCmd.txt). Exact complete TclCompileReturnCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e30` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileBreakCmd.txt). Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e31` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileContinueCmd.txt). Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e32` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileInfoExistsCmd.txt). Exact complete TclCompileInfoExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e33` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileNamespaceCmd.txt). Exact complete TclCompileNamespaceCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e34` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileRegexpCmd.txt). Exact complete TclCompileRegexpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e35` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringEqualCmd.txt). Exact complete TclCompileStringEqualCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e36` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringLenCmd.txt). Exact complete TclCompileStringLenCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e37` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileStringMatchCmd.txt). Exact complete TclCompileStringMatchCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e38` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictAppendCmd.txt). Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e39` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictLappendCmd.txt). Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e40` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictGetCmd.txt). Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e41` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictIncrCmd.txt). Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e42` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileDictSetCmd.txt). Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e43` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileUnaryOpCmd.txt). Exact complete CompileUnaryOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e44` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileAssociativeBinaryOpCmd.txt). Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e45` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileStrictlyBinaryOpCmd.txt). Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e46` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-CompileComparisonOpCmd.txt). Exact complete CompileComparisonOpCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e47` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-PushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-PushVarName.txt). Exact complete PushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e48` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclCompileTokens.txt). Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e49` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.5.19-TclFindCompiledLocal.txt). Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e50` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileAppendCmd.txt). Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e51` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileConcatCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileConcatCmd.txt). Exact complete TclCompileConcatCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e52` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileErrorCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileErrorCmd.txt). Exact complete TclCompileErrorCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e53` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileBreakCmd.txt). Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e54` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileContinueCmd.txt). Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e55` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictAppendCmd.txt). Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e56` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictLappendCmd.txt). Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e57` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictCreateCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictCreateCmd.txt). Exact complete TclCompileDictCreateCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e58` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictExistsCmd.txt). Exact complete TclCompileDictExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e59` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictGetCmd.txt). Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e60` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictIncrCmd.txt). Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e61` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictMergeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictMergeCmd.txt). Exact complete TclCompileDictMergeCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e62` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictSetCmd.txt). Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e63` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileDictUnsetCmd.txt). Exact complete TclCompileDictUnsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e64` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclPushVarName.txt). Exact complete TclPushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e65` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLappendCmd.txt). Exact complete TclCompileLappendCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e66` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileIncrCmd.txt). Exact complete TclCompileIncrCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e67` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUpvarCmd.txt). Exact complete TclCompileUpvarCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e68` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileGlobalCmd.txt). Exact complete TclCompileGlobalCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e69` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileVariableCmd.txt). Exact complete TclCompileVariableCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e70` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLassignCmd.txt). Exact complete TclCompileLassignCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e71` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileListCmd.txt). Exact complete TclCompileListCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e72` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLindexCmd.txt). Exact complete TclCompileLindexCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e73` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLlengthCmd.txt). Exact complete TclCompileLlengthCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e74` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLrangeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLrangeCmd.txt). Exact complete TclCompileLrangeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e75` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLinsertCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLinsertCmd.txt). Exact complete TclCompileLinsertCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e76` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileLsetCmd.txt). Exact complete TclCompileLsetCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e77` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileReturnCmd.txt). Exact complete TclCompileReturnCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e78` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoExistsCmd.txt). Exact complete TclCompileInfoExistsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e79` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoLevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoLevelCmd.txt). Exact complete TclCompileInfoLevelCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e80` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCurrentCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCurrentCmd.txt). Exact complete TclCompileNamespaceCurrentCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e81` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCodeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceCodeCmd.txt). Exact complete TclCompileNamespaceCodeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e82` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceOriginCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileNamespaceOriginCmd.txt). Exact complete TclCompileNamespaceOriginCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e83` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoCommandsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoCommandsCmd.txt). Exact complete TclCompileInfoCommandsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e84` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileRegexpCmd.txt). Exact complete TclCompileRegexpCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e85` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextCmd.txt). Exact complete TclCompileObjectNextCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e86` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectNextToCmd.txt). Exact complete TclCompileObjectNextToCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e87` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectSelfCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileObjectSelfCmd.txt). Exact complete TclCompileObjectSelfCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e88` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectClassCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectClassCmd.txt). Exact complete TclCompileInfoObjectClassCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e89` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectNamespaceCmd.txt). Exact complete TclCompileInfoObjectNamespaceCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e90` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectIsACmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInfoObjectIsACmd.txt). Exact complete TclCompileInfoObjectIsACmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e91` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileSetCmd.txt). Exact complete TclCompileSetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e92` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileUnsetCmd.txt). Exact complete TclCompileUnsetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e93` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTailcallCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTailcallCmd.txt). Exact complete TclCompileTailcallCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e94` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldCmd.txt). Exact complete TclCompileYieldCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e95` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileYieldToCmd.txt). Exact complete TclCompileYieldToCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e96` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringEqualCmd.txt). Exact complete TclCompileStringEqualCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e97` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringLenCmd.txt). Exact complete TclCompileStringLenCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e98` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringMatchCmd.txt). Exact complete TclCompileStringMatchCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e99` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimCmd.txt). Exact complete TclCompileStringTrimCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e100` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimLCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimLCmd.txt). Exact complete TclCompileStringTrimLCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e101` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimRCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileStringTrimRCmd.txt). Exact complete TclCompileStringTrimRCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e102` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileUnaryOpCmd.txt). Exact complete CompileUnaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e103` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileAssociativeBinaryOpCmd.txt). Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e104` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileStrictlyBinaryOpCmd.txt). Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e105` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileComparisonOpCmd.txt). Exact complete CompileComparisonOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e106` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileTokens.txt). Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e107` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclFindCompiledLocal.txt). Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e108` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileCmdLiteral.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-CompileCmdLiteral.txt). Exact complete CompileCmdLiteral definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e109` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInvocation.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/8.6.18-TclCompileInvocation.txt). Exact complete TclCompileInvocation definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e110` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileAppendCmd.txt). Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e111` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileConcatCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileConcatCmd.txt). Exact complete TclCompileConcatCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e112` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileErrorCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileErrorCmd.txt). Exact complete TclCompileErrorCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e113` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileBreakCmd.txt). Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e114` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileContinueCmd.txt). Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e115` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictAppendCmd.txt). Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e116` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictLappendCmd.txt). Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e117` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictCreateCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictCreateCmd.txt). Exact complete TclCompileDictCreateCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e118` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictExistsCmd.txt). Exact complete TclCompileDictExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e119` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetCmd.txt). Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e120` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetWithDefaultCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictGetWithDefaultCmd.txt). Exact complete TclCompileDictGetWithDefaultCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e121` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictIncrCmd.txt). Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e122` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictMergeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictMergeCmd.txt). Exact complete TclCompileDictMergeCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e123` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictSetCmd.txt). Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e124` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileDictUnsetCmd.txt). Exact complete TclCompileDictUnsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e125` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclPushVarName.txt). Exact complete TclPushVarName definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e126` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLappendCmd.txt). Exact complete TclCompileLappendCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e127` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileIncrCmd.txt). Exact complete TclCompileIncrCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e128` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUpvarCmd.txt). Exact complete TclCompileUpvarCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e129` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileGlobalCmd.txt). Exact complete TclCompileGlobalCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e130` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileVariableCmd.txt). Exact complete TclCompileVariableCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e131` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLassignCmd.txt). Exact complete TclCompileLassignCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e132` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileListCmd.txt). Exact complete TclCompileListCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e133` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLindexCmd.txt). Exact complete TclCompileLindexCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e134` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLlengthCmd.txt). Exact complete TclCompileLlengthCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e135` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLrangeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLrangeCmd.txt). Exact complete TclCompileLrangeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e136` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLinsertCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLinsertCmd.txt). Exact complete TclCompileLinsertCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e137` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileLsetCmd.txt). Exact complete TclCompileLsetCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e138` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileReturnCmd.txt). Exact complete TclCompileReturnCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e139` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoExistsCmd.txt). Exact complete TclCompileInfoExistsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e140` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoLevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoLevelCmd.txt). Exact complete TclCompileInfoLevelCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e141` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCurrentCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCurrentCmd.txt). Exact complete TclCompileNamespaceCurrentCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e142` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCodeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceCodeCmd.txt). Exact complete TclCompileNamespaceCodeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e143` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceOriginCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileNamespaceOriginCmd.txt). Exact complete TclCompileNamespaceOriginCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e144` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoCommandsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoCommandsCmd.txt). Exact complete TclCompileInfoCommandsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e145` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileRegexpCmd.txt). Exact complete TclCompileRegexpCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e146` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextCmd.txt). Exact complete TclCompileObjectNextCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e147` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectNextToCmd.txt). Exact complete TclCompileObjectNextToCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e148` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectSelfCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileObjectSelfCmd.txt). Exact complete TclCompileObjectSelfCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e149` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectClassCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectClassCmd.txt). Exact complete TclCompileInfoObjectClassCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e150` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectNamespaceCmd.txt). Exact complete TclCompileInfoObjectNamespaceCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e151` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectIsACmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInfoObjectIsACmd.txt). Exact complete TclCompileInfoObjectIsACmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e152` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileSetCmd.txt). Exact complete TclCompileSetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e153` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileUnsetCmd.txt). Exact complete TclCompileUnsetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e154` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTailcallCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTailcallCmd.txt). Exact complete TclCompileTailcallCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e155` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldCmd.txt). Exact complete TclCompileYieldCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e156` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileYieldToCmd.txt). Exact complete TclCompileYieldToCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e157` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringEqualCmd.txt). Exact complete TclCompileStringEqualCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e158` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringLenCmd.txt). Exact complete TclCompileStringLenCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e159` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringMatchCmd.txt). Exact complete TclCompileStringMatchCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e160` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimCmd.txt). Exact complete TclCompileStringTrimCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e161` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimLCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimLCmd.txt). Exact complete TclCompileStringTrimLCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e162` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimRCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileStringTrimRCmd.txt). Exact complete TclCompileStringTrimRCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e163` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileUnaryOpCmd.txt). Exact complete CompileUnaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e164` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileAssociativeBinaryOpCmd.txt). Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e165` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileStrictlyBinaryOpCmd.txt). Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e166` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileComparisonOpCmd.txt). Exact complete CompileComparisonOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e167` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileTokens.txt). Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e168` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclFindCompiledLocal.txt). Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e169` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileCmdLiteral.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-CompileCmdLiteral.txt). Exact complete CompileCmdLiteral definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e170` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInvocation.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.0.4-TclCompileInvocation.txt). Exact complete TclCompileInvocation definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e171` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileAppendCmd.txt). Exact complete TclCompileAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e172` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileConcatCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileConcatCmd.txt). Exact complete TclCompileConcatCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e173` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileErrorCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileErrorCmd.txt). Exact complete TclCompileErrorCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e174` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileBreakCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileBreakCmd.txt). Exact complete TclCompileBreakCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e175` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileContinueCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileContinueCmd.txt). Exact complete TclCompileContinueCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e176` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictAppendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictAppendCmd.txt). Exact complete TclCompileDictAppendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e177` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictLappendCmd.txt). Exact complete TclCompileDictLappendCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e178` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictCreateCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictCreateCmd.txt). Exact complete TclCompileDictCreateCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e179` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictExistsCmd.txt). Exact complete TclCompileDictExistsCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e180` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetCmd.txt). Exact complete TclCompileDictGetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e181` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetWithDefaultCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictGetWithDefaultCmd.txt). Exact complete TclCompileDictGetWithDefaultCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e182` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictIncrCmd.txt). Exact complete TclCompileDictIncrCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e183` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictMergeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictMergeCmd.txt). Exact complete TclCompileDictMergeCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e184` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictRemoveCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictRemoveCmd.txt). Exact complete TclCompileDictRemoveCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e185` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictReplaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictReplaceCmd.txt). Exact complete TclCompileDictReplaceCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e186` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictSetCmd.txt). Exact complete TclCompileDictSetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e187` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileDictUnsetCmd.txt). Exact complete TclCompileDictUnsetCmd definition from tclCompCmds.c; all branches retained, selected static-path restrictions are separate.
+- `e188` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLappendCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLappendCmd.txt). Exact complete TclCompileLappendCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e189` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileIncrCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileIncrCmd.txt). Exact complete TclCompileIncrCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e190` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUpvarCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUpvarCmd.txt). Exact complete TclCompileUpvarCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e191` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileGlobalCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileGlobalCmd.txt). Exact complete TclCompileGlobalCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e192` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileVariableCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileVariableCmd.txt). Exact complete TclCompileVariableCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e193` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLassignCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLassignCmd.txt). Exact complete TclCompileLassignCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e194` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileListCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileListCmd.txt). Exact complete TclCompileListCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e195` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLindexCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLindexCmd.txt). Exact complete TclCompileLindexCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e196` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLlengthCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLlengthCmd.txt). Exact complete TclCompileLlengthCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e197` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLrangeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLrangeCmd.txt). Exact complete TclCompileLrangeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e198` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLinsertCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLinsertCmd.txt). Exact complete TclCompileLinsertCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e199` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileLsetCmd.txt). Exact complete TclCompileLsetCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e200` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileReturnCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileReturnCmd.txt). Exact complete TclCompileReturnCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e201` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoExistsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoExistsCmd.txt). Exact complete TclCompileInfoExistsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e202` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoLevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoLevelCmd.txt). Exact complete TclCompileInfoLevelCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e203` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCurrentCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCurrentCmd.txt). Exact complete TclCompileNamespaceCurrentCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e204` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCodeCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceCodeCmd.txt). Exact complete TclCompileNamespaceCodeCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e205` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceOriginCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileNamespaceOriginCmd.txt). Exact complete TclCompileNamespaceOriginCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e206` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoCommandsCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoCommandsCmd.txt). Exact complete TclCompileInfoCommandsCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e207` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileRegexpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileRegexpCmd.txt). Exact complete TclCompileRegexpCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e208` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextCmd.txt). Exact complete TclCompileObjectNextCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e209` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectNextToCmd.txt). Exact complete TclCompileObjectNextToCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e210` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectSelfCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileObjectSelfCmd.txt). Exact complete TclCompileObjectSelfCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e211` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectClassCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectClassCmd.txt). Exact complete TclCompileInfoObjectClassCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e212` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectNamespaceCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectNamespaceCmd.txt). Exact complete TclCompileInfoObjectNamespaceCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e213` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectIsACmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectIsACmd.txt). Exact complete TclCompileInfoObjectIsACmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e214` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectCreationIdCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInfoObjectCreationIdCmd.txt). Exact complete TclCompileInfoObjectCreationIdCmd definition from tclCompCmdsGR.c; all branches retained, selected static-path restrictions are separate.
+- `e215` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileSetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileSetCmd.txt). Exact complete TclCompileSetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e216` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUnsetCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUnsetCmd.txt). Exact complete TclCompileUnsetCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e217` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTailcallCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTailcallCmd.txt). Exact complete TclCompileTailcallCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e218` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldCmd.txt). Exact complete TclCompileYieldCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e219` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldToCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileYieldToCmd.txt). Exact complete TclCompileYieldToCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e220` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUplevelCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileUplevelCmd.txt). Exact complete TclCompileUplevelCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e221` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringEqualCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringEqualCmd.txt). Exact complete TclCompileStringEqualCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e222` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringLenCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringLenCmd.txt). Exact complete TclCompileStringLenCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e223` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringMatchCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringMatchCmd.txt). Exact complete TclCompileStringMatchCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e224` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimCmd.txt). Exact complete TclCompileStringTrimCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e225` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimLCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimLCmd.txt). Exact complete TclCompileStringTrimLCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e226` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimRCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileStringTrimRCmd.txt). Exact complete TclCompileStringTrimRCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e227` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileUnaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileUnaryOpCmd.txt). Exact complete CompileUnaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e228` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileAssociativeBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileAssociativeBinaryOpCmd.txt). Exact complete CompileAssociativeBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e229` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileStrictlyBinaryOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileStrictlyBinaryOpCmd.txt). Exact complete CompileStrictlyBinaryOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e230` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileComparisonOpCmd.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileComparisonOpCmd.txt). Exact complete CompileComparisonOpCmd definition from tclCompCmdsSZ.c; all branches retained, selected static-path restrictions are separate.
+- `e231` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTokens.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileTokens.txt). Exact complete TclCompileTokens definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e232` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclFindCompiledLocal.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclFindCompiledLocal.txt). Exact complete TclFindCompiledLocal definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e233` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclPushVarName.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclPushVarName.txt). Exact complete TclPushVarName definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e234` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileCmdLiteral.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-CompileCmdLiteral.txt). Exact complete CompileCmdLiteral definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
+- `e235` (source-anchor): [rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInvocation.txt](../../../../rust/tcl-registry/tests/data/native_literal_emitter_compiler_source/9.1.0-TclCompileInvocation.txt). Exact complete TclCompileInvocation definition from tclCompile.c; all branches retained, selected static-path restrictions are separate.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 102–203. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `32160b47b172a269422ac6fa3759b4180a62b5c6fba1206f9e4f9dcc8c1054a4`; retained evidence `e0`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 102–203. Retained reference `e0`.
 
 ```text
 TclCompileAppendCmd(interp, parsePtr, envPtr)
@@ -411,7 +411,7 @@ TclCompileAppendCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLappendCmd`, lines 1715–1821. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `b90938702183df8b023ba463e82e36df7588c194fbcf646c281425a029cffb8b`; retained evidence `e1`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLappendCmd`, lines 1715–1821. Retained reference `e1`.
 
 ```text
 TclCompileLappendCmd(interp, parsePtr, envPtr)
@@ -524,7 +524,7 @@ TclCompileLappendCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileSetCmd`, lines 2585–2684. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `a67197c79da42a0467050b5fdb76930a8d8b502ef2e8ca68d787b4ad45a3a76f`; retained evidence `e2`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileSetCmd`, lines 2585–2684. Retained reference `e2`.
 
 ```text
 TclCompileSetCmd(interp, parsePtr, envPtr)
@@ -630,7 +630,7 @@ TclCompileSetCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileIncrCmd`, lines 1568–1689. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `abc1951ec56d1495c582cad2efcacb315d7526ed9b330c81c4879bce56797edc`; retained evidence `e3`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileIncrCmd`, lines 1568–1689. Retained reference `e3`.
 
 ```text
 TclCompileIncrCmd(interp, parsePtr, envPtr)
@@ -758,7 +758,7 @@ TclCompileIncrCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileVariableCmd`, lines 2958–2993. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `b908516e1b917928c01502a3b648afdb35b221465903733ab450e8ba479b8d73`; retained evidence `e4`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileVariableCmd`, lines 2958–2993. Retained reference `e4`.
 
 ```text
 TclCompileVariableCmd(interp, parsePtr, envPtr)
@@ -800,7 +800,7 @@ TclCompileVariableCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileListCmd`, lines 1928–1978. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `9d50c7e45abb284280ab9fbecdddabc9f8bfaa52ae38b68e5fafe07210fdf6da`; retained evidence `e5`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileListCmd`, lines 1928–1978. Retained reference `e5`.
 
 ```text
 TclCompileListCmd(interp, parsePtr, envPtr)
@@ -857,7 +857,7 @@ TclCompileListCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLindexCmd`, lines 1845–1902. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `756617778414a79219c5c9fdac1741e79aff6a67452b39b92e9824bc314951c2`; retained evidence `e6`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLindexCmd`, lines 1845–1902. Retained reference `e6`.
 
 ```text
 TclCompileLindexCmd(interp, parsePtr, envPtr)
@@ -921,7 +921,7 @@ TclCompileLindexCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLlengthCmd`, lines 2002–2038. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `3cb9c02b8ec848d12a51491f8b244100ad5622457a96f946622fbfc9ae364021`; retained evidence `e7`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLlengthCmd`, lines 2002–2038. Retained reference `e7`.
 
 ```text
 TclCompileLlengthCmd(interp, parsePtr, envPtr)
@@ -964,7 +964,7 @@ TclCompileLlengthCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLsetCmd`, lines 2085–2239. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `1bcfbca0a8c152badeee6c8fdb16d53694f36db82483572202a10605bca8fa14`; retained evidence `e8`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileLsetCmd`, lines 2085–2239. Retained reference `e8`.
 
 ```text
 TclCompileLsetCmd( interp, parsePtr, envPtr )
@@ -1125,7 +1125,7 @@ TclCompileLsetCmd( interp, parsePtr, envPtr )
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileReturnCmd`, lines 2465–2559. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `bee5dc023859b31d0127676e0037e9b58e99b4c145067d0908e7499fb4e09528`; retained evidence `e9`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileReturnCmd`, lines 2465–2559. Retained reference `e9`.
 
 ```text
 TclCompileReturnCmd(interp, parsePtr, envPtr)
@@ -1226,7 +1226,7 @@ TclCompileReturnCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 225–244. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `4864acccac077a87b0380f5710804a9ca03b4ac4f6842699de95fe0e18056f52`; retained evidence `e10`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 225–244. Retained reference `e10`.
 
 ```text
 TclCompileBreakCmd(interp, parsePtr, envPtr)
@@ -1252,7 +1252,7 @@ TclCompileBreakCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 442–465. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `abf09904cd49c6c4a5cb89d0e837204a6b4987209d0b9e4384944972dd5cba4f`; retained evidence `e11`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 442–465. Retained reference `e11`.
 
 ```text
 TclCompileContinueCmd(interp, parsePtr, envPtr)
@@ -1282,7 +1282,7 @@ TclCompileContinueCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileRegexpCmd`, lines 2264–2439. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `51388a492074a2d4ab7b389085fc976a8685682c63a44bc455e92de3c83ad9e5`; retained evidence `e12`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileRegexpCmd`, lines 2264–2439. Retained reference `e12`.
 
 ```text
 TclCompileRegexpCmd(interp, parsePtr, envPtr)
@@ -1464,7 +1464,7 @@ TclCompileRegexpCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileStringCmd`, lines 2708–2939. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `6505f40fa84a529d547f0e30658a216dc37a0f011373bd0d4f13318a1ce44087`; retained evidence `e13`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclCompileStringCmd`, lines 2708–2939. Retained reference `e13`.
 
 ```text
 TclCompileStringCmd(interp, parsePtr, envPtr)
@@ -1702,7 +1702,7 @@ TclCompileStringCmd(interp, parsePtr, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclPushVarName`, lines 3225–3464. Full-source SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; snippet SHA-256 `b9fd87d654b758367c00fbd16fe8394e91c5f95dedc6b681d9ba699468b45107`; retained evidence `e14`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompCmds.c`, function `TclPushVarName`, lines 3225–3464. Retained reference `e14`.
 
 ```text
 TclPushVarName(interp, varTokenPtr, envPtr, flags, localIndexPtr,
@@ -1948,7 +1948,7 @@ TclPushVarName(interp, varTokenPtr, envPtr, flags, localIndexPtr,
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 1519–1809. Full-source SHA-256 `0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8`; snippet SHA-256 `28cc01627a3f5190822bbbf9a864d45696cb8727a2cfbf3def2c7f09da492afa`; retained evidence `e15`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 1519–1809. Retained reference `e15`.
 
 ```text
 TclCompileTokens(interp, tokenPtr, count, envPtr)
@@ -2245,7 +2245,7 @@ TclCompileTokens(interp, tokenPtr, count, envPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 2237–2307. Full-source SHA-256 `0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8`; snippet SHA-256 `c719316f477c7007c60b313b7ca0b00b12bf22372981a3819bdbf232eb3dde79`; retained evidence `e16`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 2237–2307. Retained reference `e16`.
 
 ```text
 TclFindCompiledLocal(name, nameBytes, create, flags, procPtr)
@@ -2322,7 +2322,7 @@ TclFindCompiledLocal(name, nameBytes, create, flags, procPtr)
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 236–316. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `6b0e69ea1023182594c535e81a2f9e20f75a0b287370dd80dd091c362875443b`; retained evidence `e17`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 236–316. Retained reference `e17`.
 
 ```text
 TclCompileAppendCmd(
@@ -2409,7 +2409,7 @@ TclCompileAppendCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLappendCmd`, lines 2369–2456. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `a1678bba7016307baf0e95560e31b6f0d839414bdba4dea579842de626518a88`; retained evidence `e18`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLappendCmd`, lines 2369–2456. Retained reference `e18`.
 
 ```text
 TclCompileLappendCmd(
@@ -2503,7 +2503,7 @@ TclCompileLappendCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileSetCmd`, lines 3328–3404. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `ef1e582aeeed894fe50713e0f8ce8a99a06c94f2466e1f94cd9f4e1c5d849dcf`; retained evidence `e19`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileSetCmd`, lines 3328–3404. Retained reference `e19`.
 
 ```text
 TclCompileSetCmd(
@@ -2586,7 +2586,7 @@ TclCompileSetCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileIncrCmd`, lines 2251–2348. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `6d0f396144ba393eb244b99653dfd2de0ed76210ec847d9f8c31f7ee4ee08895`; retained evidence `e20`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileIncrCmd`, lines 2251–2348. Retained reference `e20`.
 
 ```text
 TclCompileIncrCmd(
@@ -2690,7 +2690,7 @@ TclCompileIncrCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileUpvarCmd`, lines 5676–5762. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `81b53b16796352505e235a8a4fb8aeab6987cadc95737f7262b3b9a406141703`; retained evidence `e21`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileUpvarCmd`, lines 5676–5762. Retained reference `e21`.
 
 ```text
 TclCompileUpvarCmd(
@@ -2783,7 +2783,7 @@ TclCompileUpvarCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileGlobalCmd`, lines 5873–5930. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `e9ad0fe3d2fd9db5ad0ff510987cc1d48711f0e1337a76a6497508944f0c9ab9`; retained evidence `e22`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileGlobalCmd`, lines 5873–5930. Retained reference `e22`.
 
 ```text
 TclCompileGlobalCmd(
@@ -2847,7 +2847,7 @@ TclCompileGlobalCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileVariableCmd`, lines 5951–6014. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `7f23de07a746882b18027cb0b1aa3fc525ea3813cce4f5554a4f6a97464d8f21`; retained evidence `e23`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileVariableCmd`, lines 5951–6014. Retained reference `e23`.
 
 ```text
 TclCompileVariableCmd(
@@ -2917,7 +2917,7 @@ TclCompileVariableCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLassignCmd`, lines 2477–2571. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `0a4c7c4cf69dca253ca19282f8fe8735a9a46e34965b825c640b9217ed3d6f78`; retained evidence `e24`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLassignCmd`, lines 2477–2571. Retained reference `e24`.
 
 ```text
 TclCompileLassignCmd(
@@ -3018,7 +3018,7 @@ TclCompileLassignCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileListCmd`, lines 2689–2732. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `e1ed332b242f1e89773e204bd7908e12d0e1b323130cc2419f8ea63c3a6c2cdf`; retained evidence `e25`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileListCmd`, lines 2689–2732. Retained reference `e25`.
 
 ```text
 TclCompileListCmd(
@@ -3068,7 +3068,7 @@ TclCompileListCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLindexCmd`, lines 2592–2668. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `5af47c89800e6cdd2d785f21daaff43bcadab046b22550890c4b90f7b91de933`; retained evidence `e26`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLindexCmd`, lines 2592–2668. Retained reference `e26`.
 
 ```text
 TclCompileLindexCmd(
@@ -3151,7 +3151,7 @@ TclCompileLindexCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLlengthCmd`, lines 2753–2772. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `873f71704cc9f9bead3e468632d10e1c3b6de5afb56358939530f0a4050fa5b6`; retained evidence `e27`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLlengthCmd`, lines 2753–2772. Retained reference `e27`.
 
 ```text
 TclCompileLlengthCmd(
@@ -3177,7 +3177,7 @@ TclCompileLlengthCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLsetCmd`, lines 2815–2951. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `e0b2eec7511fcb282ca6c88c935a67e5b272d79ac348eed8dcec740bdd85e0d2`; retained evidence `e28`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileLsetCmd`, lines 2815–2951. Retained reference `e28`.
 
 ```text
 TclCompileLsetCmd(
@@ -3320,7 +3320,7 @@ TclCompileLsetCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileReturnCmd`, lines 3134–3280. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `0d383efbf833e4ef22faf2050959d74daa75e0dfd597a6f650ba3df78a5cf0d5`; retained evidence `e29`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileReturnCmd`, lines 3134–3280. Retained reference `e29`.
 
 ```text
 TclCompileReturnCmd(
@@ -3473,7 +3473,7 @@ TclCompileReturnCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 337–355. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `93ce588ce69950d74f71bbb3e77a614c4bc755690a2abc35bc86e4bc1b2d48f1`; retained evidence `e30`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 337–355. Retained reference `e30`.
 
 ```text
 TclCompileBreakCmd(
@@ -3498,7 +3498,7 @@ TclCompileBreakCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 588–610. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `92eab1ea9428ff1ebb81c0346fc700985778f990e6f3e0320e8a2e8e23b3c373`; retained evidence `e31`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 588–610. Retained reference `e31`.
 
 ```text
 TclCompileContinueCmd(
@@ -3527,7 +3527,7 @@ TclCompileContinueCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileInfoExistsCmd`, lines 6327–6378. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `a932f4ecc3d2e44151ada37be332dda0149f2056ec0aac20f1b70b87d8bba015`; retained evidence `e32`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileInfoExistsCmd`, lines 6327–6378. Retained reference `e32`.
 
 ```text
 TclCompileInfoExistsCmd(
@@ -3585,7 +3585,7 @@ TclCompileInfoExistsCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileNamespaceCmd`, lines 5784–5852. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `bcf21afbcb3eb1623c68e871c1dcd2a76b3f30aa8664f0005388a938ee40f1d1`; retained evidence `e33`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileNamespaceCmd`, lines 5784–5852. Retained reference `e33`.
 
 ```text
 TclCompileNamespaceCmd(
@@ -3660,7 +3660,7 @@ TclCompileNamespaceCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileRegexpCmd`, lines 2972–3113. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `12df42d9efdd2e2dac8cdad59a50b2d5de02ff87be8a75050063a5e2bcfc579d`; retained evidence `e34`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileRegexpCmd`, lines 2972–3113. Retained reference `e34`.
 
 ```text
 TclCompileRegexpCmd(
@@ -3808,7 +3808,7 @@ TclCompileRegexpCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileStringEqualCmd`, lines 3477–3506. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `16089cd76329d8467ebb8e8c866d0353244b449e30b2b41d925c9c398e511343`; retained evidence `e35`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileStringEqualCmd`, lines 3477–3506. Retained reference `e35`.
 
 ```text
 TclCompileStringEqualCmd(
@@ -3844,7 +3844,7 @@ TclCompileStringEqualCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileStringLenCmd`, lines 3675–3708. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `e0939fa1a3384cfc07885e72c29050e3aa3f01109b47f7ec4132787ff5317ed2`; retained evidence `e36`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileStringLenCmd`, lines 3675–3708. Retained reference `e36`.
 
 ```text
 TclCompileStringLenCmd(
@@ -3884,7 +3884,7 @@ TclCompileStringLenCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileStringMatchCmd`, lines 3575–3653. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `78e588fc11a7480f4486f4fd461c6ef06f3a8c32b04d08332a29c95e402bd0c6`; retained evidence `e37`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileStringMatchCmd`, lines 3575–3653. Retained reference `e37`.
 
 ```text
 TclCompileStringMatchCmd(
@@ -3969,7 +3969,7 @@ TclCompileStringMatchCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1146–1197. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `c42b23ccc72346262be1f9ca22b9c1eb49fdfb21bca14a1b95b8efa9eab1a80c`; retained evidence `e38`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1146–1197. Retained reference `e38`.
 
 ```text
 TclCompileDictAppendCmd(
@@ -4027,7 +4027,7 @@ TclCompileDictAppendCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 1200–1231. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `21d12a055f512e869be958361d4b88937f95bb3503ed23eda6dd34516de0cb00`; retained evidence `e39`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 1200–1231. Retained reference `e39`.
 
 ```text
 TclCompileDictLappendCmd(
@@ -4065,7 +4065,7 @@ TclCompileDictLappendCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 764–796. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `21c0f5e3231817afd09c5946e78be82bd506ca547b994c32bbc7b618717923a8`; retained evidence `e40`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 764–796. Retained reference `e40`.
 
 ```text
 TclCompileDictGetCmd(
@@ -4104,7 +4104,7 @@ TclCompileDictGetCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 702–761. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `1393e27369bf33796a7725debab512c03ced3adb40d729d4744945198305122f`; retained evidence `e41`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 702–761. Retained reference `e41`.
 
 ```text
 TclCompileDictIncrCmd(
@@ -4170,7 +4170,7 @@ TclCompileDictIncrCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 650–699. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `7f8c4cef26fdeadeb385e6c5be44e94b0ecc91fb1089fc43b82fadd7c640d68b`; retained evidence `e42`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 650–699. Retained reference `e42`.
 
 ```text
 TclCompileDictSetCmd(
@@ -4226,7 +4226,7 @@ TclCompileDictSetCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileUnaryOpCmd`, lines 5005–5021. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `9fef3e976c023424c239a4cae95398f2abb9784e9b43a35d5f2bca3a50dc11d8`; retained evidence `e43`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileUnaryOpCmd`, lines 5005–5021. Retained reference `e43`.
 
 ```text
 CompileUnaryOpCmd(
@@ -4249,7 +4249,7 @@ CompileUnaryOpCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileAssociativeBinaryOpCmd`, lines 5046–5076. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `d58c6f78dd394fb2321036a0b975796889f4fe78e2730715f7b407caa71b79ab`; retained evidence `e44`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileAssociativeBinaryOpCmd`, lines 5046–5076. Retained reference `e44`.
 
 ```text
 CompileAssociativeBinaryOpCmd(
@@ -4286,7 +4286,7 @@ CompileAssociativeBinaryOpCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileStrictlyBinaryOpCmd`, lines 5098–5109. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`; retained evidence `e45`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileStrictlyBinaryOpCmd`, lines 5098–5109. Retained reference `e45`.
 
 ```text
 CompileStrictlyBinaryOpCmd(
@@ -4304,7 +4304,7 @@ CompileStrictlyBinaryOpCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileComparisonOpCmd`, lines 5130–5202. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `796e2e19758b73db94f07bcafec8c59e920347f8ab8244c858bf0fd7a59649ec`; retained evidence `e46`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `CompileComparisonOpCmd`, lines 5130–5202. Retained reference `e46`.
 
 ```text
 CompileComparisonOpCmd(
@@ -4383,7 +4383,7 @@ CompileComparisonOpCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `PushVarName`, lines 4774–4984. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `93765f759ed489263582d7d4f2b86f58fab7e0a7cf1232323fb9dcef835c0210`; retained evidence `e47`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompCmds.c`, function `PushVarName`, lines 4774–4984. Retained reference `e47`.
 
 ```text
 PushVarName(
@@ -4600,7 +4600,7 @@ PushVarName(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 1660–1921. Full-source SHA-256 `8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988`; snippet SHA-256 `f6f5b99e924c9008a95360d1e7a247721f85fbd997611560b5fe350837a4a3a5`; retained evidence `e48`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 1660–1921. Retained reference `e48`.
 
 ```text
 TclCompileTokens(
@@ -4868,7 +4868,7 @@ TclCompileTokens(
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 2286–2354. Full-source SHA-256 `8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988`; snippet SHA-256 `917731c247b97d3ce1ec4f6331879334c90f0eb0d1cc37c9ec2194b5954c00ff`; retained evidence `e49`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 2286–2354. Retained reference `e49`.
 
 ```text
 TclFindCompiledLocal(
@@ -4943,7 +4943,7 @@ TclFindCompiledLocal(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 121–226. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `a3c8a943e920bbe04fd22d3e4a6c1e229efac8bf7c012c7753541402b43a88af`; retained evidence `e50`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 121–226. Retained reference `e50`.
 
 ```text
 TclCompileAppendCmd(
@@ -5055,7 +5055,7 @@ TclCompileAppendCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileConcatCmd`, lines 855–921. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `cf75c8b1e60cb72e67e623a3c9a8d066f6715b95ec52f7ee5e91fb490546f3ca`; retained evidence `e51`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileConcatCmd`, lines 855–921. Retained reference `e51`.
 
 ```text
 TclCompileConcatCmd(
@@ -5128,7 +5128,7 @@ TclCompileConcatCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileErrorCmd`, lines 2320–2373. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `1d778848cdc954339032e0ea60011e14fbc78b05b7f68e2cf9c5779be2b0853e`; retained evidence `e52`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileErrorCmd`, lines 2320–2373. Retained reference `e52`.
 
 ```text
 TclCompileErrorCmd(
@@ -5188,7 +5188,7 @@ TclCompileErrorCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 512–549. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `5ef913f31f37d7afa2279416ff250559aa876f4173ebfdc312fed1db98ae1315`; retained evidence `e53`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 512–549. Retained reference `e53`.
 
 ```text
 TclCompileBreakCmd(
@@ -5232,7 +5232,7 @@ TclCompileBreakCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 942–984. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `3265dabfa7afc60beda0e5ccd8c92a801997de219bba20317fea39be8c13005d`; retained evidence `e54`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 942–984. Retained reference `e54`.
 
 ```text
 TclCompileContinueCmd(
@@ -5281,7 +5281,7 @@ TclCompileContinueCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1870–1922. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `d934062cb5e7983b45c27c600d712e1b4ae5b442a7f0921ee19f9ecd5cbe4705`; retained evidence `e55`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1870–1922. Retained reference `e55`.
 
 ```text
 TclCompileDictAppendCmd(
@@ -5340,7 +5340,7 @@ TclCompileDictAppendCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 1925–1967. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `a19f2eca7a9bdc1cbd3e945a22163cd97fe499973ea0929e05c5def76dae8109`; retained evidence `e56`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 1925–1967. Retained reference `e56`.
 
 ```text
 TclCompileDictLappendCmd(
@@ -5389,7 +5389,7 @@ TclCompileDictLappendCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictCreateCmd`, lines 1257–1347. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `a779233d6dd21a76bc0e7226d94cdb80e5009906b165e651ce942ee35afe39fe`; retained evidence `e57`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictCreateCmd`, lines 1257–1347. Retained reference `e57`.
 
 ```text
 TclCompileDictCreateCmd(
@@ -5486,7 +5486,7 @@ TclCompileDictCreateCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictExistsCmd`, lines 1167–1201. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `510a9e5f5d49c6e7563718fcdacdcb89ccb083994a1c3c9eb0f05e0cad3466ee`; retained evidence `e58`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictExistsCmd`, lines 1167–1201. Retained reference `e58`.
 
 ```text
 TclCompileDictExistsCmd(
@@ -5527,7 +5527,7 @@ TclCompileDictExistsCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 1130–1164. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `c9db073f21dad4c0fd28690811d78d8b0be9a307db7f652f5e28b5b438f4c85e`; retained evidence `e59`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 1130–1164. Retained reference `e59`.
 
 ```text
 TclCompileDictGetCmd(
@@ -5568,7 +5568,7 @@ TclCompileDictGetCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 1058–1127. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `7c1b7b9a6b1c5b61fd7d47a2affaf5d471edf34a695ea1e480e3911485cfeba7`; retained evidence `e60`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 1058–1127. Retained reference `e60`.
 
 ```text
 TclCompileDictIncrCmd(
@@ -5644,7 +5644,7 @@ TclCompileDictIncrCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictMergeCmd`, lines 1350–1461. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `05ef1a95488ae857a564d6352110c39b6c41bd62b3078b49229129b14de1144f`; retained evidence `e61`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictMergeCmd`, lines 1350–1461. Retained reference `e61`.
 
 ```text
 TclCompileDictMergeCmd(
@@ -5762,7 +5762,7 @@ TclCompileDictMergeCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 1005–1055. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `481cac17febddb2eac6c342be6a92758d7ff9a0b07068d6a48eb28bfad1c2d11`; retained evidence `e62`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 1005–1055. Retained reference `e62`.
 
 ```text
 TclCompileDictSetCmd(
@@ -5819,7 +5819,7 @@ TclCompileDictSetCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictUnsetCmd`, lines 1204–1254. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `86fe763b73e2784cf4c4da4ff54f9dc048f487e4c3253bf824099d1de713ad0c`; retained evidence `e63`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclCompileDictUnsetCmd`, lines 1204–1254. Retained reference `e63`.
 
 ```text
 TclCompileDictUnsetCmd(
@@ -5876,7 +5876,7 @@ TclCompileDictUnsetCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclPushVarName`, lines 3387–3591. Full-source SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; snippet SHA-256 `414e0c602ecd47ea0909bc2af3016540dd61de38a199e3512377e4b06a328fba`; retained evidence `e64`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmds.c`, function `TclPushVarName`, lines 3387–3591. Retained reference `e64`.
 
 ```text
 TclPushVarName(
@@ -6087,7 +6087,7 @@ TclPushVarName(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLappendCmd`, lines 852–947. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `b00b3ce1ca8401244c78d85c9ec2ded2049a75f76e89aca142d63c9bc015c4cc`; retained evidence `e65`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLappendCmd`, lines 852–947. Retained reference `e65`.
 
 ```text
 TclCompileLappendCmd(
@@ -6189,7 +6189,7 @@ TclCompileLappendCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileIncrCmd`, lines 472–567. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `d0842df5697eaf40eb0fc3c4123813bb582a4cf467c4db00fbb8cdc3d74d9399`; retained evidence `e66`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileIncrCmd`, lines 472–567. Retained reference `e66`.
 
 ```text
 TclCompileIncrCmd(
@@ -6291,7 +6291,7 @@ TclCompileIncrCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileUpvarCmd`, lines 2672–2758. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `320df733490b23aa0c420db306555b0057fce2b8108f7aad1ec717076fa9d2cc`; retained evidence `e67`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileUpvarCmd`, lines 2672–2758. Retained reference `e67`.
 
 ```text
 TclCompileUpvarCmd(
@@ -6384,7 +6384,7 @@ TclCompileUpvarCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileGlobalCmd`, lines 86–147. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `7f742ced4e39ccb26097f758dfde97da5b6bd0cab69118e43f9807f4767555e4`; retained evidence `e68`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileGlobalCmd`, lines 86–147. Retained reference `e68`.
 
 ```text
 TclCompileGlobalCmd(
@@ -6452,7 +6452,7 @@ TclCompileGlobalCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileVariableCmd`, lines 2779–2842. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `bf2038ca7ade3949b4130ae10ee697c8817093e40e6fb5b783e35997d74f2d01`; retained evidence `e69`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileVariableCmd`, lines 2779–2842. Retained reference `e69`.
 
 ```text
 TclCompileVariableCmd(
@@ -6522,7 +6522,7 @@ TclCompileVariableCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 968–1051. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `ef8fcd3d2677f9db53c8dd4847a5525d478f12482217997e1f1e3d999ebfce85`; retained evidence `e70`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 968–1051. Retained reference `e70`.
 
 ```text
 TclCompileLassignCmd(
@@ -6612,7 +6612,7 @@ TclCompileLassignCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileListCmd`, lines 1163–1256. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `1ba89fa2eeaf4828ee3c38710e0b5a66cceb2b40b2559ab13f100052b6b34298`; retained evidence `e71`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileListCmd`, lines 1163–1256. Retained reference `e71`.
 
 ```text
 TclCompileListCmd(
@@ -6712,7 +6712,7 @@ TclCompileListCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLindexCmd`, lines 1072–1142. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `0ba7d8b42db89a004ff51f73f09c3cacb57c55bd17e09229715206ec99d59b96`; retained evidence `e72`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLindexCmd`, lines 1072–1142. Retained reference `e72`.
 
 ```text
 TclCompileLindexCmd(
@@ -6789,7 +6789,7 @@ TclCompileLindexCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLlengthCmd`, lines 1277–1296. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `660098cec4a87a2582859897832cab54b1bca582faf88d07301d89e3f836ad93`; retained evidence `e73`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLlengthCmd`, lines 1277–1296. Retained reference `e73`.
 
 ```text
 TclCompileLlengthCmd(
@@ -6815,7 +6815,7 @@ TclCompileLlengthCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLrangeCmd`, lines 1310–1357. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `7cf306aa2578bf794b09c7494af992d118b8757bcbb0ac2fa865d6d0892fba3a`; retained evidence `e74`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLrangeCmd`, lines 1310–1357. Retained reference `e74`.
 
 ```text
 TclCompileLrangeCmd(
@@ -6869,7 +6869,7 @@ TclCompileLrangeCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLinsertCmd`, lines 1371–1460. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `7a4fa9eb9746fafb0228a03521a5375f0f3c9cc10f7fa1d89500d061b4aa2b82`; retained evidence `e75`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLinsertCmd`, lines 1371–1460. Retained reference `e75`.
 
 ```text
 TclCompileLinsertCmd(
@@ -6965,7 +6965,7 @@ TclCompileLinsertCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLsetCmd`, lines 1638–1762. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `700d968c5c7f53607d750d29a1bd87aeecdefe6681d57d4e411fbe30ee2fa0b0`; retained evidence `e76`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileLsetCmd`, lines 1638–1762. Retained reference `e76`.
 
 ```text
 TclCompileLsetCmd(
@@ -7096,7 +7096,7 @@ TclCompileLsetCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileReturnCmd`, lines 2419–2605. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `d58a1f438e498ee419c0710273f8f5bca2d12b4eccd4547a309d836394e2b2ef`; retained evidence `e77`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileReturnCmd`, lines 2419–2605. Retained reference `e77`.
 
 ```text
 TclCompileReturnCmd(
@@ -7289,7 +7289,7 @@ TclCompileReturnCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoExistsCmd`, lines 674–720. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `1330a56fad8dfaa85de767aa2ad9017eaedca1a5458fae9accd0b9f69d027a47`; retained evidence `e78`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoExistsCmd`, lines 674–720. Retained reference `e78`.
 
 ```text
 TclCompileInfoExistsCmd(
@@ -7342,7 +7342,7 @@ TclCompileInfoExistsCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoLevelCmd`, lines 723–755. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `ba86cb672d6225e703cb02cbde1ab453402e083394481248d9e253d1a15b567f`; retained evidence `e79`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoLevelCmd`, lines 723–755. Retained reference `e79`.
 
 ```text
 TclCompileInfoLevelCmd(
@@ -7381,7 +7381,7 @@ TclCompileInfoLevelCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCurrentCmd`, lines 1785–1807. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `3b76d9f38f557c0ed2644c0a0b37da66c45d1fe197846bea6b2a5872ed19024f`; retained evidence `e80`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCurrentCmd`, lines 1785–1807. Retained reference `e80`.
 
 ```text
 TclCompileNamespaceCurrentCmd(
@@ -7410,7 +7410,7 @@ TclCompileNamespaceCurrentCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCodeCmd`, lines 1810–1857. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `eb7ccd937566fd1bb524d8f309f913365035806c9dd0597428084c394c4faf91`; retained evidence `e81`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCodeCmd`, lines 1810–1857. Retained reference `e81`.
 
 ```text
 TclCompileNamespaceCodeCmd(
@@ -7464,7 +7464,7 @@ TclCompileNamespaceCodeCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceOriginCmd`, lines 1860–1879. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `c4c33827efe97f6f89d505ad1ae523bd583b18da6f02dcb20208ec9f2e5230ca`; retained evidence `e82`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceOriginCmd`, lines 1860–1879. Retained reference `e82`.
 
 ```text
 TclCompileNamespaceOriginCmd(
@@ -7490,7 +7490,7 @@ TclCompileNamespaceOriginCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoCommandsCmd`, lines 588–646. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `14c65a37e4dc66f267757ce77887c1c422fac133b46387bacd865b34fba33cc6`; retained evidence `e83`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoCommandsCmd`, lines 588–646. Retained reference `e83`.
 
 ```text
 TclCompileInfoCommandsCmd(
@@ -7555,7 +7555,7 @@ TclCompileInfoCommandsCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileRegexpCmd`, lines 2080–2222. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `2bc5bbf3ebc07add9b203835d278b77957da8f2ad013a738af3ee4896d7a218a`; retained evidence `e84`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileRegexpCmd`, lines 2080–2222. Retained reference `e84`.
 
 ```text
 TclCompileRegexpCmd(
@@ -7704,7 +7704,7 @@ TclCompileRegexpCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextCmd`, lines 2954–2976. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `59b281bddfc020df4b7af5df12f0b4b823c1a7d380fe53eb8592998d4fbee670`; retained evidence `e85`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextCmd`, lines 2954–2976. Retained reference `e85`.
 
 ```text
 TclCompileObjectNextCmd(
@@ -7733,7 +7733,7 @@ TclCompileObjectNextCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextToCmd`, lines 2979–3001. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `f6a61356b78b116abc3401b7cf2bcfc4d3ad766967dd2191eaa4665077869c19`; retained evidence `e86`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextToCmd`, lines 2979–3001. Retained reference `e86`.
 
 ```text
 TclCompileObjectNextToCmd(
@@ -7762,7 +7762,7 @@ TclCompileObjectNextToCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectSelfCmd`, lines 3004–3064. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `5080f407d5c935b593fe57c1401b649d8a142d7b44aae631261766d8c5a3bc84`; retained evidence `e87`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectSelfCmd`, lines 3004–3064. Retained reference `e87`.
 
 ```text
 TclCompileObjectSelfCmd(
@@ -7829,7 +7829,7 @@ TclCompileObjectSelfCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectClassCmd`, lines 758–775. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `fa63f6dc79f074c5e538aeddbd5f152c7eb26ef64b3ecb07d61a21e8cbff9a48`; retained evidence `e88`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectClassCmd`, lines 758–775. Retained reference `e88`.
 
 ```text
 TclCompileInfoObjectClassCmd(
@@ -7853,7 +7853,7 @@ TclCompileInfoObjectClassCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectNamespaceCmd`, lines 814–831. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `0c0dc5793b8c5d66e4029bc8d75de05e3e69bca2a7c6dcb4e2a241e7dab30946`; retained evidence `e89`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectNamespaceCmd`, lines 814–831. Retained reference `e89`.
 
 ```text
 TclCompileInfoObjectNamespaceCmd(
@@ -7877,7 +7877,7 @@ TclCompileInfoObjectNamespaceCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectIsACmd`, lines 778–811. Full-source SHA-256 `edda78b970816ff347e08c5f2f957c42b23915bc4fc8410d9d2cfdedba162d8d`; snippet SHA-256 `cd1d110d7bbb2b1c7256d48af3a8134f0a1ce6716dea60c882ac730c41cd69c8`; retained evidence `e90`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectIsACmd`, lines 778–811. Retained reference `e90`.
 
 ```text
 TclCompileInfoObjectIsACmd(
@@ -7917,7 +7917,7 @@ TclCompileInfoObjectIsACmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileSetCmd`, lines 125–197. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `ec6366d9632f55a840c255b1cb09270653daeba0155e462257ef175f3b0e84e9`; retained evidence `e91`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileSetCmd`, lines 125–197. Retained reference `e91`.
 
 ```text
 TclCompileSetCmd(
@@ -7996,7 +7996,7 @@ TclCompileSetCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileUnsetCmd`, lines 3565–3683. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `14b6ed05c8cf16e50465e007e220d9a4d547c45baa07707a400bc5eeeb70749d`; retained evidence `e92`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileUnsetCmd`, lines 3565–3683. Retained reference `e92`.
 
 ```text
 TclCompileUnsetCmd(
@@ -8121,7 +8121,7 @@ TclCompileUnsetCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileTailcallCmd`, lines 2601–2627. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `59412d13735903a55a13d844f762b552715d567741e39aa11b0da0a209711c90`; retained evidence `e93`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileTailcallCmd`, lines 2601–2627. Retained reference `e93`.
 
 ```text
 TclCompileTailcallCmd(
@@ -8154,7 +8154,7 @@ TclCompileTailcallCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldCmd`, lines 3882–3904. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `cff279c6b028eeda02fa04d43afb1e5e29759e9b90b53b08d71030681b3a6727`; retained evidence `e94`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldCmd`, lines 3882–3904. Retained reference `e94`.
 
 ```text
 TclCompileYieldCmd(
@@ -8183,7 +8183,7 @@ TclCompileYieldCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldToCmd`, lines 3925–3949. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `6b684eac38073f2349164c29dcefa53f0d19bf103a09daa579c53930184de33f`; retained evidence `e95`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldToCmd`, lines 3925–3949. Retained reference `e95`.
 
 ```text
 TclCompileYieldToCmd(
@@ -8214,7 +8214,7 @@ TclCompileYieldToCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringEqualCmd`, lines 323–352. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `2c4463939422df28bf92b1297967db5a0e93005cbba7acb16d9e31a2bbb0d9ba`; retained evidence `e96`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringEqualCmd`, lines 323–352. Retained reference `e96`.
 
 ```text
 TclCompileStringEqualCmd(
@@ -8250,7 +8250,7 @@ TclCompileStringEqualCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringLenCmd`, lines 807–844. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `69e5dd8c041aaa5a2b50c887ec10757a2c909821e048328327afad534bbc0e74`; retained evidence `e97`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringLenCmd`, lines 807–844. Retained reference `e97`.
 
 ```text
 TclCompileStringLenCmd(
@@ -8294,7 +8294,7 @@ TclCompileStringLenCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringMatchCmd`, lines 726–804. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `9ca231c1da352e279aa0d91a6a61f71359e35f7277770747ab631aab2cf95ee2`; retained evidence `e98`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringMatchCmd`, lines 726–804. Retained reference `e98`.
 
 ```text
 TclCompileStringMatchCmd(
@@ -8379,7 +8379,7 @@ TclCompileStringMatchCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimCmd`, lines 1244–1269. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `2f922a43fae2dd12c80eb2c49edbe36a8838d95eb2df2017a0016c10a45fb9e3`; retained evidence `e99`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimCmd`, lines 1244–1269. Retained reference `e99`.
 
 ```text
 TclCompileStringTrimCmd(
@@ -8411,7 +8411,7 @@ TclCompileStringTrimCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimLCmd`, lines 1188–1213. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `8e805a3ba1ca6e0c811194f19109eaa27ba215e85e0eb9b474b2a5935d6e4065`; retained evidence `e100`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimLCmd`, lines 1188–1213. Retained reference `e100`.
 
 ```text
 TclCompileStringTrimLCmd(
@@ -8443,7 +8443,7 @@ TclCompileStringTrimLCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimRCmd`, lines 1216–1241. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `766a0aac2bab3d48b7f661af1ba8f2b59e141827231342b5b39571be4a99c597`; retained evidence `e101`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimRCmd`, lines 1216–1241. Retained reference `e101`.
 
 ```text
 TclCompileStringTrimRCmd(
@@ -8475,7 +8475,7 @@ TclCompileStringTrimRCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileUnaryOpCmd`, lines 3970–3986. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `f7ba3550c76631836435b2465fdfe0a580d44914f2daa49670fab5963723c644`; retained evidence `e102`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileUnaryOpCmd`, lines 3970–3986. Retained reference `e102`.
 
 ```text
 CompileUnaryOpCmd(
@@ -8498,7 +8498,7 @@ CompileUnaryOpCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileAssociativeBinaryOpCmd`, lines 4011–4043. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `4c3b112f85f65a27e3ad925c9a440c35fd6631e9220c56bfb013876869193e0d`; retained evidence `e103`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileAssociativeBinaryOpCmd`, lines 4011–4043. Retained reference `e103`.
 
 ```text
 CompileAssociativeBinaryOpCmd(
@@ -8537,7 +8537,7 @@ CompileAssociativeBinaryOpCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileStrictlyBinaryOpCmd`, lines 4065–4076. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`; retained evidence `e104`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileStrictlyBinaryOpCmd`, lines 4065–4076. Retained reference `e104`.
 
 ```text
 CompileStrictlyBinaryOpCmd(
@@ -8555,7 +8555,7 @@ CompileStrictlyBinaryOpCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileComparisonOpCmd`, lines 4097–4152. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `456a2d9a34c61665eee6a4533faa14b3dd328dcf26093812db6d8919bbf8cdaf`; retained evidence `e105`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompCmdsSZ.c`, function `CompileComparisonOpCmd`, lines 4097–4152. Retained reference `e105`.
 
 ```text
 CompileComparisonOpCmd(
@@ -8617,7 +8617,7 @@ CompileComparisonOpCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2355–2550. Full-source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `0ac0749c57f793286af6437c49c109c4146287f3bb34658926e5802980819dd7`; retained evidence `e106`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2355–2550. Retained reference `e106`.
 
 ```text
 TclCompileTokens(
@@ -8819,7 +8819,7 @@ TclCompileTokens(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 2933–3028. Full-source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `b4c836c0f9b9e6e7cf8515b2d2b32b4ab04e6442a41ef69a02ef5ded83dc134f`; retained evidence `e107`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 2933–3028. Retained reference `e107`.
 
 ```text
 TclFindCompiledLocal(
@@ -8921,7 +8921,7 @@ TclFindCompiledLocal(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `CompileCmdLiteral`, lines 1773–1795. Full-source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `c8b90891b2bce5c2d0e3c0d86110f2c18cd7a5377654ae556f7c200707d725f5`; retained evidence `e108`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `CompileCmdLiteral`, lines 1773–1795. Retained reference `e108`.
 
 ```text
 CompileCmdLiteral(
@@ -8950,7 +8950,7 @@ CompileCmdLiteral(
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `TclCompileInvocation`, lines 1798–1839. Full-source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `c28e722c22e117a4ab2cbdd7eeff0cbe58f736f4ed2a91e8b0cb25278945308a`; retained evidence `e109`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `TclCompileInvocation`, lines 1798–1839. Retained reference `e109`.
 
 ```text
 TclCompileInvocation(
@@ -8998,7 +8998,7 @@ TclCompileInvocation(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 120–225. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `a3c8a943e920bbe04fd22d3e4a6c1e229efac8bf7c012c7753541402b43a88af`; retained evidence `e110`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 120–225. Retained reference `e110`.
 
 ```text
 TclCompileAppendCmd(
@@ -9110,7 +9110,7 @@ TclCompileAppendCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileConcatCmd`, lines 848–913. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `4feb23b04049f16294bd21cc573d6c30b35ad1cbe8043b4012a8e0c58a63df04`; retained evidence `e111`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileConcatCmd`, lines 848–913. Retained reference `e111`.
 
 ```text
 TclCompileConcatCmd(
@@ -9182,7 +9182,7 @@ TclCompileConcatCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileErrorCmd`, lines 2421–2473. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `0029db0dfe0513b6ccbd2b14b148a2f995a62112776c2771a2d5035a84dcfc1c`; retained evidence `e112`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileErrorCmd`, lines 2421–2473. Retained reference `e112`.
 
 ```text
 TclCompileErrorCmd(
@@ -9241,7 +9241,7 @@ TclCompileErrorCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 511–547. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `9ca4c5c4ae7f7a89bf71f1c5128454b669759aca6374e3678dd43e473b271f06`; retained evidence `e113`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 511–547. Retained reference `e113`.
 
 ```text
 TclCompileBreakCmd(
@@ -9284,7 +9284,7 @@ TclCompileBreakCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 1012–1053. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `331146c7d605b33be6bad143f92b610516ff910f21d073b6c2b48cba7598332d`; retained evidence `e114`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 1012–1053. Retained reference `e114`.
 
 ```text
 TclCompileContinueCmd(
@@ -9332,7 +9332,7 @@ TclCompileContinueCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1971–2023. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `1b1a2a9b5ff8d562e0b4e98a37a0e1cafd088093a8ac4c309d9e3aaf60b06b07`; retained evidence `e115`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1971–2023. Retained reference `e115`.
 
 ```text
 TclCompileDictAppendCmd(
@@ -9391,7 +9391,7 @@ TclCompileDictAppendCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 2026–2068. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `a19f2eca7a9bdc1cbd3e945a22163cd97fe499973ea0929e05c5def76dae8109`; retained evidence `e116`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 2026–2068. Retained reference `e116`.
 
 ```text
 TclCompileDictLappendCmd(
@@ -9440,7 +9440,7 @@ TclCompileDictLappendCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictCreateCmd`, lines 1356–1447. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `3585da8cf64836127b023f84ecc57780a65ab58b31a7d89df30623dde5d1ec50`; retained evidence `e117`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictCreateCmd`, lines 1356–1447. Retained reference `e117`.
 
 ```text
 TclCompileDictCreateCmd(
@@ -9538,7 +9538,7 @@ TclCompileDictCreateCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictExistsCmd`, lines 1267–1300. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `53b76cb7c755dd5761518b7c83005d4c7c834a913801f97e1eee1b9c70c74d7f`; retained evidence `e118`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictExistsCmd`, lines 1267–1300. Retained reference `e118`.
 
 ```text
 TclCompileDictExistsCmd(
@@ -9578,7 +9578,7 @@ TclCompileDictExistsCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 1200–1233. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `b788e241a1c70cdcd0c0bf4d0e48a699b9fd0e8b53207dcde172776732bcd0b8`; retained evidence `e119`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 1200–1233. Retained reference `e119`.
 
 ```text
 TclCompileDictGetCmd(
@@ -9618,7 +9618,7 @@ TclCompileDictGetCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictGetWithDefaultCmd`, lines 1236–1264. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `e0e799f1bbd299d32f550c10212bf04d750868df49b9d35eb6fb178bb0440bb1`; retained evidence `e120`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictGetWithDefaultCmd`, lines 1236–1264. Retained reference `e120`.
 
 ```text
 TclCompileDictGetWithDefaultCmd(
@@ -9653,7 +9653,7 @@ TclCompileDictGetWithDefaultCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 1127–1197. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `481eb4f56a2833030bbfacde2b306b8c0dd67f344c2bcb1590205395a7eb57c1`; retained evidence `e121`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 1127–1197. Retained reference `e121`.
 
 ```text
 TclCompileDictIncrCmd(
@@ -9730,7 +9730,7 @@ TclCompileDictIncrCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictMergeCmd`, lines 1450–1561. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `4b071cedfac81642346052942e59239c32c3761e5e07eb3c60ffb55b18289a89`; retained evidence `e122`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictMergeCmd`, lines 1450–1561. Retained reference `e122`.
 
 ```text
 TclCompileDictMergeCmd(
@@ -9848,7 +9848,7 @@ TclCompileDictMergeCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 1074–1124. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `fd3af585d78d311ab6767bb1a2d629d96faa13e57e49d19039a8031bc75e0b6d`; retained evidence `e123`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 1074–1124. Retained reference `e123`.
 
 ```text
 TclCompileDictSetCmd(
@@ -9905,7 +9905,7 @@ TclCompileDictSetCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictUnsetCmd`, lines 1303–1353. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `9d1be7eaf5325110ad6954bbff00faf66d51c9047a6003945c422f426439edec`; retained evidence `e124`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclCompileDictUnsetCmd`, lines 1303–1353. Retained reference `e124`.
 
 ```text
 TclCompileDictUnsetCmd(
@@ -9962,7 +9962,7 @@ TclCompileDictUnsetCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclPushVarName`, lines 3488–3694. Full-source SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; snippet SHA-256 `26b20fe759673164bffb8c6201656258f3eba27f3200c3d7fadf21af5e6b5d30`; retained evidence `e125`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmds.c`, function `TclPushVarName`, lines 3488–3694. Retained reference `e125`.
 
 ```text
 TclPushVarName(
@@ -10175,7 +10175,7 @@ TclPushVarName(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLappendCmd`, lines 838–932. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `59c52b8c137e47157ce33f44b68689ff64b7db0ae8532d4e8f831f2e1dc805b5`; retained evidence `e126`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLappendCmd`, lines 838–932. Retained reference `e126`.
 
 ```text
 TclCompileLappendCmd(
@@ -10276,7 +10276,7 @@ TclCompileLappendCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileIncrCmd`, lines 469–559. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `0718b95207be6d02e7bcb1941af2c7771d003d46fcb1f3c1547c843d5b66b8d6`; retained evidence `e127`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileIncrCmd`, lines 469–559. Retained reference `e127`.
 
 ```text
 TclCompileIncrCmd(
@@ -10373,7 +10373,7 @@ TclCompileIncrCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileUpvarCmd`, lines 2508–2593. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `2ef2d01e4c0fcd0cc0138872096d58eb182dd342eeff92378aaab75c7fbd8f3f`; retained evidence `e128`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileUpvarCmd`, lines 2508–2593. Retained reference `e128`.
 
 ```text
 TclCompileUpvarCmd(
@@ -10465,7 +10465,7 @@ TclCompileUpvarCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileGlobalCmd`, lines 85–145. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `670d3b3b85a24125f21a1fa46ce368134928bbef4e742a27113a1cf760cf59f7`; retained evidence `e129`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileGlobalCmd`, lines 85–145. Retained reference `e129`.
 
 ```text
 TclCompileGlobalCmd(
@@ -10532,7 +10532,7 @@ TclCompileGlobalCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileVariableCmd`, lines 2614–2676. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `d6998652a81626eabf4810ee8715308a2c76c521fff065a07b910f6a8f31b1d8`; retained evidence `e130`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileVariableCmd`, lines 2614–2676. Retained reference `e130`.
 
 ```text
 TclCompileVariableCmd(
@@ -10601,7 +10601,7 @@ TclCompileVariableCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 953–1035. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `8b94a931b5a686607a08b1bf39f6c3870cfaaf8e0eb55dcc9716f4a9e84d32a4`; retained evidence `e131`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 953–1035. Retained reference `e131`.
 
 ```text
 TclCompileLassignCmd(
@@ -10690,7 +10690,7 @@ TclCompileLassignCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileListCmd`, lines 1146–1238. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `396ac82cf4c7b1512f085e76904078c7716cd576c2c05f7e6662d48538bcb97c`; retained evidence `e132`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileListCmd`, lines 1146–1238. Retained reference `e132`.
 
 ```text
 TclCompileListCmd(
@@ -10789,7 +10789,7 @@ TclCompileListCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLindexCmd`, lines 1056–1125. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `6fbdc0a31b6e195a2bfc163b74e3461a46f6aaea1a818fa7e8e82fead5fc1c95`; retained evidence `e133`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLindexCmd`, lines 1056–1125. Retained reference `e133`.
 
 ```text
 TclCompileLindexCmd(
@@ -10865,7 +10865,7 @@ TclCompileLindexCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLlengthCmd`, lines 1259–1277. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `9a02f3b34e468d0a9c4a1ed71727d9f9440932bfd4867d29427cb3cc501a4e9e`; retained evidence `e134`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLlengthCmd`, lines 1259–1277. Retained reference `e134`.
 
 ```text
 TclCompileLlengthCmd(
@@ -10890,7 +10890,7 @@ TclCompileLlengthCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLrangeCmd`, lines 1291–1337. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `31ece79c385e7b99b1ffd9b2c2d17a08190cd33a3abd823481584b0302276fe5`; retained evidence `e135`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLrangeCmd`, lines 1291–1337. Retained reference `e135`.
 
 ```text
 TclCompileLrangeCmd(
@@ -10943,7 +10943,7 @@ TclCompileLrangeCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLinsertCmd`, lines 1351–1389. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `fea2c8f614ff81428a103d6d029b6d4a92b0b1ed28cf7fb14a8d0cc22af77afe`; retained evidence `e136`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLinsertCmd`, lines 1351–1389. Retained reference `e136`.
 
 ```text
 TclCompileLinsertCmd(
@@ -10988,7 +10988,7 @@ TclCompileLinsertCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLsetCmd`, lines 1484–1607. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `02a130a8b5e1862c66d28ce4431f27b486d0b9a6d17eda3b41d8cfbdca162a7a`; retained evidence `e137`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileLsetCmd`, lines 1484–1607. Retained reference `e137`.
 
 ```text
 TclCompileLsetCmd(
@@ -11118,7 +11118,7 @@ TclCompileLsetCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileReturnCmd`, lines 2256–2441. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `9beacdc247e86debc792c96818430799284f58a3f5747db857bc6e01a6fcbae6`; retained evidence `e138`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileReturnCmd`, lines 2256–2441. Retained reference `e138`.
 
 ```text
 TclCompileReturnCmd(
@@ -11310,7 +11310,7 @@ TclCompileReturnCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoExistsCmd`, lines 665–710. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `c1b67cc6b531b375a2daf26c530cd95e8dbdc6ba0870864bb50c1e022d28ac51`; retained evidence `e139`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoExistsCmd`, lines 665–710. Retained reference `e139`.
 
 ```text
 TclCompileInfoExistsCmd(
@@ -11362,7 +11362,7 @@ TclCompileInfoExistsCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoLevelCmd`, lines 713–744. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `82b022dfce733b58bd61711ee52bde424f00213a2bec6f3cb639c20a1a10fa1d`; retained evidence `e140`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoLevelCmd`, lines 713–744. Retained reference `e140`.
 
 ```text
 TclCompileInfoLevelCmd(
@@ -11400,7 +11400,7 @@ TclCompileInfoLevelCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCurrentCmd`, lines 1630–1651. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `d94e602b62cafda0508bd1596d600d5fca1dd97b570f971a7f22e163d6baea90`; retained evidence `e141`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCurrentCmd`, lines 1630–1651. Retained reference `e141`.
 
 ```text
 TclCompileNamespaceCurrentCmd(
@@ -11428,7 +11428,7 @@ TclCompileNamespaceCurrentCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCodeCmd`, lines 1654–1700. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `c5ffb59e1b01384b2716ff2bbbd23133759817896ec160b737451455c4c009d6`; retained evidence `e142`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCodeCmd`, lines 1654–1700. Retained reference `e142`.
 
 ```text
 TclCompileNamespaceCodeCmd(
@@ -11481,7 +11481,7 @@ TclCompileNamespaceCodeCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceOriginCmd`, lines 1703–1721. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `6d8005cbb896bb0e2e6cd8dc0aa5bac7386f24d3d0e81e54e4910c9d2198150f`; retained evidence `e143`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceOriginCmd`, lines 1703–1721. Retained reference `e143`.
 
 ```text
 TclCompileNamespaceOriginCmd(
@@ -11506,7 +11506,7 @@ TclCompileNamespaceOriginCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoCommandsCmd`, lines 580–638. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `84e094c18fbde9fc47e5ac631a90261ec63d880698f7722a2f0c7e6a7c57be62`; retained evidence `e144`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoCommandsCmd`, lines 580–638. Retained reference `e144`.
 
 ```text
 TclCompileInfoCommandsCmd(
@@ -11571,7 +11571,7 @@ TclCompileInfoCommandsCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileRegexpCmd`, lines 1918–2059. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `1841f19af5d22cc029c88adf96dc352b22c878438eb01528eb17b13da80db1f9`; retained evidence `e145`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileRegexpCmd`, lines 1918–2059. Retained reference `e145`.
 
 ```text
 TclCompileRegexpCmd(
@@ -11719,7 +11719,7 @@ TclCompileRegexpCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextCmd`, lines 2788–2809. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `5a5c8b2fbbf82c8fa3d9bf6060dbf626d302a600245ee09211e3841709c65a84`; retained evidence `e146`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextCmd`, lines 2788–2809. Retained reference `e146`.
 
 ```text
 TclCompileObjectNextCmd(
@@ -11747,7 +11747,7 @@ TclCompileObjectNextCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextToCmd`, lines 2812–2833. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `c1d7fd927a2d1634173a37aa8f3557a581931d870d0671d0ff44a330b61e71bb`; retained evidence `e147`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextToCmd`, lines 2812–2833. Retained reference `e147`.
 
 ```text
 TclCompileObjectNextToCmd(
@@ -11775,7 +11775,7 @@ TclCompileObjectNextToCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectSelfCmd`, lines 2836–2895. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `35828e80727649c229abc8ff2fcd7c99e749e063efc6b5a9a88905c1aa2a136d`; retained evidence `e148`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectSelfCmd`, lines 2836–2895. Retained reference `e148`.
 
 ```text
 TclCompileObjectSelfCmd(
@@ -11841,7 +11841,7 @@ TclCompileObjectSelfCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectClassCmd`, lines 747–763. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `f5c0b6cf844534fb6ad6fadcafa909270771309965eada7de3b2464fc4cd9681`; retained evidence `e149`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectClassCmd`, lines 747–763. Retained reference `e149`.
 
 ```text
 TclCompileInfoObjectClassCmd(
@@ -11864,7 +11864,7 @@ TclCompileInfoObjectClassCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectNamespaceCmd`, lines 801–817. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `c7ede9832c2a034aa1e07a8fa251b8da032003a9231842414f8eb74a0063864a`; retained evidence `e150`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectNamespaceCmd`, lines 801–817. Retained reference `e150`.
 
 ```text
 TclCompileInfoObjectNamespaceCmd(
@@ -11887,7 +11887,7 @@ TclCompileInfoObjectNamespaceCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectIsACmd`, lines 766–798. Full-source SHA-256 `d0a2ad66de4a067375d2486e682a6d66e10ee08e2e91603af2fab63fc397d1db`; snippet SHA-256 `1b22eb7f18a27555ca3b5f8523e591b549047b00fd489b4df7641aaca8ceea47`; retained evidence `e151`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectIsACmd`, lines 766–798. Retained reference `e151`.
 
 ```text
 TclCompileInfoObjectIsACmd(
@@ -11926,7 +11926,7 @@ TclCompileInfoObjectIsACmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileSetCmd`, lines 124–195. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `34baed7dde71e469973938c03e11e8b92217cd3cf56e7430109715edb6e61098`; retained evidence `e152`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileSetCmd`, lines 124–195. Retained reference `e152`.
 
 ```text
 TclCompileSetCmd(
@@ -12004,7 +12004,7 @@ TclCompileSetCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileUnsetCmd`, lines 3618–3735. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `99faceec9a42c887d3ac56c263405c0f3a19b4eb49c20f25436eaf551d3098ee`; retained evidence `e153`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileUnsetCmd`, lines 3618–3735. Retained reference `e153`.
 
 ```text
 TclCompileUnsetCmd(
@@ -12128,7 +12128,7 @@ TclCompileUnsetCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileTailcallCmd`, lines 2655–2680. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `804a3ae79821188bb980d9cfa7fdbc22dc2a80a791820dbeddc9e38cd68a526d`; retained evidence `e154`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileTailcallCmd`, lines 2655–2680. Retained reference `e154`.
 
 ```text
 TclCompileTailcallCmd(
@@ -12160,7 +12160,7 @@ TclCompileTailcallCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldCmd`, lines 3933–3954. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `d2dade91d55b5a8ee2c4f88ecdcda3ed00ed77122751a3fca196c0ec9c9c1268`; retained evidence `e155`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldCmd`, lines 3933–3954. Retained reference `e155`.
 
 ```text
 TclCompileYieldCmd(
@@ -12188,7 +12188,7 @@ TclCompileYieldCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldToCmd`, lines 3975–3998. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `5afbf670bfebe1eabc05a0971ec7f90e1bde2b028a1cc9241243adf41a6d5f40`; retained evidence `e156`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldToCmd`, lines 3975–3998. Retained reference `e156`.
 
 ```text
 TclCompileYieldToCmd(
@@ -12218,7 +12218,7 @@ TclCompileYieldToCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringEqualCmd`, lines 319–347. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `1582e1f8b3a4bc9cf60a7044d499896e3efe0e75e6f6eef95444210f5d29ff92`; retained evidence `e157`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringEqualCmd`, lines 319–347. Retained reference `e157`.
 
 ```text
 TclCompileStringEqualCmd(
@@ -12253,7 +12253,7 @@ TclCompileStringEqualCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringLenCmd`, lines 869–905. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `c97673fb45260a9cedb41b3143b524e3721194eb591f72f4dcc329cba97b3304`; retained evidence `e158`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringLenCmd`, lines 869–905. Retained reference `e158`.
 
 ```text
 TclCompileStringLenCmd(
@@ -12296,7 +12296,7 @@ TclCompileStringLenCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringMatchCmd`, lines 787–866. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `d696ea7903195b628977ea491ccb35e4c8b7a379c6d55d8f75f0c76fc961d4e8`; retained evidence `e159`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringMatchCmd`, lines 787–866. Retained reference `e159`.
 
 ```text
 TclCompileStringMatchCmd(
@@ -12382,7 +12382,7 @@ TclCompileStringMatchCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimCmd`, lines 1298–1322. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `80b1a8de0778d667f9bd98553657c0e78986d97565d11fcf88ab6a342da49d67`; retained evidence `e160`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimCmd`, lines 1298–1322. Retained reference `e160`.
 
 ```text
 TclCompileStringTrimCmd(
@@ -12413,7 +12413,7 @@ TclCompileStringTrimCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimLCmd`, lines 1244–1268. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `399bff6af8ee670a448553fd2f23e1cc6217b25385f2eeb8ebaa1b9f3b4477f6`; retained evidence `e161`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimLCmd`, lines 1244–1268. Retained reference `e161`.
 
 ```text
 TclCompileStringTrimLCmd(
@@ -12444,7 +12444,7 @@ TclCompileStringTrimLCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimRCmd`, lines 1271–1295. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `9216ed600d832746737ca0ecdf4ecfba465a89ad7a61e905091c712e5504dbaa`; retained evidence `e162`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimRCmd`, lines 1271–1295. Retained reference `e162`.
 
 ```text
 TclCompileStringTrimRCmd(
@@ -12475,7 +12475,7 @@ TclCompileStringTrimRCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileUnaryOpCmd`, lines 4019–4035. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `f7ba3550c76631836435b2465fdfe0a580d44914f2daa49670fab5963723c644`; retained evidence `e163`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileUnaryOpCmd`, lines 4019–4035. Retained reference `e163`.
 
 ```text
 CompileUnaryOpCmd(
@@ -12498,7 +12498,7 @@ CompileUnaryOpCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileAssociativeBinaryOpCmd`, lines 4060–4092. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `c6f72e97dcc0826b9774a189636584aa2f0472d03b48f2c446ec9ae1e7af80f0`; retained evidence `e164`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileAssociativeBinaryOpCmd`, lines 4060–4092. Retained reference `e164`.
 
 ```text
 CompileAssociativeBinaryOpCmd(
@@ -12537,7 +12537,7 @@ CompileAssociativeBinaryOpCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileStrictlyBinaryOpCmd`, lines 4114–4125. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`; retained evidence `e165`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileStrictlyBinaryOpCmd`, lines 4114–4125. Retained reference `e165`.
 
 ```text
 CompileStrictlyBinaryOpCmd(
@@ -12555,7 +12555,7 @@ CompileStrictlyBinaryOpCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileComparisonOpCmd`, lines 4146–4201. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `1f31e76ae74a8a6ee16ce6c2ab4594a4f8b899e6f07b5d8c3c9339482465ee66`; retained evidence `e166`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompCmdsSZ.c`, function `CompileComparisonOpCmd`, lines 4146–4201. Retained reference `e166`.
 
 ```text
 CompileComparisonOpCmd(
@@ -12617,7 +12617,7 @@ CompileComparisonOpCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2416–2610. Full-source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `2f8084251e4df3b7d823a494d9d8b1e7b38ec050a58ca905efab16dd0b52ed33`; retained evidence `e167`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2416–2610. Retained reference `e167`.
 
 ```text
 TclCompileTokens(
@@ -12818,7 +12818,7 @@ TclCompileTokens(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 3020–3115. Full-source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `a87ffe2b6f62282e8c4c51da0e7e6b045d3470c4c40c9e44ceef8a3519f4f347`; retained evidence `e168`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 3020–3115. Retained reference `e168`.
 
 ```text
 TclFindCompiledLocal(
@@ -12920,7 +12920,7 @@ TclFindCompiledLocal(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `CompileCmdLiteral`, lines 1814–1836. Full-source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `e9019efa06c81502b1447710bf8511e0a0f87cad73ab026dae1904ad274646d6`; retained evidence `e169`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `CompileCmdLiteral`, lines 1814–1836. Retained reference `e169`.
 
 ```text
 CompileCmdLiteral(
@@ -12949,7 +12949,7 @@ CompileCmdLiteral(
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `TclCompileInvocation`, lines 1839–1881. Full-source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `9bd4d8933d417013981e8092930091d54f2b19dee6547c346601843b67eb2e73`; retained evidence `e170`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `TclCompileInvocation`, lines 1839–1881. Retained reference `e170`.
 
 ```text
 TclCompileInvocation(
@@ -12998,7 +12998,7 @@ TclCompileInvocation(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 128–235. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `c8e3468cc8dde5572760cc2ec79b8f0c705e480d620078937595a32c048a981b`; retained evidence `e171`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileAppendCmd`, lines 128–235. Retained reference `e171`.
 
 ```text
 TclCompileAppendCmd(
@@ -13112,7 +13112,7 @@ TclCompileAppendCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileConcatCmd`, lines 854–911. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `dcb70614e88074a4d113e161e13801047c8b74edea6fe8f31c8d3fa8ac40b4f8`; retained evidence `e172`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileConcatCmd`, lines 854–911. Retained reference `e172`.
 
 ```text
 TclCompileConcatCmd(
@@ -13176,7 +13176,7 @@ TclCompileConcatCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileErrorCmd`, lines 2558–2608. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `b864c8811f28a785fe1b11b5c4f383f7f8606d7ea7a1bde0137ae2219cc17d45`; retained evidence `e173`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileErrorCmd`, lines 2558–2608. Retained reference `e173`.
 
 ```text
 TclCompileErrorCmd(
@@ -13233,7 +13233,7 @@ TclCompileErrorCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 533–569. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `a60eedd0c8de354becb597afc5d1ad05371071baee6b34fccb31c638dfb40a84`; retained evidence `e174`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileBreakCmd`, lines 533–569. Retained reference `e174`.
 
 ```text
 TclCompileBreakCmd(
@@ -13276,7 +13276,7 @@ TclCompileBreakCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 1010–1051. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `3bdd7d0736a91b1f4011a1da7c7263b3373a150df375b4db436a0aef13a73f30`; retained evidence `e175`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileContinueCmd`, lines 1010–1051. Retained reference `e175`.
 
 ```text
 TclCompileContinueCmd(
@@ -13324,7 +13324,7 @@ TclCompileContinueCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1597–1651. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `4867c2c6a84eda510d7bad4a838c70a00a825505c9bb35865ff2af122de3da74`; retained evidence `e176`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictAppendCmd`, lines 1597–1651. Retained reference `e176`.
 
 ```text
 TclCompileDictAppendCmd(
@@ -13385,7 +13385,7 @@ TclCompileDictAppendCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 1654–1696. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `949acc6290b2fcc9171dfb101054c1ebab4072fd91701e769a637988628f1e34`; retained evidence `e177`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictLappendCmd`, lines 1654–1696. Retained reference `e177`.
 
 ```text
 TclCompileDictLappendCmd(
@@ -13434,7 +13434,7 @@ TclCompileDictLappendCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictCreateCmd`, lines 1418–1487. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `9f3219d49121821caa966b0f7b9d603ef1cae4954a5d6c49c6ecb3ccba9d1d38`; retained evidence `e178`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictCreateCmd`, lines 1418–1487. Retained reference `e178`.
 
 ```text
 TclCompileDictCreateCmd(
@@ -13510,7 +13510,7 @@ TclCompileDictCreateCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictExistsCmd`, lines 1257–1289. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `9a1bb3d632df568a603cf3a83c29cab0c4f15aeef2a32bd75b49f261239a91d2`; retained evidence `e179`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictExistsCmd`, lines 1257–1289. Retained reference `e179`.
 
 ```text
 TclCompileDictExistsCmd(
@@ -13549,7 +13549,7 @@ TclCompileDictExistsCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 1192–1224. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `96760cd03877f5cdd6df7fb70afaa193af1a232801f8e06a46797e27ed824703`; retained evidence `e180`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictGetCmd`, lines 1192–1224. Retained reference `e180`.
 
 ```text
 TclCompileDictGetCmd(
@@ -13588,7 +13588,7 @@ TclCompileDictGetCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictGetWithDefaultCmd`, lines 1227–1254. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `0497ee872e1967d97da88ebf8046a86c8ada3ddfd106f679993ed2a60f3c43e4`; retained evidence `e181`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictGetWithDefaultCmd`, lines 1227–1254. Retained reference `e181`.
 
 ```text
 TclCompileDictGetWithDefaultCmd(
@@ -13622,7 +13622,7 @@ TclCompileDictGetWithDefaultCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 1125–1189. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `c609730ee2df58bd293f1a0889ada265fa3643dbbdcf5c01b4fafd2be015985d`; retained evidence `e182`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictIncrCmd`, lines 1125–1189. Retained reference `e182`.
 
 ```text
 TclCompileDictIncrCmd(
@@ -13693,7 +13693,7 @@ TclCompileDictIncrCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictMergeCmd`, lines 1490–1594. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `1e486850ed47233dbf0c964342a82f9542d37c782daff14ae77adcff2568be2f`; retained evidence `e183`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictMergeCmd`, lines 1490–1594. Retained reference `e183`.
 
 ```text
 TclCompileDictMergeCmd(
@@ -13804,7 +13804,7 @@ TclCompileDictMergeCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictRemoveCmd`, lines 1330–1362. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `62bf8bf2056d448805870565cfaa8807da0127f3297f2c6c5a4ee499d03b5618`; retained evidence `e184`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictRemoveCmd`, lines 1330–1362. Retained reference `e184`.
 
 ```text
 TclCompileDictRemoveCmd(
@@ -13843,7 +13843,7 @@ TclCompileDictRemoveCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictReplaceCmd`, lines 1292–1327. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `245ed42365cab316cc2b00c6ac45377998ea0648b3c80680960dd1d766e22515`; retained evidence `e185`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictReplaceCmd`, lines 1292–1327. Retained reference `e185`.
 
 ```text
 TclCompileDictReplaceCmd(
@@ -13885,7 +13885,7 @@ TclCompileDictReplaceCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 1072–1122. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `42204fa7b7d23b538dc153df2522e05ca28a07740b7d7322cc856d611d325993`; retained evidence `e186`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictSetCmd`, lines 1072–1122. Retained reference `e186`.
 
 ```text
 TclCompileDictSetCmd(
@@ -13942,7 +13942,7 @@ TclCompileDictSetCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictUnsetCmd`, lines 1365–1415. Full-source SHA-256 `66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e`; snippet SHA-256 `9f027cc25af3524cc2b9fa71a011cbf41ee760d2275d6844ee914aed4e4824df`; retained evidence `e187`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmds.c`, function `TclCompileDictUnsetCmd`, lines 1365–1415. Retained reference `e187`.
 
 ```text
 TclCompileDictUnsetCmd(
@@ -13999,7 +13999,7 @@ TclCompileDictUnsetCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLappendCmd`, lines 812–975. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `719b7b48f5976d2c11f63e1b929c32279740dcaf4b484a7922a3f55fe45928cb`; retained evidence `e188`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLappendCmd`, lines 812–975. Retained reference `e188`.
 
 ```text
 TclCompileLappendCmd(
@@ -14169,7 +14169,7 @@ TclCompileLappendCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileIncrCmd`, lines 425–509. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `1ce407173389db60fe9cb51214650ff963ea3c934335d17b2e203470bcb1f431`; retained evidence `e189`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileIncrCmd`, lines 425–509. Retained reference `e189`.
 
 ```text
 TclCompileIncrCmd(
@@ -14260,7 +14260,7 @@ TclCompileIncrCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileUpvarCmd`, lines 2963–3043. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `f0ae7c71f907dc36c5a78601cbdf19d6ed1a48e5a4d225ca8a68d4ed475276c7`; retained evidence `e190`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileUpvarCmd`, lines 2963–3043. Retained reference `e190`.
 
 ```text
 TclCompileUpvarCmd(
@@ -14347,7 +14347,7 @@ TclCompileUpvarCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileGlobalCmd`, lines 86–145. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `0e3757b497c2192a97bb556c066c5fd7d3c95197cc56fff14792d4031d591498`; retained evidence `e191`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileGlobalCmd`, lines 86–145. Retained reference `e191`.
 
 ```text
 TclCompileGlobalCmd(
@@ -14413,7 +14413,7 @@ TclCompileGlobalCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileVariableCmd`, lines 3064–3126. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `2b5e9f0d6cc7e5dbf884b0b7deb3844eafaf6df5673cb137febbce3dd2484834`; retained evidence `e192`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileVariableCmd`, lines 3064–3126. Retained reference `e192`.
 
 ```text
 TclCompileVariableCmd(
@@ -14482,7 +14482,7 @@ TclCompileVariableCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 996–1079. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `8fa26a16386e530ee1a91f14037cddabf3153bb7ede358663763f11cd13daa6a`; retained evidence `e193`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 996–1079. Retained reference `e193`.
 
 ```text
 TclCompileLassignCmd(
@@ -14572,7 +14572,7 @@ TclCompileLassignCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileListCmd`, lines 1192–1292. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `c4cf080cc147d8aba99f32e188da14eb86628d9b593307041ba070070d8d8418`; retained evidence `e194`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileListCmd`, lines 1192–1292. Retained reference `e194`.
 
 ```text
 TclCompileListCmd(
@@ -14679,7 +14679,7 @@ TclCompileListCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLindexCmd`, lines 1100–1170. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `00d60720bc3f54dcfc7b700db0f417bb41a0c0cd453e4864a360a237ca40920f`; retained evidence `e195`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLindexCmd`, lines 1100–1170. Retained reference `e195`.
 
 ```text
 TclCompileLindexCmd(
@@ -14756,7 +14756,7 @@ TclCompileLindexCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLlengthCmd`, lines 1313–1331. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `16e7c49b5c4f6d0f3d59a8d642acbf86015ae1a6a2bc851260e98dfbbfbb23e6`; retained evidence `e196`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLlengthCmd`, lines 1313–1331. Retained reference `e196`.
 
 ```text
 TclCompileLlengthCmd(
@@ -14781,7 +14781,7 @@ TclCompileLlengthCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLrangeCmd`, lines 1345–1390. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `05e96680e0c9b76f0fa87feb01f9a944bd49d66c0767c8d4e945beb6ac5ad3a6`; retained evidence `e197`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLrangeCmd`, lines 1345–1390. Retained reference `e197`.
 
 ```text
 TclCompileLrangeCmd(
@@ -14833,7 +14833,7 @@ TclCompileLrangeCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLinsertCmd`, lines 1404–1443. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `5a74f5c5ec05d6f3515e6b8a06c184c21154bcb78eac821c53996e1c669faf11`; retained evidence `e198`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLinsertCmd`, lines 1404–1443. Retained reference `e198`.
 
 ```text
 TclCompileLinsertCmd(
@@ -14879,7 +14879,7 @@ TclCompileLinsertCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLsetCmd`, lines 1964–2081. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `7e824460acf76be911c494461570c988b7783ebc189510cf4a805be1c165f595`; retained evidence `e199`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileLsetCmd`, lines 1964–2081. Retained reference `e199`.
 
 ```text
 TclCompileLsetCmd(
@@ -15003,7 +15003,7 @@ TclCompileLsetCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileReturnCmd`, lines 2709–2897. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `dfb5bfa29bd131cd524cd0e5f20a7db0e3b985daf9d9c0d7cf58a6f4f635850d`; retained evidence `e200`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileReturnCmd`, lines 2709–2897. Retained reference `e200`.
 
 ```text
 TclCompileReturnCmd(
@@ -15198,7 +15198,7 @@ TclCompileReturnCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoExistsCmd`, lines 617–666. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `fa8e37e742795aaac5facc93aa4fa2c9736970933fb3df9d79998339bc9f19aa`; retained evidence `e201`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoExistsCmd`, lines 617–666. Retained reference `e201`.
 
 ```text
 TclCompileInfoExistsCmd(
@@ -15254,7 +15254,7 @@ TclCompileInfoExistsCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoLevelCmd`, lines 669–700. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `9e635296eeac2b537526761aa7d2632af5a4e7bc9cec04f5670105b0d622db05`; retained evidence `e202`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoLevelCmd`, lines 669–700. Retained reference `e202`.
 
 ```text
 TclCompileInfoLevelCmd(
@@ -15292,7 +15292,7 @@ TclCompileInfoLevelCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCurrentCmd`, lines 2104–2125. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `8230d756069c612e768a90cdfedf49e8a8aef6f3540b6aefc2a023c0876dd003`; retained evidence `e203`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCurrentCmd`, lines 2104–2125. Retained reference `e203`.
 
 ```text
 TclCompileNamespaceCurrentCmd(
@@ -15320,7 +15320,7 @@ TclCompileNamespaceCurrentCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCodeCmd`, lines 2128–2174. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `26db52e07afd78bb1715aa03d70fc5c494972b9d54a31c013522eca5d040e5b9`; retained evidence `e204`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceCodeCmd`, lines 2128–2174. Retained reference `e204`.
 
 ```text
 TclCompileNamespaceCodeCmd(
@@ -15373,7 +15373,7 @@ TclCompileNamespaceCodeCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceOriginCmd`, lines 2177–2195. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `e756994420d07210728c622d1cf98d402e89dd8216db1029c27c590fd0e58fe3`; retained evidence `e205`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileNamespaceOriginCmd`, lines 2177–2195. Retained reference `e205`.
 
 ```text
 TclCompileNamespaceOriginCmd(
@@ -15398,7 +15398,7 @@ TclCompileNamespaceOriginCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoCommandsCmd`, lines 530–590. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `1c2348ddfb3faf51481b425932d1a8ab08b99378b8b096bab2d5d7a763a86285`; retained evidence `e206`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoCommandsCmd`, lines 530–590. Retained reference `e206`.
 
 ```text
 TclCompileInfoCommandsCmd(
@@ -15465,7 +15465,7 @@ TclCompileInfoCommandsCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileRegexpCmd`, lines 2386–2518. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `313a40c34bad8955d8dfdf30bb3a4e24a63a7466427c5f5bb0eec4b8e1989c5a`; retained evidence `e207`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileRegexpCmd`, lines 2386–2518. Retained reference `e207`.
 
 ```text
 TclCompileRegexpCmd(
@@ -15604,7 +15604,7 @@ TclCompileRegexpCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextCmd`, lines 3238–3314. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `e4505d9314151f2ddb28461f0e6e1624179bd1770c16159e5a26a4e682922e19`; retained evidence `e208`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextCmd`, lines 3238–3314. Retained reference `e208`.
 
 ```text
 TclCompileObjectNextCmd(
@@ -15687,7 +15687,7 @@ TclCompileObjectNextCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextToCmd`, lines 3317–3396. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `5c1bead211f476ec946664d56bcf43e08e3e106973e6f6af4eeb471f0548adaf`; retained evidence `e209`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectNextToCmd`, lines 3317–3396. Retained reference `e209`.
 
 ```text
 TclCompileObjectNextToCmd(
@@ -15773,7 +15773,7 @@ TclCompileObjectNextToCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectSelfCmd`, lines 3399–3454. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `027dd16716be7a5072ff997dcbf1ea116bba419d573676f844f7dcb1cf2bba78`; retained evidence `e210`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileObjectSelfCmd`, lines 3399–3454. Retained reference `e210`.
 
 ```text
 TclCompileObjectSelfCmd(
@@ -15835,7 +15835,7 @@ TclCompileObjectSelfCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectClassCmd`, lines 703–719. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `b20fa72c4fc99b4fa6a15a4ee44d02a4b38fead82ece39b20bc77d49ac2f6add`; retained evidence `e211`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectClassCmd`, lines 703–719. Retained reference `e211`.
 
 ```text
 TclCompileInfoObjectClassCmd(
@@ -15858,7 +15858,7 @@ TclCompileInfoObjectClassCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectNamespaceCmd`, lines 775–791. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `1be2665abdd7c7197ce67a5f6b9d5c9670725a445017187bd16e0ac75c1aca54`; retained evidence `e212`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectNamespaceCmd`, lines 775–791. Retained reference `e212`.
 
 ```text
 TclCompileInfoObjectNamespaceCmd(
@@ -15881,7 +15881,7 @@ TclCompileInfoObjectNamespaceCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectIsACmd`, lines 741–772. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `919a2be68ffcabbfab8455b2bfa18852ce6ab0ba5eda796f5bfbfffefc2174fb`; retained evidence `e213`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectIsACmd`, lines 741–772. Retained reference `e213`.
 
 ```text
 TclCompileInfoObjectIsACmd(
@@ -15919,7 +15919,7 @@ TclCompileInfoObjectIsACmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectCreationIdCmd`, lines 722–738. Full-source SHA-256 `3656eddb1d634083343f182212b4874aa0939940382cf20252a171b155305fd1`; snippet SHA-256 `5599ed960fde3c627337b20cd33761fe498e776eb2931e02aa650506d611c573`; retained evidence `e214`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsGR.c`, function `TclCompileInfoObjectCreationIdCmd`, lines 722–738. Retained reference `e214`.
 
 ```text
 TclCompileInfoObjectCreationIdCmd(
@@ -15942,7 +15942,7 @@ TclCompileInfoObjectCreationIdCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileSetCmd`, lines 136–212. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `9ab577969f25ab94cd5720caff9bc0e85081472c78b0ac071eb24d2475cf41bf`; retained evidence `e215`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileSetCmd`, lines 136–212. Retained reference `e215`.
 
 ```text
 TclCompileSetCmd(
@@ -16025,7 +16025,7 @@ TclCompileSetCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileUnsetCmd`, lines 4450–4575. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `afaac110392d29880d2899b2677b1457153411ac595b3dec628e1371f94aa15b`; retained evidence `e216`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileUnsetCmd`, lines 4450–4575. Retained reference `e216`.
 
 ```text
 TclCompileUnsetCmd(
@@ -16157,7 +16157,7 @@ TclCompileUnsetCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileTailcallCmd`, lines 2924–3025. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `822537cdfcc8e4de947bdbc43c2d9862e5568c98f224d8066174099114976aa2`; retained evidence `e217`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileTailcallCmd`, lines 2924–3025. Retained reference `e217`.
 
 ```text
 TclCompileTailcallCmd(
@@ -16265,7 +16265,7 @@ TclCompileTailcallCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldCmd`, lines 4843–4864. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `544d90bf91cf5ab4378b7d22b7d91d00a9b8d2f8a46a9df572a86644766ebbba`; retained evidence `e218`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldCmd`, lines 4843–4864. Retained reference `e218`.
 
 ```text
 TclCompileYieldCmd(
@@ -16293,7 +16293,7 @@ TclCompileYieldCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldToCmd`, lines 4885–4935. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `9b48c1c9c101e244eb84a820f99485142e50cf67f5226ace6a924067e4be1403`; retained evidence `e219`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileYieldToCmd`, lines 4885–4935. Retained reference `e219`.
 
 ```text
 TclCompileYieldToCmd(
@@ -16350,7 +16350,7 @@ TclCompileYieldToCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileUplevelCmd`, lines 4596–4664. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `b7d00d882537fe399715d31fc3b74e6a6513efa56ebc4e059f14f30587021f9a`; retained evidence `e220`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileUplevelCmd`, lines 4596–4664. Retained reference `e220`.
 
 ```text
 TclCompileUplevelCmd(
@@ -16425,7 +16425,7 @@ TclCompileUplevelCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringEqualCmd`, lines 329–357. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `3c0c5aca1ea6a673bf2737ef29e374dd1ee905cb97dc6962d540d29cc548e53f`; retained evidence `e221`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringEqualCmd`, lines 329–357. Retained reference `e221`.
 
 ```text
 TclCompileStringEqualCmd(
@@ -16460,7 +16460,7 @@ TclCompileStringEqualCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringLenCmd`, lines 857–890. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `1dcaac8d3d99ad169ad41f2eb9261fa4fd32bea35e50c5cf6b23933d5714691d`; retained evidence `e222`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringLenCmd`, lines 857–890. Retained reference `e222`.
 
 ```text
 TclCompileStringLenCmd(
@@ -16500,7 +16500,7 @@ TclCompileStringLenCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringMatchCmd`, lines 790–854. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `fc28e39e8f4f38aaffcc01d7187618db25d7ce1c06f5f030c10ccbd30f35ae8e`; retained evidence `e223`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringMatchCmd`, lines 790–854. Retained reference `e223`.
 
 ```text
 TclCompileStringMatchCmd(
@@ -16571,7 +16571,7 @@ TclCompileStringMatchCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimCmd`, lines 1279–1303. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `4e35732bcdf2884f7f130198c8e1f328a692685fa5d9cf34da8596c23ba24e6f`; retained evidence `e224`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimCmd`, lines 1279–1303. Retained reference `e224`.
 
 ```text
 TclCompileStringTrimCmd(
@@ -16602,7 +16602,7 @@ TclCompileStringTrimCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimLCmd`, lines 1225–1249. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `5fcd6eefb70696926683630b6e215ca58a397fcbe2a25007db0bce5a54754c60`; retained evidence `e225`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimLCmd`, lines 1225–1249. Retained reference `e225`.
 
 ```text
 TclCompileStringTrimLCmd(
@@ -16633,7 +16633,7 @@ TclCompileStringTrimLCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimRCmd`, lines 1252–1276. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `3b8e2371b47affec89a5e91e844cbf6421c1e115f323555d196047d90f363d98`; retained evidence `e226`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `TclCompileStringTrimRCmd`, lines 1252–1276. Retained reference `e226`.
 
 ```text
 TclCompileStringTrimRCmd(
@@ -16664,7 +16664,7 @@ TclCompileStringTrimRCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileUnaryOpCmd`, lines 4956–4972. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `d00cdcee692d205741b0afcf542415f7391da2923b403afe32166e4cb7f0c735`; retained evidence `e227`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileUnaryOpCmd`, lines 4956–4972. Retained reference `e227`.
 
 ```text
 CompileUnaryOpCmd(
@@ -16687,7 +16687,7 @@ CompileUnaryOpCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileAssociativeBinaryOpCmd`, lines 4997–5032. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `df9cbc133874a0b728bc3ce3c8161a375246cca84204fa7801d3a5b37c7c28d5`; retained evidence `e228`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileAssociativeBinaryOpCmd`, lines 4997–5032. Retained reference `e228`.
 
 ```text
 CompileAssociativeBinaryOpCmd(
@@ -16729,7 +16729,7 @@ CompileAssociativeBinaryOpCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileStrictlyBinaryOpCmd`, lines 5054–5065. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `68393a04bbb178d4541334b8e262f179b576d592af140cbe23c923bce9c267cb`; retained evidence `e229`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileStrictlyBinaryOpCmd`, lines 5054–5065. Retained reference `e229`.
 
 ```text
 CompileStrictlyBinaryOpCmd(
@@ -16747,7 +16747,7 @@ CompileStrictlyBinaryOpCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileComparisonOpCmd`, lines 5086–5147. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `fe9fc70e3537e8c26afb71d9110811ddf778e36402f5c938e0c0d071840fcd72`; retained evidence `e230`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompCmdsSZ.c`, function `CompileComparisonOpCmd`, lines 5086–5147. Retained reference `e230`.
 
 ```text
 CompileComparisonOpCmd(
@@ -16815,7 +16815,7 @@ CompileComparisonOpCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2739–2927. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `0192854ccad7c779a5db78f6ab91a9c47d6edcf50c2ffd889e0384ffab8ee5ba`; retained evidence `e231`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2739–2927. Retained reference `e231`.
 
 ```text
 TclCompileTokens(
@@ -17010,7 +17010,7 @@ TclCompileTokens(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 3337–3433. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `49bb8900d55b9cd0c4bec628d60e387147c71948cac15462778a850635653ab2`; retained evidence `e232`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclFindCompiledLocal`, lines 3337–3433. Retained reference `e232`.
 
 ```text
 TclFindCompiledLocal(
@@ -17113,7 +17113,7 @@ TclFindCompiledLocal(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclPushVarName`, lines 4919–5117. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `8c671c78715232e3ba32aa25ded0482b4c4b7644f96bb23d5eceab79c589ea45`; retained evidence `e233`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclPushVarName`, lines 4919–5117. Retained reference `e233`.
 
 ```text
 TclPushVarName(
@@ -17318,7 +17318,7 @@ TclPushVarName(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `CompileCmdLiteral`, lines 2133–2150. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `9714b771ad2733b216981a44fd4dbf74c11450eb27d4f6af0c6b2da1619e3b40`; retained evidence `e234`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `CompileCmdLiteral`, lines 2133–2150. Retained reference `e234`.
 
 ```text
 CompileCmdLiteral(
@@ -17342,7 +17342,7 @@ CompileCmdLiteral(
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclCompileInvocation`, lines 2153–2189. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `c6b07756f513672edd5bc611a0604d6f640ddc590882ba307a681baf0e9bb7e4`; retained evidence `e235`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `TclCompileInvocation`, lines 2153–2189. Retained reference `e235`.
 
 ```text
 TclCompileInvocation(

@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This workspace declaration/URI transport invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `workspace-owner` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `feefb4b2da2ae821f3ebec02282bd7a92da59461cfbccfd7f09bf21aea6c13dc`. Current document-owned original declaration storage, shared candidate projections and regression assertions; source evidence grants no native execution or editor authority.
+- `workspace-owner` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). Current document-owned original declaration storage, shared candidate projections and regression assertions; source evidence grants no native execution or editor authority.
 
 ## Source inspection
 

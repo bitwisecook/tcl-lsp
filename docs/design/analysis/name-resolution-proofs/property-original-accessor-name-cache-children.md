@@ -62,12 +62,12 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This exact original-object C9.1 probe has no observation for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c). SHA-256 `d8d45219397efbb3ace20232576030f87b77d06b7f2ab9b9787283eecbd9c5e4`. Exact original-object constructors, invocation and pre-render cache observer.
-- `receipt` (provider): [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json). SHA-256 `62716a386cf1022111c59359b4783ea36a0206f66150dedb0be9ffccf3dde5b8`. Original compile/process status, original source/header/library/executable digests, environment and full streams.
-- `rows` (observation): [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv). SHA-256 `9e9b96d1fe13e4267e47425ae247b3355dc438fad86aa43c144f2b81b8bdbafd`. Exact full original stdout retained separately.
-- `capture` (limitation): [rust/tcl-registry/tests/data/native_property_names/capture.py](../../../../rust/tcl-registry/tests/data/native_property_names/capture.py). SHA-256 `39cca46544d8c83baa597fcc2babe2e5611f8020b577b4708215585f1d3fb7c3`. Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier.
+- `probe` (input): [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c). Exact original-object constructors, invocation and pre-render cache observer.
+- `receipt` (provider): [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json). Original compile/process status, original source/header/library/executable digests, environment and full streams.
+- `rows` (observation): [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv). Exact full original stdout retained separately.
+- `capture` (limitation): [rust/tcl-registry/tests/data/native_property_names/capture.py](../../../../rust/tcl-registry/tests/data/native_property_names/capture.py). Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier.
 
 ## Source inspection
 

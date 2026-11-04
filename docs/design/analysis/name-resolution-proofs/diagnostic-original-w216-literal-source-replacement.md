@@ -62,13 +62,13 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-diagnostics-original-w216-literal-source-replacement-tests.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs). SHA-256 `c32023859fec28ef44f7e303b9dfe8aa89f8ca7efb816150119efec568ed786d`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-w216-literal-source-replacement-usage.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/usage.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/usage.rs). SHA-256 `9b0afce5d78d7bc5e472aeabd737237cff363db7cc3db0608f555caa2796125e`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-w216-literal-source-replacement-backslash.rs` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). SHA-256 `f6d0996915c8ed4b65233bf4fbd8fe08e1e9e8016c2c78c857f5ee9b02113fa7`. Quoted literal and substituting fragments preserve selected grammar and retained source components. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution.
+- `naming-diagnostics-original-w216-literal-source-replacement-tests.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-w216-literal-source-replacement-usage.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/usage.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/usage.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-diagnostics-original-w216-literal-source-replacement-backslash.rs` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). Quoted literal and substituting fragments preserve selected grammar and retained source components. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution.
 
-- `syntax-backslash-fixed-software-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-backslash-20261103/receipt.json). SHA-256 `ba8a011b60860ab0b8f1be47ba1573b0556373702806a22a1aa0bf08f6a2a2fb`. Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
+- `syntax-backslash-fixed-software-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-backslash-20261103/receipt.json). Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
 
 ## Source inspection
 

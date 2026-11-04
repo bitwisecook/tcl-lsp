@@ -62,13 +62,13 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs). SHA-256 `a29147645f597d20cd3246b75a3d2affa3eb0f82b082d8969230b3920dc0ce5c`. Separate byte-only native values and argv shape from logical literals.
-- `implementation-1` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). SHA-256 `06d12d822b88a6dc1195b106efecaba9d9332734671c02dfcaa1d1ed09bb7608`. Retain exact native payload and effective operand ordinal as independent metadata.
-- `implementation-2` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). SHA-256 `06d12d822b88a6dc1195b106efecaba9d9332734671c02dfcaa1d1ed09bb7608`. Discharge only represented identity obligations without validating control operands or execution.
-- `implementation-3` (implementation): [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs). SHA-256 `fe251a0f72d92c30151e7948602017c09cd25375465d5b1278b935e5b7ff034d`. Prevent byte-only values from colliding with logical values in the legacy hook shape cache.
-- `implementation-4` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `174757c1907ed9e6f6f83d27f088be0fb7c0bd4c31f7443580a02fa9c27038ae`. Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
+- `implementation-0` (implementation): [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs). Separate byte-only native values and argv shape from logical literals.
+- `implementation-1` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). Retain exact native payload and effective operand ordinal as independent metadata.
+- `implementation-2` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). Discharge only represented identity obligations without validating control operands or execution.
+- `implementation-3` (implementation): [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs). Prevent byte-only values from colliding with logical values in the legacy hook shape cache.
+- `implementation-4` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
 
 ## Source inspection
 

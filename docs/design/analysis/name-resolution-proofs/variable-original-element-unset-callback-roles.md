@@ -112,11 +112,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.c). SHA-256 `977069d3342226f2c7d30a4b5e4d6ba5b8bd59112b505e6504007f54eb9e3f6a`. Exact original public/private observer and declared reference ownership.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json). SHA-256 `df4b6f2479284acbd20750bc3d40656c2af95d4ffbdd0cb67eaf9cc307b02988`. Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
-- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.txt). SHA-256 `96ced622c31bceb362f305d92219af0511fc829361886308084212827db8a392`. Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
+- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.c). Exact original public/private observer and declared reference ownership.
+- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.provenance.json). Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
+- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.txt). Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
 
 ## Source inspection
 

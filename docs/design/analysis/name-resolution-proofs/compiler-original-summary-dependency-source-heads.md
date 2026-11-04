@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-compiler-src-taint_interproc.rs` (implementation): [rust/tcl-compiler/src/taint_interproc.rs](../../../../rust/tcl-compiler/src/taint_interproc.rs). SHA-256 `284958420ac133d1dd881f9041a7c35c92e5866c0ef21f1e04aec4008260b3eb`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-lsp-db-src-lib.rs` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). SHA-256 `f8add3e39e66650ed0570d72ce9477cdb1fcece2d8e5d45f9ecdc1c748fd46f5`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-compiler-src-taint_interproc.rs` (implementation): [rust/tcl-compiler/src/taint_interproc.rs](../../../../rust/tcl-compiler/src/taint_interproc.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-lsp-db-src-lib.rs` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

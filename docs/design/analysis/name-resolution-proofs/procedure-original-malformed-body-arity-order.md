@@ -122,16 +122,16 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No retained observation of this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `program` (input): [rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl](../../../../rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl). SHA-256 `d8cb2de243beeabc1ed6b51a81fbfe1e899ae334486bfcd1e189e1c79bad596a`. Exact ASCII catch/presenter and malformed/valid side-effect bodies.
-- `receipt` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_activation/manifest.json). SHA-256 `b1407bdb66ea1cd80b0df97ebd965e99dc542a7849c8e2d3477788488f14003b`. All six original selected-path SHA/process/stdout/stderr captures, with limited version and unknown stdin/file attribution.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt). SHA-256 `44ca52887bd738932993bd0cd3eee7eb6dbdd942ab3f334d7ee8d7ba9f261a14`. Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt). SHA-256 `6a818291e701d0df1d25812a58260e52e14799c9ebd4c8653dd0bef72355d715`. Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt). SHA-256 `6a818291e701d0df1d25812a58260e52e14799c9ebd4c8653dd0bef72355d715`. Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt). SHA-256 `6a818291e701d0df1d25812a58260e52e14799c9ebd4c8653dd0bef72355d715`. Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt). SHA-256 `6a818291e701d0df1d25812a58260e52e14799c9ebd4c8653dd0bef72355d715`. Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
-- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt). SHA-256 `787095c08f7fe66429b8725a15123b00b503fb3c894d5fec57b37a13990ace0d`. Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
+- `program` (input): [rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl](../../../../rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl). Exact ASCII catch/presenter and malformed/valid side-effect bodies.
+- `receipt` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_activation/manifest.json). All six original selected-path SHA/process/stdout/stderr captures, with limited version and unknown stdin/file attribution.
+- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt). Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
+- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt). Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
+- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt). Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
+- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt). Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
+- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt). Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
+- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt). Exact seven-line original full output; selected one-based lines [1, 2, 3, 4, 5, 6].
 
 ## Source inspection
 

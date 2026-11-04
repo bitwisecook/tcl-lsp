@@ -72,10 +72,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
 
-## Exact evidence
+## Historical references
 
-- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-existence_query.rs` (implementation): [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs). SHA-256 `a8aa40ae91bf84400722a17b2fe9614069c697ba7db8b04b2d5b8d6da90457f2`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
-- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-registry_invocation-metadata_context.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). SHA-256 `d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd`. Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
+- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-existence_query.rs` (implementation): [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs). Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
+- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-registry_invocation-metadata_context.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

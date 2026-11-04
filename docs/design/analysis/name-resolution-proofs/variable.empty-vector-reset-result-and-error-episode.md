@@ -77,15 +77,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `capture` (provider): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-manifest.json](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-manifest.json). SHA-256 `b3a659666e6cbe6bbb60152b5e29442088dddea7748258fe51ad0de43891b71e`. Exact original build and capture receipt, including all observed engine versions and source/library/output hashes.
-- `probe` (input): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset.c](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset.c). SHA-256 `bf7c221f896cdc45ee564180fbf9d7c3237cd14d452be42737860d241e843d58`. Original API calls, reporting order, object retention and internal root-cell observation windows.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv). SHA-256 `69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0`. Exact native result/state/callback rows for 8.4.20
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv). SHA-256 `69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0`. Exact native result/state/callback rows for 8.5.19
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv). SHA-256 `69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0`. Exact native result/state/callback rows for 8.6.18
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv). SHA-256 `69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0`. Exact native result/state/callback rows for 9.0.4
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv). SHA-256 `69480e2f7e563a1b67ab0d916d6ae5ef99424c91b744d6b42c113d26e93ab1c0`. Exact native result/state/callback rows for 9.1.0
+- `capture` (provider): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-manifest.json](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-manifest.json). Exact original build and capture receipt, including all observed engine versions and source/library/output hashes.
+- `probe` (input): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset.c](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset.c). Original API calls, reporting order, object retention and internal root-cell observation windows.
+- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv). Exact native result/state/callback rows for 8.4.20
+- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv). Exact native result/state/callback rows for 8.5.19
+- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv). Exact native result/state/callback rows for 8.6.18
+- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv). Exact native result/state/callback rows for 9.0.4
+- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv). Exact native result/state/callback rows for 9.1.0
 
 ## Source inspection
 

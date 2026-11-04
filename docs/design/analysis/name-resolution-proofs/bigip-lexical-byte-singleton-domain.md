@@ -125,10 +125,10 @@ success. The complete callback names and byte scans are in the matrix files.
 No row is classified from a failed source build or a refused trace install.
 
 
-## Exact evidence
+## Historical references
 
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md). SHA-256 `0f6c9bf0e7b32a5fbcd6faf6669e84f01e4262f7d79e36b2b182a86a8ce7bcba`. Lines 127–187. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md). SHA-256 `0f6c9bf0e7b32a5fbcd6faf6669e84f01e4262f7d79e36b2b182a86a8ce7bcba`. Lines 13–13. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
+- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md). Lines 127–187. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
+- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md). Lines 13–13. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
 
 ## Source inspection
 

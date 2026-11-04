@@ -62,20 +62,20 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
-## Exact evidence
+## Historical references
 
-- `original-capture` (provider): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). SHA-256 `9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad`. Original source/library/header/build context and every process status/stream, including incomplete attempts.
-- `original-probe` (input): [runtime/rust/tests/data/native_regexp_jim/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim/probe.c). SHA-256 `dbd3c02c4d9b11f3f8cf91cefbffef96ca8a128ed6d84fd20fcec46315372f2e`. Exact direct Jim worker invocation, object construction and physical reporting order.
-- `jim-case-0` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). SHA-256 `9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad`. JSON pointer `/captures/0`. Exact original process status and raw output/error of this case.
-- `jim-case-4` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). SHA-256 `9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad`. JSON pointer `/captures/4`. Exact original process status and raw output/error of this case.
-- `jim-case-5` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). SHA-256 `9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad`. JSON pointer `/captures/5`. Exact original process status and raw output/error of this case.
-- `jim-case-6` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). SHA-256 `9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad`. JSON pointer `/captures/6`. Exact original process status and raw output/error of this case.
-- `jim-case-7` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). SHA-256 `9ffd57acfc7ab547fcefbec91c4b1215b1792607e674392f53ce9f89af8340ad`. JSON pointer `/captures/7`. Exact original process status and raw output/error of this case.
-- `exact-source-0` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). SHA-256 `f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c`. JSON pointer `/0/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
+- `original-capture` (provider): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). Original source/library/header/build context and every process status/stream, including incomplete attempts.
+- `original-probe` (input): [runtime/rust/tests/data/native_regexp_jim/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim/probe.c). Exact direct Jim worker invocation, object construction and physical reporting order.
+- `jim-case-0` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/0`. Exact original process status and raw output/error of this case.
+- `jim-case-4` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/4`. Exact original process status and raw output/error of this case.
+- `jim-case-5` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/5`. Exact original process status and raw output/error of this case.
+- `jim-case-6` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/6`. Exact original process status and raw output/error of this case.
+- `jim-case-7` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/7`. Exact original process status and raw output/error of this case.
+- `exact-source-0` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). JSON pointer `/0/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
 
 ## Source inspection
 
-jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jim-regexp.c`, function `SetRegexpFromAny`, lines 64–118. Full-source SHA-256 `7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd`; snippet SHA-256 `59666c07b5a37595ac1f946f1a627d8212ece3241bf8c95609abfbdd66380a5f`; retained evidence `exact-source-0`.
+jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jim-regexp.c`, function `SetRegexpFromAny`, lines 64–118. Retained reference `exact-source-0`.
 
 ```text
 static void FreeRegexpInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)

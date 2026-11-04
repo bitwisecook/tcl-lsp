@@ -62,15 +62,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No guest execution receipt for this implementation question.
 
-## Exact evidence
+## Historical references
 
-- `source-array_cmd_get` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). SHA-256 `3b9ed9bc574a16b1f86c989cf3eb59c6d69d00f6b1bcc840548ba6fed2e4d64a`. JSON pointer `/source_anchors/0/snippet`. Exact LF-only full-source/snippet join for array_cmd_get; source version/revision unrecorded and no native launch/outcome inferred.
-- `source-array_cmd_names` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). SHA-256 `3b9ed9bc574a16b1f86c989cf3eb59c6d69d00f6b1bcc840548ba6fed2e4d64a`. JSON pointer `/source_anchors/1/snippet`. Exact LF-only full-source/snippet join for array_cmd_names; source version/revision unrecorded and no native launch/outcome inferred.
-- `source-array_cmd_unset` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). SHA-256 `3b9ed9bc574a16b1f86c989cf3eb59c6d69d00f6b1bcc840548ba6fed2e4d64a`. JSON pointer `/source_anchors/2/snippet`. Exact LF-only full-source/snippet join for array_cmd_unset; source version/revision unrecorded and no native launch/outcome inferred.
+- `source-array_cmd_get` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). JSON pointer `/source_anchors/0/snippet`. Exact LF-only full-source/snippet join for array_cmd_get; source version/revision unrecorded and no native launch/outcome inferred.
+- `source-array_cmd_names` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). JSON pointer `/source_anchors/1/snippet`. Exact LF-only full-source/snippet join for array_cmd_names; source version/revision unrecorded and no native launch/outcome inferred.
+- `source-array_cmd_unset` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). JSON pointer `/source_anchors/2/snippet`. Exact LF-only full-source/snippet join for array_cmd_unset; source version/revision unrecorded and no native launch/outcome inferred.
 
 ## Source inspection
 
-jim Version unrecorded for this source artifact., revision `Source-control revision unrecorded.`, `/workspace/.proofs/native-providers/jimtcl/jim-array.c`, function `array_cmd_get`, lines 62–83. Full-source SHA-256 `ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda`; snippet SHA-256 `030cd86ca020f9e5e62b271f1ea83f6d307e4c3e61fba16319ecb3b65d0ef7e7`; retained evidence `source-array_cmd_get`.
+jim Version unrecorded for this source artifact., revision `Source-control revision unrecorded.`, `/workspace/.proofs/native-providers/jimtcl/jim-array.c`, function `array_cmd_get`, lines 62–83. Retained reference `source-array_cmd_get`.
 
 ```text
 static int array_cmd_get(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
@@ -98,7 +98,7 @@ static int array_cmd_get(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 ```
 
-jim Version unrecorded for this source artifact., revision `Source-control revision unrecorded.`, `/workspace/.proofs/native-providers/jimtcl/jim-array.c`, function `array_cmd_names`, lines 85–94. Full-source SHA-256 `ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda`; snippet SHA-256 `b9d48e8e15f0111ca90942b6fc6eaaaf1834956ebf7c0dd3b06844703fdcde63`; retained evidence `source-array_cmd_names`.
+jim Version unrecorded for this source artifact., revision `Source-control revision unrecorded.`, `/workspace/.proofs/native-providers/jimtcl/jim-array.c`, function `array_cmd_names`, lines 85–94. Retained reference `source-array_cmd_names`.
 
 ```text
 static int array_cmd_names(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
@@ -114,7 +114,7 @@ static int array_cmd_names(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 ```
 
-jim Version unrecorded for this source artifact., revision `Source-control revision unrecorded.`, `/workspace/.proofs/native-providers/jimtcl/jim-array.c`, function `array_cmd_unset`, lines 96–135. Full-source SHA-256 `ce2bb617dc1f79e80c6466f0485b2570cdedaa03e669cb1e462a062a6af5edda`; snippet SHA-256 `72f9e7cd3f3ab9cd8cf73abbcd6cbafe01c5cd4254dd207aad575aad1b938120`; retained evidence `source-array_cmd_unset`.
+jim Version unrecorded for this source artifact., revision `Source-control revision unrecorded.`, `/workspace/.proofs/native-providers/jimtcl/jim-array.c`, function `array_cmd_unset`, lines 96–135. Retained reference `source-array_cmd_unset`.
 
 ```text
 static int array_cmd_unset(Jim_Interp *interp, int argc, Jim_Obj *const *argv)

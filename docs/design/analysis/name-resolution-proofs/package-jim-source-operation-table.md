@@ -62,13 +62,13 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `source-table` (source-anchor): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c). SHA-256 `6fcb3e656f0ed649912e2734a5a8271a34fae248a7b808418576904accc19632`. Lines 231–276. Exact retained complete vendor source; selected LF lines contain the entire table and sentinel.
+- `source-table` (source-anchor): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c). Lines 231–276. Exact retained complete vendor source; selected LF lines contain the entire table and sentinel.
 
 ## Source inspection
 
-jim not recorded, revision `not recorded; exact full-source SHA-256 retained`, `/workspace/.proofs/native-providers/jimtcl/jim-package.c`, function `package_command_table`, lines 231–276. Full-source SHA-256 `6fcb3e656f0ed649912e2734a5a8271a34fae248a7b808418576904accc19632`; snippet SHA-256 `133236f0db58e255ef78a858c218e768187910c366eb6f090170cf6eebdb85f4`; retained evidence `source-table`.
+jim not recorded, revision `not recorded; exact full-source SHA-256 retained`, `/workspace/.proofs/native-providers/jimtcl/jim-package.c`, function `package_command_table`, lines 231–276. Retained reference `source-table`.
 
 ```text
 static const jim_subcmd_type package_command_table[] = {

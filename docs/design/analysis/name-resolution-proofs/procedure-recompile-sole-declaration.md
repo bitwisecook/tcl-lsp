@@ -112,15 +112,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No retained observation of this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-vm/tests/data/native_procedure_recompile/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/probe.c). SHA-256 `55ec7acc5f09e0785d36108719545602ef12ef1f2928a6000ddc4c29d18161a5`. Exact original retained Proc/body/default/key and active-frame pre-observer protocol, real replacement and four modes.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json). SHA-256 `6c152d459dcba4af5cea730d88ceba3a3a0a19f1cc22d2253a5d1839036c3b31`. Original20 independent process/output associations and actual native source/archive/executable SHA metadata.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-0.txt). SHA-256 `4d83b5a470c32c5567aa48dfabe8eb3c9e475205c40c15475bc71c50c95feb08`. Full original S/R stream for exact mode0.
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-0.txt). SHA-256 `99a9ce6530cbe29367174c3c2637ba9c8c8c6df4ceec149992f016b71092eff1`. Full original S/R stream for exact mode0.
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-0.txt). SHA-256 `117b9da82ae11d5c83db49d7bb8cea44ba7def34be65e2b3ca9c530ec0a631d8`. Full original S/R stream for exact mode0.
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-0.txt). SHA-256 `500ea8a7e146233d17b8fe9a86503f422b10d8fec823b48f293b4526b2ad0eaf`. Full original S/R stream for exact mode0.
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-0.txt). SHA-256 `34902891df65eb4417d54364dfd6f0e1b8af0034806884a9d29d80d26bf89fdd`. Full original S/R stream for exact mode0.
+- `probe` (input): [rust/tcl-vm/tests/data/native_procedure_recompile/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/probe.c). Exact original retained Proc/body/default/key and active-frame pre-observer protocol, real replacement and four modes.
+- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json). Original20 independent process/output associations and actual native source/archive/executable SHA metadata.
+- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-0.txt). Full original S/R stream for exact mode0.
+- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-0.txt). Full original S/R stream for exact mode0.
+- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-0.txt). Full original S/R stream for exact mode0.
+- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-0.txt). Full original S/R stream for exact mode0.
+- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-0.txt). Full original S/R stream for exact mode0.
 
 ## Source inspection
 

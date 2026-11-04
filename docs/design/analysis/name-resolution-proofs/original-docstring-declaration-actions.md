@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
 
-## Exact evidence
+## Historical references
 
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). SHA-256 `9791cc7d94fa2847c053ad6cf02696be82c95467865e735f7350b67f470df2e8`. Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
 
 ## Source inspection
 

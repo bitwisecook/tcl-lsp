@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
 
-## Exact evidence
+## Historical references
 
-- `source-catalogue-implementation-0` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). SHA-256 `484c8b72fdfc61c92c5c8789ba6a28b0d68504db3b4f3f4f95375fe2ec734ea7`. Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-catalogue-implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation/vendor_advice.rs](../../../../rust/tcl-compiler/src/registry_invocation/vendor_advice.rs). SHA-256 `6f766685dbb0f4d1a3abcb13a86ab5ead5151ad92df040904e8301a393b3e8fb`. Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-catalogue-implementation-2` (implementation): [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs). SHA-256 `fdee28960bde05334033b086f89f17ad2203d0c391b0ee592b7b84ada5933c0e`. Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
+- `source-catalogue-implementation-0` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
+- `source-catalogue-implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation/vendor_advice.rs](../../../../rust/tcl-compiler/src/registry_invocation/vendor_advice.rs). Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
+- `source-catalogue-implementation-2` (implementation): [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs). Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
 
 ## Source inspection
 

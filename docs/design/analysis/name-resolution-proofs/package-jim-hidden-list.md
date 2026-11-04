@@ -71,12 +71,12 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No observation for this exact question.
 
-## Exact evidence
+## Historical references
 
-- `source` (input): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl). SHA-256 `fbd0e3c6b630c0bf4dd82a79a7e9b1328f1cd7549d7980106f7975ea3ab76592`. Exact original ASCII program for successful list/names and deliberate miss.
-- `capture` (provider): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/receipt.json). SHA-256 `8046e43cba77bdf4646b402c869cecca556a6d3bd5388318807b12cc213c25fd`. Original selected executable/source/stream digests, argv and process status.
-- `stdout` (observation): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout). SHA-256 `5c1ae80c92266addbd9e63038a5138dc613fa2b403f5f19d95129b4262abf4ce`. Exact complete stdout with actual patchlevel and all three caught results.
-- `stderr` (observation): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Exact empty stderr byte stream.
+- `source` (input): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl). Exact original ASCII program for successful list/names and deliberate miss.
+- `capture` (provider): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/receipt.json). Original selected executable/source/stream digests, argv and process status.
+- `stdout` (observation): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout). Exact complete stdout with actual patchlevel and all three caught results.
+- `stderr` (observation): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr). Exact empty stderr byte stream.
 
 ## Source inspection
 

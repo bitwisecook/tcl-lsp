@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

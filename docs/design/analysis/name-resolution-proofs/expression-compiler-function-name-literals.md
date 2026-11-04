@@ -62,50 +62,50 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No in
 
 No modern C command-literal compiler recipe is selected for this provider. No native function-dispatch or evaluator observation is claimed.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.5-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/0/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompExpr.c). SHA-256 `0a6d97e0800151eeb85e60635c9862ac111022a56d8535d38d8d2fd34fd779f5`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/1/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). SHA-256 `2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/2/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). SHA-256 `2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/3/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). SHA-256 `2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-4` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/4/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-4-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h). SHA-256 `9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/5/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompExpr.c). SHA-256 `970b54cc3b24299ff47e64ec6dccc14fdbffd6fdc9f0904170c2071bfd3f8ca0`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/6/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). SHA-256 `6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/7/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). SHA-256 `6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/8/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). SHA-256 `6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005`. Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-4` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/9/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-4-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h). SHA-256 `be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/10/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclCompExpr.c). SHA-256 `f82f94056112b9c76292b384ddb0f84b1d4889d1c14c4776fa0929e02767ded1`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/11/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). SHA-256 `cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/12/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). SHA-256 `cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/13/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). SHA-256 `cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/14/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclCompExpr.c). SHA-256 `16191591d5dd04ac05c3e3200799bf27167ec1d90c9985c3dbbed04e3c07d1b0`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/15/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). SHA-256 `dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/16/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). SHA-256 `dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c`. Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). SHA-256 `0242b7839cb35df8f37c7a1411dbfef35456eacd669e5ae420bfdf2f70f08e9b`. JSON pointer `/17/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). SHA-256 `dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c`. Pinned whole source file for exact source-window reproduction.
+- `tcl8.5-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/0/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.5-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.5-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/1/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.5-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.5-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/2/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.5-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.5-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/3/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.5-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.5-4` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/4/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.5-4-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h). Pinned whole source file for exact source-window reproduction.
+- `tcl8.6-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/5/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.6-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.6-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/6/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.6-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.6-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/7/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.6-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.6-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/8/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.6-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl8.6-4` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/9/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl8.6-4-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h). Pinned whole source file for exact source-window reproduction.
+- `tcl9.0-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/10/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.0-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
+- `tcl9.0-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/11/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.0-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl9.0-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/12/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.0-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl9.0-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/13/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.0-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl9.1-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/14/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.1-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
+- `tcl9.1-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/15/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.1-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl9.1-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/16/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.1-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
+- `tcl9.1-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/17/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
+- `tcl9.1-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
 
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
-tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2196–2221. Full-source SHA-256 `0a6d97e0800151eeb85e60635c9862ac111022a56d8535d38d8d2fd34fd779f5`; snippet SHA-256 `a0db87fa298968aa1d6d909087509ffc6911971328e64f1231e06025d3a76c2e`; retained evidence `tcl8.5-0`.
+tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2196–2221. Retained reference `tcl8.5-0`.
 
 ```text
 	    case FUNCTION: {
@@ -137,7 +137,7 @@ tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclC
 
 ```
 
-tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 175–301. Full-source SHA-256 `2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e`; snippet SHA-256 `4cb452093af4d4859c325007e4bd18abba321666355e23a5ede708b72ae06193`; retained evidence `tcl8.5-1`.
+tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 175–301. Retained reference `tcl8.5-1`.
 
 ```text
 TclCreateLiteral(
@@ -270,7 +270,7 @@ TclCreateLiteral(
 
 ```
 
-tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 331–412. Full-source SHA-256 `2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e`; snippet SHA-256 `1b97d577023d42a29882901e03421b397ee48db4e71b546c40cf1831124f0169`; retained evidence `tcl8.5-2`.
+tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 331–412. Retained reference `tcl8.5-2`.
 
 ```text
 TclRegisterLiteral(
@@ -358,7 +358,7 @@ TclRegisterLiteral(
 
 ```
 
-tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 750–807. Full-source SHA-256 `2cbe44ad0c3fa77f0dfad227610a9f59cb7aabb34667f607f185d33fcc5b898e`; snippet SHA-256 `9b155882898c4a283bb0ba4569cd1a71a152452ce8ab019f27a1debc4a4050e7`; retained evidence `tcl8.5-3`.
+tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 750–807. Retained reference `tcl8.5-3`.
 
 ```text
 TclReleaseLiteral(
@@ -422,7 +422,7 @@ TclReleaseLiteral(
 
 ```
 
-tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h`, function `TclRegisterNewNSLiteral`, lines 989–991. Full-source SHA-256 `9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645`; snippet SHA-256 `1a038b8f52cbc217d23e8a32883fe71f52e6c37c966bb97ce16d138b1b7dddb3`; retained evidence `tcl8.5-4`.
+tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCompile.h`, function `TclRegisterNewNSLiteral`, lines 989–991. Retained reference `tcl8.5-4`.
 
 ```text
 #define TclRegisterNewNSLiteral(envPtr, bytes, length) \
@@ -431,7 +431,7 @@ tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclC
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2270–2295. Full-source SHA-256 `970b54cc3b24299ff47e64ec6dccc14fdbffd6fdc9f0904170c2071bfd3f8ca0`; snippet SHA-256 `e23d9038b9dd059de9f5f253a39b4f30bc66200756b7aa53cc5b49593cf424e2`; retained evidence `tcl8.6-0`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2270–2295. Retained reference `tcl8.6-0`.
 
 ```text
 	    case FUNCTION: {
@@ -463,7 +463,7 @@ tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclC
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 175–324. Full-source SHA-256 `6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005`; snippet SHA-256 `166b508a51de07f7bb3c61e6c1b8ea374c31728cf4b6cd9ce0828ba84b8133ad`; retained evidence `tcl8.6-1`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 175–324. Retained reference `tcl8.6-1`.
 
 ```text
 TclCreateLiteral(
@@ -619,7 +619,7 @@ TclCreateLiteral(
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 381–469. Full-source SHA-256 `6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005`; snippet SHA-256 `deb6171a8a1e41bdebaa14505cd8f3170392394254f796f9c9894a4bf4d0a3fb`; retained evidence `tcl8.6-2`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 381–469. Retained reference `tcl8.6-2`.
 
 ```text
 TclRegisterLiteral(
@@ -714,7 +714,7 @@ TclRegisterLiteral(
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 807–870. Full-source SHA-256 `6fa7f78a4c7222e91fd34517e7b03a640aa89713aeb4b5f10a2ce2aedb950005`; snippet SHA-256 `cd477993b8889f88074d66d056db68635aed97913bc5753e14b03b6fde3a6135`; retained evidence `tcl8.6-3`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 807–870. Retained reference `tcl8.6-3`.
 
 ```text
 TclReleaseLiteral(
@@ -784,7 +784,7 @@ TclReleaseLiteral(
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.h`, function `TclRegisterNewCmdLiteral`, lines 1249–1250. Full-source SHA-256 `be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9`; snippet SHA-256 `7a1708dba937757428793cea0074b8eb70f3407a0438c3ba500d37e11e214424`; retained evidence `tcl8.6-4`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.h`, function `TclRegisterNewCmdLiteral`, lines 1249–1250. Retained reference `tcl8.6-4`.
 
 ```text
 #define TclRegisterNewCmdLiteral(envPtr, bytes, length) \
@@ -792,7 +792,7 @@ tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclC
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2335–2360. Full-source SHA-256 `f82f94056112b9c76292b384ddb0f84b1d4889d1c14c4776fa0929e02767ded1`; snippet SHA-256 `b9cb70ad85c90f069054956dfcc65e80d8a6649e6441a31e69c6635b50fbb6ec`; retained evidence `tcl9.0-0`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2335–2360. Retained reference `tcl9.0-0`.
 
 ```text
 	    case FUNCTION: {
@@ -824,7 +824,7 @@ tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclComp
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 177–334. Full-source SHA-256 `cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4`; snippet SHA-256 `fc2b54f2a3298eba380ebb14563c12013015df30f2a5139053eada1f628c4aa2`; retained evidence `tcl9.0-1`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 177–334. Retained reference `tcl9.0-1`.
 
 ```text
 TclCreateLiteral(
@@ -988,7 +988,7 @@ TclCreateLiteral(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 391–486. Full-source SHA-256 `cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4`; snippet SHA-256 `b63a1ff274818022eabe9bbacbf08545245afaf9375cd998f9dc9e0a7ff12674`; retained evidence `tcl9.0-2`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 391–486. Retained reference `tcl9.0-2`.
 
 ```text
 TclRegisterLiteral(
@@ -1090,7 +1090,7 @@ TclRegisterLiteral(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 831–893. Full-source SHA-256 `cc825192aeed51dc29df565ababbbf1fdf7ea5f5dc796baa4c1badb4fe75b2c4`; snippet SHA-256 `743b8322b5fbe7afcdbe6166471cdbf127db67cfaa187658616591dab9fefefe`; retained evidence `tcl9.0-3`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 831–893. Retained reference `tcl9.0-3`.
 
 ```text
 TclReleaseLiteral(
@@ -1159,7 +1159,7 @@ TclReleaseLiteral(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2343–2361. Full-source SHA-256 `16191591d5dd04ac05c3e3200799bf27167ec1d90c9985c3dbbed04e3c07d1b0`; snippet SHA-256 `8faca22b4f32a9d35cf5fec68033ab25404881a080f637da8fcd5d2cc14afc08`; retained evidence `tcl9.1-0`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompExpr.c`, function `CompileExprTree`, lines 2343–2361. Retained reference `tcl9.1-0`.
 
 ```text
 	    case FUNCTION: {
@@ -1184,7 +1184,7 @@ tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclComp
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 176–334. Full-source SHA-256 `dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c`; snippet SHA-256 `17dfb51ebd5b74ec000f74de485b5e398b1577642e640415eda6b32193988a09`; retained evidence `tcl9.1-1`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c`, function `TclCreateLiteral`, lines 176–334. Retained reference `tcl9.1-1`.
 
 ```text
 TclCreateLiteral(
@@ -1349,7 +1349,7 @@ TclCreateLiteral(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 391–486. Full-source SHA-256 `dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c`; snippet SHA-256 `0aae02e62962d33019e1a2c39e66ad029dd52182c1351279d156c6a178bc2ec3`; retained evidence `tcl9.1-2`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c`, function `TclRegisterLiteral`, lines 391–486. Retained reference `tcl9.1-2`.
 
 ```text
 TclRegisterLiteral(
@@ -1451,7 +1451,7 @@ TclRegisterLiteral(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 873–935. Full-source SHA-256 `dd49a697fe032d2f559eb4a96deb6d465228931f65f5eb3a0119f8751982477c`; snippet SHA-256 `ea17b1d2694c6dc790d677f5e987d19cc8a38d6dded1864fb4cb7758121dad9a`; retained evidence `tcl9.1-3`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclLiteral.c`, function `TclReleaseLiteral`, lines 873–935. Retained reference `tcl9.1-3`.
 
 ```text
 TclReleaseLiteral(

@@ -30,7 +30,7 @@ The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18,
 
 All five captures retain the List primary for both one-element List local names, retain no typed primary for the counted zero String, and return X through the alias. C8.4 retains reference count 1 in all three after snapshots. C8.5 through C9.1 keep the first name at 1 but retain the second List and counted zero operand at 2. These exact snapshots do not establish a general object lifetime or name-table identity rule.
 
-## Exact evidence
+## Historical references
 
 - `runtime/rust/tests/data/native_alias_simple/manifest.json`, SHA-256 `abee378ef2008d25f429f9938d5e579b4f444de0f1035ebbeb42c240a0e879ef`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
 - `runtime/rust/tests/data/native_alias_simple/probe.c`, SHA-256 `2c9da4659bc2e41dfba6d921e38f5257d9d79b883d64133cebba48308e2aa51d`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.

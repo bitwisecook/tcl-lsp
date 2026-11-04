@@ -97,16 +97,16 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No original observation for this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c). SHA-256 `cc979475c04ee938022110b4f5d101ea9643a1572fb820516286b31fd7e4bdf4`. Exact original index constructors/public procedure invocation and pre-result-getter header observer.
-- `inputs` (input): [rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json). SHA-256 `a8a1495d5808748a26cf5635f2bb9ea5c73889bbcecf96ecc21890ff513be6a8`. Nine input strings matched exactly to native C literals.
-- `receipt` (provider): [rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json). SHA-256 `acdb4d5976579b520100bad38a4daa23645deaed87474d3fa2e8006c7c808c7f`. Five original retained source/build/process/output closures; compile status absent remains unknown.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt). SHA-256 `250b9fad8364bd9d0f79f0a0e0417c4cb600a388b64f8a3da592bf5bfd8788d1`. Full9-row original stream; selected case IDs [3, 4, 5, 8].
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt). SHA-256 `e7053739b3065c40c79be2e6378d60607617e0d974dbda0fb9659babae5e07e9`. Full9-row original stream; selected case IDs [3, 4, 5, 8].
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt). SHA-256 `52abdad8a526635ff6afc22cdaf3b907ab0863bb3d02c50f255dff31bdfd1d6f`. Full9-row original stream; selected case IDs [3, 4, 5, 8].
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt). SHA-256 `823fd3746162cc54bc2329c149545752ea2cf84667ec5f6815e10a367f475b09`. Full9-row original stream; selected case IDs [3, 4, 5, 8].
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt). SHA-256 `823fd3746162cc54bc2329c149545752ea2cf84667ec5f6815e10a367f475b09`. Full9-row original stream; selected case IDs [3, 4, 5, 8].
+- `probe` (input): [rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c). Exact original index constructors/public procedure invocation and pre-result-getter header observer.
+- `inputs` (input): [rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json). Nine input strings matched exactly to native C literals.
+- `receipt` (provider): [rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json). Five original retained source/build/process/output closures; compile status absent remains unknown.
+- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt). Full9-row original stream; selected case IDs [3, 4, 5, 8].
+- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt). Full9-row original stream; selected case IDs [3, 4, 5, 8].
+- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt). Full9-row original stream; selected case IDs [3, 4, 5, 8].
+- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt). Full9-row original stream; selected case IDs [3, 4, 5, 8].
+- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt). Full9-row original stream; selected case IDs [3, 4, 5, 8].
 
 ## Source inspection
 

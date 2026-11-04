@@ -172,15 +172,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-cshim/tests/data/native_index_cache/probe.c](../../../../rust/tcl-cshim/tests/data/native_index_cache/probe.c). SHA-256 `0ecd1cd6e69ec369ac82f8f32712056b940b531ba662a0f575aa4559984782cd`. Exact static table identities, original API flags and before-string header observer.
-- `receipt` (provider): [rust/tcl-cshim/tests/data/native_index_cache/manifest.json](../../../../rust/tcl-cshim/tests/data/native_index_cache/manifest.json). SHA-256 `7ba270e4579b1ec50bc3f75efd23a1c95982adef3580aae39bd140898108566e`. Original compile arguments, source/archive/output hashes and process status.
-- `rows-tcl8.4` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl). SHA-256 `8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d`. Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
-- `rows-tcl8.5` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl). SHA-256 `8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d`. Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
-- `rows-tcl8.6` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl). SHA-256 `8926b60da95068a6a0281c4a63f840b4d23317ad11265e3d8d552e0ea6ba383d`. Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
-- `rows-tcl9.0` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl). SHA-256 `2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614`. Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
-- `rows-tcl9.1` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl). SHA-256 `2f535fb519ec211e132537f0792ef3ed202d7d959730adbc844ebccfc6cf9614`. Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
+- `probe` (input): [rust/tcl-cshim/tests/data/native_index_cache/probe.c](../../../../rust/tcl-cshim/tests/data/native_index_cache/probe.c). Exact static table identities, original API flags and before-string header observer.
+- `receipt` (provider): [rust/tcl-cshim/tests/data/native_index_cache/manifest.json](../../../../rust/tcl-cshim/tests/data/native_index_cache/manifest.json). Original compile arguments, source/archive/output hashes and process status.
+- `rows-tcl8.4` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl). Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
+- `rows-tcl8.5` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl). Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
+- `rows-tcl8.6` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl). Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
+- `rows-tcl9.0` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl). Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
+- `rows-tcl9.1` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl). Exact original full output; selected case labels ['resident-from-retained-table', 'duplicate-retains-table'].
 
 ## Source inspection
 

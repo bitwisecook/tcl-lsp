@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native process receipt for this source-only document/workspace declaration implementation question.
 
-## Exact evidence
+## Historical references
 
-- `original-compiler-purpose-2dbda1a4b26a` (implementation): [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs). SHA-256 `992adf965d9045749e8778fd90294df163acb62e48434548015ac501392fbb54`. Authored source name geometry retains valid Unicode components and candidate order and refuses unmodelled source units. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider.
+- `original-compiler-purpose-2dbda1a4b26a` (implementation): [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs). Authored source name geometry retains valid Unicode components and candidate order and refuses unmodelled source units. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider.
 
-- `syntax-source-naming-fixed-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-source-naming-20261103/receipt.json). SHA-256 `9519ba35848bb10ec6c3d435760bac35d29900b0f5f697ea75a05f58d5f49120`. Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
+- `syntax-source-naming-fixed-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-source-naming-20261103/receipt.json). Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
 
 ## Source inspection
 

@@ -62,12 +62,12 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
 
-## Exact evidence
+## Historical references
 
-- `naming-compiler-active-manifest-revalidation-rust-tcl-runtime-api-src-manifest.rs` (implementation): [rust/tcl-runtime-api/src/manifest.rs](../../../../rust/tcl-runtime-api/src/manifest.rs). SHA-256 `8d657a2abac9ee2e7adfe57992b76f2977ff12fe8b2188ecf469c12afe5ed235`. Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
-- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-interp.rs` (implementation): [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs). SHA-256 `3d479b8809ca2c890c63925f940ae05c45ab70774435790fd14c661d4d0b01fa`. Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
-- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-exec.rs` (implementation): [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs). SHA-256 `d4575b75531a60e48d78f7013784c5b75ba56033cf90a3a571c54025835bbcdf`. Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
-- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-exec-active_manifest_tests.rs` (implementation): [rust/tcl-vm/src/exec/active_manifest_tests.rs](../../../../rust/tcl-vm/src/exec/active_manifest_tests.rs). SHA-256 `d773a3b1192a965ec0237dcbca6a0ef24db1a8bf81c22f2cfcdc52e114e388b4`. Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
+- `naming-compiler-active-manifest-revalidation-rust-tcl-runtime-api-src-manifest.rs` (implementation): [rust/tcl-runtime-api/src/manifest.rs](../../../../rust/tcl-runtime-api/src/manifest.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
+- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-interp.rs` (implementation): [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
+- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-exec.rs` (implementation): [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
+- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-exec-active_manifest_tests.rs` (implementation): [rust/tcl-vm/src/exec/active_manifest_tests.rs](../../../../rust/tcl-vm/src/exec/active_manifest_tests.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
 
 ## Source inspection
 

@@ -62,18 +62,18 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance source inspection.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.6-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json). SHA-256 `5245ab65fdfccaf2a2f3e5998baa43f1958eeab53f7cadabac6f7c9d7e1bb470`. JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter. 
-- `tcl8.6-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json). SHA-256 `5245ab65fdfccaf2a2f3e5998baa43f1958eeab53f7cadabac6f7c9d7e1bb470`. JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter. 
-- `tcl9.0-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json). SHA-256 `39af8f9a7bf993b7d819a4415b75563c1de155fe602b24ed14b9d5629efa5a46`. JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter. 
-- `tcl9.0-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json). SHA-256 `39af8f9a7bf993b7d819a4415b75563c1de155fe602b24ed14b9d5629efa5a46`. JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter. 
-- `tcl9.1-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json). SHA-256 `657e0253bcfd76195b657454fb8ae2fc997c79924bc353e2817006b40df81517`. JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter. 
-- `tcl9.1-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json). SHA-256 `657e0253bcfd76195b657454fb8ae2fc997c79924bc353e2817006b40df81517`. JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter. 
+- `tcl8.6-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
+- `tcl8.6-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
+- `tcl9.0-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
+- `tcl9.0-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
+- `tcl9.1-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
+- `tcl9.1-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoObjectMethodsCmd`, lines 513–582. Full-source SHA-256 `309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b`; snippet SHA-256 `a41fdcf7953531f41d7061cc87892ac2d2a64556f763a14c7b30d628de829373`; retained evidence `tcl8.6-InfoObjectMethodsCmd`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoObjectMethodsCmd`, lines 513–582. Retained reference `tcl8.6-InfoObjectMethodsCmd`.
 
 ```text
 InfoObjectMethodsCmd(
@@ -149,7 +149,7 @@ InfoObjectMethodsCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoClassMethodsCmd`, lines 1137–1207. Full-source SHA-256 `309603344c3aeebe95832928b473a84ebc001b3d85c8489e15675448035de02b`; snippet SHA-256 `38e12e7351ff1b077d1181a2f6c248bbee1f94883e2217b348d9cf3aeb40213a`; retained evidence `tcl8.6-InfoClassMethodsCmd`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOInfo.c`, function `InfoClassMethodsCmd`, lines 1137–1207. Retained reference `tcl8.6-InfoClassMethodsCmd`.
 
 ```text
 InfoClassMethodsCmd(
@@ -226,7 +226,7 @@ InfoClassMethodsCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoObjectMethodsCmd`, lines 566–697. Full-source SHA-256 `a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b`; snippet SHA-256 `152b47c5476d5c188a61fd56324603009f64561cd450897b6459e8c6c3af5f24`; retained evidence `tcl9.0-InfoObjectMethodsCmd`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoObjectMethodsCmd`, lines 566–697. Retained reference `tcl9.0-InfoObjectMethodsCmd`.
 
 ```text
 InfoObjectMethodsCmd(
@@ -364,7 +364,7 @@ InfoObjectMethodsCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoClassMethodsCmd`, lines 1358–1479. Full-source SHA-256 `a1ed9fa857c89ba0cc5eea5a6f4e3be82783130823d5182c8e4a4abc5073158b`; snippet SHA-256 `bd87a6b2dc576fda793f0c4176744e6613fac7a8036e6a28f6ee7fe64f9dc314`; retained evidence `tcl9.0-InfoClassMethodsCmd`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOInfo.c`, function `InfoClassMethodsCmd`, lines 1358–1479. Retained reference `tcl9.0-InfoClassMethodsCmd`.
 
 ```text
 InfoClassMethodsCmd(
@@ -492,7 +492,7 @@ InfoClassMethodsCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoObjectMethodsCmd`, lines 659–785. Full-source SHA-256 `5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9`; snippet SHA-256 `50915c6ff31a21d69bf1bd5bf04c20a6f8f1168c3667155d48166ff856693191`; retained evidence `tcl9.1-InfoObjectMethodsCmd`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoObjectMethodsCmd`, lines 659–785. Retained reference `tcl9.1-InfoObjectMethodsCmd`.
 
 ```text
 InfoObjectMethodsCmd(
@@ -625,7 +625,7 @@ InfoObjectMethodsCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoClassMethodsCmd`, lines 1371–1488. Full-source SHA-256 `5f46472c0039bfd89a5ed06aba1df376942136c6ddf02d5c6a0b2cf0bce2a5a9`; snippet SHA-256 `c67ca370d34809831a88bb8014f95eb847aa28d60fcb3251a95f6209edb39836`; retained evidence `tcl9.1-InfoClassMethodsCmd`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInfo.c`, function `InfoClassMethodsCmd`, lines 1371–1488. Retained reference `tcl9.1-InfoClassMethodsCmd`.
 
 ```text
 InfoClassMethodsCmd(

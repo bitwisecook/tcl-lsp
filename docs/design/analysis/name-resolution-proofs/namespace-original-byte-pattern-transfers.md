@@ -62,33 +62,33 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native execution of this Rust implementation question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.4-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Export.c). SHA-256 `1ef0264e9f2140b123a26de23d2ba7b09b3278e4c671a37917b6f4069bc1b75a`. tcl8.4 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
-- `tcl8.4-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Import.c). SHA-256 `43a18400419ea1cc25a18b245d74ebd86337348652b72bcb18a648b2176d5079`. tcl8.4 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl8.4-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c). SHA-256 `cdf4fc501f93d695978f1948b83163420b8495fe4bd60310dcb1a5e1c6d62beb`. tcl8.4 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.4-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceExportCmd.c). SHA-256 `9c541d831ea43ef4ba2c37f20667a107b5a2ed3cd70bf555c16d1926bfe3bde5`. tcl8.4 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Export.c). SHA-256 `5129be68867424f764783f3afee7e34f82333837eeff439f56594b0e69a8522b`. tcl8.5 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Import.c). SHA-256 `2fc6c9627aa0cdfd031caadd2a3255dd101d73cd9f419b03d0947c639c81b3f4`. tcl8.5 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c). SHA-256 `833f6c7d8701b081d8fe56c780d8ba00babcc3ff0ab722f4472b77e858df220e`. tcl8.5 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceExportCmd.c). SHA-256 `b8722c063d3bc30a50db02d29e98b1701b211a3fc1acdfc6b446f2096fa3db00`. tcl8.5 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Export.c). SHA-256 `ae636aa95642db8fd71cfcfcc7c981878809280aeace9d139e5aff882775fdca`. tcl8.6 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Import.c). SHA-256 `3833d77e525a74dd85414d9f6896ce5763d01dc6bbf8dd45e727992f481538d9`. tcl8.6 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c). SHA-256 `81f45437cb2e50407306616208b896466ea4de99111a8f421c4d06fbf6672cb6`. tcl8.6 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceExportCmd.c). SHA-256 `91b0b058c25b41d06cef0bf75fc744f795ca28f4ec9e5efe0c7b1f791525aed3`. tcl8.6 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Export.c). SHA-256 `0885125a66c98a77e4adf3ecfa583c65ea9e7fa3f64032f4999833ca56522960`. tcl9.0 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Import.c). SHA-256 `02c3008a3a4d21c10e74370f31f0df3ff6a2ab4c6b8dc3b99606d1f90aed670a`. tcl9.0 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c). SHA-256 `536ff4f1c34a6a3583f728221650f9b40ca9401c0313ca0617b50cc084999e3e`. tcl9.0 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceExportCmd.c). SHA-256 `5c9c5850b3955557e6e4142b49eefcee16ed0a9624dd586093a0f7709035791f`. tcl9.0 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Export.c). SHA-256 `0885125a66c98a77e4adf3ecfa583c65ea9e7fa3f64032f4999833ca56522960`. tcl9.1 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Import.c). SHA-256 `1fdff5121de94b9f05dd08b947e2039d89d6daa02e435eb12c364d7e9d004532`. tcl9.1 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c). SHA-256 `aa8db5fb3fb28787e9774bd108cb4521b07abe4f9728c6d343d863b90fcb72cf`. tcl9.1 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceExportCmd.c). SHA-256 `b4bcd0ac8bb0294a307c3eaa34deeb2f76866de8c9d91e2972606765bcb10dd4`. tcl9.1 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
-- `jim-JimNamespaceCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c). SHA-256 `68cf42ac5f1a1fadf45a6ef3275144f466cbfd548737a300cb791d25f30a07b5`. jim retained JimNamespaceCmd source; this is independent of Rust test or native invocation authority.
+- `tcl8.4-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Export.c). tcl8.4 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
+- `tcl8.4-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Import.c). tcl8.4 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
+- `tcl8.4-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c). tcl8.4 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl8.4-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceExportCmd.c). tcl8.4 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
+- `tcl8.5-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Export.c). tcl8.5 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
+- `tcl8.5-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Import.c). tcl8.5 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
+- `tcl8.5-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c). tcl8.5 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl8.5-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceExportCmd.c). tcl8.5 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
+- `tcl8.6-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Export.c). tcl8.6 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
+- `tcl8.6-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Import.c). tcl8.6 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
+- `tcl8.6-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c). tcl8.6 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl8.6-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceExportCmd.c). tcl8.6 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
+- `tcl9.0-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Export.c). tcl9.0 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
+- `tcl9.0-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Import.c). tcl9.0 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
+- `tcl9.0-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c). tcl9.0 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl9.0-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceExportCmd.c). tcl9.0 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
+- `tcl9.1-Tcl_Export-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Export.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Export.c). tcl9.1 retained Tcl_Export source; this is independent of Rust test or native invocation authority.
+- `tcl9.1-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Import.c). tcl9.1 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
+- `tcl9.1-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c). tcl9.1 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
+- `tcl9.1-NamespaceExportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceExportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceExportCmd.c). tcl9.1 retained NamespaceExportCmd source; this is independent of Rust test or native invocation authority.
+- `jim-JimNamespaceCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c). jim retained JimNamespaceCmd source; this is independent of Rust test or native invocation authority.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_Export`, lines 881–993. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `1ef0264e9f2140b123a26de23d2ba7b09b3278e4c671a37917b6f4069bc1b75a`; retained evidence `tcl8.4-Tcl_Export-source`.
+tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_Export`, lines 881–993. Retained reference `tcl8.4-Tcl_Export-source`.
 
 ```text
 Tcl_Export(interp, namespacePtr, pattern, resetListFirst)
@@ -207,7 +207,7 @@ Tcl_Export(interp, namespacePtr, pattern, resetListFirst)
 
 ```
 
-tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_Import`, lines 1079–1303. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `43a18400419ea1cc25a18b245d74ebd86337348652b72bcb18a648b2176d5079`; retained evidence `tcl8.4-Tcl_Import-source`.
+tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_Import`, lines 1079–1303. Retained reference `tcl8.4-Tcl_Import-source`.
 
 ```text
 Tcl_Import(interp, namespacePtr, pattern, allowOverwrite)
@@ -438,7 +438,7 @@ Tcl_Import(interp, namespacePtr, pattern, allowOverwrite)
 
 ```
 
-tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1334–1428. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `cdf4fc501f93d695978f1948b83163420b8495fe4bd60310dcb1a5e1c6d62beb`; retained evidence `tcl8.4-Tcl_ForgetImport-source`.
+tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1334–1428. Retained reference `tcl8.4-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(interp, namespacePtr, pattern)
@@ -539,7 +539,7 @@ Tcl_ForgetImport(interp, namespacePtr, pattern)
 
 ```
 
-tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3124–3173. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `9c541d831ea43ef4ba2c37f20667a107b5a2ed3cd70bf555c16d1926bfe3bde5`; retained evidence `tcl8.4-NamespaceExportCmd-source`.
+tcl8.4 8.4.20, revision `retained release source`, `tmp/tcl8.4.20/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3124–3173. Retained reference `tcl8.4-NamespaceExportCmd-source`.
 
 ```text
 NamespaceExportCmd(dummy, interp, objc, objv)
@@ -595,7 +595,7 @@ NamespaceExportCmd(dummy, interp, objc, objv)
 
 ```
 
-tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_Export`, lines 1263–1374. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `5129be68867424f764783f3afee7e34f82333837eeff439f56594b0e69a8522b`; retained evidence `tcl8.5-Tcl_Export-source`.
+tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_Export`, lines 1263–1374. Retained reference `tcl8.5-Tcl_Export-source`.
 
 ```text
 Tcl_Export(
@@ -713,7 +713,7 @@ Tcl_Export(
 
 ```
 
-tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_Import`, lines 1460–1574. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `2fc6c9627aa0cdfd031caadd2a3255dd101d73cd9f419b03d0947c639c81b3f4`; retained evidence `tcl8.5-Tcl_Import-source`.
+tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_Import`, lines 1460–1574. Retained reference `tcl8.5-Tcl_Import-source`.
 
 ```text
 Tcl_Import(
@@ -834,7 +834,7 @@ Tcl_Import(
 
 ```
 
-tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1736–1844. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `833f6c7d8701b081d8fe56c780d8ba00babcc3ff0ab722f4472b77e858df220e`; retained evidence `tcl8.5-Tcl_ForgetImport-source`.
+tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1736–1844. Retained reference `tcl8.5-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(
@@ -949,7 +949,7 @@ Tcl_ForgetImport(
 
 ```
 
-tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3429–3477. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `b8722c063d3bc30a50db02d29e98b1701b211a3fc1acdfc6b446f2096fa3db00`; retained evidence `tcl8.5-NamespaceExportCmd-source`.
+tcl8.5 8.5.19, revision `retained release source`, `tmp/tcl8.5.19/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3429–3477. Retained reference `tcl8.5-NamespaceExportCmd-source`.
 
 ```text
 NamespaceExportCmd(
@@ -1004,7 +1004,7 @@ NamespaceExportCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_Export`, lines 1303–1414. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `ae636aa95642db8fd71cfcfcc7c981878809280aeace9d139e5aff882775fdca`; retained evidence `tcl8.6-Tcl_Export-source`.
+tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_Export`, lines 1303–1414. Retained reference `tcl8.6-Tcl_Export-source`.
 
 ```text
 Tcl_Export(
@@ -1122,7 +1122,7 @@ Tcl_Export(
 
 ```
 
-tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_Import`, lines 1502–1620. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `3833d77e525a74dd85414d9f6896ce5763d01dc6bbf8dd45e727992f481538d9`; retained evidence `tcl8.6-Tcl_Import-source`.
+tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_Import`, lines 1502–1620. Retained reference `tcl8.6-Tcl_Import-source`.
 
 ```text
 Tcl_Import(
@@ -1247,7 +1247,7 @@ Tcl_Import(
 
 ```
 
-tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1786–1894. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `81f45437cb2e50407306616208b896466ea4de99111a8f421c4d06fbf6672cb6`; retained evidence `tcl8.6-Tcl_ForgetImport-source`.
+tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1786–1894. Retained reference `tcl8.6-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(
@@ -1362,7 +1362,7 @@ Tcl_ForgetImport(
 
 ```
 
-tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3460–3509. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `91b0b058c25b41d06cef0bf75fc744f795ca28f4ec9e5efe0c7b1f791525aed3`; retained evidence `tcl8.6-NamespaceExportCmd-source`.
+tcl8.6 8.6.18, revision `retained release source`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3460–3509. Retained reference `tcl8.6-NamespaceExportCmd-source`.
 
 ```text
 NamespaceExportCmd(
@@ -1418,7 +1418,7 @@ NamespaceExportCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_Export`, lines 1454–1565. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `0885125a66c98a77e4adf3ecfa583c65ea9e7fa3f64032f4999833ca56522960`; retained evidence `tcl9.0-Tcl_Export-source`.
+tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_Export`, lines 1454–1565. Retained reference `tcl9.0-Tcl_Export-source`.
 
 ```text
 Tcl_Export(
@@ -1536,7 +1536,7 @@ Tcl_Export(
 
 ```
 
-tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_Import`, lines 1653–1771. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `02c3008a3a4d21c10e74370f31f0df3ff6a2ab4c6b8dc3b99606d1f90aed670a`; retained evidence `tcl9.0-Tcl_Import-source`.
+tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_Import`, lines 1653–1771. Retained reference `tcl9.0-Tcl_Import-source`.
 
 ```text
 Tcl_Import(
@@ -1661,7 +1661,7 @@ Tcl_Import(
 
 ```
 
-tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1939–2048. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `536ff4f1c34a6a3583f728221650f9b40ca9401c0313ca0617b50cc084999e3e`; retained evidence `tcl9.0-Tcl_ForgetImport-source`.
+tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1939–2048. Retained reference `tcl9.0-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(
@@ -1777,7 +1777,7 @@ Tcl_ForgetImport(
 
 ```
 
-tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3666–3715. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `5c9c5850b3955557e6e4142b49eefcee16ed0a9624dd586093a0f7709035791f`; retained evidence `tcl9.0-NamespaceExportCmd-source`.
+tcl9.0 9.0.4, revision `retained release source`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3666–3715. Retained reference `tcl9.0-NamespaceExportCmd-source`.
 
 ```text
 NamespaceExportCmd(
@@ -1833,7 +1833,7 @@ NamespaceExportCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_Export`, lines 1453–1564. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `0885125a66c98a77e4adf3ecfa583c65ea9e7fa3f64032f4999833ca56522960`; retained evidence `tcl9.1-Tcl_Export-source`.
+tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_Export`, lines 1453–1564. Retained reference `tcl9.1-Tcl_Export-source`.
 
 ```text
 Tcl_Export(
@@ -1951,7 +1951,7 @@ Tcl_Export(
 
 ```
 
-tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_Import`, lines 1652–1770. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `1fdff5121de94b9f05dd08b947e2039d89d6daa02e435eb12c364d7e9d004532`; retained evidence `tcl9.1-Tcl_Import-source`.
+tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_Import`, lines 1652–1770. Retained reference `tcl9.1-Tcl_Import-source`.
 
 ```text
 Tcl_Import(
@@ -2076,7 +2076,7 @@ Tcl_Import(
 
 ```
 
-tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1937–2045. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `aa8db5fb3fb28787e9774bd108cb4521b07abe4f9728c6d343d863b90fcb72cf`; retained evidence `tcl9.1-Tcl_ForgetImport-source`.
+tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `Tcl_ForgetImport`, lines 1937–2045. Retained reference `tcl9.1-Tcl_ForgetImport-source`.
 
 ```text
 Tcl_ForgetImport(
@@ -2191,7 +2191,7 @@ Tcl_ForgetImport(
 
 ```
 
-tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3638–3687. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `b4bcd0ac8bb0294a307c3eaa34deeb2f76866de8c9d91e2972606765bcb10dd4`; retained evidence `tcl9.1-NamespaceExportCmd-source`.
+tcl9.1 9.1.0, revision `retained release source`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `NamespaceExportCmd`, lines 3638–3687. Retained reference `tcl9.1-NamespaceExportCmd-source`.
 
 ```text
 NamespaceExportCmd(
@@ -2247,7 +2247,7 @@ NamespaceExportCmd(
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c9`, `/workspace/.proofs/native-providers/jimtcl/jim-namespace.c`, function `JimNamespaceCmd`, lines 193–328. Full-source SHA-256 `22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3`; snippet SHA-256 `68cf42ac5f1a1fadf45a6ef3275144f466cbfd548737a300cb791d25f30a07b5`; retained evidence `jim-JimNamespaceCmd-source`.
+jim 0.84-9-g5bac7c9, revision `5bac7c9`, `/workspace/.proofs/native-providers/jimtcl/jim-namespace.c`, function `JimNamespaceCmd`, lines 193–328. Retained reference `jim-JimNamespaceCmd-source`.
 
 ```text
 static int JimNamespaceCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)

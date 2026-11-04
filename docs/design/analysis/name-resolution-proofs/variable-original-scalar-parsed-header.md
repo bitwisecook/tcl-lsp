@@ -202,11 +202,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.c). SHA-256 `96c7bbd1714d9c8bc7318a7a87ffc7d394fefca1892162b73ace95bfdbdcd7c3`. Exact original public/private observer and declared reference ownership.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json). SHA-256 `aa61e180b37b57b4fda6794ea6d6c866a50d3954e52cc56eb3f72edbac1e86f5`. Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
-- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.txt). SHA-256 `829a739abfcad3bd6df72b1e06d36d2a12e41ab128969a5aedf424b8974f0aef`. Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
+- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.c). Exact original public/private observer and declared reference ownership.
+- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers_provenance.json). Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
+- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.txt). Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
 
 ## Source inspection
 

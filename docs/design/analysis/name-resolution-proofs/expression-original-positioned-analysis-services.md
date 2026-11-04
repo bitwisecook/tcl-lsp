@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

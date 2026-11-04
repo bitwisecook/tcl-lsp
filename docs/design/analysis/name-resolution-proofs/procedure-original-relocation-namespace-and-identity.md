@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (observation): [runtime/rust/tests/data/native_procedure_relocation/manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/manifest.json). SHA-256 `c4b50f9543319bef2dad9cefa47a22392e61972142a33594c636c704b4b90cda`. Six original source/header/library-hashed compile/run receipts with exact inline streams; executable hashes and a Jim patchlevel/revision are not retained.
-- `e1` (input): [runtime/rust/tests/data/native_procedure_relocation/probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/probe.c). SHA-256 `e8d9b48f63b6dd13877186ec1f0b502925e19d82aad96689f0621130c282a754`. Six move/source-call controls, private command/procedure comparison and pinned Jim namespace-object observer.
-- `e2` (observation): [runtime/rust/tests/data/native_procedure_relocation/observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/observations.tsv). SHA-256 `2cf71506762fcd5f04d765e1b6bd271df75f8e75f69e0e70c0f42b3a6604712a`. Projected active/first/future namespace and command/procedure identity fields for all36 controls.
+- `e0` (observation): [runtime/rust/tests/data/native_procedure_relocation/manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/manifest.json). Six original source/header/library-hashed compile/run receipts with exact inline streams; executable hashes and a Jim patchlevel/revision are not retained.
+- `e1` (input): [runtime/rust/tests/data/native_procedure_relocation/probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/probe.c). Six move/source-call controls, private command/procedure comparison and pinned Jim namespace-object observer.
+- `e2` (observation): [runtime/rust/tests/data/native_procedure_relocation/observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/observations.tsv). Projected active/first/future namespace and command/procedure identity fields for all36 controls.
 
 ## Source inspection
 

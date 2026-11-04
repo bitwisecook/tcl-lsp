@@ -66,7 +66,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

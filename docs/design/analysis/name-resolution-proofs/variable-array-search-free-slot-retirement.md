@@ -102,11 +102,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.c). SHA-256 `36b70978da15c76f1b1358ece97bc6b356dba0f635fb713dcf46e86dbb2a24bb`. Exact original public/private observer and declared reference ownership.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json). SHA-256 `dbe9d5e543bb0e65bb13c9febdf18d73fa43d17505dd2a70ee6ec09682fbf3b7`. Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
-- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.txt). SHA-256 `5e9ea90fc5e52e398665b48c47cfde60d9e98ac3a0426ae89f5582e4c48e5cb0`. Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
+- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.c). Exact original public/private observer and declared reference ownership.
+- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot_provenance.json). Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
+- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.txt). Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
 
 ## Source inspection
 
