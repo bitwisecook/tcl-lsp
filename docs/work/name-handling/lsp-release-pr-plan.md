@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE plan; status refreshed 04 November 2026, 16:45 UTC. Not release-ready.** [Current state](current-state.md) is the authoritative status. Purpose Compiler V3 builds successfully but passes 2/4; Core V12 fails ENOSPC before any of its 23 semantic controls and one observation. Captured Server V11 passes 26/26 mandatory controls with current-Main refusal; RMW v17 passes 30/32. Manual Browser 41859243999 passes 40/41 and WASI 32/33, retaining original autoload and busy-EOF failures. Host V7 private controls, extension lint and TypeScript checking pass; real-host validation remains pending. The current Tcl evidence gate checks 321 files and passes 11 checker tests, while full gates remain open. Publication succeeds at 16:43:02 without force. No PR or release exists. The 23 October plan and historical measurements below do not establish current acceptance; current-state.md supplies exact scoped receipts.
+**ACTIVE plan; status refreshed 04 November 2026, 19:09 UTC. Not release-ready.** [Current state](current-state.md) is authoritative for exact source and receipts. Compiler34 completes30/34: four namespace controls fail; source-policy and exact-allocation corrections require a renewed unit run. Core27 completes25/27: autoload, regexp hover and variable definition pass; two obsolete namespace-point premises have a reviewed correction and separate actual public-probe evidence, but corrected unit execution remains pending. Captured custody passes while Main drift rejects current-source acceptance. RMW19 remains31/32; the remaining Jim early-guard correction awaits VM11. Latest de5f Browser run41888267930 remains40/41 twice with autoload null, Native active and WASI failure cause unavailable. Current evidence-format gate previously passed1,409 documents/17 checker tests; full gates, packaging and performance remain open. Five-minute remote sync continues. No PR or release exists. Historical plans/measurements below do not establish current acceptance.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,8 +61,8 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Preserve completed captured Server V11 diagnostics and their strict Main-currency refusal. Diagnose the original autoload null and five failed library repros; obtain a fresh current-source Server cohort after reviewed repairs. Preserve purpose Compiler V3's 2/4 result and Core V12's ENOSPC failure; validate reviewed corrections and retry Core with fresh custody and adequate disk capacity.
-2. Diagnose the two failed Jim/cache assertions in completed RMW v17 (30/32), then run a fresh linked cohort after reviewed repairs. Preserve all earlier failures and canonical binding, authored-random, genuine C8.4/F5/Jim issuer guards. Separate VM/BIG-IP feature work remains deferred; linked regressions remain critical.
+1. Preserve completed Compiler34/Core27 results and their source-currency limits. Retest exact source-allocation continuation and corrected Logical-point fixtures; execute current Registry and Server successors. Diagnose the original Browser/Server autoload null despite passing focused advice controls, and complete Backend hover/definition and physical-edit acceptance.
+2. Retest the Jim dictionary early ownership guard with the exact VM11 cohort; preserve RMW19's31/32 and all earlier failures. Test SpecTcl cache/hash/hook publication corrections. Preserve canonical binding, authored-random, genuine C8.4/F5/Jim issuer and budget guards. Separate VM/BIG-IP feature work remains deferred; linked regressions remain critical.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected
    baseline/candidate inventories; unknown, skipped, cancelled and unreached
@@ -71,8 +71,7 @@ shipping checks still need to pass on the final candidate.
    startup, latency, cancellation and memory contracts. A scoped source proof
    or an unmatched timing does not establish runtime or performance acceptance.
    The earlier dedicated iRules-timing waiver grants no other performance waiver.
-5. Reconcile global proof provenance without blind digest renewal or restoring
-   unsanitised captures. No private LSP-profile draft is a passing exemption.
+5. Keep standalone Tcl execution evidence truthful under the current evidence-format gate; historical proof ledgers are development material, not renewed execution authority. No digest renewal or private exemption grants acceptance.
    Complete strict lint, formatting, generated drift, package custody/builds,
    rust-check and prep-pr on the final shipping source.
 6. Perform repository-wide temporary-document/comment cleanup while preserving
