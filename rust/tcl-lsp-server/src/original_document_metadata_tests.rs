@@ -775,6 +775,8 @@ async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // No appliance execution or handler entry is inferred from configured availability.
     let backend = crate::tests::test_backend();
+    *backend.bigip_version.lock().await = Some("15.0.0".to_owned());
+    backend.sync_db_config().await;
     let uri = Uri::from_str("file:///workspace/index-availability.tcl").unwrap();
     let source = "when CLIENTSSL_HANDSHAKE {SSL::c3d cert_lifespan 24}";
     let older = backend
@@ -784,6 +786,13 @@ async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
     let older_input = older.analysis.resolved_input.as_ref().unwrap();
     assert!(
         older
+            .analysis
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W135)
+    );
+    assert!(
+        !older
             .analysis
             .diagnostics
             .iter()
@@ -804,6 +813,13 @@ async fn fresh_index_driver_keeps_keyed_availability_on_the_same_store() {
     ));
     assert!(backend.fresh_index_seed_is_current(source, &current).await);
     assert!(!backend.fresh_index_seed_is_current(source, &older).await);
+    assert!(
+        !current
+            .analysis
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W135)
+    );
     assert!(
         !current
             .analysis
@@ -855,6 +871,12 @@ fn assert_older_formatter_analysis(older: &tcl_compiler::analyser::AnalysisResul
         older
             .diagnostics
             .iter()
+            .any(|row| row.code == DiagCode::W135)
+    );
+    assert!(
+        !older
+            .diagnostics
+            .iter()
             .any(|row| row.code == DiagCode::W150)
     );
     assert_ne!(older.command_invocations.len(), 0);
@@ -870,6 +892,12 @@ fn assert_current_formatter_analysis(
         current_input.borrowed_context_registry().commands(),
         older_input.borrowed_context_registry().commands(),
     ));
+    assert!(
+        !current
+            .diagnostics
+            .iter()
+            .any(|row| row.code == DiagCode::W135)
+    );
     assert!(
         !current
             .diagnostics
@@ -1642,6 +1670,8 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     // These public requests retain actual source/configuration; no appliance
     // execution or Native body entry is supplied by the event/source roles.
     let backend = crate::tests::test_backend();
+    *backend.bigip_version.lock().await = Some("15.0.0".to_owned());
+    backend.sync_db_config().await;
     let uri = Uri::from_str("file:///workspace/formatter-source-currency.tcl").unwrap();
     let source = "when CLIENTSSL_HANDSHAKE {\r\nSSL::c3d cert_lifespan 24\r\n}\r\n";
     backend.documents.lock("test").await.insert(
