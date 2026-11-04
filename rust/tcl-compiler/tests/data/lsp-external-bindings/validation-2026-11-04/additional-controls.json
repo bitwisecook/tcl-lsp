@@ -1,0 +1,202 @@
+[
+  {
+    "label": "2501-reached-loop",
+    "dialect": "tcl8.4",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    lassign $all start end\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\nW123 150 157 \"Unresolved command 'lassign' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub lassign {\u2026} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-reached-loop",
+    "dialect": "tcl8.5",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    lassign $all start end\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-reached-loop",
+    "dialect": "tcl8.6",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    lassign $all start end\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-reached-loop",
+    "dialect": "tcl9.0",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    lassign $all start end\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-reached-loop",
+    "dialect": "tcl9.1",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    lassign $all start end\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-without-lassign-control",
+    "dialect": "tcl8.4",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-without-lassign-control",
+    "dialect": "tcl8.5",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-without-lassign-control",
+    "dialect": "tcl8.6",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-without-lassign-control",
+    "dialect": "tcl9.0",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2501-without-lassign-control",
+    "dialect": "tcl9.1",
+    "source": "set pos 0\nset re {\\{([A-Za-z0-9_]+)\\|([^{}]*)\\}}\nset line \"{example|text}\"\n\nwhile {[regexp -start $pos -indices $re $line all nameIdx textIdx]} {\n    if {$start > $pos} {\n        # do something\n    }\n    break\n}\n",
+    "exit": 0,
+    "stdout": "W304 112 115 \"'regexp' parses leading '-' as options. Insert '--' before substituted input if it is intended as data.\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2502-without-unpack-control",
+    "dialect": "tcl8.4",
+    "source": "set style [dict create \\\n    bg #ffffff \\\n    bc #cbd5e1 \\\n    bw 1 \\\n    radius {8 8 8 8} \\\n    pad {0 0 0 0} \\\n    shadow {} \\\n    snap 1]\n\n\nset radius [lmap r $radius {\n    expr {min(1, 2 / 2.0, 3 / 2.0)}\n}]\n\nif {$bg ne \"\"} {\n    # do something...\n    set bg \"\"\n}\n",
+    "exit": 0,
+    "stdout": "W002 11 15 \"Registry command 'dict' is disabled in the active dialect profile (available in: Tcl 8.5, Tcl 8.6, Tcl 9.0, Tcl 9.1)\"\nW123 11 15 \"Unresolved command 'dict' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub dict {\u2026} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.\"\nW002 155 159 \"Registry command 'lmap' is disabled in the active dialect profile (available in: Tcl 8.6, Tcl 9.0, Tcl 9.1)\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2502-without-unpack-control",
+    "dialect": "tcl8.5",
+    "source": "set style [dict create \\\n    bg #ffffff \\\n    bc #cbd5e1 \\\n    bw 1 \\\n    radius {8 8 8 8} \\\n    pad {0 0 0 0} \\\n    shadow {} \\\n    snap 1]\n\n\nset radius [lmap r $radius {\n    expr {min(1, 2 / 2.0, 3 / 2.0)}\n}]\n\nif {$bg ne \"\"} {\n    # do something...\n    set bg \"\"\n}\n",
+    "exit": 0,
+    "stdout": "W002 155 159 \"Registry command 'lmap' is disabled in the active dialect profile (available in: Tcl 8.6, Tcl 9.0, Tcl 9.1)\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2502-without-unpack-control",
+    "dialect": "tcl8.6",
+    "source": "set style [dict create \\\n    bg #ffffff \\\n    bc #cbd5e1 \\\n    bw 1 \\\n    radius {8 8 8 8} \\\n    pad {0 0 0 0} \\\n    shadow {} \\\n    snap 1]\n\n\nset radius [lmap r $radius {\n    expr {min(1, 2 / 2.0, 3 / 2.0)}\n}]\n\nif {$bg ne \"\"} {\n    # do something...\n    set bg \"\"\n}\n",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "label": "2502-without-unpack-control",
+    "dialect": "tcl9.0",
+    "source": "set style [dict create \\\n    bg #ffffff \\\n    bc #cbd5e1 \\\n    bw 1 \\\n    radius {8 8 8 8} \\\n    pad {0 0 0 0} \\\n    shadow {} \\\n    snap 1]\n\n\nset radius [lmap r $radius {\n    expr {min(1, 2 / 2.0, 3 / 2.0)}\n}]\n\nif {$bg ne \"\"} {\n    # do something...\n    set bg \"\"\n}\n",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "label": "2502-without-unpack-control",
+    "dialect": "tcl9.1",
+    "source": "set style [dict create \\\n    bg #ffffff \\\n    bc #cbd5e1 \\\n    bw 1 \\\n    radius {8 8 8 8} \\\n    pad {0 0 0 0} \\\n    shadow {} \\\n    snap 1]\n\n\nset radius [lmap r $radius {\n    expr {min(1, 2 / 2.0, 3 / 2.0)}\n}]\n\nif {$bg ne \"\"} {\n    # do something...\n    set bg \"\"\n}\n",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "label": "2502-missing-bg-control",
+    "dialect": "tcl8.4",
+    "source": "set style {bg white}\nif {$bg ne \"\"} {set bg \"\"}\n",
+    "exit": 0,
+    "stdout": "W210 25 28 \"Variable 'bg' is read before it is set\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2502-missing-bg-control",
+    "dialect": "tcl8.5",
+    "source": "set style {bg white}\nif {$bg ne \"\"} {set bg \"\"}\n",
+    "exit": 0,
+    "stdout": "W210 25 28 \"Variable 'bg' is read before it is set\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2502-missing-bg-control",
+    "dialect": "tcl8.6",
+    "source": "set style {bg white}\nif {$bg ne \"\"} {set bg \"\"}\n",
+    "exit": 0,
+    "stdout": "W210 25 28 \"Variable 'bg' is read before it is set\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2502-missing-bg-control",
+    "dialect": "tcl9.0",
+    "source": "set style {bg white}\nif {$bg ne \"\"} {set bg \"\"}\n",
+    "exit": 0,
+    "stdout": "W210 25 28 \"Variable 'bg' is read before it is set\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2502-missing-bg-control",
+    "dialect": "tcl9.1",
+    "source": "set style {bg white}\nif {$bg ne \"\"} {set bg \"\"}\n",
+    "exit": 0,
+    "stdout": "W210 25 28 \"Variable 'bg' is read before it is set\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2290-data-type-positive-control",
+    "dialect": "tcl8.4",
+    "source": "proc missingDataAndType {} {list $data $type}\nmissingDataAndType\n",
+    "exit": 0,
+    "stdout": "W210 33 38 \"Variable 'data' is read before it is set\"\nW210 39 44 \"Variable 'type' may be read before it is set in the declared local frame\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2290-data-type-positive-control",
+    "dialect": "tcl8.5",
+    "source": "proc missingDataAndType {} {list $data $type}\nmissingDataAndType\n",
+    "exit": 0,
+    "stdout": "W210 33 38 \"Variable 'data' is read before it is set\"\nW210 39 44 \"Variable 'type' may be read before it is set in the declared local frame\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2290-data-type-positive-control",
+    "dialect": "tcl8.6",
+    "source": "proc missingDataAndType {} {list $data $type}\nmissingDataAndType\n",
+    "exit": 0,
+    "stdout": "W210 33 38 \"Variable 'data' is read before it is set\"\nW210 39 44 \"Variable 'type' may be read before it is set in the declared local frame\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2290-data-type-positive-control",
+    "dialect": "tcl9.0",
+    "source": "proc missingDataAndType {} {list $data $type}\nmissingDataAndType\n",
+    "exit": 0,
+    "stdout": "W210 33 38 \"Variable 'data' is read before it is set\"\nW210 39 44 \"Variable 'type' may be read before it is set in the declared local frame\"\n",
+    "stderr": ""
+  },
+  {
+    "label": "2290-data-type-positive-control",
+    "dialect": "tcl9.1",
+    "source": "proc missingDataAndType {} {list $data $type}\nmissingDataAndType\n",
+    "exit": 0,
+    "stdout": "W210 33 38 \"Variable 'data' is read before it is set\"\nW210 39 44 \"Variable 'type' may be read before it is set in the declared local frame\"\n",
+    "stderr": ""
+  }
+]

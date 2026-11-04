@@ -87,6 +87,14 @@ fn observe(tclsh: &std::path::Path, source: &str) -> tcl_test_support::ScriptOut
     tcl_test_support::run_script(tclsh, script.as_bytes()).unwrap()
 }
 
+fn jimsh() -> Option<tcl_test_support::Jimsh> {
+    if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+        Some(tcl_test_support::require_jimsh().expect("required current Jim oracle"))
+    } else {
+        tcl_test_support::locate_jimsh().expect("validated Jim oracle")
+    }
+}
+
 fn apply(source: &str, action: &CodeAction) -> String {
     let index = LineIndex::new(source);
     let mut edits: Vec<_> = action
@@ -237,6 +245,7 @@ fn ordinary_expression_brace_action_still_preserves_execution() {
 #[test]
 fn scan_example_preserves_valid_rgb_components() {
     let scan = "proc rgb {hex_clean} {\nscan [string range $hex_clean 0 1] %x r\nscan [string range $hex_clean 2 3] %x g\nscan [string range $hex_clean 4 5] %x b\nreturn [list $r $g $b]\n}\n";
+    let jim = jimsh();
     for (colour, expected) in [
         ("000000", "0 0 0"),
         ("ffffff", "255 255 255"),
@@ -258,8 +267,8 @@ fn scan_example_preserves_valid_rgb_components() {
                 "{version:?} {colour}"
             );
         }
-        if let Some(jimsh) = std::env::var_os("TCL_LSP_JIMSH") {
-            let jimsh = std::path::Path::new(&jimsh);
+        if let Some(jim) = &jim {
+            let jimsh = &jim.path;
             let observed = observe(jimsh, &original);
             assert_eq!(observed.stdout, format!("{expected}\n0 {{}}\n").as_bytes());
             assert_eq!(observed, observe(jimsh, &recommended));
@@ -281,6 +290,7 @@ fn a_user_command_named_expr_has_no_conversion_recommendation() {
 
 #[test]
 fn unknown_hex_text_does_not_justify_an_automatic_scan_rewrite() {
+    let jim = jimsh();
     for value in ["-ff", "ff+1", "zz"] {
         let word = tcl_compiler::codegen::helpers::tcl_list_element(value);
         let original = format!("set hex {word}\nexpr 0x$hex\n");
@@ -295,8 +305,8 @@ fn unknown_hex_text_does_not_justify_an_automatic_scan_rewrite() {
                 "{version:?}: {value}"
             );
         }
-        if let Some(jimsh) = std::env::var_os("TCL_LSP_JIMSH") {
-            let jimsh = std::path::Path::new(&jimsh);
+        if let Some(jim) = &jim {
+            let jimsh = &jim.path;
             assert_ne!(observe(jimsh, &original), observe(jimsh, &scanned));
         }
     }

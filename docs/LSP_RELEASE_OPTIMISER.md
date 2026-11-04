@@ -55,3 +55,42 @@ Tcl 8.5–9.1 before their optimiser differential run. Compilation of the first
 expanded test draft found a test-only enum iteration typo, since corrected.
 The next shared-branch checkpoint precedes the queued expanded verification
 and push gates, as explicitly required by the integration cadence.
+
+## Fresh external validation: #2507
+
+`issue_2507` in `tcl-lsp-core` passed all seven integration tests at
+`ef032bdb7`, including the implementation fix `14b26b2e0`. The harness retains
+the actual registry/input, checks diagnostic edit currency, and runs the real
+W100, O111, report and code-action producers. The posted RGB example retains
+three W100 findings, three O111 hints and three scan recommendations under
+Tcl 8.4–9.1 and Jim profiles.
+
+The initial current-source action check exposed six invalid edits: three
+quick fixes and three bracing refactors. Direct bracing raises on all six
+interpreters. The fix withholds that edit for the recognised hexadecimal
+conversion while preserving the warnings and recommendation. An ordinary
+arithmetic brace action still applies and executes correctly.
+
+Four RGB inputs have explicit expected outputs and matching expr/scan results
+under Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and current Jim. Three further
+inputs (`-ff`, `ff+1`, `zz`) demonstrate why unknown hexadecimal text cannot
+justify an automatic scan replacement. Twelve source-pattern controls include
+quoted/uppercase prefixes, ordinary arithmetic, multiple substitutions,
+existing braces, and a dynamic command head; a user-defined `expr` control
+receives no conversion recommendation.
+
+The Jim checkout is `82fb4d0caf90240d94352a31fcbd16adf52658a7`; its built binary
+and the installed oracle have identical SHA-256
+`0fd5a727a6b4c0856818e9237e3e962fe1062c4057bcb5b3f768efd768cfae52`.
+The binary reports version/patchlevel 0.84. Tests discover it through the
+shared oracle owner. Machine-readable receipts are in
+`/tmp/lsp-2507-evidence.json` and `/tmp/lsp-2507-oracles.json`.
+
+Targeted Clippy exposed two earlier #2434 lint defects, corrected mechanically
+in `2066b20c3` without changing escape behaviour or adding an allow. The next
+Clippy attempt reached an unrelated redundant closure at
+`original_command_rename/source_coverage.rs:596`; its owner has been notified.
+Both selected #2434 regressions passed after that mechanical change (Tcl
+8.4–9.1 plus the applicable Jim escape controls). Older #2373, report-allocation
+and Tcllib setup work remains safely stashed as
+`Preserve optimiser release WIP before fresh issue 2507 verification`.
