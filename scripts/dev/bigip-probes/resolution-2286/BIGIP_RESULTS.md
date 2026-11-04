@@ -1,5 +1,7 @@
 # BIG-IP iRule resolution results for #2286
 
+> This historical summary is development material. The recovered runtime scripts link to per-script evidence below; other archived runs remain under review.
+
 > **Tested appliance: BIG-IP 21.1.0.1, build 0.0.26, Point Release 1. No separately named hotfix field was present in `tmsh show sys version`. FIPS Module: Cryptographic Module for BIG-IP.**
 
 These are measured TMM iRule results from the active standalone lab appliance. They are not inferred from `tclsh`, tmsh scripts, iApps, the proposed static model, or the current implementation.
@@ -37,16 +39,9 @@ Main Package
 
 The tested checkout was branch `work`. The canonical run `r2286_20261006c` used source commit `5111900044ff998b20098ba5b68c8c25ff56fdf6`; the procedure/folder/partition and Unicode run `r2286i` used `b5304db343a21a7f411a527078fbcf8b3fb5fbe2`; the five-context run `r2286l` used `d04406a0ce9e9fd2ceb5e91c39d602eb9246ef57`.
 
-| Fixture set | Manifest SHA-256 | Verification |
-| --- | --- | --- |
-| Canonical 53-rule set, `r2286_20261006c` | `6391afa87e7c03b9df2d9252625a7b0ebdee0850c830312a898f93fbbcc26e2c` | Every appliance file matched its manifest |
-| ASCII-only exact-name cleanup | `69728f576b5dca85456295eaef86c9581bc2770e6e73a745c4f2f8723171f49e` | Appliance hashes matched |
-| Isolated Unicode/LF/CRLF controls, `r2286_20261006d` | `83b598435bbaf35acf6d764ff0b5cc55d279cfddf72f0a2114b8511f812e21d7` | Every appliance file matched |
-| Embedded-NUL controls, `r2286_20261006e` | `8f7fd3b7581fce66443397e281774f8b599cde1ead6a1a3f5d0b350ff48c34d9` | Every appliance file matched |
-| Procedure/folder/partition and Unicode controls, `r2286i` | `8f5c9f385b226b5f7da6885ede6a28775a68cdfea7ed44fb28fb213c73f6e6fd` | Every appliance file matched the per-file SHA-256 manifest before load |
-| Five-context 92-case matrix, `r2286l` | `16ea0ab2150d247f7f3cd50b95f10d14282753b9b792a06490639705d785e483` | All six generated wrappers matched their per-file SHA-256 manifest before load |
-
-The canonical appliance hash list is [appliance-fixture-hashes.txt](evidence/r2286_20261006c/appliance/appliance-fixture-hashes.txt), its validation transcript is [manifest-verification.txt](evidence/r2286_20261006c/appliance/manifest-verification.txt), and the exact fixture bytes plus `.hex` copies are retained under [r2286_20261006c-fixtures](evidence/r2286_20261006c/appliance/r2286_20261006c-fixtures/). In particular, the supplied LF and CRLF files remained byte-distinct (`f747c42d…4331` and `9d608ed9…9e2c`).
+The retained fixture bytes and hexadecimal copies are under
+[r2286_20261006c-fixtures](evidence/r2286_20261006c/appliance/r2286_20261006c-fixtures/).
+The supplied LF and CRLF files are distinct byte sequences.
 
 ## Principal observations
 
@@ -136,32 +131,32 @@ Every row below loaded without warning, ran first and repeated on the CMP-disabl
 
 | Case | First measured result |
 | --- | --- |
-| `dynamic_namespace` | `11` |
-| `dynamic_path_shadow` | Error: `bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which` |
-| `dynamic_path_provider` | Same unsupported `namespace path` error |
-| `dynamic_global_alias` | `11`; the proc's `global` alias reached the generated global cell |
-| `dynamic_upvar` | `9` |
-| `dynamic_upvar_unset` | `AGAIN` after target unset/recreate |
-| `dynamic_uplevel` | `42` |
-| `dynamic_upvar_absolute` | `CHANGED CHANGED` |
-| `dynamic_upvar_zero` | `CHANGED` |
-| `dynamic_uplevel_absolute` | `ABSOLUTE` |
-| `dynamic_static_global_link` | `STATIC` |
-| `dynamic_alias` | `ONE:FIXED` |
-| `dynamic_alias_rename` | `1 {invalid command name "…_one"} ORIGINAL`; repeat failed earlier because `…_moved` already existed |
-| `dynamic_rename_epoch` | `OLD NEW OLD`; repeat failed earlier because `…_moved` already existed |
-| `dynamic_namespace_import` | `EXPORTED`; repeat: `can't import command "p": already exists` |
-| `dynamic_namespace_delete` | `OLD NEW` |
-| `dynamic_trace_scalar` | Read, write, unset callbacks in order; recreation did not retain the unset variable's trace |
-| `dynamic_trace_upvar_array` | First `1 {}`; repeat recorded `{::…_arr k w}` from the pre-existing whole-array trace |
-| `dynamic_trace_static` | Read then unset callbacks; recreation did not retain the unset cell's trace |
-| `dynamic_package` | `8.4 0 8.4` (`provide Tcl`, require catch, required version) |
-| `dynamic_package_resolution` | `1.0 1.0` |
-| `dynamic_colon_names` | `7 7` for the tested multi-colon and canonical qualified spellings |
-| `dynamic_read_failure` | Outer eval succeeded with value `1 {can't read "missing_r2286_20261006c": no such variable}` because the inner script caught the abrupt read |
-| `dynamic_exists` | `0 0` without manufacturing contents |
-| `dynamic_expr` | `3.5 14 3 1 {unknown math function "future_function"}` |
-| `dynamic_word_bytes` | `{A B} {A B} {\n}` |
+| [`dynamic_namespace`](../../../../evidence/tcl/bigip-r2286c-dynamic-namespace.md) | `11` |
+| [`dynamic_path_shadow`](../../../../evidence/tcl/bigip-r2286c-dynamic-path-shadow.md) | Error: `bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which` |
+| [`dynamic_path_provider`](../../../../evidence/tcl/bigip-r2286c-dynamic-path-provider.md) | Same unsupported `namespace path` error |
+| [`dynamic_global_alias`](../../../../evidence/tcl/bigip-r2286c-dynamic-global-alias.md) | `11`; the proc's `global` alias reached the generated global cell |
+| [`dynamic_upvar`](../../../../evidence/tcl/bigip-r2286c-dynamic-upvar.md) | `9` |
+| [`dynamic_upvar_unset`](../../../../evidence/tcl/bigip-r2286c-dynamic-upvar-unset.md) | `AGAIN` after target unset/recreate |
+| [`dynamic_uplevel`](../../../../evidence/tcl/bigip-r2286c-dynamic-uplevel.md) | `42` |
+| [`dynamic_upvar_absolute`](../../../../evidence/tcl/bigip-r2286c-dynamic-upvar-absolute.md) | `CHANGED CHANGED` |
+| [`dynamic_upvar_zero`](../../../../evidence/tcl/bigip-r2286c-dynamic-upvar-zero.md) | `CHANGED` |
+| [`dynamic_uplevel_absolute`](../../../../evidence/tcl/bigip-r2286c-dynamic-uplevel-absolute.md) | `ABSOLUTE` |
+| [`dynamic_static_global_link`](../../../../evidence/tcl/bigip-r2286c-dynamic-static-global-link.md) | `STATIC` |
+| [`dynamic_alias`](../../../../evidence/tcl/bigip-r2286c-dynamic-alias.md) | `ONE:FIXED` |
+| [`dynamic_alias_rename`](../../../../evidence/tcl/bigip-r2286c-dynamic-alias-rename.md) | `1 {invalid command name "…_one"} ORIGINAL`; repeat failed earlier because `…_moved` already existed |
+| [`dynamic_rename_epoch`](../../../../evidence/tcl/bigip-r2286c-dynamic-rename-epoch.md) | `OLD NEW OLD`; repeat failed earlier because `…_moved` already existed |
+| [`dynamic_namespace_import`](../../../../evidence/tcl/bigip-r2286c-dynamic-namespace-import.md) | `EXPORTED`; repeat: `can't import command "p": already exists` |
+| [`dynamic_namespace_delete`](../../../../evidence/tcl/bigip-r2286c-dynamic-namespace-delete.md) | `OLD NEW` |
+| [`dynamic_trace_scalar`](../../../../evidence/tcl/bigip-r2286c-dynamic-trace-scalar.md) | Read, write, unset callbacks in order; recreation did not retain the unset variable's trace |
+| [`dynamic_trace_upvar_array`](../../../../evidence/tcl/bigip-r2286c-dynamic-trace-upvar-array.md) | First `1 {}`; repeat recorded `{::…_arr k w}` from the pre-existing whole-array trace |
+| [`dynamic_trace_static`](../../../../evidence/tcl/bigip-r2286c-dynamic-trace-static.md) | Read then unset callbacks; recreation did not retain the unset cell's trace |
+| [`dynamic_package`](../../../../evidence/tcl/bigip-r2286c-dynamic-package.md) | `8.4 0 8.4` (`provide Tcl`, require catch, required version) |
+| [`dynamic_package_resolution`](../../../../evidence/tcl/bigip-r2286c-dynamic-package-resolution.md) | `1.0 1.0` |
+| [`dynamic_colon_names`](../../../../evidence/tcl/bigip-r2286c-dynamic-colon-names.md) | `7 7` for the tested multi-colon and canonical qualified spellings |
+| [`dynamic_read_failure`](../../../../evidence/tcl/bigip-r2286c-dynamic-read-failure.md) | Outer eval succeeded with value `1 {can't read "missing_r2286_20261006c": no such variable}` because the inner script caught the abrupt read |
+| [`dynamic_exists`](../../../../evidence/tcl/bigip-r2286c-dynamic-exists.md) | `0 0` without manufacturing contents |
+| [`dynamic_expr`](../../../../evidence/tcl/bigip-r2286c-dynamic-expr.md) | `3.5 14 3 1 {unknown math function "future_function"}` |
+| [`dynamic_word_bytes`](../../../../evidence/tcl/bigip-r2286c-dynamic-word-bytes.md) | `{A B} {A B} {\n}` |
 
 `dynamic_unicode_names` and `dynamic_unicode_variable_syntax` never ran: their outer iRules were rejected at load due to the literal Unicode bytes. This is a literal/dynamic boundary result, not evidence about runtime normalization or `$name` tokenization.
 
@@ -187,15 +182,15 @@ The canonical set produced 40 `ACCEPT`, 13 `REJECT`, no warnings, and no indeter
 
 The isolated edge controls remove confounding source features:
 
-| Control and source hash | Load/runtime result |
+| Control | Load/runtime result |
 | --- | --- |
-| ASCII binary control `ae43d52f…630b` | ACCEPT; returned hex `417c65` |
-| Precomposed literal `3305392a…c4de` | REJECT; `braces are required around the expression` |
-| Decomposed literal `4aae0373…812a` | REJECT; same diagnostic |
-| Physical ASCII LF `c41c4375…297f` | ACCEPT; `{A B} {A B} {\n}` in both CMP modes |
-| Physical ASCII CRLF `be4978b8…2ff5` | ACCEPT; identical runtime value in both CMP modes |
-| Dynamic embedded NUL `7fd169e9…c3ca` | ACCEPT; decoded result `3 410042 0 VALUE 0 VALUE 1` on all four TMMs |
-| Literal embedded NUL `59294325…126d` | REJECT; `Syntax Error … can't parse TCL script beginning with`; the diagnostic output stopped after the source bytes `set x "A` at the NUL boundary |
+| ASCII binary control | ACCEPT; returned hex `417c65` |
+| Precomposed literal | REJECT; `braces are required around the expression` |
+| Decomposed literal | REJECT; same diagnostic |
+| Physical ASCII LF | ACCEPT; `{A B} {A B} {\n}` in both CMP modes |
+| Physical ASCII CRLF | ACCEPT; identical runtime value in both CMP modes |
+| Dynamic embedded NUL | ACCEPT; decoded result `3 410042 0 VALUE 0 VALUE 1` on all four TMMs |
+| Literal embedded NUL | REJECT; `Syntax Error … can't parse TCL script beginning with`; the diagnostic output stopped after the source bytes `set x "A` at the NUL boundary |
 
 The raw edge-control evidence, including exact `.conf.hex` files and the literal-NUL loader bytes, is under [r2286_20261006de](evidence/r2286_20261006de/).
 
@@ -241,12 +236,10 @@ PROBES=scripts/dev/bigip-probes/resolution-2286
 RUN=r2286_20261006c
 
 python3 "$PROBES/generate.py" --run "$RUN" --out /tmp/$RUN-fixtures
-sha256sum /tmp/$RUN-fixtures/manifest.json /tmp/$RUN-fixtures/*.conf
 
 # Transfer without text conversion, then compare every appliance file to manifest.json.
 scp -r /tmp/$RUN-fixtures bigip:/var/tmp/
 scp "$PROBES/appliance-rules.sh" bigip:/var/tmp/
-ssh bigip 'sha256sum /var/tmp/r2286_20261006c-fixtures/*.conf'
 
 # Start before the first rule creation.
 ssh bigip 'tail -n 0 -F /var/log/ltm > /var/tmp/r2286-ltm-raw.log 2>&1 & echo $! > /var/tmp/r2286-capture.pid'
@@ -282,8 +275,6 @@ python3 "$PROBES/render-procedure-scope-labs.py" --run r2286i \
   --vip 192.0.2.10 --backend 192.0.2.201 --backend-port 18084 \
   --common-vip-port 18087 --partition-vip-port 18088 \
   --out /tmp/r2286i-lab.conf
-sha256sum /tmp/r2286i-fixtures/manifest.json /tmp/r2286i-fixtures/*.conf \
-  /tmp/r2286i-lab.conf
 # On BIG-IP, with continuous ltm capture already active and the dev.bragi0.com
 # backend plus traffic-control endpoints already listening:
 bash run-procedure-scope-matrix.sh r2286i /var/tmp/r2286i-evidence \
@@ -294,7 +285,6 @@ bash run-procedure-scope-matrix.sh r2286i /var/tmp/r2286i-evidence \
 python3 "$PROBES/generate-deep-context.py" --run r2286l \
   --canonical scripts/dev/bigip-probes/suites/10-context-parity.cases \
   --additional "$PROBES/deep-context.cases" --out /tmp/r2286l-fixtures
-sha256sum /tmp/r2286l-fixtures/manifest.json /tmp/r2286l-fixtures/*
 bash run-deep-context.sh r2286l /var/tmp/r2286l-fixtures \
   /var/tmp/r2286l-evidence
 ```
@@ -303,20 +293,20 @@ The exact attachment commands, requested/actual CMP state, and full VIP configur
 
 ## Cleanup and retained evidence
 
-The supplied `runtime_cleanup` could not load because its outer source contains the rejected Unicode names. The separately hashed ASCII-only cleanup names only the generated ASCII runtime objects. It ran after every dynamic case on the CMP-disabled TMM and then across `0:0`–`0:3`; the final post-collision cleanup also covered all four pairs. Unicode runtime names were never created because both Unicode rules rejected at load.
+The supplied `runtime_cleanup` could not load because its outer source contains the rejected Unicode names. The separate ASCII-only cleanup names only the generated ASCII runtime objects. It ran after every dynamic case on the CMP-disabled TMM and then across `0:0`–`0:3`; the final post-collision cleanup also covered all four pairs. Unicode runtime names were never created because both Unicode rules rejected at load.
 
 All owned virtual servers, pools, named nodes, partitions, folders, rules, CLI scripts, iApp templates/services, iCall scripts/handlers and generated events were removed by exact name. Final `tmsh list` calls returned explicit “was not found” results. The backend, artifact server, traffic controllers, log tails and evidence receivers were stopped by recorded PID; their owned listener ports were absent. See [main cleanup](evidence/r2286_20261006c/appliance/cleanup.txt), [final runtime cleanup](evidence/r2286_20261006c/final-runtime-cleanup/), [edge cleanup](evidence/r2286_20261006de/appliance/cleanup.txt), [procedure/partition cleanup](evidence/r2286_20261006hi/appliance/cleanup-verification.txt), [five-context cleanup](evidence/r2286_20261006l/cleanup-verification.txt), [final live cleanup audit](evidence/r2286_20261006l/final-live-cleanup-audit.txt), and [dev process cleanup](evidence/r2286_20261006c/dev/process-cleanup.txt).
 
 The retained evidence bundles are:
 
-- [Compressed complete bundle](evidence/resolution-2286-bigip-evidence-20261006.tar.gz) (`SHA-256 181ed1184d36c4e03f9ef484b84482cd4018d74d8e22e7279d3fc5530b8eb2bb`)
+- [Compressed complete bundle](evidence/resolution-2286-bigip-evidence-20261006.tar.gz)
 - [Main appliance and traffic evidence](evidence/r2286_20261006c/)
 - [Independent LF/CRLF, Unicode, and NUL evidence](evidence/r2286_20261006de/)
 - [Continuous raw main `/var/log/ltm`](evidence/r2286_20261006c/appliance/ltm-raw.log)
 - [Raw backend observations](evidence/r2286_20261006c/dev/backend.log)
-- [Procedure/folder/partition appliance bundle](evidence/r2286_20261006hi/r2286i-appliance-evidence.tgz) (`SHA-256 1fb4f097c33965752154dff4497eee3a37a6e4296173e9a068ae0fc06402d9e2`)
-- [Procedure/folder/partition client/backend bundle](evidence/r2286_20261006hi/r2286i-dev-evidence-v2.tgz) (`SHA-256 d00330e986e00fbd30fa88c6d766f8cacb475a77cfa14f0dfdd7b2fd4b6cd875`)
-- [Five-context appliance bundle](evidence/r2286_20261006l/r2286l-appliance-evidence.tgz) (`SHA-256 f635b42c411e64a12f95c12d87cad26bd9d3c6eca68c6f2c2353d51982c29dc9`)
+- [Procedure/folder/partition appliance bundle](evidence/r2286_20261006hi/r2286i-appliance-evidence.tgz)
+- [Procedure/folder/partition client/backend bundle](evidence/r2286_20261006hi/r2286i-dev-evidence-v2.tgz)
+- [Five-context appliance bundle](evidence/r2286_20261006l/r2286l-appliance-evidence.tgz)
 - [Continuous raw procedure/Unicode `/var/log/ltm`](evidence/r2286_20261006hi/appliance/ltm-raw.log)
 - [Continuous raw five-context `/var/log/ltm`](evidence/r2286_20261006l/ltm-raw.log)
 
@@ -324,7 +314,7 @@ The retained evidence bundles are:
 
 - The topology has one TMM group with four units. Cross-blade or multi-group behavior is not tested.
 - The canonical literal-name rules did not load. Precomposed/decomposed runtime name equality and original `$name` tokenization are therefore unsupported/unreached on this build, not negative runtime results. The later logging controls measured only string values, not Unicode identifier equality.
-- The supplied physical LF/CRLF rules also did not load because each contains literal Unicode. Only the separately hashed ASCII-only physical controls reached runtime.
+- The supplied physical LF/CRLF rules also did not load because each contains literal Unicode. Only the separate ASCII-only physical controls reached runtime.
 - `static_group` supplied the complete group/unit matrix. The unit-only `static` rule loaded but was not separately trafficked.
 - `identity_group` supplied the roster. The unit-only `identity` rule loaded but was not separately trafficked.
 - APL presentation parsing and Tcl callbacks embedded inside APL were not executed. They remain unsupported/unreached and must not inherit iApp implementation results.
