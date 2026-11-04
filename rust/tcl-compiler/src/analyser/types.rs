@@ -3464,6 +3464,43 @@ impl AnalysisResult {
             .original_procedure_formals_at(declaration.declaration_site(), registry)
     }
 
+    /// Conditional Native source formal names at one retained declaration.
+    /// These names and spans provide no installed procedure, frame or cell.
+    #[must_use]
+    pub fn conditional_native_procedure_formal_name_sources(
+        &self,
+        declaration: &crate::signature_scan::original_name::SourceDeclarationMetadata<ProcDef>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
+        if !self
+            .original_procedure_metadata
+            .iter()
+            .any(|row| std::ptr::eq(row, declaration))
+            || !self.matches_original_source_image(
+                declaration.name_input().source_image(),
+                declaration.name_input().lexer_config(),
+            )
+        {
+            return None;
+        }
+        let input = self.resolved_input.as_ref()?;
+        let realm = self.command_realm.as_ref()?;
+        if !realm.matches_resolved_analysis_input(input) {
+            return None;
+        }
+        let name = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            declaration.name_input().clone(),
+        );
+        realm
+            .source_bindings_ref()
+            .conditional_native_procedure_formal_names_at(
+                declaration.declaration_site(),
+                &name,
+                registry,
+                input,
+            )
+    }
+
     /// Readonly formal names at this exact original declaration. Native topology
     /// and the independently selected Logical source recipe remain separate.
     #[must_use]

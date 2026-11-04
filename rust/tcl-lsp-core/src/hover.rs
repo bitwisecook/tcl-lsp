@@ -409,6 +409,39 @@ pub(crate) fn original_source_procedure_hover(
     )))
 }
 
+/// Conditional name documentation from an actual Native source formal list.
+/// This reports no installed binding, entered frame or current value.
+fn conditional_native_formal_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<Hover> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let mut matches = Vec::new();
+    for declaration in analysis.original_procedure_declarations() {
+        let Some(formals) = analysis
+            .conditional_native_procedure_formal_name_sources(declaration, current.registry())
+        else {
+            continue;
+        };
+        for formal in formals {
+            if formal
+                .source_span()
+                .is_some_and(|span| span.start() <= cursor && cursor < span.end())
+            {
+                matches.push(formal);
+            }
+        }
+    }
+    let [formal] = matches.as_slice() else {
+        return None;
+    };
+    Some(Hover::markdown(format!(
+        "**Parameter** `{}`\n\nConditional source parameter; runtime binding and value are unresolved.",
+        tcl_syntax::native_string::resident_name_label(formal.name())
+    )))
+}
+
 /// Hover for a **namespace variable** declared in another document, rendered
 /// from that document's own analysis — the variable twin of
 /// [`qualified_symbol_hover`].
@@ -1326,6 +1359,9 @@ fn hover_impl(
         annotate,
     ) {
         return selected;
+    }
+    if let Some(hover) = conditional_native_formal_hover(source, analysis, cursor_offset) {
+        return Some(hover);
     }
     match variable_position_hover(
         source,
@@ -7899,5 +7935,68 @@ mod source_documentation_tests {
         let hover = source_documentation_hover(source, 1, 1, &analysis).unwrap();
         assert!(hover.value.contains("Source documentation"));
         assert!(hover.value.contains("command availability is unresolved"));
+    }
+    #[test]
+    fn conditional_native_formal_hover_requires_real_source_formal_owner() {
+        let source = "proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let declaration = analysis.original_procedure_declarations().next().unwrap();
+        assert!(
+            analysis
+                .original_procedure_formal_name_sources(
+                    declaration,
+                    analysis.resolved_registry().unwrap()
+                )
+                .is_none()
+        );
+        let mut missing_input = analysis.clone();
+        missing_input.resolved_input = None;
+        assert!(conditional_native_formal_hover(source, &missing_input, 26).is_none());
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        let foreign_declaration = foreign.original_procedure_declarations().next().unwrap();
+        assert!(
+            analysis
+                .conditional_native_procedure_formal_name_sources(
+                    foreign_declaration,
+                    analysis.resolved_registry().unwrap()
+                )
+                .is_none()
+        );
+        let other = Analyser::new().analyse(source, "tcl9.0");
+        assert!(
+            analysis
+                .conditional_native_procedure_formal_name_sources(
+                    declaration,
+                    other.resolved_registry().unwrap()
+                )
+                .is_none()
+        );
+        let card =
+            hover(source, 0, 26, &analysis, None).expect("conditional original parameter source");
+        assert!(card.value.contains("Parameter") && card.value.contains("file"));
+        assert!(
+            card.value
+                .contains("runtime binding and value are unresolved")
+        );
+        assert!(
+            conditional_native_formal_hover(&format!("{source}# changed"), &analysis, 26).is_none()
+        );
+        let simple = "proc greetPerson {name {greeting hello}} {return $name}";
+        let analysis = Analyser::new().analyse(simple, "tcl8.6");
+        assert!(
+            conditional_native_formal_hover(simple, &analysis, 19)
+                .unwrap()
+                .value
+                .contains("name")
+        );
+        let logical = Analyser::new().analyse(simple, "tcl");
+        assert!(conditional_native_formal_hover(simple, &logical, 19).is_none());
+        let dynamic = "proc p $formals {return VALUE}";
+        let analysis = Analyser::new().analyse(dynamic, "tcl8.6");
+        assert!(conditional_native_formal_hover(dynamic, &analysis, 9).is_none());
+        let overridden = "proc proc {args} {}; proc p {x} {return VALUE}";
+        let analysis = Analyser::new().analyse(overridden, "tcl8.6");
+        let position = u32::try_from(overridden.rfind("{x}").unwrap() + 1).unwrap();
+        assert!(conditional_native_formal_hover(overridden, &analysis, position).is_none());
     }
 }

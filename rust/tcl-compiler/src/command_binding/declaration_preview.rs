@@ -2274,6 +2274,75 @@ impl SourceCommandBindings {
         agreed
     }
 
+    /// Conditional Native source formal names only. This selects no namespace
+    /// cell, installed procedure, frame, body entry or completion.
+    pub(crate) fn conditional_native_procedure_formal_names_at(
+        &self,
+        site: &CommandAllocationSite,
+        expected_name: &crate::signature_scan::scope::SignatureSourceNameInput,
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::signature_scan::formal_parameters::OriginalSourceFormalName>> {
+        if input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || self.lexer_config != Some(input.lexer_config())
+            || self.root_origin.as_ref() != Some(&site.source)
+            || input
+                .borrowed_context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+                != registry.snapshot().semantic_key()
+        {
+            return None;
+        }
+        let rows = original_declaration_layouts(self.declaration_layouts.get(site)?)?;
+        let mut agreed = None;
+        for row in rows {
+            if row.config != input.lexer_config()
+                || !row.entry.owns_source(&site.source, site.offset)
+                || !row
+                    .entry
+                    .owns_original_context(&row.snapshot.state.source_variables)
+                || row.snapshot.state.variable_frame != *row.entry.frame()
+                || row.snapshot.state.current_source_origin.as_ref() != Some(&site.source)
+                || row.snapshot.state.baseline.registry_snapshot
+                    != Some(registry.snapshot().semantic_key())
+            {
+                return None;
+            }
+            let tokens = declaration_tokens(site, row)?;
+            let advice = super::original_site_operand_layout_advice(
+                site,
+                &tokens,
+                &row.snapshot,
+                &row.namespace,
+                row.config,
+            )?;
+            if !advice.closed_lookup()
+                || advice.dialect() != super::source_analysis_entry::source_input_dialect(input)
+            {
+                return None;
+            }
+            for target in advice.targets() {
+                let topology = conditional_native_formal_for_target(
+                    site,
+                    &tokens,
+                    row,
+                    &advice,
+                    target,
+                    (registry, input),
+                    expected_name,
+                )?;
+                if agreed.as_ref().is_some_and(|old| old != &topology) {
+                    return None;
+                }
+                agreed = Some(topology);
+            }
+        }
+        Some(crate::signature_scan::formal_parameters::SignatureSourceFormalParameters::from_original_topology(&agreed?).name_sources())
+    }
+
     /// Unanimous original procedure `ParamList` syntax at its actual declaration
     /// site. This does not select an installation or an entered body.
     pub(crate) fn original_procedure_formals_at(
@@ -4006,6 +4075,80 @@ pub(super) fn declared_procedure_frame(
         ),
     }
     .with_namespace_identity(namespace.clone())
+}
+
+/// Project the actual Registry-selected Native parameter operand for one target.
+fn conditional_native_formal_for_target(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    row: &DeclarationLayoutObservation,
+    advice: &super::OriginalCompilationLookupAdvice,
+    target: &super::SourceCommandTarget,
+    owner: (
+        &tcl_registry::CommandRegistry,
+        &crate::analyser::ResolvedAnalysisInput,
+    ),
+    expected_name: &crate::signature_scan::scope::SignatureSourceNameInput,
+) -> Option<super::formal_topology::OriginalFormalTopology> {
+    use tcl_registry::{CommandBindingDefinitionKind, CommandBindingTransition};
+    let (registry, input) = owner;
+    let metadata = advice
+        .original_declaration_metadata_context(registry, tokens)
+        .ok()??;
+    if metadata.source_analysis_input() != Some(input) {
+        return None;
+    }
+    let effective = effective_words_for_target(tokens, target)?;
+    let dialect = advice.dialect();
+    let values = effective
+        .words
+        .iter()
+        .map(|word| {
+            effective_invocation_word(word, dialect.lexer_grammar.escapes, dialect.word_values)
+        })
+        .collect::<Vec<_>>();
+    let words = values
+        .iter()
+        .map(EffectiveInvocationWord::as_registry_word)
+        .collect::<Vec<_>>();
+    let RegistryInvocationResolution::Resolved(facts) =
+        crate::registry_invocation::resolve_registry_words_in_realm_with_metadata_context(
+            registry,
+            Some(metadata),
+            &words,
+            Some(dialect),
+            advice.realm(),
+        )
+        .ok()?
+    else {
+        return None;
+    };
+    if !facts.arg_roles_complete || facts.arity_accepts_frozen_arguments() != Some(true) {
+        return None;
+    }
+    let argument = facts
+        .state_transitions
+        .declared()?
+        .command_bindings()
+        .find_map(|transition| match transition {
+            CommandBindingTransition::Define {
+                name,
+                kind: CommandBindingDefinitionKind::Procedure,
+            } => name.argument_index(),
+            _ => None,
+        })?;
+    let name = original_declaration_operand_input(
+        site,
+        tokens,
+        row,
+        target,
+        &effective,
+        argument.checked_add(1)?,
+    )?;
+    if &name != expected_name {
+        return None;
+    }
+    original_procedure_parameter_topology(site, tokens, row, &facts, &effective, dialect)
 }
 
 fn original_procedure_parameter_topology(

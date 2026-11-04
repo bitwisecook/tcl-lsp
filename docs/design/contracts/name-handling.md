@@ -374,6 +374,18 @@ word. Escaped or unmapped parents withhold source extents. Consumers match the
 actual declaration site and current complete input, never a procedure display
 name. These rows grant no activation, cell or edit permission.
 
+The distinct `conditional_native_procedure_formal_name_sources` query can
+report written Native formal names when procedure coordinates are unavailable.
+It authenticates the retained declaration, whole source/input/configuration,
+original layout rows, Registry snapshot and tagged invocation metadata. Every
+selected Registry target must agree on the procedure name, complete roles,
+arity and original written ParamList topology. The result contains only names
+and source spans; it supplies no installed procedure, entered frame, variable
+cell, current value, Normal completion or edit permission. Logical and hosted
+inputs retain their separate issuers. Hover consumes one exact formal span
+after definitive variable selection and labels it conditional source advice;
+the strict formal/body query and coordinate requirements remain unchanged.
+
 Interprocedural summaries, taint, escape facts, inlining and target code
 generation select bodies by these IDs. `BodyFrameId` distinguishes the actual
 module root from retained bodies. Method kind and declaring source owner are
