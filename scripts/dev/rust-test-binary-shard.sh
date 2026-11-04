@@ -118,7 +118,8 @@ while IFS=$'\t' read -r field1 field2 field3 field4 field5 extra || [ -n "${fiel
     esac
     [ "$shard" = "$index" ] || continue
 
-    if [ "$package" = tcl-lsp-core ] && [ "$kind" = lib ]; then
+    if { [ "$package" = tcl-lsp-core ] && [ "$kind" = lib ]; } \
+        || { [ "$package" = tcl-lsp-db ] && [ "$target" = compiler_check_corpus ]; }; then
         needs_fixed_tcllib=1
     fi
     rows=$((rows + 1))
@@ -143,8 +144,8 @@ if [ "$rows" -eq 0 ]; then
     exit 2
 fi
 
-# The normal Core library includes a fixed upstream fixture. Listing/build-only
-# jobs do not consume it; real execution uses the same bootstrap owner as Make.
+# Core and the DB compiler-check differential consume fixed upstream Tcllib
+# fixtures. Listing/build-only jobs do not; execution uses Make's bootstrap.
 if [ "$operation" = run ] && [ "${needs_fixed_tcllib:-0}" = 1 ]; then
     bash "$script_dir/ensure-test-deps.sh" --tcllib-only
 fi
