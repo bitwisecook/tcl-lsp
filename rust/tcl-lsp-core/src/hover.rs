@@ -915,7 +915,9 @@ pub fn registry_pattern_format_hover_in_workspace(
         cursor,
         Some(index),
     )?;
-    hover.value.push_str("\n\nPattern syntax applies if this is the expected command implementation.");
+    hover
+        .value
+        .push_str("\n\nPattern syntax applies if this is the expected command implementation.");
     Some(hover)
 }
 
@@ -1045,24 +1047,7 @@ fn original_pattern_format_hover_with_workspace(
                 clock_format_hover_text(&text)
             }
             tcl_registry::patterns::FormatType::Binary => {
-                let arguments = words
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        argument
-                            .literal_bytes()
-                            .and_then(|bytes| std::str::from_utf8(bytes).ok())
-                    })
-                    .collect::<Vec<_>>();
-                binary_format_hover_text(&BinaryContext {
-                    text: text.clone(),
-                    subcmd: arguments.first().copied().flatten()?.to_owned(),
-                    args: arguments
-                        .get(format.index.checked_add(1)?..)?
-                        .iter()
-                        .map(|argument| argument.unwrap_or_default().to_owned())
-                        .collect(),
-                })
+                original_binary_format_hover_text(&words, format.index, &text)?
             }
             tcl_registry::patterns::FormatType::Regsub
                 if !scan_regsub_backrefs(&text).is_empty() =>
@@ -1074,6 +1059,31 @@ fn original_pattern_format_hover_with_workspace(
         return Some(Hover::markdown(text));
     }
     None
+}
+
+fn original_binary_format_hover_text(
+    words: &crate::original_invocation::OriginalRegistryWords,
+    index: usize,
+    text: &str,
+) -> Option<String> {
+    let arguments = words
+        .arguments
+        .iter()
+        .map(|argument| {
+            argument
+                .literal_bytes()
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        })
+        .collect::<Vec<_>>();
+    Some(binary_format_hover_text(&BinaryContext {
+        text: text.to_owned(),
+        subcmd: arguments.first().copied().flatten()?.to_owned(),
+        args: arguments
+            .get(index.checked_add(1)?..)?
+            .iter()
+            .map(|argument| argument.unwrap_or_default().to_owned())
+            .collect(),
+    }))
 }
 
 /// Known contents at a genuine original operand, retaining its source owner.
