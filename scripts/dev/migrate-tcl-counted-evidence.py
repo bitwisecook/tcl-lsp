@@ -46,7 +46,10 @@ def main() -> None:
         ):
             continue
         # Legacy bookkeeping in a scope needs a human edit before publication.
-        if re.search(r"(?i)sha.?256|digest|hash", record.get("scope") or ""):
+        if re.search(
+            r"(?i)sha.?256|digest|\bhash(?:es)?\b(?![- ](?:order|iteration|table|key))",
+            record.get("scope") or "",
+        ):
             continue
         evidence = {item["id"]: item for item in record.get("evidence", [])}
         for provider in record.get("providers", []):
