@@ -10,8 +10,9 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2501, #2502 | Exact current report inputs have no W210 under supported profiles; removing their binders in local controls still misses genuine reads. See the external validation receipt. | Scoped non-reproduction; control limits |
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
-| #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
-| #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Current joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Functional fix verified; coordinator closure review |
+| #2374 | Distinct literal array elements emit W210 in the earlier reduced witness; fresh exact-input verification is owned by the registry lane. | Earlier baseline verified; fresh review pending |
+| #2441 | Fresh exact combined report warns for top-level `y` but misses procedure `x` under Tcl 8.4–9.1; Jim misses both. Isolated procedure witnesses did not establish the complete report. See the exact-source receipt. | Reproduced residual; prior baseline claim corrected |
+| #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Closed after coordinator proof review |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
