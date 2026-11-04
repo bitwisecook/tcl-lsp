@@ -57,10 +57,11 @@ def read_member(archive: tarfile.TarFile, name: str) -> bytes:
 def emit_result(
     parts: list[str], label: str, version: str, code: str, result: bytes, note: str
 ) -> None:
+    version_label = f"BIG-IP {version}" if version != "Not recorded" else version
     parts.extend(
         [
             f"\n### {label}\n\n",
-            f"- Recorded version: BIG-IP {version}; Tcl patchlevel Not recorded in this run's result.\n",
+            f"- Recorded version: {version_label}; Tcl patchlevel Not recorded in this run's result.\n",
             f"- Recorded input channel: {label}.\n",
             "- Exit status: Not recorded.\n- Standard output: Not recorded.\n- Standard error: Not recorded.\n",
             "- Recorded result:\n\n",
