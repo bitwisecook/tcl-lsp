@@ -42,8 +42,8 @@ speclib mylib 2.0 {
 }
 ```
 
-The version word is the *vocabulary's*, not your library's: `2.0` is the
-current one, and it is what `tcl spec upgrade` rewrites an older pack to
+The version word is the *vocabulary's*, not your library's. `tcl spec
+upgrade` writes `2.0` when upgrading a pack from an older vocabulary
 (`--check` only reports; `--restyle` re-emits the result in canonical form,
 dropping comments and your own layout — a pack that runs code rather than
 listing declarations is refused rather than rewritten). Older packs keep
