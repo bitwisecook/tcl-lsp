@@ -539,8 +539,10 @@ mod tests {
                 OriginalSourceRegistryContext::capture_standalone_structure(&source, changed);
             assert!(!receipt.matches_source_context(&source, &replacement));
         }
-        let realm = context(&source, tcl_dialect::TclVersion::V8_6);
+        let realm =
+            OriginalSourceRegistryContext::capture_standalone_structure(&source, input.clone());
         assert_eq!(realm.editing_input(), input);
+        assert!(!std::ptr::eq(&owner, &realm));
         assert!(!receipt.matches_source_context(&source, &realm));
         let general = OriginalSourceRegistryContext::capture(&source, input.clone());
         assert!(general.standalone_schema_abstentions().is_none());
