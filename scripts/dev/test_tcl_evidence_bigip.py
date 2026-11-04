@@ -80,6 +80,32 @@ class BigIPEvidenceTests(unittest.TestCase):
             self.assertEqual(bytes.fromhex(body["body_hex"]), b"0 6162")
             self.assertNotIn("sha256", json.dumps(summary).lower())
 
+    def test_chunk_inventory_retains_bytes_and_marks_incomplete_sequences(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "log.txt"
+            source.write_text(
+                "R2286LBC|run=a|ctx=RULE_INIT|group_rc=0|group=0|unit_rc=0|unit=1|session=one|seq=0/2|hex=6100\n"
+                "R2286LBC|run=a|ctx=RULE_INIT|group_rc=0|group=0|unit_rc=0|unit=1|session=one|seq=1/2|hex=62\n"
+                "R2286LBC|run=a|ctx=RULE_INIT|group_rc=0|group=0|unit_rc=0|unit=1|session=two|seq=0/2|hex=63\n"
+            )
+            out = root / "inventory.json"
+            subprocess.run(
+                [
+                    "python3",
+                    str(SCRIPTS / "inventory-lexical-byte-class-logs.py"),
+                    str(source),
+                    str(out),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            rows = {row["session"]: row for row in json.loads(out.read_bytes())}
+            self.assertTrue(rows["one"]["complete"])
+            self.assertEqual(bytes.fromhex(rows["one"]["assembled_hex"]), b"a\x00b")
+            self.assertFalse(rows["two"]["complete"])
+            self.assertIsNone(rows["two"]["assembled_hex"])
+
 
 if __name__ == "__main__":
     unittest.main()
