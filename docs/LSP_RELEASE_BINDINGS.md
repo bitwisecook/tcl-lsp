@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
-| #2376 | The original audit warned on a safely skipped read. Current native controls cover both branch directions and mutation order; the fresh production baseline is awaiting the compiler slot. | Earlier residual; fresh baseline pending |
+| #2376 | Current production baseline at `8e4ec2014` reproduces the safe-guard false warnings and the misplaced later-read diagnostic in all five Tcl profiles; unsafe and standalone controls warn. | Fresh reproduced residual |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
@@ -135,3 +135,10 @@ syntax (unanimous release agreement when absent), and leaves all existing
 abrupt outcomes and fallback expression analysis intact. The production file
 is unchanged; the proposal is neither compiled nor claimed to fix the current
 report. Its iterative negation walk adds no parser or name interpretation.
+
+The #2376 current production observation completed all 115 case/profile rows;
+see [`w210-short-circuit-baseline`](../rust/tcl-compiler/tests/data/w210-short-circuit-baseline/README.md).
+Source hashes matched across compilation/runtime, and genuine unsafe controls
+remain active. All retained final-Normal probes are unavailable; those Native
+completion refusals must remain intact. The consumer proposal is still
+unapplied at this baseline, and no product fix is claimed.
