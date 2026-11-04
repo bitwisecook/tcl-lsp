@@ -67,7 +67,7 @@ effect topology are reused first.
 
 The next reviewed if seam is a temporary field-only prototype:
 `/tmp/lsp-940-source_conditional_control.rs`, SHA-256
-`516d3e0708bd42bad5746629a53b3bc21e2683e86452ddf512af6308b96e036a`.
+`4b6dded5c642f93309b5e04d465c660c8041e9ddd8e028ce5e17795570ee089b`.
 It adds an opaque default-None source-control descriptor without changing
 `SemanticsDeclaration`, `InvocationSemantics` or `InvocationFacts`. Exact
 literal condition/body values and the existing clause ordinals are retained
@@ -80,6 +80,12 @@ remains under `/tmp`, with no Cargo or new Tcl execution. Paths and hashes are
 in `/tmp/lsp-940-if-field-manifest.json`. Exact distinct if-body Job custody
 and condition conversion/exit ordering remain the values lane's obligations;
 fixed boolean truth does not establish representation-inert condition objects.
+The exact parent-body design is retained separately in
+`/tmp/lsp-940-if-body-custody-design.md`; it reuses the existing common context
+owner and authentic immediate-parent catalogue chain, with a distinct If
+protocol and no reconstructed root or blind nested-Job inheritance. It has not
+been implemented. The prior test-only receipt is preserved under
+`/tmp/lsp-940-source_conditional_control-516d3e07.rs`.
 
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,
