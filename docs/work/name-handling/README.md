@@ -1,15 +1,17 @@
 # LSP naming migration on work
 
-Updated 04 November 2026, 11:58 UTC. [Current state](current-state.md) binds exact sources/outcomes; [outstanding work](outstanding/README.md) lists acceptance.
+Updated 04 November 2026, 12:38 UTC. [Current state](current-state.md) binds exact outcomes; [outstanding work](outstanding/README.md) lists acceptance.
 
-**The LSP is not release-ready.** LSP and transitive libraries remain the priority; separate VM/BIG-IP features are deferred while actual linked execution and all required gates remain critical. No PR/merge/tag/release exists.
+**The LSP is not release-ready.** LSP and transitive libraries remain the priority; separate VM/BIG-IP features are deferred while linked execution and all required gates remain critical. No PR/merge/tag/release exists.
 
-ClippyV22 passes all8 selected packages/all targets with warnings denied and unchanged source/prior-generated seals, after719d5723f repairs7 files without suppressions (V21:23 messages/20 unique diagnostics). Other rust-check/prep-pr/drift, final formatting, performance and real packaging remain incomplete.
+RMWv11 is final FAILED with valid custody: Engine4/6, containment14/14, VM7/8 (not8/8). C8.4 srand preflight, captured-binding final-positive refusal and missing Jim SourceContext are preserved. Reviewed452ee6052 corrections are adopted;3 additional controls remain unexecuted. Corev5/v6 reject initial package membership before builds/controls after incoming Compiler/Lexer changes; reviewed scratch sync is setup, not acceptance. Earlier captured-source CoreV3 passes still carry final-custody failure.
 
-Reviewed RMWv11 is running28tests/15jobs with matching pins, not passing yet. Reviewed Corev5 is prepared/unrun on exact46b2 source with unchanged15 controls plus observation. CoreV3's captured-source15+1 pass still has overall final-custody failure; Kernel11/11 and earlier autoload/Compiler passes remain source-bound. ServerV7 pins are stale after lint extraction; new byte-lease/decoder and actual-host controls remain unexecuted.
+Fresh ServerV8 fails101 at tcl-lsp-db temporary-directory ENOSPC:0/17 controls and0/5 observations, overlay restored, no SourceOrigin evidence. Verified resource recovery is active; no build is running and affected-package clean rebuild is required before retry. Private combined-lease metadataV3 is statically reviewed, not adopted/compiled;8 controls and actual diagnosis remain pending.
 
-Browser traceCI41819715741 on5d0b90295 builds then fails: originalsymbolid3null, candidate rows reach hit-owner refusal and no mapped rows. Actual Origin comparison is not observed; an inherited-index/standalone mismatch is only a static candidate. Autoloadid4null and the possible early source-view branch remain unresolved. The run predates current byte lease and later fixes. Older45c Native stays active without terminal counts; syntax-only host isolation does not pass real hosts.
+ClippyV22's8-package/all-target pass applies to recorded719d inputs before incoming Lexer/Compiler and452 changes. It is not final-current lint or full gate acceptance. Kernel/Compiler/autoload passes retain their source scopes; actual native two-file/UI/host, performance, drift and real packaging acceptance remain open.
 
-Source-only6052963c4 corrects20 Python implementation bindings after independent review, Root authenticated original comparisons, canonical verifier20pass and Ruff checks. Global2171errors remains the count before two Registry corrections, with no subtraction/recount or exemption.
+Browser trace still establishes candidate→hit-owner refusal→no mapped rows, with no actual Origin comparison. Native45c CI is cancelled11:54: partial1710ok/521fail/3ignored,429 selected without terminal outcome; no aggregate or cancellation cause is established. Original host failures remain source-bound.
 
-Publisher278694 is alive; CLI authentication failed11:37:56, later retries restored successful publication (manual11:50:27 f64bf54ed; daemon11:52:57 7088fc1d). Bounded race-safe retries and historical interruptions remain explicit. Restored runtime does not run missed10:52 gates or imply uninterrupted cadence. Preserve oracle evidence during required temporary-material cleanup.
+Source-only6052963c4's20 authenticated Python bindings/verifier/Ruff pass grant no execution or global acceptance. Global2171errors remains the original pre-correction count, unrecounted with no subtraction.
+
+Publisher278694's latest inspected success12:32:58 d6b2c830 fast-forwards remote changes. Auth failure11:37:56 was followed by daemon successes11:43/11:47 before manual11:50 retry; no continuous37–50 outage or uninterrupted cadence is claimed. Historical disk/gateway/server failures remain preserved. Remove temporary state/process material before merge while preserving oracle evidence.

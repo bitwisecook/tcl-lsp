@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 11:58 UTC. Not release-ready.** Scoped ClippyV22 passes8packages/alltargets with unchanged custody after reviewed719d repairs; no full rust-check/prep-pr/drift pass follows. RMWv11 is running28tests/15jobs, Corev5 prepared/unrun, ServerV7 stale after extraction. Browser trace establishes actual hit-owner refusal, not its Origin cause; autoload remainsnull and branch unobserved. Current lease/real-host controls remain unexecuted.20-Python source-only repair6052963c4 is adopted after Root authenticated comparisons and verifier/Ruff passes; global2171 count is unchanged. Publication recovered after an auth interruption, without uninterrupted cadence. [Current state](current-state.md) owns exact scopes; no PR/release exists. Older material below is historical.
+**ACTIVE — 04 November 2026, 12:38 UTC. Not release-ready.** Valid-custody RMWv11 fails3cases: Engine4/6, hooks14/14, VM7/8; adopted452ee6052 and3 added controls are unexecuted. Corev5/v6 reject before build on initial membership. ServerV8 fresh101 fails ENOSPC before17controls/5observations, overlay restored; affected clean rebuild required after recovery. Private metadata combined-leaseV3 is not adopted/compiled and has no actual Origin observations. ClippyV22 pass predates incoming Lexer/Compiler+452 source. Native45c is cancelled with partial outcomes, not aggregate acceptance. Source-only605 correction does not recount global2171. [Current state](current-state.md) preserves source bounds and publication interruptions. No PR/release exists; older material below is historical.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,16 +61,16 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Execute reviewed Corev5 on its exact46b2 input: tested dependencies are fatal on change,
-   scratch remains immutable, unrelated Main drift is recorded. Repeat all15
-   semantic controls on fresh sealed inputs; captured-source CoreV3 passes do
-   not waive its custody rejection. Establish browser metadata/Origin cause and repin stale ServerV7's17+observation, byte
-   lease/decoder, formal UI/provider and actual native two-file controls.
-2. Complete running RMWv11's28tests/15jobs against adopted38abcef90/09cada7e8, including
-   four new VM controls. Preserve RMWv8's error-global/dict-cleanup failures
-   and all confinement/budget guards. Run actual hosts with original mixed
-   negative preserved and isolated positive last; syntax is not host acceptance.
-   Separate VM/BIGIP features stay deferred; linked regressions remain critical.
+1. Reconcile incoming package membership and rerun all15 Core semantic controls
+   plus observation with fresh dependency/scratch custody; v5/v6 built nothing.
+   Finish verified Server ENOSPC recovery, clean affected packages under AGENTS,
+   then retry17 controls/5 observations. Private metadata combined-leaseV3 needs
+   actual diagnosis and8 controls before adoption; no Origin data exists yet.
+2. Repeat linked RMW after adopted452ee6052 with3 additional controls, retaining
+   v11's three real failures and Engine4/6/hooks14/14/VM7/8 counts. Preserve
+   canonical binding, authored math-random and genuine C8.4/F5/Jim issuer inputs;
+   do not weaken confinement/preflight guards or promote cancelled CI to a pass.
+   Separate VM/BIG-IP features remain deferred; linked regressions are critical.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected
    baseline/candidate inventories; unknown, skipped, cancelled and unreached
