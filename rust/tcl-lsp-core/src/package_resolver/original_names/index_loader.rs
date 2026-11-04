@@ -27,7 +27,7 @@ pub(in crate::package_resolver) struct IndexLoader<'a> {
 
 pub(super) enum IndexFilenameSurvey<'a> {
     Filename(PathBuf),
-    NoContribution(IndexFilenameNoContribution<'a>),
+    NoContribution(Box<IndexFilenameNoContribution<'a>>),
     Unavailable,
 }
 
@@ -182,13 +182,13 @@ impl<'a> IndexLoader<'a> {
         {
             return IndexFilenameSurvey::Unavailable;
         }
-        IndexFilenameSurvey::NoContribution(IndexFilenameNoContribution {
+        IndexFilenameSurvey::NoContribution(Box::new(IndexFilenameNoContribution {
             schema,
             source: self.source,
             context,
             loader: loader.clone(),
             directory: directory.to_path_buf(),
-        })
+        }))
     }
 
     pub(in crate::package_resolver) fn filename(

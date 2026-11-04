@@ -1145,26 +1145,41 @@ fn survey_index_entries_using(
         if input.variable_root() != Some(b"auto_index".as_slice()) {
             continue;
         }
-        let file = if fresh {
-            match filenames.survey_filename(&words[2], index_dir) {
-                index_loader::IndexFilenameSurvey::Filename(file) => file,
-                index_loader::IndexFilenameSurvey::NoContribution(certificate)
-                    if certificate.matches_current_query(&words[2], index_dir) =>
-                {
-                    continue;
-                }
-                index_loader::IndexFilenameSurvey::NoContribution(_)
-                | index_loader::IndexFilenameSurvey::Unavailable => return None,
-            }
-        } else {
-            let Some(file) = filenames.filename(&words[2], index_dir) else {
-                continue;
-            };
-            file
+        let std::ops::ControlFlow::Continue(file) =
+            select_index_filename(&filenames, &words[2], index_dir, fresh)?
+        else {
+            continue;
         };
         entries.push(OriginalAutoIndexRegistration { input, file });
     }
     Some(entries)
+}
+
+fn select_index_filename(
+    filenames: &index_loader::IndexLoader<'_>,
+    loader: &tcl_lexer::NativeWord,
+    index_dir: &Path,
+    fresh: bool,
+) -> Option<std::ops::ControlFlow<(), PathBuf>> {
+    if fresh {
+        match filenames.survey_filename(loader, index_dir) {
+            index_loader::IndexFilenameSurvey::Filename(file) => {
+                Some(std::ops::ControlFlow::Continue(file))
+            }
+            index_loader::IndexFilenameSurvey::NoContribution(certificate)
+                if certificate.matches_current_query(loader, index_dir) =>
+            {
+                Some(std::ops::ControlFlow::Break(()))
+            }
+            index_loader::IndexFilenameSurvey::NoContribution(_)
+            | index_loader::IndexFilenameSurvey::Unavailable => None,
+        }
+    } else {
+        Some(filenames.filename(loader, index_dir).map_or(
+            std::ops::ControlFlow::Break(()),
+            std::ops::ControlFlow::Continue,
+        ))
+    }
 }
 
 fn append_legacy_index_registrations(
