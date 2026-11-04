@@ -160,3 +160,15 @@ per-variable minimum. The shared condition-transfer/existence-query owners are
 under review for that consumer; declaration/root-graph owners are unchanged.
 The canonical draft and its model-dispatch checks remain uncompiled. Unsupported
 completed-value cases must retain their existing result refusals.
+
+Another 72 native observations, with full sources and interpreter binary hashes,
+are in
+[`w210-short-circuit-native-boundaries.json`](../rust/tcl-compiler/tests/data/w210-short-circuit-native-boundaries.json).
+They include the verbatim multiline report and distinct scalar/array-element
+controls: an existence query cannot guard a different cell. Tcl 8.4 accepts NaN
+inside `expr {$x || 0}` but errors on the whole `if {$x}` condition; Jim accepts
+both, while Tcl 8.5–9.1 reject NaN in the tested expressions and conditions.
+Binary-scan cached NaN and literal NaN agree within each tested form. This is
+bounded native evidence, not a universal getter rule or a passing compiler fix.
+The prepared production matrix now has 60 diagnostic checks and 70 unchanged
+published-completion refusals; candidate compilation remains queued by priority.

@@ -131,73 +131,46 @@ three-test implementation proof and the current-Jim execution run. This lane
 performed no external comment or closure action.
 
 
-## Focused follow-up: #2384
+## #2384: selected loop heads verified; computed entry remains open
 
-The frozen `c47d83bda` test binary fails `issue_2384`'s active W240 control
-for `for {set i 0} {$i < 0} {incr i} {puts never}`. This prevents a claim
-that the earlier header-selection fix is fully verified. The focused harness
-now supplies an explicit `ResolvedAnalysisInput` and checks retained context;
-separate literal-false controls require W240 on all five Tcl profiles and Jim.
-The existing zero-entry assertion has not been removed or weakened.
+The source-selected loop-head defect is fixed in `d1a433d31` and `04a53559b`.
+A user procedure named `while` previously ran once and still received W240,
+beside its correct W113 shadow warning. The producer now consumes the actual
+selected registry schema's loop trait, complete roles, accepted source arity
+and iteration plan. Explicit document loop contracts retain their separate
+source-declaration path and do not borrow a same-spelled builtin counter plan.
+No command-binding, SSA, VM, CLI or F5 implementation is changed.
 
-Thirty-six independent native checks passed: each of the five reported
-counter-jump bodies executes once, and a zero-entry control executes zero times,
-on Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and current Jim. The new integration
-execution case records exact expected output and compares original and rewritten
-programs using the shared interpreter owner. These new Rust tests are not yet
-compiled or verified. The first compilation was cancelled for the exclusive
-#940 retry after memory exhaustion elsewhere; the subsequent queued wrapper was
-cancelled before acquiring a slot for the coordinator's provider-codegen retry.
-No production change has been made in this follow-up. Evidence is retained in
-`/tmp/lsp-2384-frozen-audit.log`, `/tmp/lsp-2384-native.json` and
-`/tmp/lsp-2384-evidence.json`. Next: compile only the focused tests when the coordinator releases the single
-compiler slot, then inspect the zero-entry control before proposing any further
-semantic change.
+At clean `993a908ffd682982832621d734f61ffc7c1e8099`, the baseline was 3 passed,
+2 failed: computed entry and the shadowed head. After the fix, a clean rebuild
+at `eb15be0828cf4cc8d3961f970f6bfa4faf11e389` passed in 3m38s; the emitted binary
+ran outside the compiler wrapper with strict pinned Tcl/Jim requirements and
+one test thread: **5 passed, 1 failed, 0 ignored** in 82.34s.
 
+| Focused test | Result and scope |
+|---|---|
+| `issue_2384` | Passed all 25 reported rotated-loop diagnostic cases. |
+| `issue_2384_literal_false_loop_is_still_reported` | Passed all 18 builtin/explicit-stub W240 controls across five Tcl profiles and Jim. |
+| `issue_2384_loop_execution` | Passed all 36 exact-output original/rewrite comparisons under Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and Jim 0.84-10-g82fb4d0. |
+| `issue_2384_qualified_and_alias_loop_heads` | Passed all 35 qualified, alias, captured-prefix and replacement-head checks under five Tcl profiles. |
+| `issue_2384_shadowed_loop_heads_are_not_reported` | Passed all 24 user-procedure head checks under five Tcl profiles and Jim. |
+| `issue_2384_computed_false_loop_is_reported` | Still fails: the exact documented zero-entry counter condition produces no W240. Assertion unchanged and separate. |
 
-A fourth fixed control checks user procedures named `while` and `for` against
-W240/W241/W242. Read-only inspection found loop candidate collection still
-consults spelling/catalogue metadata independently of the original selected
-invocation; the control tests that boundary rather than asserting a reproduced
-defect. All 24 native shadowed-head cases complete once and print `always`
-under the six exact interpreters (`/tmp/lsp-2384-shadowed-native.json`). The Rust
-control remains uncompiled, and no new production fix or closure is claimed.
+#2384 remains open. The same-path computed-entry positive is required before
+claiming the rotated-condition diagnostic gap fully fixed. No ignored test or
+weakened assertion hides it. A later three-line borrow-only cleanup passes the
+loop layout by reference; it was reviewed statically and awaits targeted Clippy.
+The verified functional source remains the frozen `eb15be082` run above.
 
+The clean rebuild followed an ENOSPC failure during git rebase. Only the stopped
+isolated optimiser target was removed; source, stash and logs were preserved.
+The pre-ENOSPC baseline binary is `/tmp/lsp-2384-frozen-993a908ff.test`. No result
+from an interrupted build is claimed. Baseline and candidate logs are
+`/tmp/lsp-2384-retained-baseline.log` and `/tmp/lsp-2384-clean-candidate.log`.
+The receipt is `/tmp/lsp-2384-evidence.json`; all 35 qualified/alias original
+programs also have fresh C Tcl execution evidence in
+`/tmp/lsp-2384-alias-qualified-native.json`.
 
-The strict computed-false control is now its own test,
-`issue_2384_computed_false_loop_is_reported`. Its assertion is unchanged;
-separating it lets all reported rotated-loop cases run even when that active
-control fails. The focused baseline now contains five tests.
-
-
-## Current #2384 verification checkpoint
-
-At clean `993a908ffd682982832621d734f61ffc7c1e8099`, the focused no-run build
-passed in 2m58s. The emitted binary then ran outside the wrapper with strict
-Tcl/Jim requirements and one test thread: **3 passed, 2 failed, 0 ignored**
-(56.16s). All 25 reported rotated-loop diagnostic checks passed, all 18 literal
-builtin/declared-loop W240 controls passed, and all 36 original/rewrite native
-execution comparisons passed. The separate computed-false entry warning remains
-absent. A concrete additional defect was reproduced: a user procedure named
-`while` prints `always` once but receives W240 alongside the correct W113 shadow
-warning. The log is `/tmp/lsp-2384-retained-baseline.log`.
-
-The current draft derives loop traits, complete role positions, source arity and
-iteration plans from the actual `OriginalDiagnosticInvocation` schema. It keeps
-explicit document loop contracts on their declaration path and prevents those
-contracts from borrowing a same-spelled builtin's counter plan. Qualified and
-alias controls have been added. The draft is not compiled or verified; the
-server's idle benchmark reservation is respected, with no further build queued.
-The computed-entry assertion remains strict and separate, so #2384 stays open.
-The exact draft is `/tmp/lsp-2384-selected-loop.patch`.
-
-The optional #2218 required-Jim test branch was type-checked by this successful
-no-run build. Its original three-test implementation proof remains the frozen
+The optional #2218 required-Jim test branch was type-checked by both successful
+no-run builds. Its original three-test implementation proof remains the frozen
 `c47d83bda` run; no equivalent #2218 runtime suite was repeated.
-
-
-An ENOSPC failure interrupted the first sync attempt. The draft was then
-integrated as `d1a433d31` after stopped build caches were cleared. The complete pre-ENOSPC baseline binary is preserved at
-`/tmp/lsp-2384-frozen-993a908ff.test`. No Rust verification ran after ENOSPC;
-the next candidate check must rebuild the isolated target cleanly. The
-eligibility check now rejects non-loop schemas before copying their operands.
