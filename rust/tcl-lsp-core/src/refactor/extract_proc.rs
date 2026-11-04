@@ -162,43 +162,6 @@ pub fn extract_proc(
     }
 }
 
-/// The command-and-rename payload the code-action layer attaches after
-/// applying an extraction's edits.
-///
-/// Exposed separately from [`Refactoring`] because the post-extract rename is
-/// an editor *command*, not an edit: the generated name is a placeholder the
-/// user is expected to replace immediately.
-#[must_use]
-pub fn extract_proc_rename_command(
-    refactoring: &Refactoring,
-    source: &str,
-) -> Option<ActionCommand> {
-    if refactoring.disabled.is_some() {
-        return None;
-    }
-    let definition = refactoring.edits.iter().min_by_key(|edit| edit.start)?;
-    let name_offset = definition.new_text.find("proc ")? + "proc ".len();
-    let name_end = definition.new_text[name_offset..]
-        .find(char::is_whitespace)
-        .map(|len| name_offset + len)?;
-    // The definition is inserted at `definition.start`; the name sits on the
-    // definition's first line, whose column is the name's offset within the
-    // inserted text (the insertion always begins at a line start).
-    let line = source[..definition.start as usize]
-        .bytes()
-        .filter(|byte| *byte == b'\n')
-        .count();
-    Some(ActionCommand {
-        command: "tclLsp.renameSymbolAtPosition".to_string(),
-        args: vec![
-            u32::try_from(line).unwrap_or(0),
-            u32::try_from(name_offset).unwrap_or(0),
-            u32::try_from(name_end).unwrap_or(0),
-        ],
-        string_args: Vec::new(),
-    })
-}
-
 /// Source-bound generated Name continuation under the actual original input.
 /// The afterimage is independently parsed by the existing declaration owners;
 /// a reporting name or raw substring cannot supply the target. Failure omits

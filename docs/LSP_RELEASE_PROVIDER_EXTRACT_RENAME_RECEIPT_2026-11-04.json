@@ -1,0 +1,40 @@
+{
+  "issue": 2426,
+  "issue_state": "open; extract-proc compatibility path only",
+  "change": "Retired unused extract_proc_rename_command text scanner and re-export; production extract_proc_rename_command_for_analysis is unchanged.",
+  "tested_source_base": "27f401f70d8f902eed30f88f0f2665add183c246",
+  "tested_source_sha256": {
+    "rust/tcl-lsp-core/src/refactor/extract_proc.rs": "be309b4671ca8b847461227bb32d72d38113aa17998defeb27a78866ba751ca2",
+    "rust/tcl-lsp-core/src/refactor/mod.rs": "416d2ca90547a7c3324bdfcb1dbb3e6f80c0aef9ded6cb0ab1618fd8c228da3e"
+  },
+  "unit_build": {
+    "command": "cargo test --offline -j 1 -p tcl-lsp-core --lib --no-run",
+    "result": "passed",
+    "log": "/tmp/lsp-providers-2426-legacy-final-build.log"
+  },
+  "unit_binary": {
+    "sha256": "b9c77eeb75602836dfa46099d1440df554bb466cca1060f4e536e96d8dc52f2b",
+    "preserved_path": "/tmp/lsp-providers-2426-legacy-core-test-bin"
+  },
+  "exact_tests": [
+    {
+      "name": "refactor::extract_proc::selected_source_variable_tests::generated_rename_uses_genuine_afterimage_header_and_utf16_with_original_input",
+      "result": "1 passed, 0 failed",
+      "log": "/tmp/lsp-providers-2426-legacy-positive.log"
+    },
+    {
+      "name": "refactor::extract_proc::selected_source_variable_tests::generated_rename_does_not_select_rendered_comment_or_nonheader_names",
+      "result": "1 passed, 0 failed",
+      "log": "/tmp/lsp-providers-2426-legacy-refusal.log"
+    }
+  ],
+  "core_clippy": {
+    "command": "cargo clippy --offline -j 1 -p tcl-lsp-core --lib -- -D warnings",
+    "result": "blocked before Core by pre-alias tcl-compiler type_complexity at command_binding/retained_source.rs:78",
+    "log": "/tmp/lsp-providers-2426-legacy-final-clippy.log"
+  },
+  "later_source_base": "29dd8ddea3addfa0543b76704b302461f5ad3bad",
+  "later_source_validation": "The two changed Rust files retain the tested hashes after the upstream alias fix; no unit rebuild or Core Clippy result is claimed for this later source.",
+  "full_rust_check": "not run; central release gate pending",
+  "full_prep_pr": "not run; central release gate pending"
+}
