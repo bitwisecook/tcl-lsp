@@ -1217,7 +1217,7 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
     let mut lsp =
         Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     await_pack_named(&mut lsp, "eda_xilinx");
-    let names = pack_names(&mut lsp);
+    let loaded = loaded_packs(&mut lsp);
     for name in [
         "eda_xilinx",
         "eda_synopsys",
@@ -1228,9 +1228,13 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
         "sdc_base",
         "upf",
     ] {
+        let pack = loaded
+            .iter()
+            .find(|pack| pack["name"] == name)
+            .unwrap_or_else(|| panic!("{name}: {loaded:?}"));
         assert!(
-            names.iter().any(|loaded| loaded == name),
-            "{name}: {names:?}"
+            pack["commands"].as_u64().is_some_and(|count| count > 0),
+            "{name} must have commands before the first vendor request: {pack:?}"
         );
     }
 
@@ -1250,6 +1254,11 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
         write(&doc, &source);
         let uri = file_uri(&doc);
         lsp.open_ready(&uri, &source);
+        let first_hover = hover_text(&lsp.hover(&uri, 1, 1));
+        assert!(
+            first_hover.contains(own),
+            "{dialect}: the first vendor hover must know `{own}`: {first_hover}"
+        );
         let diagnostics =
             lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(30), |diags| {
                 !unknown_of(diags)

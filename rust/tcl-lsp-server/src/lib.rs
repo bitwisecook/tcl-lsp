@@ -9539,8 +9539,7 @@ async fn log_publish_timing(
 
 /// Which event asked for a `SpecTcl` pack reload.
 ///
-/// The reload itself is identical for all four — the trigger exists so the
-/// **startup** one can be told apart from the others, which is what
+/// The trigger distinguishes the **startup** reload from the others, which is what
 /// [`STARTUP_RELOAD_HOLD_ENV`] needs: only the startup reload honours the
 /// test-only hold that forces the two-reload interleaving this module is
 /// careful about.
@@ -9559,9 +9558,6 @@ enum ReloadTrigger {
     /// pack's hook bodies start or stop running. The pack-set key mixes the
     /// state, so the reload re-installs even though no file moved.
     Trust,
-    /// A document's environment needs a bundled pack that loaded
-    /// manifest-only ([`tcl_spectcl::demand`]), so it now loads in full.
-    Demand,
 }
 
 /// The workspace's published pack set, stamped with the reload generation that
@@ -27890,7 +27886,6 @@ impl Backend {
     /// re-enters the same cache the salsa query reads, so this is a change of
     /// ownership, not of identity.
     async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
-        self.note_pack_demand(dialect);
         let packs = self.spec_packs().await;
         if packs.key != 0 {
             return tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
@@ -27906,29 +27901,6 @@ impl Backend {
                 .default_context_registry()
                 .commands(),
         )
-    }
-
-    /// Record that a document in `dialect` is open and, when that is the first
-    /// to need a bundled pack held manifest-only, load it in full and
-    /// re-analyse the open documents — off this request, which answers with
-    /// the set it already has.
-    fn note_pack_demand(&self, dialect: &str) {
-        if !tcl_spectcl::demand::note_dialect(dialect) {
-            return;
-        }
-        let backend = self.clone();
-        crate::rt::spawn(async move {
-            match backend.reload_spec_packs(ReloadTrigger::Demand).await {
-                Ok(true) => backend.reschedule_all_open_documents().await,
-                Ok(false) => {}
-                Err(error) => {
-                    backend
-                        .client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                }
-            }
-        });
     }
 
     /// `tclLsp.specPacks` and what discovery made of it, for
@@ -33956,9 +33928,6 @@ impl LanguageServer for Backend {
         // part of what it is analysed against either way, so they are in
         // before the client can send one.
         tcl_spectcl::core_surfaces::ensure();
-        // Bundled vendor packs load manifest-only until an open document's
-        // environment needs one (`Backend::note_pack_demand`).
-        tcl_spectcl::demand::enable();
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
         // Push is the sole diagnostics channel by default: pull is opt-in and

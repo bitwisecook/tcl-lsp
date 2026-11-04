@@ -28,3 +28,33 @@ Updated 4 November 2026. Branch: `work`. Test execution remains pending where no
 ## Verification
 
 A fresh E2E build was started for #2181, then stopped at the coordinator's request to keep concurrent builds within the machine's memory budget. The #2299 and #2270 test invocations were also stopped when their dependency graph began compiling `tcl-compiler`; neither reached a test result. Re-run the focused tests after the coordinator opens a build slot.
+
+## SpecTcl loading correctness
+
+The LSP loads bundled vendor commands eagerly during its ordinary startup and
+reload path. It does not activate process-wide demand deferral or schedule a
+pack reload from a registry request. Finished-pack snapshots and segmentation
+memoisation remain enabled, and hook hosts still initialise per thread on demand.
+The CLI retains its synchronous demand-driven pack loading.
+
+The regression
+`spec_packs::the_bundled_eda_loadables_make_their_vendor_commands_known` now checks
+that every bundled EDA pack already reports commands before any vendor document
+opens. Each vendor's first hover must know its own command; the existing checks
+retain shared SDC/UPF commands and reject a rival vendor's command. This avoids
+accepting eventual reload completion as proof of first-request completeness.
+
+Prepared cache controls distinguish provider-free and include-aware finished
+snapshots, retain warm hits in both domains, and check included-file declaration
+order and edits. Manifest identity uses exact source bytes; modified CR/CRLF
+sources refuse the shipped manifest and still evaluate in full. A deterministic
+hook publication control interleaves a real changed plan with host installation
+and checks its installed generation and result.
+
+Independent source review found no further blocker in these bounded repairs.
+Compilation and execution of these updated controls remain pending; source
+review is not Tcl execution evidence. Next checks are the focused SpecTcl cache
+and hook unit tests, `lazy_bundled`, the named server E2E control, generated
+manifest drift, then the required `rust-check` and `prep-pr` gates. LSP demand
+deferral requires explicit readiness before analysis and registry responses;
+this release does not enable that asynchronous path.
