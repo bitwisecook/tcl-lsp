@@ -133,7 +133,7 @@ fn walk_statement(
     }
     match stmt {
         Statement::ExprEval { span, expr, .. } => {
-            try_rewrite_expr(ctx, *span, expr);
+            try_rewrite_expr(ctx, script, stmt, *span, expr);
         }
         Statement::AssignExpr {
             span, name, expr, ..
@@ -397,6 +397,14 @@ impl OriginalExpressionStatementSource {
                 config,
             )?;
             if !checked.matches_tree(expression) {
+                continue;
+            }
+            if matches!(statement, Statement::ExprEval { .. })
+                && child.native_words() == original.native_words()
+            {
+                if selected.replace((span, word.span())).is_some() {
+                    return None;
+                }
                 continue;
             }
             for operand in original.native_words() {
@@ -722,7 +730,13 @@ fn report_unproved_identity_candidate(
         )
 }
 
-fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
+fn try_rewrite_expr(
+    ctx: &mut PassContext<'_>,
+    script: &Script,
+    statement: &Statement,
+    span: Span,
+    expr: &ExprNode,
+) {
     // Both rewrites below assume this statement's `expr` — and, for the
     // O115 unwrap, any nested `[expr {…}]` inside it — is the untouched
     // builtin. A `rename`/`interp alias`/redefining `proc` anywhere in the
@@ -731,6 +745,10 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     if !ctx.command_mutations.trusts("expr") {
         return;
     }
+    let Some(source) = OriginalExpressionStatementSource::capture(ctx, script, statement, expr)
+    else {
+        return;
+    };
     // O115: unwrap `[expr {…}]` in expression context. Detected
     // from the expression AST so the rewrite sees the parsed
     // form (the source span on `ExprEval` does not always cover
@@ -749,16 +767,14 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
                 bindings.nested_numeric_normalisation_source(&context, registry, expr)
             })
     {
-        let Some(argument) =
-            tcl_syntax::word_rules::lexical_unicode_source_word(&unwrapped, ctx.lexer_config())
-        else {
+        let Some(replacement) = source.simplified(&unwrapped) else {
             return;
         };
         ctx.report(Optimisation::new(
             DiagCode::O115,
             "Remove redundant nested expr",
             span,
-            format!("expr {argument}"),
+            replacement,
         ));
         return;
     }
@@ -783,11 +799,14 @@ fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
         if folded == original.trim() {
             return;
         }
+        let Some(replacement) = source.simplified(&folded) else {
+            return;
+        };
         ctx.report(Optimisation::new(
             DiagCode::O101,
             "Fold constant expression",
-            span,
-            folded,
+            source.span,
+            replacement,
         ));
     }
 }
