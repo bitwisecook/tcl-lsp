@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 01:34 UTC. This snapshot supersedes earlier execution and ownership claims; their original receipts and git history remain available.
+Updated 04 November 2026, 01:39 UTC. This snapshot supersedes earlier execution and ownership claims; their original receipts and git history remain available.
 
 ## Scope and release verdict
 
@@ -18,7 +18,7 @@ The active publisher fetches `work`, checks ancestry, fast-forwards safe remote 
 | Direct Syntax source extents | **5/5 pass**, fresh test artifact `7405df1976491dc027a66b872266e8020e3f012c4994629c942bc2170923e126`; source/prior-generated correspondence unchanged. Exact namespace `backslash::original_literal_extent_tests`. Initial wrong namespace aborted before tests; corrected selectors used the same freshly built artifact. |
 | Native stdio hover | **15/15 pass** on freshly built server `8699c7193f32988d0bf7f8ccd50cbd978501b522264b97b5ffd32687a3bc8c27`, with bounded build and protocol source/binary checks. No editor/browser/WASI acceptance. |
 | Native stdio conditional rename | **18/18 pass** on that server:17 explicitly configured Logical `tcl` cases and1 ordinary `tcl8.6` case. Checks capabilities, confirmation/versioned annotated edit, exact raw newline/BOM/Unicode application and adverse-source refusals. An earlier unconfigured harness failure remains preserved. Actual editor preview/UI remains open. |
-| Latest compiler/Core/DB/server all-target Clippy request | **Fails on8 server lints**, after reaching server checking. `-D warnings`, no suppressions; source/prior-generated unchanged. Server helper extraction and small lint repairs are private, unexecuted. This is not a full workspace lint pass. |
+| Latest compiler/Core/DB/server all-target Clippy request | **Fails on8 server lints**, after reaching server checking. `-D warnings`, no suppressions; source/prior-generated unchanged. Server helper extraction and small lint repairs are adopted, awaiting compilation. This is not a full workspace lint pass. |
 | Fresh startup A/B | **Both baseline and candidate time out at60s before scan.ready.** Navigation requests were never reached. Installed Tcl tclIndex still causes five full analyses of6.34–6.93s; Tk analysis remains incomplete. No startup improvement or readiness accepted. |
 | Earlier selected cohorts | Registry15/15; SpecTcl `pack_source_e2e`10/10; earlier Core30/31 and Core/Registry all-target lint passes remain bound to their own artifacts. They do not certify current source. |
 | Required release gates | No final-current passing `make rust-check`, `make prep-pr`, global proof/drift, full native E2E, browser/WASI/editor, performance or packaging acceptance. |
@@ -40,8 +40,8 @@ Reused toolchains, dependency caches and undiscovered indirect runtime fixtures 
 | Work | Current action and missing acceptance |
 | --- | --- |
 | Root integration | Review private changes, own the single build/target, execute current units and lint, maintain state and publication. Rebuild native server after coherent adoption. |
-| Startup indexing, Sol6.1 + independent Terra6.1 review | Authentic typed no-contribution certificate for standalone tclIndex structural lookup. Private/uncompiled. Exact unchanged-source comparison shows the fresh and full consumers both lose later nested loader schemas after unresolved `$dir`. No blanket skip-on-None, fake dir value, barrier weakening or partial-analysis shortcut is adopted. |
-| Server lint, Sol6.1 | Private behavior-preserving helper extraction and trivial fixes for eight findings. No new lint suppression. |
+| Startup indexing, Sol6.1 + independent Terra6.1 review | Authentic typed no-contribution certificate for standalone tclIndex structural lookup. Adopted, uncompiled. Exact unchanged-source comparison shows the fresh and full consumers both lose later nested loader schemas after unresolved `$dir`. No blanket skip-on-None, fake dir value, barrier weakening or partial-analysis shortcut is adopted. |
+| Server lint, Sol6.1 | Adopted behavior-preserving helper extraction and trivial fixes for eight findings; execution pending. No new lint suppression. |
 | Cross-file and CI triage, Sol6.1 | Identify actual first guards behind source definitions/hover, symbols/tclIndex and rename failures. Distinguish startup/configuration from semantic admission. No Native source-link fabrication. |
 | Conditional rename | Selected Core/server and stdio checks pass within recorded cohorts; current five-case regression rerun and actual editor-host preview remain open. Ordinary runtime-complete Logical rename still refuses. |
 | Foreign factory/source index | Narrowed source hover passes selected Core/server and stdio checks. Dispatch hover, cross-file definitions, controller/index recovery and source-reference coverage remain open. |
@@ -73,3 +73,5 @@ The 3November sweep is recorded in [issues.md](issues.md#external-reporter-issue
 4. Pass required release gates and prepare the reduced PR to `rust`. Before merge, remove temporary state/process ledgers repository-wide per AGENTS, preserving reproducible oracle/source evidence. No release tag or publication is implied by development pushes.
 
 Private drafts stay local. Earlier automatic rejection of exporting private unadopted archives was not bypassed; reviewed source/status pushes are authorised. Temporary duplicate copies and inactive binaries were removed only after scoped preservation checks. Earlier agent writes into Main were restored before scratch resync; their drafts were not compiled. Current builds use regular isolated Rust copies and one owned target. [Outstanding work](outstanding/README.md) mirrors this snapshot; historical continuation prompts do not override the instruction to complete the LSP.
+
+Reviewed standalone schema abstention and server lint helper patches are adopted before green tests. The certificate remains purpose/source/input bound and tests retain absent-schema, altered query/channel, directives/barrier, malformed and Tcl8.4 encoding fallback controls. No startup or current lint pass is claimed. V7 exact executables are preserved in verified compressed archives before replacement; `/workspace/tmp/lsp-merged-cohort/v7-elf-preservation.json` records byte hashes and raw retirement.
