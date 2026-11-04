@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 10:07 UTC. Not release-ready.** The LSP and its transitive libraries are the priority. Separate VM/BIG-IP features are deferred while actual linked dependencies remain critical. CoreV3 passes11 autoload controls and15 installed vectors but its joint20 controls fail five rename cases. Reviewed1fa97847b repairs the source-reference producer and test prerequisites; focusedCore11 builds0 but passes7/11, with both positives still blocked. CompilerV7 test build stopped before controls; its slice fix is adopted and V8 is running. The repaired positive remains unestablished. RMW, final lint/proof/drift, hosts, performance and packages remain failed or incomplete. [Current state](current-state.md) owns exact outcomes and sources. No PR or release exists. Older dated material below is scoped historical context, not current acceptance.
+**ACTIVE — 04 November 2026, 10:33 UTC. Not release-ready.** The LSP and its transitive libraries are the priority; separate VM/BIG-IP features are deferred while linked dependencies remain critical. KernelV8 build0 and11/11 mandatory controls pass with unchanged custody and restored overlay. Adopted formal names-only metadata5ca4b7dde is uncompiled/UI-unvalidated. FocusedCore remains7/11 with two-file positives blocked; private source-purpose correction and631 negative-test correction are unvalidated. RMWv7 fails Engine4/6 despite containment14/14 and Jim1/1 passing. New45c host CI has browser/WASI failures and active Native tests; final lint/proof/drift, hosts, performance and packages remain failed/incomplete. [Current state](current-state.md) owns exact outcomes and sources. Publication interruptions remain explicit; no PR or release exists. Older dated material below is historical, not current acceptance.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,21 +61,20 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Preserve recorded Compiler6/6, KernelV5 11/11, CoreV3 autoload11/11 and
-   installed-vector15/15 results. Execute the new focusedCore11 producer/guard
-   cohort and current Kernel regressions, then the genuine cold public-host
-   positive/negative matrix. Repeat Server7/7 and native15+20+5 on final source
-   after publication style/index changes; earlier passes do not certify them.
-   Preserve genuine absence, stale input, unrelated-scope and full reference
-   inventory guards. Require-first refusal is not a supported positive fixture.
-2. Resolve linked RMWv6 Engine5 error-pattern, hook2 budget and F5 abs failures.
-   Its sealed builds/custody pass, but Engine1/6, hooks10/13 and VM Jim1/1 do not
-   establish an aggregate pass. Adopted ScriptBytes and budget/F5 test-purpose
-   corrections await repetition. Closed-cut Kernel11/11 passes with genuine
-   Normal/survey/root-world premises; the new source-reference producer and
-   host integration still need exact positive/refusal controls and actual
-   native edits. Prior failed fixtures and positive outcomes remain retained. Separate VM/BIG-IP features stay deferred; linked
-   regressions and mandatory gates remain in scope.
+1. Preserve Compiler6/6, KernelV8 11/11, CoreV3 autoload11/11 and installed
+   vectors15/15 on their recorded sources. Compile and validate adopted formal
+   names-only metadata without granting strict body/frame authority. Repair
+   actual Core source-purpose coverage, then repeat focused positives/refusals
+   and the genuine cold-host matrix. Earlier Server7/7 and native15+20+5 do
+   not certify current source. Preserve absence, stale-input, unrelated-scope
+   and complete reference guards; require-first refusal is not a positive.
+2. Repair real RMWv7 confined global array-set/global-unset leakage. Its sealed
+   builds/runs pass custody, but Engine4/6 keeps the aggregate failed despite
+   containment14/14 and Jim1/1. Independently review the private production
+   repair, then repeat exact controls without weakening cell/budget guards.
+   Kernel software passes and diagnostic observations do not establish Core,
+   host, Native edits or release acceptance. Separate VM/BIG-IP features stay
+   deferred; actual linked regressions remain mandatory.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected
    baseline/candidate inventories; unknown, skipped, cancelled and unreached
