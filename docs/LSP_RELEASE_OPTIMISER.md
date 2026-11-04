@@ -47,14 +47,23 @@ retain exact nested-body custody and expression conversion effects. The
 source-only expression parser cannot supply Native preparation. No if source
 change is implemented. A separate temporary registry child,
 `/tmp/lsp-940-conditional_list_index.rs` (SHA-256
-`6e31ba2244adc70fe859d26412b4578e7cd9d403410df0ccbd4395dbe4810f86`),
+`0837425634c23be9eecb5509330397ca5743e5f2385a1aeeb76d986d213236f0`),
 projects one fixed literal index through the shared list/index owners. Unknown
 container bytes remain unknown and numeric-looking elements establish no
-result intrep. Its four fixed-input controls are prepared but unrun; only
-rustfmt passes. The manifest is
+result intrep. Independent review found that the world-barrier query excludes
+only reentrant callbacks; the revised child also requires raw and effective
+explicit empty world/state descriptors. Its five fixed-input controls include
+real registry-clone non-callback write/transition refusals and remain unrun;
+only rustfmt passes. The manifest is
 `/tmp/lsp-940-conditional-list-index-manifest.json`. The original report still
 requires genuine typed append stores and condition/body coverage alongside
 an active repeated-conversion control; quiet diagnostics alone are not proof.
+Nine unexecuted condition/substitution/alias/error/return/lazy/store designs are
+retained in `/tmp/lsp-940-conditional-if-controls-design.json`. The native
+expression parser is only a potential gap for actual unversioned/logical
+inputs: no pinned original-report parse refusal was reproduced. Any new
+source-expression fallback remains parked while existing checked-condition and
+effect topology are reused first.
 
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,
