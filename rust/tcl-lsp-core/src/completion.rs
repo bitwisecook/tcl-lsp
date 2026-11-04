@@ -590,7 +590,7 @@ fn extend_context_snippets(
     // filter means they only surface once the user types `tcl-…`.
     let variable_references = original_variables::source_references(source, analysis, cursor)
         .unwrap_or_else(|| {
-            fallback_completion_variable_references(source, analysis, cursor, &current)
+            fallback_completion_variable_references(source, analysis, cursor, current)
         });
     let snippet_partial = snippet_partial_at_position(source, line, character);
     // `current_event` / `file_events` drive the iRules event templates'

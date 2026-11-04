@@ -453,6 +453,14 @@ pub fn original_name_input_edits(
             });
         }
     }
+    merge_source_name_edits(source, edits, logical_claims)
+}
+
+fn merge_source_name_edits(
+    source: &SourceImage,
+    mut edits: Vec<OriginalNameSourceEdit>,
+    mut logical_claims: Vec<OriginalNameSourceEdit>,
+) -> Option<Vec<OriginalNameSourceEdit>> {
     logical_claims.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
     if logical_claims
         .windows(2)
