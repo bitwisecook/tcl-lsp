@@ -545,6 +545,7 @@ impl Analyser {
         // The shell owns the complete document's temporal command proofs.
         // Isolated fragments cannot reconstruct this world from their bytes.
         self.head_identities = self.document_command_realm(source);
+        self.per_item_realm_inputs = Some((source.to_owned(), self.realm_build_inputs()));
         self.result.command_realm = Some(std::sync::Arc::new(self.head_identities.clone()));
         self.result.original_command_world =
             self.head_identities.original_completed_command_world();

@@ -3307,21 +3307,76 @@ impl BodyTouch {
         if !script.contains(['{', '"', '[']) {
             return;
         }
-        let module =
-            crate::lowering::lower_to_ir_with_dialect(script, registry, config, registry.profile());
-        for statement in &module.top_level.statements {
-            if matches!(
-                statement,
-                Statement::Barrier { .. } | Statement::UpFrame { .. }
-            ) {
-                self.all = true;
+        let touched = substitution_touch_memo(script, registry, config, depth, || {
+            let mut touch = Self::default();
+            let module = crate::lowering::lower_to_ir_with_dialect(
+                script,
+                registry,
+                config,
+                registry.profile(),
+            );
+            for statement in &module.top_level.statements {
+                if matches!(
+                    statement,
+                    Statement::Barrier { .. } | Statement::UpFrame { .. }
+                ) {
+                    touch.all = true;
+                }
+                for body in crate::ir_helpers::nested_bodies(statement) {
+                    touch.script(body, registry, config, depth);
+                }
+                touch.statement_words(statement, registry, config, depth);
             }
-            for body in crate::ir_helpers::nested_bodies(statement) {
-                self.script(body, registry, config, depth);
-            }
-            self.statement_words(statement, registry, config, depth);
-        }
+            touch
+        });
+        self.all |= touched.all;
+        self.names.extend(touched.names.iter().cloned());
     }
+}
+
+/// What one substitution's text touches is a pure function of the text, the
+/// command store, the grammar and the nesting depth, and the same `[expr …]`
+/// recurs across rungs, solves and edits. Lowering it again runs the whole
+/// source-binding walk, so the answer is shared, under a bound.
+fn substitution_touch_memo(
+    script: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    depth: u32,
+    compute: impl FnOnce() -> BodyTouch,
+) -> std::sync::Arc<BodyTouch> {
+    use std::sync::{Arc, Mutex, OnceLock};
+    type Key = (
+        String,
+        tcl_registry::RegistrySemanticKey,
+        tcl_lexer::LexerConfig,
+        u32,
+    );
+    static MEMO: OnceLock<Mutex<HashMap<Key, Arc<BodyTouch>>>> = OnceLock::new();
+    const MAX_RETAINED: usize = 4096;
+    let key = (
+        script.to_owned(),
+        registry.snapshot().semantic_key(),
+        config,
+        depth,
+    );
+    let memo = MEMO.get_or_init(Mutex::default);
+    if let Some(touched) = memo
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&key)
+    {
+        return Arc::clone(touched);
+    }
+    let touched = Arc::new(compute());
+    let mut retained = memo
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if retained.len() >= MAX_RETAINED {
+        retained.clear();
+    }
+    retained.insert(key, Arc::clone(&touched));
+    touched
 }
 
 /// The variable that holds the place `name`: the array for an element

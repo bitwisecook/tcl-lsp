@@ -245,7 +245,7 @@ fn original_logical_dispatch_condition_requires_exact_retained_input_and_availab
         for index in indices {
             let point = &mut withdrawn.points[index];
             Arc::make_mut(&mut point.state.baseline).metadata_context = owner.clone();
-            point.lookup_snapshot = std::sync::OnceLock::new();
+            point.invalidate_derived();
         }
         let binding = withdrawn.invocation_at_source("", 0);
         assert!(binding.unknown, "{label}");

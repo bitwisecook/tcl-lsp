@@ -325,6 +325,24 @@ fn shift_span(span: Span, delta: u32) -> Span {
     Span::new(span.start() + delta, span.end() + delta)
 }
 
+/// Everything [`Analyser::document_command_realm`] reads besides the source.
+/// Two analysers with equal inputs build equal realms for equal source.
+#[derive(Debug, PartialEq)]
+pub(super) struct RealmBuildInputs {
+    input: crate::analyser::ResolvedAnalysisInput,
+    entry: Option<Arc<crate::command_binding::SourceAnalysisEntry>>,
+    file_path: Option<String>,
+    settings: super::source_settings::OriginalAnalyserSourceSettings,
+}
+
+/// A realm already built for `source` under `inputs`, offered to the next walk.
+#[derive(Debug)]
+pub(super) struct PrebuiltRealm {
+    source: String,
+    inputs: RealmBuildInputs,
+    realm: crate::realm::CommandBindingRealm,
+}
+
 /// Ownership of the pre-built unit consumed by one diagnostic tail.
 #[derive(Debug)]
 pub(super) enum CompilationUnitOverride {
@@ -1144,6 +1162,10 @@ pub struct Analyser {
     /// `None` for the whole-file `analyse` path (byte-identical: it builds
     /// the unit itself, exactly as before).
     pub(super) cu_override: Option<CompilationUnitOverride>,
+    /// The inputs the per-item shell built its realm under, for the fallback.
+    pub(super) per_item_realm_inputs: Option<(String, RealmBuildInputs)>,
+    /// A realm handed over by the per-item fallback; consumed by `analyse`.
+    pub(super) prebuilt_realm: Option<Box<PrebuiltRealm>>,
     /// Driver-supplied execution entry shared by realm, lowering and diagnostics.
     pub(super) source_analysis_entry:
         Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>>,
@@ -1680,6 +1702,8 @@ impl Analyser {
             deferred_bodies: Vec::new(),
             minted_synthetic_names: std::collections::HashSet::new(),
             cu_override: None,
+            per_item_realm_inputs: None,
+            prebuilt_realm: None,
             source_analysis_entry: None,
             source_region_override: None,
             capture_global_reads: None,
@@ -2179,6 +2203,31 @@ impl Analyser {
         )
     }
 
+    pub(super) fn realm_build_inputs(&self) -> RealmBuildInputs {
+        RealmBuildInputs {
+            input: self.resolved_analysis_input(),
+            entry: self.source_analysis_entry.clone(),
+            file_path: self.file_path.clone(),
+            settings: super::source_settings::OriginalAnalyserSourceSettings::capture(self),
+        }
+    }
+
+    /// The realm for `source`: the one the per-item shell already built when it
+    /// was built for the same source under equal inputs, otherwise a new one.
+    fn document_command_realm_reusing(
+        &mut self,
+        source: &str,
+    ) -> crate::realm::CommandBindingRealm {
+        if let Some(prebuilt) = self.prebuilt_realm.take()
+            && self.source_region_override.is_none()
+            && prebuilt.source == source
+            && prebuilt.inputs == self.realm_build_inputs()
+        {
+            return prebuilt.realm;
+        }
+        self.document_command_realm(source)
+    }
+
     pub(super) fn document_command_realm(&self, source: &str) -> crate::realm::CommandBindingRealm {
         if let Some(region) = &self.source_region_override {
             // Only the private region entry installs this override after exact
@@ -2448,7 +2497,7 @@ impl Analyser {
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
         trace_phase("realm-start");
-        self.head_identities = self.document_command_realm(source);
+        self.head_identities = self.document_command_realm_reusing(source);
         trace_phase("realm-complete");
         self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
         self.result.original_command_world =
@@ -3217,16 +3266,32 @@ impl Analyser {
     /// `clear_run_state` resets only the registry + line index), so a second
     /// `analyse` on `self` would run on dirty state; a fresh analyser is the
     /// safe way to take the full-rebuild fallback mid-call.
-    pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
+    ///
+    /// A supplied `cu_override` describes the same source, so it moves to the
+    /// fresh analyser rather than paying for a second whole-file unit build.
+    pub(super) fn fresh_full_analyse(&mut self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
             .with_resolved_input(self.resolved_analysis_input())
             .with_non_ascii_mode(self.non_ascii_mode)
-            .with_pack_overlay(self.pack_overlay)
-            .with_shared_extra_commands(Arc::clone(&self.extra_commands))
-            .with_package_provides(self.package_provides.clone());
+            .with_file_path(self.file_path.clone());
+        // The same configured analysis the fast path ran under: dropping the
+        // driver's workspace, target and version settings here would give the
+        // fallback (taken on most edits) a different answer from the fast path.
+        super::source_settings::OriginalAnalyserSourceSettings::capture(self).apply(&mut fresh);
+        fresh.defer_proc_bodies = false;
         fresh
             .source_analysis_entry
             .clone_from(&self.source_analysis_entry);
+        fresh.cu_override = self.cu_override.take();
+        if let Some((source, inputs)) = self.per_item_realm_inputs.take()
+            && source == new_text
+        {
+            fresh.prebuilt_realm = Some(Box::new(PrebuiltRealm {
+                source,
+                inputs,
+                realm: std::mem::take(&mut self.head_identities),
+            }));
+        }
         fresh.analyse(new_text, dialect)
     }
 
@@ -3828,6 +3893,8 @@ impl Analyser {
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();
         self.cu_override = None;
+        self.per_item_realm_inputs = None;
+        self.prebuilt_realm = None;
         self.source_region_override = None;
     }
 

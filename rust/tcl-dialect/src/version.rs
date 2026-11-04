@@ -1238,6 +1238,64 @@ impl Segment<'_> {
     }
 }
 
+/// Parsed segments held inline: registry lookups check a version against
+/// every authored row's window, so these parses are by far the most frequent
+/// and almost always short. A longer version spills to the heap.
+// Inline by design: the point is a stack-only parse.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone)]
+enum SegmentBuf<'v> {
+    Inline([Segment<'v>; SEGMENT_INLINE], u8),
+    Heap(Vec<Segment<'v>>),
+}
+
+const SEGMENT_INLINE: usize = 16;
+
+impl<'v> SegmentBuf<'v> {
+    const fn new() -> Self {
+        Self::Inline([ZERO; SEGMENT_INLINE], 0)
+    }
+
+    fn push(&mut self, segment: Segment<'v>) {
+        match self {
+            Self::Inline(items, len) if usize::from(*len) < SEGMENT_INLINE => {
+                items[usize::from(*len)] = segment;
+                *len += 1;
+            }
+            Self::Inline(items, len) => {
+                let mut spilled = items[..usize::from(*len)].to_vec();
+                spilled.push(segment);
+                *self = Self::Heap(spilled);
+            }
+            Self::Heap(items) => items.push(segment),
+        }
+    }
+}
+
+impl<'v> core::ops::Deref for SegmentBuf<'v> {
+    type Target = [Segment<'v>];
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Inline(items, len) => &items[..usize::from(*len)],
+            Self::Heap(items) => items,
+        }
+    }
+}
+
+impl PartialEq for SegmentBuf<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for SegmentBuf<'_> {}
+
+impl core::fmt::Debug for SegmentBuf<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
 /// A version in C Tcl's internal representation, plus its stability flag.
 ///
 /// `1.2` is `[1, 0, 2]`, `1.2a1` is `[1, 0, 2, a, 1]`, `1.2.3` is
@@ -1245,7 +1303,7 @@ impl Segment<'_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ParsedVersion<'v> {
     /// The internal-rep segments.
-    segments: Vec<Segment<'v>>,
+    segments: SegmentBuf<'v>,
     /// `false` when an `a` or `b` separator occurred — C Tcl's `hasunstable`,
     /// the flag `SelectPackage` uses to maintain its "best stable" candidate.
     stable: bool,
@@ -1288,7 +1346,7 @@ impl<'v> ParsedVersion<'v> {
         if !bytes.first().is_some_and(u8::is_ascii_digit) {
             return None;
         }
-        let mut segments = Vec::new();
+        let mut segments = SegmentBuf::new();
         let mut run_start = 0usize;
         let mut has_unstable = false;
         let mut prev = bytes[0];
@@ -1333,7 +1391,7 @@ impl<'v> ParsedVersion<'v> {
     /// runs become segments, recognised separators become their markers, and
     /// any other character is skipped. Never used to decide satisfaction —
     /// only to order two strings that are not versions in the first place.
-    fn lenient_bytes_for(string: &'v [u8], allow_plus_suffix: bool) -> Vec<Segment<'v>> {
+    fn lenient_bytes_for(string: &'v [u8], allow_plus_suffix: bool) -> SegmentBuf<'v> {
         let bytes = if allow_plus_suffix {
             string
                 .iter()
@@ -1342,7 +1400,7 @@ impl<'v> ParsedVersion<'v> {
         } else {
             string
         };
-        let mut segments = Vec::new();
+        let mut segments = SegmentBuf::new();
         let mut run_start = 0usize;
         for (i, &c) in bytes.iter().enumerate() {
             if c.is_ascii_digit() {
@@ -1880,8 +1938,8 @@ pub fn select_package_version_bytes_for<S: AsRef<[u8]>>(
         return None;
     }
     let allow_plus_suffix = release.allows_package_version_suffix();
-    let mut best: Option<(usize, Vec<Segment<'_>>)> = None;
-    let mut best_stable: Option<(usize, Vec<Segment<'_>>)> = None;
+    let mut best: Option<(usize, SegmentBuf<'_>)> = None;
+    let mut best_stable: Option<(usize, SegmentBuf<'_>)> = None;
     for (i, candidate) in available.iter().enumerate() {
         if !validate_version_bytes_for(candidate.as_ref(), release) {
             continue;

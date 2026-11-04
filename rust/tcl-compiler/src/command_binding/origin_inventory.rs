@@ -19,8 +19,8 @@
 //! Exact point inventories for evaluated script source instances.
 
 use super::{
-    Arc, CommandAllocationSite, ExecutedScriptSource, OnceLock, SourceBindingPoint,
-    SourceCommandBindings, SourceInvocationBinding, SourceOriginId,
+    Arc, CommandAllocationSite, ExecutedScriptSource, SourceBindingPoint, SourceCommandBindings,
+    SourceInvocationBinding, SourceOriginId,
 };
 
 /// Purpose retained by the original source binding or module entry. Execution
@@ -1126,7 +1126,7 @@ impl SourceCommandBindings {
                 &mut previous.evaluated_argument_words,
                 &point.evaluated_argument_words,
             );
-            previous.lookup_snapshot = OnceLock::new();
+            previous.invalidate_derived();
         } else {
             points.push(point);
         }

@@ -521,6 +521,10 @@ impl SourceOriginInterner {
             });
         }
         let bucket = self.buckets.entry(fingerprint).or_default();
+        // Equal independent sources keep separate allocations (each owns its
+        // memos) under one key; dead ones are dropped so a bucket holds only
+        // live allocations.
+        bucket.retain(|(retained, _)| retained.strong_count() != 0);
         let existing = bucket.iter().find_map(|(retained, key)| {
             retained
                 .upgrade()
@@ -1483,7 +1487,7 @@ pub struct SourceInvocationBinding {
     /// Complete allocation knowledge, retaining possible cells and closure.
     pub namespace_cell_presence: crate::var_resolve::NamespaceCellPresence,
     /// Namespace objects proved to exist on every path to this dispatch.
-    pub known_namespaces: Vec<String>,
+    pub known_namespaces: Arc<[String]>,
     /// Written argv values frozen left-to-right, excluding the command word.
     /// Unknown results and expansion retain `None`; aliases add their own
     /// separate prefixes and never change these original word indices.
@@ -1768,7 +1772,7 @@ impl Default for SourceInvocationBinding {
             variable_frame: crate::var_resolve::VariableExecutionFrame::default(),
             existing_namespace_cells: Vec::new(),
             namespace_cell_presence: crate::var_resolve::NamespaceCellPresence::default(),
-            known_namespaces: Vec::new(),
+            known_namespaces: Arc::from([]),
             evaluated_argument_values: Vec::new(),
             evaluated_argument_words: Vec::new(),
             frozen_written_words: None,
@@ -2635,8 +2639,16 @@ impl SourceInvocationBinding {
         }
         self.unknown |= other.unknown;
         self.may_be_absent |= other.may_be_absent;
-        self.known_namespaces
-            .retain(|namespace| other.known_namespaces.contains(namespace));
+        if !Arc::ptr_eq(&self.known_namespaces, &other.known_namespaces)
+            && self.known_namespaces != other.known_namespaces
+        {
+            self.known_namespaces = self
+                .known_namespaces
+                .iter()
+                .filter(|namespace| other.known_namespaces.contains(namespace))
+                .cloned()
+                .collect();
+        }
         self.existing_namespace_cells
             .retain(|cell| other.existing_namespace_cells.contains(cell));
         self.namespace_cell_presence
@@ -3113,6 +3125,18 @@ fn original_static_layout_projection(
     }
 }
 
+/// The point's original dispatch projection, a pure function of the point.
+/// Every consumer of a dispatch site asks for it, so it is built once. A
+/// clone starts empty: copies are edited in place without a reset.
+#[derive(Debug, Default)]
+struct PointBindingMemo(OnceLock<SourceInvocationBinding>);
+
+impl Clone for PointBindingMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SourceBindingPoint {
     declaration_preview: bool,
@@ -3137,6 +3161,7 @@ struct SourceBindingPoint {
     namespace_key: SourceNamespaceKey,
     state: ModuleCommandBindings,
     lookup_snapshot: OnceLock<Arc<SourceLookupSnapshot>>,
+    original_binding: PointBindingMemo,
     dispatch: bool,
     /// The actual source invocation whose modeled continuation produced this state.
     continuation_of: Option<CommandAllocationSite>,
@@ -3227,7 +3252,16 @@ impl SourceBindingPoint {
     }
 
     fn original_dispatch_binding(&self) -> SourceInvocationBinding {
-        self.binding_projection("", true)
+        self.original_binding
+            .0
+            .get_or_init(|| self.binding_projection("", true))
+            .clone()
+    }
+
+    /// Drop the derived projections after an in-place change to the point.
+    fn invalidate_derived(&mut self) {
+        self.lookup_snapshot = OnceLock::new();
+        self.original_binding = PointBindingMemo::default();
     }
 
     fn binding_projection(&self, head: &str, original: bool) -> SourceInvocationBinding {
@@ -8428,25 +8462,25 @@ impl SourceCommandBindings {
 
     /// Namespace objects proved to exist immediately before this invocation.
     #[must_use]
-    pub fn known_namespaces_at(&self, offset: u32) -> Vec<String> {
-        let mut points = self.dispatch_points_at(offset);
+    pub fn known_namespaces_at(&self, offset: u32) -> Arc<[String]> {
+        let mut points = self.dispatch_points_at(offset).peekable();
         let Some(first) = points.next() else {
-            return Vec::new();
+            return Arc::from([]);
         };
+        if points.peek().is_none() {
+            return first.state.namespaces.advisory_names();
+        }
         let mut namespaces = first.state.namespaces.as_ref().clone();
         for point in points {
             namespaces.retain(|namespace| point.state.namespaces.contains(namespace));
         }
-        namespaces
-            .into_iter()
-            .filter_map(|key| key.advisory_key())
-            .collect()
+        namespaces.advisory_names()
     }
 
     /// Exact source-site namespace proof, shared with place resolution.
     #[must_use]
     pub fn namespaces_at_source(&self, offset: u32) -> Vec<String> {
-        self.known_namespaces_at(offset)
+        self.known_namespaces_at(offset).to_vec()
     }
 
     /// Command absence before dispatch, independently of `unknown` fallback.
@@ -9844,6 +9878,7 @@ impl SourceCommandBindings {
             namespace_key: context.namespace_identity(),
             state: state.clone(),
             lookup_snapshot: OnceLock::new(),
+            original_binding: PointBindingMemo::default(),
             dispatch: false,
             continuation_of: state.current_source_origin.as_ref().map(|source| {
                 CommandAllocationSite {
@@ -10155,6 +10190,7 @@ impl SourceCommandBindings {
             namespace_key: context.namespace_identity(),
             state: state.clone(),
             lookup_snapshot: OnceLock::new(),
+            original_binding: PointBindingMemo::default(),
             dispatch: true,
             continuation_of: None,
         };
@@ -11219,7 +11255,7 @@ impl SourceCommandBindings {
                 &mut self.points[*index].evaluated_argument_words,
                 &point.evaluated_argument_words,
             );
-            self.points[*index].lookup_snapshot = OnceLock::new();
+            self.points[*index].invalidate_derived();
         } else {
             indices.push(self.points.len());
             self.points.push(point);
@@ -12182,7 +12218,7 @@ impl SourceCommandBindings {
                 && point.point.state.variable_frame == state.variable_frame
         }) {
             previous.point.state.join(state);
-            previous.point.lookup_snapshot = OnceLock::new();
+            previous.point.invalidate_derived();
         } else {
             self.phases.push(SourcePhasePoint {
                 site,
@@ -12209,6 +12245,7 @@ impl SourceCommandBindings {
                     namespace_key: context.namespace_identity(),
                     state: state.clone(),
                     lookup_snapshot: OnceLock::new(),
+                    original_binding: PointBindingMemo::default(),
                     dispatch: false,
                     continuation_of: None,
                 },
@@ -14014,11 +14051,7 @@ fn source_binding_from_original_input_in(
         variable_context: Arc::clone(&state.source_variables),
         variable_frame: state.variable_frame.clone(),
         namespace_cell_presence: state.source_variables.namespace_cells.clone(),
-        known_namespaces: state
-            .namespaces
-            .iter()
-            .filter_map(SourceNamespaceKey::advisory_key)
-            .collect(),
+        known_namespaces: state.namespaces.advisory_names(),
         ..SourceInvocationBinding::default()
     })
 }
@@ -14155,11 +14188,7 @@ fn source_binding_projection_in(
             cells
         },
         namespace_cell_presence: state.source_variables.namespace_cells.clone(),
-        known_namespaces: state
-            .namespaces
-            .iter()
-            .filter_map(SourceNamespaceKey::advisory_key)
-            .collect(),
+        known_namespaces: state.namespaces.advisory_names(),
         evaluated_argument_values: Vec::new(),
         evaluated_argument_words: Vec::new(),
         frozen_written_words: None,
@@ -16911,7 +16940,7 @@ impl ModuleCommandBindings {
         let mut keys = Vec::new();
         for path in paths {
             for (index, key) in path.iter().enumerate() {
-                let bindings = self.original_bindings_for_key(key).ok_or(
+                let bindings = self.original_bindings_view(key).ok_or(
                     tcl_runtime_api::native_compilation::NativeCommandLookupUnavailable::Namespace,
                 )?;
                 let absent = bindings.contains(&MayBinding::Missing);

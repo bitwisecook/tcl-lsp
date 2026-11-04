@@ -10,6 +10,7 @@ use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
     ops::{Deref, DerefMut},
+    sync::Arc,
 };
 use tcl_core_types::NameBytes;
 
@@ -349,11 +350,20 @@ impl<T: VariableCellKeyQuery + ?Sized> VariableCellKeyQuery for &T {
 
 /// Mutable cell facts keyed by exact storage identity. String queries select
 /// only authored facts; they cannot find or overwrite native namespace facts.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VariableCellTable<V>(HashMap<VariableCellKey, V>);
+///
+/// Shared copy-on-write: flow states clone these per program point, and most
+/// clones are never written, so a clone shares the table until it changes.
+#[derive(Debug, Clone)]
+pub struct VariableCellTable<V>(Arc<HashMap<VariableCellKey, V>>);
+impl<V: PartialEq> PartialEq for VariableCellTable<V> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+    }
+}
+impl<V: Eq> Eq for VariableCellTable<V> {}
 impl<V> Default for VariableCellTable<V> {
     fn default() -> Self {
-        Self(HashMap::new())
+        Self(Arc::new(HashMap::new()))
     }
 }
 impl<V> Deref for VariableCellTable<V> {
@@ -362,9 +372,34 @@ impl<V> Deref for VariableCellTable<V> {
         &self.0
     }
 }
-impl<V> DerefMut for VariableCellTable<V> {
+impl<V: Clone> DerefMut for VariableCellTable<V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        Arc::make_mut(&mut self.0)
+    }
+}
+impl<V: Clone> VariableCellTable<V> {
+    /// Mutate one exact domain-separated cell.
+    pub fn get_mut<Q: VariableCellKeyQuery + ?Sized>(&mut self, key: &Q) -> Option<&mut V> {
+        Arc::make_mut(&mut self.0).get_mut(key.variable_cell_key().as_ref())
+    }
+    /// Publish facts for an exact cell or an explicitly authored string key.
+    pub fn insert(&mut self, key: impl Into<VariableCellKey>, value: V) -> Option<V> {
+        Arc::make_mut(&mut self.0).insert(key.into(), value)
+    }
+    /// Remove facts for only the selected domain.
+    pub fn remove<Q: VariableCellKeyQuery + ?Sized>(&mut self, key: &Q) -> Option<V> {
+        let key = key.variable_cell_key();
+        if !self.0.contains_key(key.as_ref()) {
+            return None;
+        }
+        Arc::make_mut(&mut self.0).remove(key.as_ref())
+    }
+    /// Select an exact slot for incremental fact publication.
+    pub fn entry(
+        &mut self,
+        key: impl Into<VariableCellKey>,
+    ) -> std::collections::hash_map::Entry<'_, VariableCellKey, V> {
+        Arc::make_mut(&mut self.0).entry(key.into())
     }
 }
 impl<V> VariableCellTable<V> {
@@ -372,43 +407,26 @@ impl<V> VariableCellTable<V> {
     pub fn get<Q: VariableCellKeyQuery + ?Sized>(&self, key: &Q) -> Option<&V> {
         self.0.get(key.variable_cell_key().as_ref())
     }
-    /// Mutate one exact domain-separated cell.
-    pub fn get_mut<Q: VariableCellKeyQuery + ?Sized>(&mut self, key: &Q) -> Option<&mut V> {
-        self.0.get_mut(key.variable_cell_key().as_ref())
-    }
     /// Whether this domain-separated cell is present.
     pub fn contains_key<Q: VariableCellKeyQuery + ?Sized>(&self, key: &Q) -> bool {
         self.get(key).is_some()
     }
-    /// Publish facts for an exact cell or an explicitly authored string key.
-    pub fn insert(&mut self, key: impl Into<VariableCellKey>, value: V) -> Option<V> {
-        self.0.insert(key.into(), value)
-    }
-    /// Remove facts for only the selected domain.
-    pub fn remove<Q: VariableCellKeyQuery + ?Sized>(&mut self, key: &Q) -> Option<V> {
-        self.0.remove(key.variable_cell_key().as_ref())
-    }
-    /// Select an exact slot for incremental fact publication.
-    pub fn entry(
-        &mut self,
-        key: impl Into<VariableCellKey>,
-    ) -> std::collections::hash_map::Entry<'_, VariableCellKey, V> {
-        self.0.entry(key.into())
-    }
 }
 impl<V, K: Into<VariableCellKey>> FromIterator<(K, V)> for VariableCellTable<V> {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-        Self(
+        Self(Arc::new(
             iter.into_iter()
                 .map(|(key, value)| (key.into(), value))
                 .collect(),
-        )
+        ))
     }
 }
-impl<V, K: Into<VariableCellKey>> Extend<(K, V)> for VariableCellTable<V> {
+impl<V: Clone, K: Into<VariableCellKey>> Extend<(K, V)> for VariableCellTable<V> {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
-        self.0
-            .extend(iter.into_iter().map(|(key, value)| (key.into(), value)));
+        let mut iter = iter.into_iter().peekable();
+        if iter.peek().is_some() {
+            Arc::make_mut(&mut self.0).extend(iter.map(|(key, value)| (key.into(), value)));
+        }
     }
 }
 impl<'a, V> IntoIterator for &'a VariableCellTable<V> {
@@ -418,24 +436,32 @@ impl<'a, V> IntoIterator for &'a VariableCellTable<V> {
         self.0.iter()
     }
 }
-impl<'a, V> IntoIterator for &'a mut VariableCellTable<V> {
+impl<'a, V: Clone> IntoIterator for &'a mut VariableCellTable<V> {
     type Item = (&'a VariableCellKey, &'a mut V);
     type IntoIter = std::collections::hash_map::IterMut<'a, VariableCellKey, V>;
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut()
+        Arc::make_mut(&mut self.0).iter_mut()
     }
 }
-impl<V> IntoIterator for VariableCellTable<V> {
+impl<V: Clone> IntoIterator for VariableCellTable<V> {
     type Item = (VariableCellKey, V);
     type IntoIter = std::collections::hash_map::IntoIter<VariableCellKey, V>;
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        Arc::unwrap_or_clone(self.0).into_iter()
     }
 }
 
 /// Exact cell inventory with authored-only string queries.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct VariableCellSet(HashSet<VariableCellKey>);
+///
+/// Shared copy-on-write, like [`VariableCellTable`].
+#[derive(Debug, Clone, Default)]
+pub struct VariableCellSet(Arc<HashSet<VariableCellKey>>);
+impl PartialEq for VariableCellSet {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+    }
+}
+impl Eq for VariableCellSet {}
 impl Deref for VariableCellSet {
     type Target = HashSet<VariableCellKey>;
     fn deref(&self) -> &Self::Target {
@@ -444,7 +470,7 @@ impl Deref for VariableCellSet {
 }
 impl DerefMut for VariableCellSet {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        Arc::make_mut(&mut self.0)
     }
 }
 impl VariableCellSet {
@@ -454,21 +480,29 @@ impl VariableCellSet {
     }
     /// Retain one exact cell slot.
     pub fn insert(&mut self, key: impl Into<VariableCellKey>) -> bool {
-        self.0.insert(key.into())
+        let key = key.into();
+        if self.0.contains(&key) {
+            return false;
+        }
+        Arc::make_mut(&mut self.0).insert(key)
     }
     /// Retire one exact cell slot.
     pub fn remove<Q: VariableCellKeyQuery + ?Sized>(&mut self, key: &Q) -> bool {
-        self.0.remove(key.variable_cell_key().as_ref())
+        let key = key.variable_cell_key();
+        self.0.contains(key.as_ref()) && Arc::make_mut(&mut self.0).remove(key.as_ref())
     }
 }
 impl<K: Into<VariableCellKey>> FromIterator<K> for VariableCellSet {
     fn from_iter<T: IntoIterator<Item = K>>(iter: T) -> Self {
-        Self(iter.into_iter().map(Into::into).collect())
+        Self(Arc::new(iter.into_iter().map(Into::into).collect()))
     }
 }
 impl<K: Into<VariableCellKey>> Extend<K> for VariableCellSet {
     fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
-        self.0.extend(iter.into_iter().map(Into::into));
+        let mut iter = iter.into_iter().peekable();
+        if iter.peek().is_some() {
+            Arc::make_mut(&mut self.0).extend(iter.map(Into::into));
+        }
     }
 }
 impl<K: Into<VariableCellKey>, const N: usize> From<[K; N]> for VariableCellSet {
@@ -487,7 +521,7 @@ impl IntoIterator for VariableCellSet {
     type Item = VariableCellKey;
     type IntoIter = std::collections::hash_set::IntoIter<VariableCellKey>;
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        Arc::unwrap_or_clone(self.0).into_iter()
     }
 }
 
@@ -751,5 +785,78 @@ mod tests {
         facts.insert(forged_lifetime, "WRITTEN");
         assert_eq!(facts.get(&lifetime), Some(&"ACTUAL"));
         assert_eq!(facts.get(&lifetime.compatibility_name()), Some(&"WRITTEN"));
+    }
+}
+
+/// A copy-on-write hash set for flow-state fields that are cloned per
+/// program point and rarely written after the clone.
+#[derive(Debug, Clone)]
+pub struct SharedSet<T>(Arc<HashSet<T>>);
+impl<T> Default for SharedSet<T> {
+    fn default() -> Self {
+        Self(Arc::new(HashSet::new()))
+    }
+}
+impl<T: Eq + Hash> PartialEq for SharedSet<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+    }
+}
+impl<T: Eq + Hash> Eq for SharedSet<T> {}
+impl<T> Deref for SharedSet<T> {
+    type Target = HashSet<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T: Clone> DerefMut for SharedSet<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Arc::make_mut(&mut self.0)
+    }
+}
+impl<T: Clone + Eq + Hash> SharedSet<T> {
+    /// Insert, sharing the set unchanged when `value` is already present.
+    pub fn insert(&mut self, value: T) -> bool {
+        !self.0.contains(&value) && Arc::make_mut(&mut self.0).insert(value)
+    }
+    /// Remove, sharing the set unchanged when `value` is absent.
+    pub fn remove<Q>(&mut self, value: &Q) -> bool
+    where
+        T: std::borrow::Borrow<Q>,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.0.contains(value) && Arc::make_mut(&mut self.0).remove(value)
+    }
+}
+impl<T: Eq + Hash> FromIterator<T> for SharedSet<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self(Arc::new(iter.into_iter().collect()))
+    }
+}
+impl<T: Clone + Eq + Hash> Extend<T> for SharedSet<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        let mut iter = iter.into_iter().peekable();
+        if iter.peek().is_some() {
+            Arc::make_mut(&mut self.0).extend(iter);
+        }
+    }
+}
+impl<'a, T> IntoIterator for &'a SharedSet<T> {
+    type Item = &'a T;
+    type IntoIter = std::collections::hash_set::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+impl<T: Clone> IntoIterator for SharedSet<T> {
+    type Item = T;
+    type IntoIter = std::collections::hash_set::IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        Arc::unwrap_or_clone(self.0).into_iter()
+    }
+}
+impl<T: Eq + Hash, const N: usize> From<[T; N]> for SharedSet<T> {
+    fn from(items: [T; N]) -> Self {
+        items.into_iter().collect()
     }
 }

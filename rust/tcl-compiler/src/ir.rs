@@ -1323,7 +1323,7 @@ pub struct CommandBindingSite {
     pub binding: tcl_runtime_api::CommandBindingIdentity,
     /// Namespace objects proved to exist at this exact dispatch site. `None`
     /// denotes a compatibility node with no source-state query.
-    pub known_namespaces: Option<Vec<String>>,
+    pub known_namespaces: Option<std::sync::Arc<[String]>>,
     /// Actual variable activation proved at this dispatch site.
     pub variable_frame: Option<crate::var_resolve::VariableExecutionFrame>,
     /// Complete shared variable binding snapshot, including aliases and generations.

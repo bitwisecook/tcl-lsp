@@ -3,6 +3,7 @@
 //! Geometry is conditional source metadata; installations occur only in the
 //! existing selected operation transfer, never by a publication-side replay.
 
+use super::source_command_world::SignatureNamespaceScopeView;
 use super::{
     BTreeSet, BindingKind, MayBinding, ModuleCommandBindings, ResolvedCommandTarget,
     SourceCommandKey, SourceExecutionContext, SourceNamespaceKey, SourceNativeInvocation,
@@ -1865,17 +1866,21 @@ impl ModuleCommandBindings {
         if query.selected_policy()? != policy {
             return None;
         }
+        let mut root = None;
         let mut namespaces = self.namespaces.iter().filter(|namespace| {
             query
                 .world()
-                .scope(namespace, policy)
+                .scope_view(namespace, policy)
                 .is_some_and(|scope| match scope {
-                    SignatureNamespaceScope::C(path) => path == slot.namespace,
-                    SignatureNamespaceScope::Jim(_) => {
+                    SignatureNamespaceScopeView::C(path) => *path == slot.namespace,
+                    SignatureNamespaceScopeView::Jim => {
                         slot.namespace.is_root()
-                            && **namespace == self.source_root_namespace_key().unwrap_or_default()
+                            && **namespace
+                                == *root.get_or_insert_with(|| {
+                                    self.source_root_namespace_key().unwrap_or_default()
+                                })
                     }
-                    SignatureNamespaceScope::Symbolic(_) => false,
+                    SignatureNamespaceScopeView::Symbolic => false,
                 })
         });
         let namespace = namespaces.next()?.clone();
@@ -2037,10 +2042,12 @@ impl ModuleCommandBindings {
         let local = (!absolute).then(|| selected.slot().clone());
         let occupied = |slot: &tcl_core_types::ByteCommandSlot| {
             self.original_command_key_for_slot(slot, policy)
-                .and_then(|key| self.original_bindings_for_key(&key))
-                .is_some_and(|bindings| {
-                    !bindings.is_empty() && !bindings.contains(&MayBinding::Missing)
+                .and_then(|key| {
+                    self.original_bindings_view(&key).map(|bindings| {
+                        !bindings.is_empty() && !bindings.contains(&MayBinding::Missing)
+                    })
                 })
+                .is_some_and(|occupied| occupied)
         };
         // An occupied current cell stops lookup before path uncertainty.
         if let Some(local) = &local
@@ -2558,11 +2565,10 @@ impl ModuleCommandBindings {
                     });
                     break;
                 }
-                if let Some(key) = key {
-                    let bindings = self.original_bindings_for_key(&key)?;
-                    if bindings != BTreeSet::from([MayBinding::Missing]) {
-                        return None;
-                    }
+                if let Some(key) = key
+                    && !self.original_bindings_view(&key)?.is_only_missing()
+                {
+                    return None;
                 }
             }
             let selected = selected?;
@@ -2895,8 +2901,17 @@ impl ModuleCommandBindings {
         &self,
         key: &SourceCommandKey,
     ) -> Option<BTreeSet<MayBinding>> {
+        self.original_bindings_view(key).map(|view| view.clone())
+    }
+
+    /// [`Self::original_bindings_for_key`] without copying the alternatives:
+    /// retained rows are borrowed and baseline rows are shared.
+    pub(super) fn original_bindings_view(
+        &self,
+        key: &SourceCommandKey,
+    ) -> Option<BindingsView<'_>> {
         if let Some(bindings) = self.bindings.get(key) {
-            return Some(bindings.clone());
+            return Some(BindingsView::Borrowed(bindings));
         }
         self.original_baseline_bindings_for_key(key, true)
     }
@@ -2909,13 +2924,14 @@ impl ModuleCommandBindings {
             return Some(bindings.clone());
         }
         self.original_baseline_bindings_for_key(key, false)
+            .map(|view| view.clone())
     }
 
     fn original_baseline_bindings_for_key(
         &self,
         key: &SourceCommandKey,
         retained_authored_changes: bool,
-    ) -> Option<BTreeSet<MayBinding>> {
+    ) -> Option<BindingsView<'_>> {
         #[cfg(any(test, debug_assertions))]
         let geometry_timing = OriginalGeometryTiming::at_query(5);
         #[cfg(any(test, debug_assertions))]
@@ -2948,7 +2964,7 @@ impl ModuleCommandBindings {
         // Native entry command rows already occupy exact keys. An absent row
         // cannot gain a Registry implementation from authored metadata.
         if self.baseline.native_entry.is_some() {
-            return Some(BTreeSet::from([MayBinding::Missing]));
+            return Some(BindingsView::missing());
         }
         let index = self
             .baseline
@@ -2959,7 +2975,7 @@ impl ModuleCommandBindings {
             .filter(|index| index.matches(policy, &self.baseline.semantics))
         {
             let Some(row) = index.slots.get(&selected) else {
-                return Some(BTreeSet::from([MayBinding::Missing]));
+                return Some(BindingsView::missing());
             };
             row.as_ref()?
         } else {
@@ -2972,7 +2988,7 @@ impl ModuleCommandBindings {
                     original_registry_metadata_slot(policy, name).as_ref() == Some(&selected)
                 });
             let Some(name) = metadata.next() else {
-                return Some(BTreeSet::from([MayBinding::Missing]));
+                return Some(BindingsView::missing());
             };
             if metadata.next().is_some() {
                 return None;
@@ -2981,12 +2997,20 @@ impl ModuleCommandBindings {
         };
         let authored = SourceCommandKey::from(name.clone());
         if retained_authored_changes && let Some(bindings) = self.bindings.get(&authored) {
-            return Some(bindings.clone());
+            return Some(BindingsView::Borrowed(bindings));
         }
-        Some(Self::unmodified_bindings(
-            &authored,
-            self.baseline.semantics.binding_names(),
-        ))
+        if !self
+            .baseline
+            .semantics
+            .binding_names()
+            .contains(name.as_str())
+        {
+            return Some(BindingsView::missing());
+        }
+        Some(BindingsView::Shared(unmodified_builtin_bindings(
+            name,
+            || Self::unmodified_bindings(&authored, self.baseline.semantics.binding_names()),
+        )))
     }
 
     /// Existing modeled keys share one binding projection. Original byte
@@ -3164,8 +3188,8 @@ impl ModuleCommandBindings {
                     absent = false;
                     break;
                 }
-                let bindings = self.original_bindings_for_key(&key)?;
-                for binding in &bindings {
+                let bindings = self.original_bindings_view(&key)?;
+                for binding in bindings.iter() {
                     match binding {
                         MayBinding::Target(target) => self.original_resolve_target(
                             target,
@@ -3407,3 +3431,58 @@ mod conditional_catalogue_source_tests {
 #[cfg(test)]
 #[path = "original_advice_slot_tests.rs"]
 mod advice_slot_tests;
+
+/// Command binding alternatives, borrowed from the table or shared with every
+/// other lookup of the same unmodified baseline row.
+pub(super) enum BindingsView<'a> {
+    Borrowed(&'a BTreeSet<MayBinding>),
+    Shared(std::sync::Arc<BTreeSet<MayBinding>>),
+}
+
+impl BindingsView<'_> {
+    fn missing() -> Self {
+        static MISSING: std::sync::LazyLock<std::sync::Arc<BTreeSet<MayBinding>>> =
+            std::sync::LazyLock::new(|| std::sync::Arc::new(BTreeSet::from([MayBinding::Missing])));
+        Self::Shared(std::sync::Arc::clone(&MISSING))
+    }
+
+    /// Exactly `{Missing}`, without building a set to compare against.
+    pub(super) fn is_only_missing(&self) -> bool {
+        self.len() == 1 && self.first() == Some(&MayBinding::Missing)
+    }
+}
+
+impl std::ops::Deref for BindingsView<'_> {
+    type Target = BTreeSet<MayBinding>;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Borrowed(bindings) => bindings,
+            Self::Shared(bindings) => bindings,
+        }
+    }
+}
+
+/// The unmodified builtin row for `name` depends on the name alone, so every
+/// lookup of it shares one set.
+fn unmodified_builtin_bindings(
+    name: &str,
+    build: impl FnOnce() -> BTreeSet<MayBinding>,
+) -> std::sync::Arc<BTreeSet<MayBinding>> {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, OnceLock};
+    static ROWS: OnceLock<Mutex<HashMap<String, Arc<BTreeSet<MayBinding>>>>> = OnceLock::new();
+    let rows = ROWS.get_or_init(Mutex::default);
+    if let Some(row) = rows
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(name)
+    {
+        return Arc::clone(row);
+    }
+    let row = Arc::new(build());
+    rows.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .entry(name.to_owned())
+        .or_insert(row)
+        .clone()
+}
