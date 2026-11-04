@@ -74,6 +74,15 @@ collection change. All production owner bytes and fixed assertions remain
 identical. These authored implementation bindings supply no test execution or
 native-capture renewal.
 
+Two maintained replay adapters retain an exact
+[twenty-binding source contract](derived-public-projections/maintained-replay-source-contract.json)
+and [authenticated derivation](derived-public-projections/maintained-replay-source-review.json).
+The [source comparison tool](../../../../scripts/dev/check-maintained-replay-source-review.py)
+requires original Git bytes and compares the complete Python AST and comments,
+permitting only the recorded ordered unique-key dictionary construction.
+Provider builds, original streams and historical execution receipts keep their
+independent authority; these source snapshots supply no new execution result.
+
 Reviewed question arrays and exact artifact classifications are merged
 separately, with every update checked before the census is written:
 
