@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 4 November 2026, 18:30 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
+Updated 4 November 2026, 18:56 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
 
 ## Scope, ownership and release verdict
 
@@ -8,11 +8,13 @@ Updated 4 November 2026, 18:30 UTC. Results apply only to recorded source, input
 
 Main is the shallow `/workspace/tcl-lsp-partial` checkout on `work`, origin `https://github.com/bitwisecook/tcl-lsp.git`. Root owns Main, scratch `/tmp/optimiser-settings-work`, shared target and builds. Five-minute development syncs may precede green tests: fetch, normally merge clean changes, push without force or WIP adoption; conflicts require review. Issue-sweep integration is not naming acceptance.
 
-Publication last succeeded at 2026-11-04T18:27:59.140947+00:00, head `b1ad0bf5de081e1a6fe4b80b04209c4423cc27c3`; earlier interruptions remain in `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release has been created.
+Publication last succeeded at 2026-11-04T18:53:02.027592+00:00, head `fcf507632253a1ae86a898a995e3988e09d45086`; earlier interruptions remain in `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release has been created.
 
 ## Current execution and failures
 
-A fresh normal-source Compiler34 run is compiling the combined Named/card, Logical namespace, channel-observer and transitive-stack changes. Tracing is disabled. The first attempt refused locked resolution before compilation; synchronizing the missing xtask workspace manifest fixed resolution without changing Cargo.lock or dropping --locked. The separate v2 attempt is active: `compiler-channel-namespace-current-v2/`. No controls have run yet.
+Normal-source Compiler34 v2 completes after a successful fresh build: **30/34 controls pass**. All autoload/prefix/channel controls, W214 used-parameter, body/card ownership, memo and Boolean controls pass. Four Logical namespace controls fail; exact schema observation identifies an inherited coarse interpreter-policy effect rejected by the source transfer. A reviewed source-only coverage correction is adopted but untested, preserving SCRIPT and independent policy effects and ordinary Native facts. Captured source/dependency/generated/executable checks pass; later Main drift makes current-Main acceptance false. `compiler-channel-namespace-current-v2/result.json.gz`. The first attempt's locked-resolution refusal remains recorded; synchronizing the xtask workspace manifest corrected it without changing Cargo.lock or disabling --locked.
+
+Core27 is compiling current normal source with the original 23 controls plus three regex-hover controls and variable definition. Known unknown-writer and all workspace manifests are presealed; no overlays. The regex fallback is adopted after a public probe proved current pattern metadata existed but method abstention stopped hover; actual new Core behavior is not yet verified. `/tmp/lsp-regex-current-public-probe-v1/receipt.json`; `core-current-normal-27/`.
 
 Receipt paths below are relative to `/workspace/tmp/lsp-merged-cohort/` unless absolute. Captured pins do not seal topology or undiscovered runtime/toolchain inputs.
 
@@ -37,7 +39,7 @@ Budgets stay unchanged: loop 50 needs 305 commands against cap 200; default 250 
 
 ## Hosts and packaging
 
-New host run [41877790468](https://github.com/bitwisecook/tcl-lsp/actions/runs/41877790468), selected by push `5c0ba57f8075a153750bfc4ee038c5676d4ac491`, now has terminal Browser and WASI jobs while Native remains active in the last observed snapshot. Browser passes 40/41 twice, with only autoload null. WASI fails before runtime on the trace’s deprecated atomic API under warnings-as-errors; no new module or lifecycle/CPU observation was produced. A narrow trace API fix is being prepared. `/tmp/lsp-ci-5c0b-job-126741986{682,734}.raw.json` and `/tmp/wasi-5c0b-126741986682/artifact/`. Prior run 41871981409 on `b0ff26539172f34f9590916f1e77e8d02d4a1a45` fails all three builds before tests on Explorer's Arc/realm mismatch. Integrated `33cf8caf26` needs the new host run. Old logs: `/tmp/lsp-ci-b0ff-job-126721330{423,490,785}.log`.
+New host run [41877790468](https://github.com/bitwisecook/tcl-lsp/actions/runs/41877790468), selected by push `5c0ba57f8075a153750bfc4ee038c5676d4ac491`, now has terminal Browser and WASI jobs while Native remains active in the last observed snapshot. Browser passes 40/41 twice, with only autoload null. WASI fails before runtime on the trace’s deprecated atomic API under warnings-as-errors; no new module or lifecycle/CPU observation was produced. The reviewed trace API fix is adopted but awaits a real WASI build; missing module/receipt now records no-runtime explicitly and cannot execute stale artifacts. `/tmp/lsp-ci-5c0b-job-126741986{682,734}.raw.json` and `/tmp/wasi-5c0b-126741986682/artifact/`. Prior run 41871981409 on `b0ff26539172f34f9590916f1e77e8d02d4a1a45` fails all three builds before tests on Explorer's Arc/realm mismatch. Integrated `33cf8caf26` needs the new host run. Old logs: `/tmp/lsp-ci-b0ff-job-126721330{423,490,785}.log`.
 
 Completed Browser/WASI results remain **old-source evidence**, manual run [41859243999](https://github.com/bitwisecook/tcl-lsp/actions/runs/41859243999), exact `b06734318768fdef9dcfef7b0109beb7db97544c`:
 
@@ -63,7 +65,7 @@ Earlier native passes are source-bound; strict startup still fails (null autoloa
 
 Reviewed SpecTcl corrections are adopted but untested: provider/no-provider pack snapshots use distinct cache domains, manifest matching hashes exact source bytes, and hook generation/plan publication is coherent. Standalone LSP eager loading is restored so its first request cannot consume a manifest-only registry; CLI demand and other performance improvements remain. `docs/LSP_RELEASE_PACKS.md` records this release choice.
 
-`make check-tcl-evidence` passes: 321 Tcl evidence files and 11 checker tests; `/tmp/lsp-check-tcl-evidence-current-1644.log`. Legacy proof material is historical. Its 2,171-error audit (781 implementation joins, 425 appliance joins, 965 census mismatches) is not a current gate count. Source-only repairs renew no execution/provider/census authority or reduced total. `/workspace/tmp/proof-current-gate-20261104-0750/gate-receipt.json`. No digest renewal or exemption grants acceptance.
+`make check-tcl-evidence` passes: 1,409 Tcl evidence files and 17 checker tests on current source; `/tmp/lsp-check-tcl-evidence-current-1854.log`. Legacy proof material is historical. Its 2,171-error audit (781 implementation joins, 425 appliance joins, 965 census mismatches) is not a current gate count. Source-only repairs renew no execution/provider/census authority or reduced total. `/workspace/tmp/proof-current-gate-20261104-0750/gate-receipt.json`. No digest renewal or exemption grants acceptance.
 
 Clippy V22 passes eight packages/all targets with `-D warnings` on earlier inputs (`source-cohort-clippy-v22-result.json` under the receipt root); later stack changes require fresh lint. Final `make rust-check`, `make prep-pr`, formatting/generated drift, full native/browser/WASI/editor, packages and performance/cancellation/memory gates remain open. Required section F and zero pass-to-fail against the selected `origin/rust` baseline remain open; [release plan](lsp-release-pr-plan.md) retains the extraction, fixture-reduction and final-SHA requirements. Evidence stays on `work`; the shipping candidate keeps only consumed fixtures and durable contracts.
 
