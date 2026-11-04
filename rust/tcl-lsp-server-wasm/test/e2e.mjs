@@ -329,20 +329,28 @@ function describeHover(hover) {
  */
 async function isolatedNamingSession(wasmBindgen) {
     const session = new Session(wasmBindgen.LspWorker);
-    const uri = "file:///naming/host-naming.tcl";
-    session.worker.vfs_upsert(uri, HOST_NAMING_SOURCE);
-    check("isolated naming store contains only its complete source", session.worker.vfs_len() === 1);
+    const root = "file:///naming";
+    const uri = `${root}/host-naming.tcl`;
+    const files = [uri];
+    const publish = (target, source) => {
+        if (!files.includes(target)) throw new Error("the isolated host census owns only its declared file");
+        session.worker.vfs_upsert(target, source);
+        if (session.worker.vfs_len() !== files.length) throw new Error("the isolated store differs from its finite host census");
+        session.worker.vfs_set_source_inventory(root, "isolated-naming:exact-one-file", "complete");
+    };
+    publish(uri, HOST_NAMING_SOURCE);
+    check("isolated naming store contains only its complete source", session.worker.vfs_len() === files.length);
     const initialized = await session.request("initialize", {
         processId: null,
-        rootUri: "file:///naming",
-        workspaceFolders: [{ uri: "file:///naming", name: "naming" }],
+        rootUri: root,
+        workspaceFolders: [{ uri: root, name: "naming" }],
         capabilities: clientCapabilities(),
     });
     check("isolated naming worker initializes", initialized?.error === undefined);
     session.notify("initialized", {});
     const scanLine = await until(() => session.logs.find((line) => line.includes("workspace_folders_scan")));
     check("isolated naming worker completes its real store scan", /files=1\b/.test(scanLine ?? ""), scanLine ?? "no scan log line");
-    await runNamingHostProof(session, uri, check, (target, source) => session.worker.vfs_upsert(target, source));
+    await runNamingHostProof(session, uri, check, publish);
     const shutdown = await session.request("shutdown", null);
     check("isolated naming worker shuts down", shutdown?.error === undefined);
     return session.logs;
