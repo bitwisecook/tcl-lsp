@@ -222,3 +222,11 @@ The cleanly built production matrix passes 175/175 assertions with 41,094
 unchanged file hashes. The expanded owner suite is 6/7: a same-array-element
 positive has no guard. Subsequent trace/other-element owner cases did not run.
 The failing draft is stashed; no product fix is published or closure claimed.
+
+The separate S100 foundation review passes thirteen independent same-held-CU
+comparisons, with a genuine top-level S100 positive and seven negative controls.
+IR, SSA, source result/completion gates, Native admission and provider obligations
+remain unchanged; Bytecode/Traced snapshots agree. The named-procedure variant
+remains a measured warning gap, and #940/S102 is not claimed fixed. Exact library
+custody, source inputs and receipts are in
+[`independent-s100-guards`](../rust/tcl-compiler/tests/data/shimmer-940-source-owner/independent-s100-guards/README.md).
