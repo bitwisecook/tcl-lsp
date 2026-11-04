@@ -1,7 +1,7 @@
 # LSP sweep stop handoff — 4 November 2026
 
 The user requested stopping after the next fixed issue, pushing all current
-code to remote `rust`, and updating issues and internal status. #2131 is now
+code to remote `work`, and updating issues and internal status. #2131 is now
 closed after exact proof-comment readback. All current source drafts are
 included as authorised development checkpoints. This is not a release-ready
 revision.
@@ -21,6 +21,7 @@ this does not upgrade missing-read or consumer-coverage gaps.
 
 Original stashes, failed receipts and immutable binaries are preserved. No new
 builds were started after the stop instruction. Full `rust-check`/`prep-pr` and
-the final combined source have not passed. The integration also preserves the
-existing `rust` dependency, CI and JetBrains changes; merge validation is
-recorded separately from prior product test results.
+the final combined source have not passed. The user corrected the earlier `rust` target to `work`. All current source
+checkpoints and receipts are already included in `work`; the superseded
+[PR #2521](https://github.com/bitwisecook/tcl-lsp/pull/2521) was closed without
+merging. The sweep remains stopped.

@@ -1,6 +1,6 @@
 {
   "recorded_at": "2026-11-04T22:14:16.528698+00:00",
-  "user_directive": "Stop after next fixed issue; push everything to remote rust and update appropriate issues/internal status.",
+  "user_directive": "Stop after verified #2131; push all current code and status updates to work. The earlier rust target was corrected by the user.",
   "newly_closed_issue": 2131,
   "closure_comment": "https://github.com/bitwisecook/tcl-lsp/issues/2131#issuecomment-6643420031",
   "closure_comment_sha256": "1f4a19b258a0c35c89556a9b690f1a5c099ac3b627ab6c18e81bb64af4bab6c4",
@@ -22,6 +22,12 @@
     "Clay_inventory": "cc80104c68"
   },
   "full_gates": "Not passed on the final combined development source.",
-  "integration_target": "refs/heads/rust",
-  "integration_method": "Normal merge preserving both work and existing rust commits; no force push."
+  "integration_target": "refs/heads/work",
+  "integration_method": "Normal pull/rebase/push to work; all current lane source checkpoints and receipts are included.",
+  "superseded_rust_pr": {
+    "url": "https://github.com/bitwisecook/tcl-lsp/pull/2521",
+    "state": "closed",
+    "merged": false,
+    "reason": "User corrected delivery target to work."
+  }
 }
