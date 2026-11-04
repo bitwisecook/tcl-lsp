@@ -5049,7 +5049,7 @@ mod closed_source_child_ingress_tests {
                 .unwrap()
                 .contains_actual(&parent)
         );
-        assert!(!parent.is_indexed(&backend.workspace_index.read().await));
+        assert!(!parent.is_indexed(&*backend.workspace_index.read().await));
         assert!(matches!(
             backend
                 .append_inherited_original_source_view(&fixture.child, draft)
@@ -5069,7 +5069,7 @@ mod closed_source_child_ingress_tests {
         // parent index row before admitting a fresh child and its owned suffix.
         let child = child_view(&fixture, &backend).await;
         let current_parent = &child.draft.inherited.as_ref().unwrap().parent;
-        assert!(current_parent.is_indexed(&backend.workspace_index.read().await));
+        assert!(current_parent.is_indexed(&*backend.workspace_index.read().await));
         assert_ne!(current_parent.id, parent.id);
     }
 
@@ -5120,7 +5120,7 @@ mod closed_source_child_ingress_tests {
         for _ in 0..2 {
             // No publisher restores this row between attempts: this is a
             // persistent refusal in a different, actual root interpretation.
-            assert!(!other_parent.is_indexed(&backend.workspace_index.read().await));
+            assert!(!other_parent.is_indexed(&*backend.workspace_index.read().await));
             let selected_scope = backend
                 .run_original_source_view_work(Arc::clone(&selected_parent))
                 .await
