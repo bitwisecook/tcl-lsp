@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import runpy
 from collections import defaultdict
@@ -38,6 +39,9 @@ def record_key(record: dict) -> tuple[str, ...]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=ROOT / "evidence/tcl")
+    args = parser.parse_args()
     runs: dict[Path, list[Path]] = defaultdict(list)
     for script in (ROOT / "experiments/name-handling").glob("**/input.tcl"):
         if any(script.parent.name.startswith(f"{name}-") for name in CONTEXTS):
@@ -79,6 +83,8 @@ def main() -> None:
                 continue
             relevant = by_path[path_name]
             matched: list[tuple[tuple[str, ...], dict, bytes]] = []
+            expected_prefixes = {record_key(record)[:3] for record in relevant}
+            incomplete = False
             for raw in log.read_bytes().splitlines(keepends=True):
                 offset = raw.find(b"NHO|")
                 if offset < 0:
@@ -90,19 +96,24 @@ def main() -> None:
                     key = tuple(fields[i].decode("ascii") for i in (1, 2, 3, 6, 7))
                 except UnicodeDecodeError:
                     continue
+                if key[:3] not in expected_prefixes:
+                    continue
                 matches = by_key.get(key, [])
                 paths = {(row.get("actual_input") or {}).get("path") for row in matches}
                 if paths != {path_name}:
+                    incomplete = True
                     continue
                 selected = [row for row in relevant if record_key(row) == key]
                 if len(selected) != 1 or question(selected[0]) is None:
+                    incomplete = True
                     continue
                 matched.append((key, selected[0], raw))
-            if not matched:
+            if not matched or incomplete:
                 skipped += 1
                 continue
             groups[script].append((script_path, matched))
-    output = ROOT / "evidence/tcl"
+    output = args.output
+    output.mkdir(parents=True, exist_ok=True)
     written = 0
     for script, captures in groups.items():
         # Each environment result contains only rows explicitly matched to its
@@ -130,9 +141,11 @@ def main() -> None:
         first = captures[0][0]
         parts = [
             f"# BIG-IP Tcl log: {first.parent.parent.name}, {first.parent.name}\n\n",
-            ("## Question\n\nThe following cases investigate Tcl behavior relevant "
-            "to name resolution and diagnostics in the LSP, compiler and VM. "
-            "Each observation is limited to its own case and recorded context.\n"),
+            (
+                "## Question\n\nThe following cases investigate Tcl behavior relevant "
+                "to name resolution and diagnostics in the LSP, compiler and VM. "
+                "Each observation is limited to its own case and recorded context.\n"
+            ),
         ]
         for identity, questions in sorted(case_questions.items()):
             for text in sorted(questions):
@@ -161,11 +174,13 @@ def main() -> None:
                     "- Standard error: Not recorded.\n",
                     "- Recorded result:\n\n",
                     markdown_block(b"".join(row[2] for row in rows), "text-visible"),
-                    ("\nThese are log lines selected by the recorded run, case, context, "
-                    "unit and invocation; they are not process stdout. Multiple log "
-                    "snapshots may contain the same line, so duplicates do not by "
-                    "themselves establish repeated executions. The following entries "
-                    "decode each retained NHO payload chunk separately.\n"),
+                    (
+                        "\nThese are log lines selected by the recorded run, case, context, "
+                        "unit and invocation; they are not process stdout. Multiple log "
+                        "snapshots may contain the same line, so duplicates do not by "
+                        "themselves establish repeated executions. The following entries "
+                        "decode each retained NHO payload chunk separately.\n"
+                    ),
                 ]
             )
             seen_cases = {}
@@ -175,8 +190,10 @@ def main() -> None:
                 payload = bytes.fromhex(fields[12].decode("ascii"))
                 parts.extend(
                     [
-                        (f"\n- {key[1]}, {fields[4].decode()}, completion {fields[5].decode()}, "
-                        f"{fields[8].decode()}, chunk {fields[10].decode()} of {fields[11].decode()}:\n\n"),
+                        (
+                            f"\n- {key[1]}, {fields[4].decode()}, completion {fields[5].decode()}, "
+                            f"{fields[8].decode()}, chunk {fields[10].decode()} of {fields[11].decode()}:\n\n"
+                        ),
                         markdown_block(payload, "text-visible"),
                     ]
                 )

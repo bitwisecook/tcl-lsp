@@ -21,12 +21,21 @@ REQUEST = ROOT / "experiments/name-handling/f5/REQUEST.md"
 BIGIP_QUESTIONS = dict(
     re.findall(r"(?m)^\| (F5-N\d\d) \| (.*?) \|", REQUEST.read_text())
 )
+CORPUS_QUESTIONS = {
+    row["id"]: row["question"]
+    for row in json.loads(
+        (ROOT / "experiments/name-handling/patterns/f5/questions.json").read_bytes()
+    )["questions"]
+    if row["id"].startswith("corpus-f5-") and row.get("question")
+}
 
 
 def question(record: dict) -> str | None:
     identity = record.get("case_id", "")
     if identity in QUESTIONS:
         return QUESTIONS[identity]
+    if identity in CORPUS_QUESTIONS:
+        return CORPUS_QUESTIONS[identity]
     if identity == "version":
         return "Which Tcl version and execution namespace are available in this tmsh context, so that observations from this context can be scoped correctly?"
     match = re.match(r"(F5-N\d\d)", str(record.get("question_id") or ""))
@@ -89,9 +98,11 @@ def main() -> None:
             continue
         parts = [
             f"# BIG-IP tmsh Tcl: {directory.parent.name}, {directory.name}\n\n",
-            ("## Question\n\nThis script contains the following cases, which investigate "
-            "Tcl name handling relevant to the LSP, compiler and VM. Each observation "
-            "is limited to its own case and this execution context.\n"),
+            (
+                "## Question\n\nThis script contains the following cases, which investigate "
+                "Tcl name handling relevant to the LSP, compiler and VM. Each observation "
+                "is limited to its own case and this execution context.\n"
+            ),
         ]
         for identity in sorted(identities):
             parts.append(f"\n- **{identity}:** {question(by_case[identity])}\n")

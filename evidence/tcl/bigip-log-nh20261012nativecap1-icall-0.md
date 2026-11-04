@@ -4,10 +4,25 @@
 
 The following cases investigate Tcl behavior relevant to name resolution and diagnostics in the LSP, compiler and VM. Each observation is limited to its own case and recorded context.
 
+- **corpus-f5-computed-target:** Does a variable/list-built call target with exactly the literal-control bytes reach the same rule procedure?
+
+- **corpus-f5-prefix-arguments:** How does call pass fixed/list-expanded arguments containing spaces, braces and namespace separators?
+
+- **corpus-f5-rule-lifetime:** Does binding change at load, attachment, or each invocation when an isolated provider rule is replaced or detached?
+
+- **corpus-f5-rule-path:** For identical procedure tails in isolated rules and partitions, what does call select through absolute partition/rule::proc, relative rule::proc and a bare local proc?
+
+- **corpus-f5-storage-context:** Which local/static::/qualified cells do rule-procedure calls read or write across caller and provider rules?
+
 - **native-call-command-surface:** Which namespace subcommands, interp forms and dynamic definition operations exist in each context? Are unsupported literal commands rejected at load even in `catch`? Compare computed head/eval.
 
 ## Assumptions
 
+- **corpus-f5-computed-target:** Native call capability boundary for this question/context. No rule provider can be selected through an absent native command; source-site idiom and provider semantics remain separate from stock Tcl.; prerequisite version/namespace and absence come from the same job native-call-command-surface record; this is not a portable-original program
+- **corpus-f5-prefix-arguments:** Native call capability boundary for this question/context. No rule provider can be selected through an absent native command; source-site idiom and provider semantics remain separate from stock Tcl.; prerequisite version/namespace and absence come from the same job native-call-command-surface record; this is not a portable-original program
+- **corpus-f5-rule-lifetime:** Native call capability boundary for this question/context. No rule provider can be selected through an absent native command; source-site idiom and provider semantics remain separate from stock Tcl.; prerequisite version/namespace and absence come from the same job native-call-command-surface record; this is not a portable-original program
+- **corpus-f5-rule-path:** Native call capability boundary for this question/context. No rule provider can be selected through an absent native command; source-site idiom and provider semantics remain separate from stock Tcl.; prerequisite version/namespace and absence come from the same job native-call-command-surface record; this is not a portable-original program
+- **corpus-f5-storage-context:** Native call capability boundary for this question/context. No rule provider can be selected through an absent native command; source-site idiom and provider semantics remain separate from stock Tcl.; prerequisite version/namespace and absence come from the same job native-call-command-surface record; this is not a portable-original program
 - **native-call-command-surface:** Independent native command surface control; prerequisite version/namespace and absence come from the same job native-call-command-surface record; this is not a portable-original program
 
 Other assumptions were not separately recorded.
@@ -383,6 +398,36 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 ```text-visible
 NHO|nh20261012nativecap1|native-call-command-surface|icall|setup|0|none|once|result|utf-8|0|1|
 NHO|nh20261012nativecap1|native-call-command-surface|icall|lookup|0|none|once|result|utf-8|0|1|382e342e3620382e34203a3a20636f6d6d616e6473207b7d2070726f6373207b7d207265736f6c766564207b7d
+NHO|nh20261012nativecap1|corpus-f5-rule-path|icall|setup|0|none|once|result|utf-8|0|1|63616c6c
+NHO|nh20261012nativecap1|corpus-f5-rule-path|icall|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d65202263616c6c22
+NHO|nh20261012nativecap1|corpus-f5-rule-path|icall|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
+NHO|nh20261012nativecap1|corpus-f5-rule-path|icall|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
+NHO|nh20261012nativecap1|corpus-f5-rule-path|icall|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a22246e685f63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665636170315f70726f76696465723a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f
+NHO|nh20261012nativecap1|corpus-f5-rule-path|icall|lookup|1|none|once|errorinfo|utf-8|1|2|6e22
+NHO|nh20261012nativecap1|corpus-f5-computed-target|icall|setup|0|none|once|result|utf-8|0|1|2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665636170315f70726f76696465723a3a746172676574
+NHO|nh20261012nativecap1|corpus-f5-computed-target|icall|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d65202263616c6c22
+NHO|nh20261012nativecap1|corpus-f5-computed-target|icall|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
+NHO|nh20261012nativecap1|corpus-f5-computed-target|icall|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
+NHO|nh20261012nativecap1|corpus-f5-computed-target|icall|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665636170315f70726f76696465723a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c205b6c6973742063616c6c20246e685f74
+NHO|nh20261012nativecap1|corpus-f5-computed-target|icall|lookup|1|none|once|errorinfo|utf-8|1|2|6172676574207b6120627d207b6320647d5d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
+NHO|nh20261012nativecap1|corpus-f5-prefix-arguments|icall|setup|0|none|once|result|utf-8|0|1|63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665636170315f70726f76696465723a3a746172676574207b6120627d
+NHO|nh20261012nativecap1|corpus-f5-prefix-arguments|icall|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d65202263616c6c22
+NHO|nh20261012nativecap1|corpus-f5-prefix-arguments|icall|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
+NHO|nh20261012nativecap1|corpus-f5-prefix-arguments|icall|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
+NHO|nh20261012nativecap1|corpus-f5-prefix-arguments|icall|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665636170315f70726f76696465723a3a746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c205b6c696e7365727420
+NHO|nh20261012nativecap1|corpus-f5-prefix-arguments|icall|lookup|1|none|once|errorinfo|utf-8|1|2|246e685f70726566697820656e64207b7b787d203a3a7461696c7d5d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
+NHO|nh20261012nativecap1|corpus-f5-rule-lifetime|icall|setup|0|none|once|result|utf-8|0|1|63616c6c
+NHO|nh20261012nativecap1|corpus-f5-rule-lifetime|icall|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d65202263616c6c22
+NHO|nh20261012nativecap1|corpus-f5-rule-lifetime|icall|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
+NHO|nh20261012nativecap1|corpus-f5-rule-lifetime|icall|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
+NHO|nh20261012nativecap1|corpus-f5-rule-lifetime|icall|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a22246e685f63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665636170315f70726f76696465723a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f
+NHO|nh20261012nativecap1|corpus-f5-rule-lifetime|icall|lookup|1|none|once|errorinfo|utf-8|1|2|6e22
+NHO|nh20261012nativecap1|corpus-f5-storage-context|icall|setup|0|none|once|result|utf-8|0|1|63616c6c
+NHO|nh20261012nativecap1|corpus-f5-storage-context|icall|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d65202263616c6c22
+NHO|nh20261012nativecap1|corpus-f5-storage-context|icall|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
+NHO|nh20261012nativecap1|corpus-f5-storage-context|icall|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
+NHO|nh20261012nativecap1|corpus-f5-storage-context|icall|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d65202263616c6c220a202020207768696c6520657865637574696e670a22246e685f63616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665636170315f70726f76696465723a3a746172676574207b6120627d207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f
+NHO|nh20261012nativecap1|corpus-f5-storage-context|icall|lookup|1|none|once|errorinfo|utf-8|1|2|6e22
 ```
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
@@ -398,5 +443,226 @@ These are log lines selected by the recorded run, case, context, unit and invoca
 ```text-visible
 8.4.6 8.4 :: commands {} procs {} resolved {}⟦EOF⟧
 ```
+
+- corpus-f5-rule-path, setup, completion 0, result, chunk 0 of 1:
+
+```text-visible
+call⟦EOF⟧
+```
+
+- corpus-f5-rule-path, lookup, completion 1, result, chunk 0 of 1:
+
+```text-visible
+invalid command name "call"⟦EOF⟧
+```
+
+- corpus-f5-rule-path, lookup, completion 1, metadata, chunk 0 of 1:
+
+```text-visible
+errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
+```
+
+- corpus-f5-rule-path, lookup, completion 1, errorcode, chunk 0 of 1:
+
+```text-visible
+NONE⟦EOF⟧
+```
+
+- corpus-f5-rule-path, lookup, completion 1, errorinfo, chunk 0 of 2:
+
+```text-visible
+invalid command name "call"
+    while executing
+"$nh_call /Common/__tcl_lsp_probe_nh20261012nativecap1_provider::target {a b} {c d}"
+    ("eval" body line 1)
+    invoked from within
+"eval $nh_operatio⟦EOF⟧
+```
+
+- corpus-f5-rule-path, lookup, completion 1, errorinfo, chunk 1 of 2:
+
+```text-visible
+n"⟦EOF⟧
+```
+
+- corpus-f5-computed-target, setup, completion 0, result, chunk 0 of 1:
+
+```text-visible
+/Common/__tcl_lsp_probe_nh20261012nativecap1_provider::target⟦EOF⟧
+```
+
+- corpus-f5-computed-target, lookup, completion 1, result, chunk 0 of 1:
+
+```text-visible
+invalid command name "call"⟦EOF⟧
+```
+
+- corpus-f5-computed-target, lookup, completion 1, metadata, chunk 0 of 1:
+
+```text-visible
+errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
+```
+
+- corpus-f5-computed-target, lookup, completion 1, errorcode, chunk 0 of 1:
+
+```text-visible
+NONE⟦EOF⟧
+```
+
+- corpus-f5-computed-target, lookup, completion 1, errorinfo, chunk 0 of 2:
+
+```text-visible
+invalid command name "call"
+    while executing
+"call /Common/__tcl_lsp_probe_nh20261012nativecap1_provider::target {a b} {c d}"
+    ("eval" body line 1)
+    invoked from within
+"eval [list call $nh_t⟦EOF⟧
+```
+
+- corpus-f5-computed-target, lookup, completion 1, errorinfo, chunk 1 of 2:
+
+```text-visible
+arget {a b} {c d}]"
+    ("eval" body line 1)
+    invoked from within
+"eval $nh_operation"⟦EOF⟧
+```
+
+- corpus-f5-prefix-arguments, setup, completion 0, result, chunk 0 of 1:
+
+```text-visible
+call /Common/__tcl_lsp_probe_nh20261012nativecap1_provider::target {a b}⟦EOF⟧
+```
+
+- corpus-f5-prefix-arguments, lookup, completion 1, result, chunk 0 of 1:
+
+```text-visible
+invalid command name "call"⟦EOF⟧
+```
+
+- corpus-f5-prefix-arguments, lookup, completion 1, metadata, chunk 0 of 1:
+
+```text-visible
+errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
+```
+
+- corpus-f5-prefix-arguments, lookup, completion 1, errorcode, chunk 0 of 1:
+
+```text-visible
+NONE⟦EOF⟧
+```
+
+- corpus-f5-prefix-arguments, lookup, completion 1, errorinfo, chunk 0 of 2:
+
+```text-visible
+invalid command name "call"
+    while executing
+"call /Common/__tcl_lsp_probe_nh20261012nativecap1_provider::target {a b} {{x} ::tail}"
+    ("eval" body line 1)
+    invoked from within
+"eval [linsert⟦SPACE⟧⟦EOF⟧
+```
+
+- corpus-f5-prefix-arguments, lookup, completion 1, errorinfo, chunk 1 of 2:
+
+```text-visible
+$nh_prefix end {{x} ::tail}]"
+    ("eval" body line 1)
+    invoked from within
+"eval $nh_operation"⟦EOF⟧
+```
+
+- corpus-f5-rule-lifetime, setup, completion 0, result, chunk 0 of 1:
+
+```text-visible
+call⟦EOF⟧
+```
+
+- corpus-f5-rule-lifetime, lookup, completion 1, result, chunk 0 of 1:
+
+```text-visible
+invalid command name "call"⟦EOF⟧
+```
+
+- corpus-f5-rule-lifetime, lookup, completion 1, metadata, chunk 0 of 1:
+
+```text-visible
+errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
+```
+
+- corpus-f5-rule-lifetime, lookup, completion 1, errorcode, chunk 0 of 1:
+
+```text-visible
+NONE⟦EOF⟧
+```
+
+- corpus-f5-rule-lifetime, lookup, completion 1, errorinfo, chunk 0 of 2:
+
+```text-visible
+invalid command name "call"
+    while executing
+"$nh_call /Common/__tcl_lsp_probe_nh20261012nativecap1_provider::target {a b} {c d}"
+    ("eval" body line 1)
+    invoked from within
+"eval $nh_operatio⟦EOF⟧
+```
+
+- corpus-f5-rule-lifetime, lookup, completion 1, errorinfo, chunk 1 of 2:
+
+```text-visible
+n"⟦EOF⟧
+```
+
+- corpus-f5-storage-context, setup, completion 0, result, chunk 0 of 1:
+
+```text-visible
+call⟦EOF⟧
+```
+
+- corpus-f5-storage-context, lookup, completion 1, result, chunk 0 of 1:
+
+```text-visible
+invalid command name "call"⟦EOF⟧
+```
+
+- corpus-f5-storage-context, lookup, completion 1, metadata, chunk 0 of 1:
+
+```text-visible
+errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
+```
+
+- corpus-f5-storage-context, lookup, completion 1, errorcode, chunk 0 of 1:
+
+```text-visible
+NONE⟦EOF⟧
+```
+
+- corpus-f5-storage-context, lookup, completion 1, errorinfo, chunk 0 of 2:
+
+```text-visible
+invalid command name "call"
+    while executing
+"$nh_call /Common/__tcl_lsp_probe_nh20261012nativecap1_provider::target {a b} {c d}"
+    ("eval" body line 1)
+    invoked from within
+"eval $nh_operatio⟦EOF⟧
+```
+
+- corpus-f5-storage-context, lookup, completion 1, errorinfo, chunk 1 of 2:
+
+```text-visible
+n"⟦EOF⟧
+```
+
+- corpus-f5-computed-target: intended operation reached.
+
+- corpus-f5-prefix-arguments: intended operation reached.
+
+- corpus-f5-rule-lifetime: intended operation reached.
+
+- corpus-f5-rule-path: intended operation reached.
+
+- corpus-f5-storage-context: intended operation reached.
 
 - native-call-command-surface: intended operation reached.
