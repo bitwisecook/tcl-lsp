@@ -2776,10 +2776,11 @@ fn a_store_a_declared_outcome_may_preserve_is_live() {
     tcl_spectcl::hooks::publish(&tcl_spectcl::PackSet::default());
 }
 
-/// A materialised child carries the span of the factory call that produced
-/// it (#2143): `Configure port 8080 {the port}` materialises `proc
-/// port {x} {return 8080}`, and the child's W214 for `x` anchors at that
-/// call — line 4 — where, with no span of its own, it anchored at 1:1. The
+/// A materialised child carries an authenticated factory source span (#2143):
+/// `Configure port 8080 {the port}` installs `proc port {x} {return 8080}`.
+/// The child's W214 for `x` may anchor at the original formal or the factory
+/// call, rather than at 1:1. A directly read formal and an `eval` script
+/// with unknown caller-frame reads remain silent. The
 /// factory's template is read through its template-word plan, and `port
 /// ignored` is `8080` under tclsh 8.4 to 9.1 before and after `tcl opt`.
 #[test]
@@ -2790,6 +2791,12 @@ fn a_materialised_child_carries_its_factory_call_span() {
                   Configure port 8080 {the port}\n";
     let call_start = source.find("Configure port 8080 {the port}").unwrap();
     let call_end = call_start + "Configure port 8080 {the port}".len();
+    let formal_start = source.find("{x}").unwrap() + 1;
+    let formal_span = tcl_lexer::Span::new(formal_start as u32, formal_start as u32 + 1);
+    let call_span = tcl_lexer::Span::new(call_start as u32, call_end as u32);
+    let read_source = "proc Configure {name} {proc $name {x} {return $x}}\nConfigure used\n";
+    let dynamic_source =
+        "proc Configure {name} {proc $name {x} {eval $::code}}\nConfigure delegated\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
         let reported = Analyser::new().analyse(source, dialect).diagnostics;
         let spans: Vec<_> = reported
@@ -2797,11 +2804,20 @@ fn a_materialised_child_carries_its_factory_call_span() {
             .filter(|d| d.code == DiagCode::W214 && d.message.contains("'::port'"))
             .map(|d| d.span)
             .collect();
-        assert_eq!(
-            spans,
-            [tcl_lexer::Span::new(call_start as u32, call_end as u32)],
+        assert!(
+            spans == [formal_span] || spans == [call_span],
             "{dialect}: {reported:?}"
         );
+        for (label, control) in [("read", read_source), ("dynamic eval", dynamic_source)] {
+            let reported = Analyser::new().analyse(control, dialect).diagnostics;
+            assert!(
+                !reported.iter().any(|d| {
+                    d.code == DiagCode::W214
+                        && (d.message.contains("'::used'") || d.message.contains("'::delegated'"))
+                }),
+                "{dialect}: {label}: {reported:?}"
+            );
+        }
     }
     prints_under_every_release(&format!("{source}puts [port ignored]\n"), "8080\n");
 }
