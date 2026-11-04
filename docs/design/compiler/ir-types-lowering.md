@@ -61,6 +61,15 @@ Statement::Call {
 The `defs` vector tells the SSA builder that `regexp` creates new definitions
 for `match` and `submatch`.
 
+CFG argument-evaluation and iteration-binding stages retain readable source
+command labels without dispatching that command again.
+`CommandTokens::may_dispatch_source_command` distinguishes these stages from
+possible handler invocations. Opaque-callee argument-name consumers use this
+typed distinction; they must not treat a loop binder as an argument passed to
+unknown code merely because its original command is unavailable on a
+conditional source path. Word evaluation, substitution effects and ordinary
+opaque invocations keep their existing execution and SSA semantics.
+
 ### `Statement::Barrier` — analysis boundary
 
 Commands whose registry `arg_roles` mark an `ArgRole::Body` word that no

@@ -574,7 +574,11 @@ pub fn collect_positioned_opaque_callee_name_args(
     let mut out = HashSet::new();
     for block in cfg.blocks.values() {
         for (index, stmt) in block.statements.iter().enumerate() {
-            if !stmt.is_executable_invocation() {
+            if !stmt.is_executable_invocation()
+                || stmt
+                    .tokens()
+                    .is_some_and(|tokens| !tokens.may_dispatch_source_command())
+            {
                 continue;
             }
             let (Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. }) =

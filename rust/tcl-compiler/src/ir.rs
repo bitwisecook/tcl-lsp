@@ -932,6 +932,14 @@ impl CommandTokens {
         )
     }
 
+    /// Whether this stage may dispatch the source command's handler.
+    /// Argument evaluation and proved-name bookkeeping retain a command label
+    /// without invoking it. Their word effects remain independently executable.
+    #[must_use]
+    pub fn may_dispatch_source_command(&self) -> bool {
+        self.synthetic != Some(SyntheticMarker::EvaluatedArguments) && !self.carries_proved_names()
+    }
+
     /// Whether this boundary evaluates its written words. Residual wrapper
     /// boundaries refer to the argv already evaluated before entering phases.
     #[must_use]
