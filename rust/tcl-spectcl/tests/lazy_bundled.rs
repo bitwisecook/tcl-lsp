@@ -40,6 +40,23 @@ fn pack<'a>(set: &'a tcl_spectcl::PackSet, name: &str) -> &'a tcl_spectcl::Merge
 fn vendor_packs_load_manifest_only_until_an_environment_needs_them() {
     tcl_spectcl::demand::enable();
 
+    let source =
+        std::fs::read_to_string(specs().join("eda_xilinx.tclspec")).expect("bundled pack source");
+    let altered = source.replacen("AMD Xilinx Vivado", "AMD\r Xilinx Vivado", 1);
+    assert!(tcl_spectcl::demand::deferred("eda_xilinx.tclspec", &source).is_some());
+    for changed in [&altered, &source.replace('\n', "\r\n")] {
+        assert!(
+            tcl_spectcl::demand::deferred("eda_xilinx.tclspec", changed).is_none(),
+            "different source bytes must not use the shipped manifest"
+        );
+        let full = evaluate_pack_with(changed, &EvalOptions::default());
+        assert!(full.load_error.is_none(), "{:?}", full.notices);
+        assert!(
+            !full.commands.is_empty(),
+            "changed sources still load eagerly"
+        );
+    }
+
     let cold = tcl_spectcl::bundled::load_from(&specs());
     for merged in &cold.packs {
         assert!(
@@ -142,10 +159,43 @@ fn the_precompiled_manifests_describe_the_shipped_bytes() {
             "{} changed — run `cargo xtask gen-bundled-manifests`",
             row.file
         );
-        assert_eq!(
+        assert_ne!(
             row.source_hash,
             tcl_spectcl::demand::source_hash(&source.replace('\n', "\r\n")),
-            "line endings do not change the hash"
+            "different source bytes must not use the shipped manifest"
         );
+    }
+}
+
+#[test]
+fn bare_carriage_returns_are_pack_data_and_change_the_manifest_hash() {
+    use tcl_spectcl::demand::source_hash;
+
+    assert_ne!(
+        source_hash("first\r\nsecond\r\n"),
+        source_hash("first\nsecond\n")
+    );
+    assert_ne!(source_hash("first\rsecond"), source_hash("firstsecond"));
+    assert_ne!(source_hash("first\r"), source_hash("first"));
+    for data in ["left\rright", "left\r\nright"] {
+        let source =
+            format!("speclib carriage_data 2.0 {{display_name {{{data}}}; command demo {{}}}}");
+        let without = source.replace('\r', "");
+        for static_fast_path in [true, false] {
+            let options = EvalOptions {
+                static_fast_path,
+                ..EvalOptions::default()
+            };
+            let original = evaluate_pack_with(&source, &options);
+            let changed = evaluate_pack_with(&without, &options);
+            assert!(original.load_error.is_none(), "{:?}", original.notices);
+            assert!(changed.load_error.is_none(), "{:?}", changed.notices);
+            assert_eq!(original.display_name.as_deref(), Some(data));
+            assert_eq!(
+                changed.display_name.as_deref(),
+                Some(data.replace('\r', "").as_str())
+            );
+        }
+        assert_ne!(source_hash(&source), source_hash(&without));
     }
 }

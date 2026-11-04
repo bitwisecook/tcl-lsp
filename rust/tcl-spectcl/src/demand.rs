@@ -50,10 +50,9 @@ static DEMAND: RwLock<BTreeSet<&'static str>> = RwLock::new(BTreeSet::new());
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
-/// Turn deferral on for this process. A consumer that records what its
-/// documents need — the language server, the CLI — calls this before its first
-/// load; every other loader (a tool, a test, the MCP server) keeps evaluating
-/// every bundled pack, as it always has.
+/// Turn deferral on for this process. A consumer that records what its inputs
+/// need, such as the CLI, calls this before its first load. Other loaders keep
+/// evaluating every bundled pack.
 pub fn enable() {
     ENABLED.store(true, Ordering::Release);
 }
@@ -141,15 +140,11 @@ pub fn reset_for_tests() {
 }
 
 /// The hash a bundled manifest row records for its source, and the one a
-/// load compares against: `xxh3` of the bytes as shipped, carriage returns
-/// aside, so a checkout that converts line endings still matches.
+/// load compares against: `xxh3` of the exact source bytes. Line endings can
+/// occur inside literal values, so a translated checkout loads eagerly.
 #[must_use]
 pub fn source_hash(source: &str) -> u64 {
-    let mut hasher = xxhash_rust::xxh3::Xxh3::new();
-    for line in source.split('\r') {
-        hasher.update(line.as_bytes());
-    }
-    hasher.digest()
+    xxhash_rust::xxh3::xxh3_64(source.as_bytes())
 }
 
 /// Every package some deferrable bundled pack needs.

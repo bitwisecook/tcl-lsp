@@ -41,10 +41,11 @@
 //!
 //! ## What is cached
 //!
-//! Two tiers, one key. The key is [`crate::loader::EvalSnapshotKey`] —
+//! Both tiers use [`crate::loader::EvalSnapshotKey`] —
 //! content hash × vocabulary version × loader-eval version × provenance tier
-//! × workspace trust — stamped with this build ([`stamp_build`]); there is
-//! no second cache identity anywhere in the crate.
+//! × workspace trust — stamped with this build ([`stamp_build`]).
+//! The finished-pack tier also separates loads with and without an include
+//! provider. Segmentation does not depend on the provider.
 //!
 //! - **In memory**: the finished [`Pack`]. It cannot go to disk at all — a
 //!   resolved `CommandSpec` holds function pointers into this binary — so this
@@ -250,22 +251,24 @@ fn disabled() -> bool {
 /// pack cannot be written to disk at all — this tier is what makes a *second
 /// load in the same process* free, and the on-disk tier is what makes a second
 /// *process* cheap. Target-dependent packs (design E-R1) are never stored.
-static SNAPSHOT: LazyLock<Mutex<HashMap<EvalSnapshotKey, Pack>>> =
+// A provider-free load can drop an include without observing a resolver.
+// Its finished pack must never answer for an include-aware load.
+static SNAPSHOT: LazyLock<Mutex<HashMap<(EvalSnapshotKey, bool), Pack>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-fn snapshot_get(key: &EvalSnapshotKey) -> Option<Pack> {
+fn snapshot_get(key: &EvalSnapshotKey, include_provider: bool) -> Option<Pack> {
     SNAPSHOT
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .get(key)
+        .get(&(*key, include_provider))
         .cloned()
 }
 
-fn snapshot_put(key: EvalSnapshotKey, pack: &Pack) {
+fn snapshot_put(key: EvalSnapshotKey, include_provider: bool, pack: &Pack) {
     SNAPSHOT
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .insert(key, pack.clone());
+        .insert((key, include_provider), pack.clone());
 }
 
 /// Drop every in-memory snapshot. [`clear`] does this as part of clearing the
@@ -278,14 +281,14 @@ pub(crate) fn forget_snapshots() {
         .clear();
 }
 
-/// Whether one source's snapshot is currently held in memory — the observable
-/// face of the E-R1 cacheability downgrade, for tests.
+/// Whether a source's provider-free snapshot is held in memory — the
+/// observable face of the E-R1 cacheability downgrade, for tests.
 #[must_use]
 pub fn snapshot_memoised(source: &str, tier: Tier, trust: WorkspaceTrust) -> bool {
     SNAPSHOT
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .contains_key(&eval_snapshot_key(source, &options_for(tier, trust)))
+        .contains_key(&(eval_snapshot_key(source, &options_for(tier, trust)), false))
 }
 
 /// Load a pack source through both cache tiers.
@@ -305,12 +308,12 @@ pub fn evaluate_pack_cached(source: &str, tier: Tier, trust: WorkspaceTrust) -> 
         return crate::loader::evaluate_pack_with(source, &options);
     }
     let key = eval_snapshot_key(source, &options);
-    if let Some(hit) = snapshot_get(&key) {
+    if let Some(hit) = snapshot_get(&key, false) {
         return hit;
     }
     let pack = through_disk(&key, || crate::loader::evaluate_pack_with(source, &options));
     if !pack.target_dependent {
-        snapshot_put(key, &pack);
+        snapshot_put(key, false, &pack);
     }
     pack
 }
@@ -355,7 +358,7 @@ pub fn evaluate_pack_including_with(
         return crate::loader::evaluate_pack_in(source, &options, Some(Rc::clone(include)));
     }
     let key = eval_snapshot_key(source, &options);
-    if let Some(hit) = snapshot_get(&key) {
+    if let Some(hit) = snapshot_get(&key, true) {
         return hit;
     }
     let reads_before = include.reads();
@@ -363,7 +366,7 @@ pub fn evaluate_pack_including_with(
         crate::loader::evaluate_pack_in(source, &options, Some(Rc::clone(include)))
     });
     if include.reads() == reads_before && !pack.target_dependent {
-        snapshot_put(key, &pack);
+        snapshot_put(key, true, &pack);
     }
     pack
 }
@@ -1101,6 +1104,73 @@ speclib mylib 1 {
         );
         assert_eq!(shape(&loaded), shape(&crate::loader::evaluate_pack(SOURCE)));
         assert!(cache.entries().is_empty(), "nothing was written");
+    }
+
+    #[test]
+    fn provider_free_snapshots_never_suppress_actual_includes() {
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cache = CacheDir::new("include-domain");
+        let source = "speclib domains 2.0 {command before {}; include child; command after {}}";
+        let tier = Tier::Workspace;
+        let trust = WorkspaceTrust::Trusted;
+        let without = evaluate_pack_cached(source, tier, trust);
+        assert!(
+            without
+                .notices
+                .iter()
+                .any(|notice| notice.message.contains("needs a pack search path"))
+        );
+        assert!(snapshot_memoised(source, tier, trust));
+
+        let root = cache.0.join("root.tclspec");
+        let child = cache.0.join("child");
+        std::fs::create_dir_all(&cache.0).expect("include directory");
+        std::fs::write(&child, "command included {}").expect("include source");
+        let include = Rc::new(IncludeContext::for_file(&root));
+        let load = || evaluate_pack_including(source, tier, trust, &include);
+        let included = load();
+        assert!(included.notices.is_empty(), "{:?}", included.notices);
+        assert_eq!(
+            included
+                .commands
+                .iter()
+                .map(|command| command.spec.name)
+                .collect::<Vec<_>>(),
+            ["before", "included", "after"]
+        );
+        assert_eq!(include.reads(), 1);
+        std::fs::write(&child, "command edited {}").expect("edited include source");
+        let edited = load();
+        assert_eq!(
+            edited
+                .commands
+                .iter()
+                .map(|command| command.spec.name)
+                .collect::<Vec<_>>(),
+            ["before", "edited", "after"]
+        );
+        assert_eq!(include.reads(), 2);
+        assert_eq!(
+            shape(&without),
+            shape(&evaluate_pack_cached(source, tier, trust))
+        );
+
+        let independent = "speclib independent_domains 2.0 {command independent {}}";
+        for include_provider in [false, true] {
+            let load = || {
+                if include_provider {
+                    evaluate_pack_including(independent, tier, trust, &include)
+                } else {
+                    evaluate_pack_cached(independent, tier, trust)
+                }
+            };
+            let first = load();
+            let warm = load();
+            assert!(std::ptr::eq(first.commands[0].spec, warm.commands[0].spec));
+        }
+        assert_eq!(include.reads(), 2, "source-only snapshots read no includes");
     }
 
     #[test]

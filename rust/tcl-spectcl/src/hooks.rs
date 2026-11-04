@@ -613,13 +613,10 @@ fn bind_option(options: &mut [OptionSpec], name: &str, slot: HookSlot) {
 
 // The per-thread host
 
-/// The plan a thread should be serving, and a generation to notice a change
-/// by. Generation `0` means "no pack hooks have ever been published", which is
-/// the one state [`ensure_thread_host`] answers with a single relaxed load.
-static GENERATION: AtomicU64 = AtomicU64::new(0);
+/// One coherent publication: generation in the upper bits, empty-plan flag
+/// in bit zero. Zero means no pack hooks have ever been published.
+static PUBLICATION: AtomicU64 = AtomicU64::new(0);
 static PUBLISHED: Mutex<Option<Arc<HookPlan>>> = Mutex::new(None);
-/// Whether the plan at [`GENERATION`] is empty, readable without the lock.
-static PUBLISHED_EMPTY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 thread_local! {
     /// The generation this thread's installed host was built from.
@@ -646,9 +643,10 @@ pub fn publish(packs: &PackSet) {
         // zero so an unaccelerated process never pays for the check.
         return;
     }
-    PUBLISHED_EMPTY.store(plan.is_empty(), Ordering::Release);
+    let generation = (PUBLICATION.load(Ordering::Relaxed) >> 1).wrapping_add(1);
+    let publication = (generation << 1) | u64::from(plan.is_empty());
     *published = Some(plan);
-    GENERATION.fetch_add(1, Ordering::Release);
+    PUBLICATION.store(publication, Ordering::Release);
     // A new plan is new evaluators for every thread that serves it: a memo
     // shared between threads re-keys on the process's evaluator epoch.
     pack_hooks::advance_evaluator_epoch();
@@ -665,11 +663,15 @@ pub fn publish(packs: &PackSet) {
 /// anything: the generation question compilation asks on every unit does not
 /// need a VM, only the hook calls do.
 fn pending_thread_host() -> pack_hooks::PendingHost {
-    let generation = GENERATION.load(Ordering::Acquire);
+    pending_thread_host_at(PUBLICATION.load(Ordering::Acquire))
+}
+
+fn pending_thread_host_at(publication: u64) -> pack_hooks::PendingHost {
+    let generation = publication >> 1;
     if generation == 0 || INSTALLED.with(std::cell::Cell::get) == generation {
         return pack_hooks::PendingHost::Current;
     }
-    if PUBLISHED_EMPTY.load(Ordering::Acquire) {
+    if publication & 1 != 0 {
         pack_hooks::PendingHost::Cleared
     } else {
         pack_hooks::PendingHost::Plan(generation)
@@ -684,16 +686,21 @@ fn pending_thread_host() -> pack_hooks::PendingHost {
 /// build itself — one sandboxed VM per pack — happens on a thread's first call
 /// after a publish, and again after a pack edit changes the plan.
 pub fn ensure_thread_host() {
-    let generation = GENERATION.load(Ordering::Acquire);
+    ensure_thread_host_with(|| {});
+}
+
+fn ensure_thread_host_with(before_snapshot: impl FnOnce()) {
+    let generation = PUBLICATION.load(Ordering::Acquire) >> 1;
     if generation == 0 || INSTALLED.with(std::cell::Cell::get) == generation {
         return;
     }
-    let plan = {
+    before_snapshot();
+    let (plan, generation) = {
         let published = match PUBLISHED.lock() {
             Ok(published) => published,
             Err(poisoned) => poisoned.into_inner(),
         };
-        published.clone()
+        (published.clone(), PUBLICATION.load(Ordering::Acquire) >> 1)
     };
     let Some(plan) = plan else {
         return;
@@ -850,6 +857,69 @@ speclib hooked 1 {
         publish(&PackSet::default());
         advance_send.send(()).unwrap();
         worker.join().expect("actual worker finished");
+    }
+
+    #[test]
+    fn publication_reads_keep_plan_emptiness_and_host_generation_coherent() {
+        let _cache = cache_guard();
+        let first = pack_set("coherent-publication", SOURCE);
+        publish(&first);
+        let old_publication = PUBLICATION.load(Ordering::Acquire);
+        let (ready_send, ready_receive) = std::sync::mpsc::channel();
+        let (advance_send, advance_receive) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            assert_eq!(
+                pending_thread_host_at(old_publication),
+                pack_hooks::PendingHost::Plan(old_publication >> 1)
+            );
+            ensure_thread_host_with(|| {
+                ready_send.send(()).unwrap();
+                advance_receive
+                    .recv_timeout(std::time::Duration::from_secs(30))
+                    .unwrap();
+            });
+            assert_eq!(
+                INSTALLED.with(std::cell::Cell::get),
+                PUBLICATION.load(Ordering::Acquire) >> 1,
+                "a plan acquired after publication must carry that publication's generation"
+            );
+            assert_eq!(pending_thread_host(), pack_hooks::PendingHost::Current);
+            let plan = {
+                let published = PUBLISHED.lock().unwrap();
+                Arc::clone(published.as_ref().unwrap())
+            };
+            let slot = plan.packs()[0].programs[0].slot.unwrap();
+            assert_eq!(
+                pack_hooks::const_fold_fn(slot).unwrap()(&["abc"]),
+                Some("99".to_owned())
+            );
+            pack_hooks::clear_host();
+        });
+        ready_receive
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .unwrap();
+        let changed = SOURCE.replace("fold [string length [lindex $words 0]]", "fold 99");
+        let second = pack_set("coherent-publication", &changed);
+        publish(&second);
+        advance_send.send(()).unwrap();
+        worker.join().expect("publication worker finished");
+
+        publish(&PackSet::default());
+        std::thread::spawn(move || {
+            assert_eq!(
+                pending_thread_host_at(old_publication),
+                pack_hooks::PendingHost::Plan(old_publication >> 1),
+                "a captured generation retains its own emptiness after publication"
+            );
+            assert_eq!(pending_thread_host(), pack_hooks::PendingHost::Cleared);
+            ensure_thread_host();
+            assert_eq!(
+                pack_hooks::evaluator_generation(),
+                tcl_registry::value_transfer::EvaluatorGeneration::NO_HOST
+            );
+        })
+        .join()
+        .expect("empty publication worker finished");
     }
 
     #[test]
