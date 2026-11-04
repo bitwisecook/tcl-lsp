@@ -3516,6 +3516,73 @@ mod tests {
         assert_confined_random_generator();
     }
 
+    fn authored_random_engine() -> TclVmEngine {
+        let mut engine = TclVmEngine::new();
+        engine.set_release("f5-irules").expect("logical F5 release");
+        let vm = engine.vm_mut();
+        assert!(vm.set_logical_eval_object_provider(
+            tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_source_word_provider(
+            tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_expression_parse_provider(
+            tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_quote_provider(
+            tcl_registry::invocation_words::LogicalExpressionQuoteProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_numeric_provider(
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
+        ));
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        ));
+        assert!(vm.set_logical_compiled_variable_provider(
+            tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
+        ));
+        assert!(vm.set_logical_math_function_provider(Some(
+            tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider::Tcl84Core,
+        )));
+        engine
+    }
+
+    #[test]
+    fn logical_random_release_requires_its_actual_or_authored_expression_issuer() {
+        use tcl_runtime_api::{NativeCompilationAdmissionError, NativeExecutionError};
+        for release in ["tcl8.4", "f5-irules"] {
+            for body in ["expr {srand(7)}", "expr {rand()}"] {
+                let mut engine = TclVmEngine::new();
+                engine.set_release(release).unwrap();
+                engine.confine_stores().unwrap();
+                let handle = engine
+                    .compile(unit(body))
+                    .expect("declaration compiles lazily");
+                let error = engine
+                    .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+                    .unwrap_err();
+                assert_eq!(
+                    error.native_execution_failure(),
+                    Some(&NativeExecutionError::CompilationAdmission(
+                        NativeCompilationAdmissionError::NativePreflightRequired,
+                    ),)
+                );
+            }
+        }
+        let mut engine = authored_random_engine();
+        assert!(engine.vm_mut().set_logical_math_function_provider(None));
+        let handle = engine.compile(unit("expr {rand()}")).unwrap();
+        let error = engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .unwrap_err();
+        assert_eq!(
+            error.native_execution_failure(),
+            Some(&NativeExecutionError::CompilationAdmission(
+                NativeCompilationAdmissionError::NativePreflightRequired,
+            ),)
+        );
+    }
+
     fn assert_confined_random_generator() {
         let arguments = [Value::list([]), Value::dict_of::<&str>([])];
         // The `rand()` generator's seed is interpreter state every
@@ -3525,10 +3592,13 @@ mod tests {
         // `expr` builtins no command restriction removes.
         for release in [None, Some("tcl8.4"), Some("f5-irules")] {
             for body in ["expr {srand(7)}", "expr {rand()}"] {
-                let mut engine = TclVmEngine::new();
-                if let Some(release) = release {
-                    engine.set_release(release).expect("pins");
-                }
+                let mut engine = match release {
+                    Some("tcl8.4") => TclVmEngine::for_native_release("tcl8.4")
+                        .expect("actual C8.4 fixed-table issuer"),
+                    Some("f5-irules") => authored_random_engine(),
+                    None => TclVmEngine::new(),
+                    Some(_) => unreachable!("fixed release control"),
+                };
                 engine.confine_stores().expect("the VM confines its stores");
                 let handle = engine.compile(unit(body)).expect("compiles");
                 let answer = engine.invoke(&handle, &arguments);

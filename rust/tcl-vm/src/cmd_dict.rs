@@ -1424,26 +1424,29 @@ mod tests {
                 .unwrap_or_else(|_| panic!("link"));
             vm.set_var("local_dictionary", Value::string("k local"))
                 .unwrap();
+            vm.set_var("d", Value::dict(Vec::new())).unwrap();
+            vm.register("missing_key_update", cmd_dict_update);
             vm.set_stores_confined(confined);
             let inner = vm.current_level();
-            let root = Value::dict(Vec::new());
             for target in ["alias", "dictionary_alias(k)"] {
-                let original_names =
-                    crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
-                        .unwrap();
-                let result = populate_dictionary_update_variables(
-                    &mut vm,
-                    &original_names,
-                    &root,
-                    &[Value::string("k"), Value::string(target)],
-                );
-                original_names.finish(&mut vm).unwrap();
+                // The entered original Jim script supplies the independently owned
+                // source context required by the production dictionary worker.
+                let result = vm
+                    .try_eval_source(&format!("missing_key_update d k {target} {{}}"))
+                    .unwrap();
                 assert_eq!(vm.current_level(), inner);
                 if confined {
-                    assert!(result.is_err(), "{target}");
+                    assert_eq!(result.code, Code::Error, "{target}");
+                    assert!(
+                        result
+                            .result
+                            .to_str()
+                            .contains("stores are confined to the activation")
+                    );
                 } else {
-                    result.unwrap();
+                    assert_eq!(result.code, Code::Ok, "{target}: {result:?}");
                 }
+                assert!(vm.refused_completion().is_none());
             }
             if confined {
                 assert_eq!(
@@ -1468,17 +1471,12 @@ mod tests {
                 );
             }
             for target in ["absent", "local_dictionary(k)", "local_dictionary(missing)"] {
-                let original_names =
-                    crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(&mut vm)
-                        .unwrap();
-                populate_dictionary_update_variables(
-                    &mut vm,
-                    &original_names,
-                    &root,
-                    &[Value::string("k"), Value::string(target)],
-                )
-                .unwrap();
-                original_names.finish(&mut vm).unwrap();
+                let result = vm
+                    .try_eval_source(&format!("missing_key_update d k {target} {{}}"))
+                    .unwrap();
+                assert_eq!(result.code, Code::Ok, "{target}: {result:?}");
+                assert_eq!(vm.current_level(), inner);
+                assert!(vm.refused_completion().is_none());
             }
             assert_eq!(
                 vm.get_var("local_dictionary").unwrap().to_str().as_ref(),

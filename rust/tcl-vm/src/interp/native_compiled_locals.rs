@@ -746,6 +746,53 @@ mod tests {
     use tcl_runtime_api::Code;
     use tcl_syntax::value::ValueOps;
 
+    #[test]
+    fn confined_capture_retains_the_selected_duplicate_slot_and_checks_rebinding() {
+        let mut vm =
+            crate::native_fixture::core(tcl_dialect::DialectProfile::find("tcl9.0").unwrap());
+        vm.push_call_frame(Some("p".into()), Vec::new());
+        vm.install_compiled_local_slots(&[NameBytes::from("x"), NameBytes::from("x")])
+            .unwrap();
+        vm.bind_compiled_formal_slot(0, Value::string("FIRST"))
+            .unwrap();
+        vm.bind_compiled_formal_slot(1, Value::string("SECOND"))
+            .unwrap();
+        vm.set_stores_confined(true);
+        let (name, captured) = vm.capture_compiled_update(1, None).unwrap();
+        vm.store_captured_update(name.as_bytes(), None, &captured, Value::string("UPDATED"))
+            .unwrap();
+        assert_eq!(
+            vm.read_compiled_variable_result(0, None).unwrap().to_str(),
+            "FIRST"
+        );
+        assert_eq!(
+            vm.read_compiled_variable_result(1, None).unwrap().to_str(),
+            "UPDATED"
+        );
+        vm.set_stores_confined(false);
+        vm.set_var("::outside", Value::string("GLOBAL")).unwrap();
+        let outside = vm
+            .resolve_var_from_bytes(b"::outside", vm.current_level())
+            .unwrap()
+            .id
+            .unwrap();
+        let raw = vm.raw_variable_binding(&captured.binding).unwrap();
+        vm.var_arena.replace_state(raw, Local::Link(outside));
+        vm.set_stores_confined(true);
+        let error = vm
+            .store_captured_update(name.as_bytes(), None, &captured, Value::string("BAD"))
+            .unwrap_err();
+        assert_eq!(error.code, Code::Error);
+        assert!(
+            error
+                .result
+                .to_str()
+                .contains("stores are confined to the activation")
+        );
+        assert_eq!(vm.get_var("::outside").unwrap().to_str(), "GLOBAL");
+        assert!(vm.refused_completion().is_none());
+    }
+
     fn unhex(text: &str) -> Vec<u8> {
         assert!(text.len().is_multiple_of(2));
         text.as_bytes()

@@ -99,6 +99,10 @@ impl Vm {
         if self.authored_math_provider().is_none() {
             return self.refuse_host_command("authored random provider is unavailable".into());
         }
+        if let Err(refused) = self.confine_generator(if seed.is_some() { "srand" } else { "rand" })
+        {
+            return refused;
+        }
         let next_seed = if let Some(value) = seed {
             let Some(simulation) = self
                 .authored_numeric_context()
@@ -225,6 +229,35 @@ mod tests {
         let completion = vm.try_eval_expr(source).unwrap();
         assert_eq!(completion.code, Code::Ok, "{source}");
         completion.result.try_to_str().unwrap().to_string()
+    }
+
+    #[test]
+    fn confined_authored_random_preserves_its_seed_and_unconfined_stream() {
+        let mut vm = simulation(Rc::new(std::cell::RefCell::new(Vec::new())));
+        let mut control = simulation(Rc::new(std::cell::RefCell::new(Vec::new())));
+        assert_eq!(
+            expression(&mut vm, "srand(7)"),
+            expression(&mut control, "srand(7)")
+        );
+        let seed = vm.authored_math.as_ref().unwrap().seed;
+        vm.set_stores_confined(true);
+        for source in ["srand(9)", "srand(wrong)", "rand()"] {
+            let completion = vm.try_eval_expr(source).unwrap();
+            assert_eq!(completion.code, Code::Error, "{source}");
+            assert!(
+                completion
+                    .result
+                    .to_str()
+                    .contains("stores are confined to the activation")
+            );
+            assert_eq!(vm.authored_math.as_ref().unwrap().seed, seed, "{source}");
+            assert!(vm.refused_completion().is_none());
+        }
+        vm.set_stores_confined(false);
+        assert_eq!(
+            expression(&mut vm, "rand()"),
+            expression(&mut control, "rand()")
+        );
     }
 
     #[test]

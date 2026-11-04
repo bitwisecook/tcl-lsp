@@ -2173,6 +2173,7 @@ impl VarTraceCell {
 
 /// One captured update retains the selected cell and its actual namespace owner.
 struct CapturedVariableUpdate {
+    binding: VarBinding,
     cell: VarTraceCell,
     explicit_array: Option<VarId>,
     namespace: Option<NsId>,
@@ -22433,6 +22434,7 @@ impl Vm {
             .get(owner_id)
             .and_then(crate::vars::VarCell::namespace_owner);
         Ok(CapturedVariableUpdate {
+            binding: resolved.binding.clone(),
             explicit_array: resolved
                 .elem
                 .is_some()
@@ -22697,6 +22699,26 @@ impl Vm {
         )
     }
 
+    fn check_confined_captured_update(
+        &mut self,
+        name: &[u8],
+        captured: &CapturedVariableUpdate,
+    ) -> Result<(), Completion<Value>> {
+        if !self.limits.confined_stores {
+            return Ok(());
+        }
+        self.confine_store_binding_bytes(name, &captured.binding, self.current_level(), false)?;
+        let current = self.resolve_binding_var(
+            captured.binding.clone(),
+            captured.cell.elem.clone(),
+            &mut HashSet::new(),
+        );
+        if current.and_then(|resolved| resolved.id) != captured.cell.id {
+            return Err(self.refuse_host_command("confined captured variable changed".into()));
+        }
+        Ok(())
+    }
+
     fn store_captured_update_with_original_and_errors(
         &mut self,
         name: &[u8],
@@ -22731,19 +22753,7 @@ impl Vm {
             checked?;
             let cell = &captured.cell;
             let id = cell.id.expect("captured update cell");
-            if self.limits.confined_stores {
-                self.confine_store_bytes(name, self.current_level(), false)?;
-                let current = if key.is_some() {
-                    self.resolve_var_parts_from_bytes(name, key, self.current_level())
-                } else {
-                    self.resolve_var_from_bytes(name, self.current_level())
-                };
-                if current.and_then(|resolved| resolved.id) != Some(id) {
-                    return Err(
-                        self.refuse_host_command("confined captured variable changed".into())
-                    );
-                }
-            }
+            self.check_confined_captured_update(name, captured)?;
             let _ = self.var_arena.replace_state(id, Local::Scalar(value));
             scope
                 .check(self)
