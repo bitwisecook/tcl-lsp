@@ -5,6 +5,7 @@
 //! Negative source-schema evidence for an unchanged standalone structural walk.
 
 use super::{OriginalSourceRegistryContext, original_single_source_command_substitution_in_plan};
+use std::{collections::BTreeMap, sync::Arc};
 use tcl_lexer::{NativeScriptCommandWords, NativeScriptWordsPlan, NativeWord, Span, TokenType};
 
 const MAX_COMMANDS: usize = 4096;
@@ -17,15 +18,16 @@ const MAX_DEPTH: usize = 32;
 pub struct OriginalStandaloneSchemaAbstentions<'a> {
     source: &'a OriginalSourceRegistryContext,
     plan: NativeScriptWordsPlan,
+    missing_roots: BTreeMap<u32, OriginalStandaloneSchemaAbstention<'a>>,
 }
 
 /// The structural walk cannot enrich this complete original command's source
 /// schema. This is not absence of a runtime command, callback, variable read,
 /// lookup alternative, entered frame or source effect.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OriginalStandaloneSchemaAbstention<'a> {
     source: &'a OriginalSourceRegistryContext,
-    original: Vec<NativeWord>,
+    original: Arc<[NativeWord]>,
 }
 
 /// Exact written elements returned if the unchanged standalone structural
@@ -108,10 +110,24 @@ impl OriginalSourceRegistryContext {
             return None;
         }
         let context = input.borrowed_context_registry();
-        let survey = OriginalStandaloneSchemaAbstentions { source: self, plan };
-        for segment in segments {
+        let mut survey = OriginalStandaloneSchemaAbstentions {
+            source: self,
+            plan,
+            missing_roots: BTreeMap::new(),
+        };
+        for (ordinal, segment) in segments.into_iter().enumerate() {
             let Some(schema) = self.registration_words(&segment) else {
-                survey.at(segment.argv.first()?.span.start())?;
+                let offset = segment.argv.first()?.span.start();
+                let certificate = survey.at(offset)?;
+                let root = survey.plan.commands.get(ordinal)?;
+                if root.words.first()?.span().start() != offset
+                    || certificate.original_words() != root.words.as_slice()
+                {
+                    return None;
+                }
+                // Only complete receipts already issued for this immutable
+                // preflight's roots are retained, at most one per plan row.
+                survey.missing_roots.insert(offset, certificate);
                 continue;
             };
             let closed = schema.with_source_schema(context, |selected| {
@@ -242,8 +258,13 @@ impl<'a> OriginalStandaloneSchemaAbstentions<'a> {
 
     /// The full consumer's additional metadata requires original catalogue
     /// observations even if its walker supplies a source namespace separately.
+    /// Successful root receipts from this same immutable preflight are reused;
+    /// other offsets retain the complete original issuer checks.
     #[must_use]
     pub fn at(&self, offset: u32) -> Option<OriginalStandaloneSchemaAbstention<'a>> {
+        if let Some(certificate) = self.missing_roots.get(&offset) {
+            return Some(certificate.clone());
+        }
         let StandaloneOriginalQuery {
             segment,
             tokens,
@@ -285,7 +306,7 @@ impl<'a> OriginalStandaloneSchemaAbstentions<'a> {
         // outside every body word; sibling extents are disjoint.
         Some(OriginalStandaloneSchemaAbstention {
             source: self.source,
-            original,
+            original: original.into(),
         })
     }
 }
@@ -417,6 +438,98 @@ mod tests {
             config,
         );
         OriginalSourceRegistryContext::capture_standalone_structure(source, input)
+    }
+
+    #[test]
+    fn preflight_reuses_only_issued_missing_root_receipts() {
+        let source = format!("{TWO_ROWS}set auto_index(c) [list source [file join $dir c.tcl]]\n");
+        let owner = context(&source, tcl_dialect::TclVersion::V8_6);
+        let survey = owner.standalone_schema_abstentions().unwrap();
+        let roots = &survey.plan.commands;
+        let missing: Vec<_> = roots[1..]
+            .iter()
+            .map(|root| root.words[0].span().start())
+            .collect();
+        assert_eq!(
+            survey.missing_roots.keys().copied().collect::<Vec<_>>(),
+            missing
+        );
+        assert!(survey.missing_roots.len() <= survey.plan.commands.len());
+        assert!(survey.plan.commands.len() <= MAX_COMMANDS);
+        assert!(survey.at(roots[0].words[0].span().start()).is_none());
+        let full = Analyser::new()
+            .with_resolved_input(owner.editing_input().clone())
+            .structure_only()
+            .analyse(&source, "tcl8.6");
+        for offset in missing {
+            let retained = &survey.missing_roots[&offset];
+            let first = survey.at(offset).unwrap();
+            let repeated = survey.at(offset).unwrap();
+            assert!(Arc::ptr_eq(&retained.original, &first.original));
+            assert!(Arc::ptr_eq(&first.original, &repeated.original));
+            assert!(repeated.matches_source_context(&source, &owner));
+            assert!(source_registry_words_at(&source, &full, offset).is_none());
+        }
+        let nested = u32::try_from(
+            source.find("set auto_index(b) [list").unwrap() + "set auto_index(b) [".len(),
+        )
+        .unwrap();
+        let first = survey.at(nested).unwrap();
+        let repeated = survey.at(nested).unwrap();
+        assert!(!Arc::ptr_eq(&first.original, &repeated.original));
+        assert!(!survey.missing_roots.contains_key(&nested));
+        assert!(survey.at(nested + 1).is_none());
+        assert_eq!(survey.missing_roots.len(), 2);
+    }
+
+    #[test]
+    fn retained_root_receipt_rejects_changed_capture_axes() {
+        let owner = context(TWO_ROWS, tcl_dialect::TclVersion::V8_6);
+        let survey = owner.standalone_schema_abstentions().unwrap();
+        let offset = survey.plan.commands[1].words[0].span().start();
+        let receipt = survey.at(offset).unwrap();
+        assert!(Arc::ptr_eq(
+            &receipt.original,
+            &survey.missing_roots[&offset].original
+        ));
+        assert!(!receipt.matches_source_context(&format!("{TWO_ROWS}# changed"), &owner));
+        let input = owner.editing_input();
+        let profile = input.unit_profile();
+        let base = input.context_registry();
+        let mut config = input.lexer_config();
+        config.strict_quoting = !config.strict_quoting;
+        let mut registry = base.commands().project_for_profile(profile);
+        registry.insert(tcl_registry::CommandSpec {
+            name: "root_receipt_foreign_surface",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let changed_store = Arc::new(base.with_command_store(Arc::new(registry)));
+        assert_ne!(
+            changed_store.commands().snapshot().semantic_key(),
+            base.commands().snapshot().semantic_key()
+        );
+        let changed_provider = Arc::new(
+            tcl_registry::model::ingress::static_context_for("tk")
+                .with_command_store(Arc::clone(base.commands())),
+        );
+        assert!(Arc::ptr_eq(changed_provider.commands(), base.commands()));
+        assert_ne!(changed_provider.context(), base.context());
+        for changed in [
+            ResolvedAnalysisInput::new(profile, profile, Arc::clone(&base), config),
+            ResolvedAnalysisInput::new(profile, profile, changed_store, input.lexer_config()),
+            ResolvedAnalysisInput::new(profile, profile, changed_provider, input.lexer_config()),
+        ] {
+            assert_ne!(&changed, input);
+            let replacement =
+                OriginalSourceRegistryContext::capture_standalone_structure(TWO_ROWS, changed);
+            assert!(!receipt.matches_source_context(TWO_ROWS, &replacement));
+        }
+        let realm = context(TWO_ROWS, tcl_dialect::TclVersion::V8_6);
+        assert_eq!(realm.editing_input(), input);
+        assert!(!receipt.matches_source_context(TWO_ROWS, &realm));
+        let general = OriginalSourceRegistryContext::capture(TWO_ROWS, input.clone());
+        assert!(general.standalone_schema_abstentions().is_none());
+        assert!(!receipt.matches_source_context(TWO_ROWS, &general));
     }
 
     #[test]

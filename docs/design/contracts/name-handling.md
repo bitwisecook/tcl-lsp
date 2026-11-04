@@ -195,6 +195,10 @@ paths, unavailable proofs and mismatched receipts retain full analysis. The
 synchronous standalone caller retains one complete source/configuration/input
 snapshot throughout issue and use; general host publication/input currency stays
 independent.
+Successful missing-root receipts remain within their immutable survey, bounded
+by its original command plan. Repeated root queries reuse the complete issued
+receipt; the source, settings, input, realm and complete original word vector
+still have to match. Other offsets retain the full issuer path.
 
 Source-view hover rejoins the exact retained procedure declaration and every
 physical ancestor before rendering. Source schema, selected root-special-variable

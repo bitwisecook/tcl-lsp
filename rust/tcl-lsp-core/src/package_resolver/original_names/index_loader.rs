@@ -1039,6 +1039,59 @@ mod abstention_tests {
     }
 
     #[test]
+    fn reused_root_abstention_keeps_the_complete_current_word_vector() {
+        let source = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\n";
+        let context = source_context(source, tcl_dialect::TclVersion::V8_6);
+        let config = context.editing_input().lexer_config();
+        let plan = tcl_lexer::native_script_words_in(
+            SourceImage::document(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let query = IndexLoader::from_source_context(source, &context).unwrap();
+        let root = &plan.commands[1].words;
+        for _ in 0..2 {
+            let receipt = query
+                .registration_abstention(root)
+                .expect("same immutable missing-root prerequisite");
+            assert_eq!(receipt.original_words(), root.as_slice());
+            assert!(receipt.matches_source_context(source, &context));
+        }
+        assert!(
+            query
+                .registration_abstention(&plan.commands[0].words)
+                .is_none()
+        );
+        let mut changed = root.to_vec();
+        changed[2] = plan.commands[0].words[2].clone();
+        assert_eq!(changed[0], root[0]);
+        assert!(query.registration_abstention(&changed).is_none());
+        assert!(query.registration_abstention(&root[..2]).is_none());
+        let altered = format!("{source}# changed");
+        let mut changed_config = config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        for (image, config) in [
+            (SourceImage::document(&altered), config),
+            (SourceImage::document(source), changed_config),
+            (SourceImage::native(source.as_bytes()), config),
+        ] {
+            let changed = tcl_lexer::native_script_words_in(
+                image.clone(),
+                Span::new(0, u32::try_from(image.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            assert!(
+                query
+                    .registration_abstention(&changed.commands[1].words)
+                    .is_none()
+            );
+        }
+        assert!(query.registration_abstention(root).is_some());
+    }
+
+    #[test]
     fn invalid_layout_receipt_keeps_original_loader_and_directory() {
         let source = "set auto_index(a) [list source -encoding utf-8 [file join $dir a.tcl]]\nset auto_index(b) [list source -encoding utf-8 [file join $dir b.tcl]]\n";
         let context = source_context(source, tcl_dialect::TclVersion::V8_4);
