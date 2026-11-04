@@ -59,6 +59,12 @@ puts $x
 
 Wrap the expression in braces to prevent double substitution and enable byte-compilation.
 
+For a hexadecimal value assembled by substitution, such as `expr 0x$hex`,
+W100 also recommends `scan $hex %x value`. This form cannot be braced directly:
+`expr {0x$hex}` is invalid, so the bracing action is withheld. Review the
+conversion before replacing it: `scan` accepts a numeric prefix and signed
+values differently from the original expression.
+
 ## How to suppress
 
 Add `# noqa: W100` on the line **above** the offending command.

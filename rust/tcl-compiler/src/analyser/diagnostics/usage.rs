@@ -48,8 +48,8 @@ struct UnbracedSourceExpression {
     has_sub: bool,
     fix_inner: Option<String>,
     subject: crate::analyser::DiagnosticSubject,
-    /// The whole expression is `0x` glued to one substitution, which is
-    /// a hexadecimal string conversion `scan … %x` performs directly.
+    /// A hexadecimal prefix followed by one substitution warrants scan
+    /// advice, without proving an equivalent replacement for unknown text.
     hex_conversion: bool,
 }
 
@@ -390,7 +390,12 @@ Use braces: {{ \u{2026} }}"
                 })
             })
         });
-        let fix_inner = if argument == last {
+        let hex_conversion = argument == last && original_word_is_hex_conversion(word);
+        let fix_inner = if hex_conversion {
+            // A substituted hexadecimal suffix forms a number before expr
+            // parses it. Bracing leaves an invalid `0x` token before it.
+            None
+        } else if argument == last {
             word.content_span()
                 .ok()
                 .and_then(|content| self.source.get(content.as_range()))
@@ -404,7 +409,6 @@ Use braces: {{ \u{2026} }}"
         } else {
             None
         };
-        let hex_conversion = argument == last && original_word_is_hex_conversion(word);
         Some(UnbracedSourceExpression {
             span,
             text,
@@ -439,7 +443,7 @@ Use braces: {{ \u{2026} }}"
         };
         if hex_conversion {
             message.push_str(
-                " To convert a hexadecimal string to an integer, consider `scan $hex %x var`.",
+                " This conversion cannot be braced directly. To convert a hexadecimal string to an integer, consider `scan $hex %x var`.",
             );
         }
         let fixes = fix_inner
