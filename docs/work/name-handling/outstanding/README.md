@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 05:42 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for source-bound receipts.
+Updated 04 November 2026, 05:39 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for source-bound receipts.
 
 | Work | Open acceptance |
 | --- | --- |
