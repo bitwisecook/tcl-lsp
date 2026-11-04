@@ -2,7 +2,6 @@
 """Inventory R2286LBC chunk streams without accepting incomplete transcripts."""
 
 import argparse
-import hashlib
 import json
 import re
 from collections import defaultdict
@@ -86,9 +85,7 @@ for key, chunks in sorted(groups.items()):
             "missing_sequences": missing,
             "complete": complete,
             "assembled_bytes": len(assembled),
-            "assembled_sha256": hashlib.sha256(assembled).hexdigest()
-            if complete
-            else None,
+            "assembled_hex": assembled.hex() if complete else None,
         }
     )
 
