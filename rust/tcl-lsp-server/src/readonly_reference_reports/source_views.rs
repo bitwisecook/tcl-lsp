@@ -4121,7 +4121,7 @@ mod closed_source_child_ingress_tests {
         let db = backend.db.lock().await;
         let files = backend.db_files.lock().await;
         let file = files[&fixture.child];
-        assert_eq!(file, view.draft.physical.file);
+        assert!(file == view.draft.physical.file);
         assert_eq!(file.text(&*db), CHILD);
         assert_eq!(
             file.path(&*db).as_deref(),
@@ -4129,7 +4129,7 @@ mod closed_source_child_ingress_tests {
         );
         let paths = backend.source_path_admissions.lock().unwrap();
         let published = &paths[&fixture.child];
-        assert_eq!(published.file, file);
+        assert!(published.file == file);
         assert_eq!(
             published.admission.as_ref(),
             view.draft.physical.admission.as_ref()
