@@ -2363,6 +2363,7 @@ impl Analyser {
         self.emit_w300_source_variable(original);
         self.emit_w309_eval_subst_double_decode(original);
         self.emit_w301_uplevel_injection(original);
+        self.emit_w105_original_script_words(original);
         self.emit_w312_interp_eval_injection(original);
         self.emit_w303_redos(original);
     }

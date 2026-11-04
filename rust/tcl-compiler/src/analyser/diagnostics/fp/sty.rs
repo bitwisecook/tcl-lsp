@@ -800,6 +800,17 @@ fn fp_sty_14_prefixed_list_built_body_no_w105_2288() {
             codes(src, D)
         );
     }
+    for src in [
+        "package require Tk\nproc f {y} {bind .x <Destroy> \"puts $y\"}",
+        "proc f {c} {if {$c} \"puts $c\"}",
+        "fileevent $s readable +[list handler $s]$extra",
+    ] {
+        assert!(
+            fires(src, D, "W105"),
+            "an interpolated script word still fires; {src:?} emitted: {:?}",
+            codes(src, D)
+        );
+    }
 }
 
 #[test]

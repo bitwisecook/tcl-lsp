@@ -137,6 +137,15 @@ impl Analyser {
         if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
             return;
         }
+        // The source-schema pass and the body walk both reach a script word.
+        if self
+            .result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W105 && diagnostic.span == body_tok.span)
+        {
+            return;
+        }
         // A whole-word command-substitution body — `eval [list set y $x]`
         // (the recommended *safe* form), `uplevel [buildScript]` — is
         // produced dynamically and parsed once by the consumer: there is
@@ -218,6 +227,71 @@ Use braces: {{ \u{2026} }}"
                 safety: super::helpers::brace_wrap_fix_safety(trimmed, has_substitution),
             }]),
         );
+    }
+
+    /// W105 at the script positions the selected source schema declares.
+    /// This is source advice: it does not wait for the walk to prove the call
+    /// executes, which an unset operand or an unproven package withholds.
+    /// A concatenating command is judged by its first script word only.
+    pub(in crate::analyser) fn emit_w105_original_script_words(
+        &mut self,
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
+    ) {
+        let Some(original) = original else { return };
+        if !original.matches_analysis(&self.result, &self.source) {
+            return;
+        }
+        let Some((scripts, concatenates)) = original
+            .with_schema(|schema| {
+                let mut scripts = schema
+                    .authored_source_script_arguments()
+                    .unwrap_or_default();
+                // Clause-grammar bodies (`if`, `while`, `try`) sit in the plan.
+                // Advice reads a computed word as no keyword, the inert reading.
+                let plan = match schema.clause_walk() {
+                    Some(Ok(plan)) => Some(plan),
+                    Some(Err(abstention)) => Some(abstention.inert),
+                    None => None,
+                };
+                if let Some(plan) = plan {
+                    scripts.extend(plan.roles.iter().filter_map(|&(index, role)| {
+                        (role == tcl_registry::ArgRole::Body).then_some(index)
+                    }));
+                }
+                scripts.sort_unstable();
+                scripts.dedup();
+                (!scripts.is_empty()).then(|| {
+                    (
+                        scripts,
+                        schema
+                            .semantics
+                            .traits
+                            .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS),
+                    )
+                })
+            })
+            .flatten()
+        else {
+            return;
+        };
+        let Some((texts, tokens, single)) = original.source_arguments() else {
+            return;
+        };
+        let command = original.command().to_owned();
+        let count = if concatenates { 1 } else { scripts.len() };
+        for index in scripts.into_iter().take(count) {
+            let (Some(text), Some(&first), Some(&one), Some(word)) = (
+                texts.get(index),
+                tokens.get(index),
+                single.get(index),
+                original.word(index),
+            ) else {
+                continue;
+            };
+            // The whole written word, as the body walk reports it.
+            let token = tcl_lexer::Token::new(first.kind, word.span());
+            self.emit_w105_unbraced_body(&command, text, token, one);
+        }
     }
 
     /// A bare word that is one command substitution behind a literal,
