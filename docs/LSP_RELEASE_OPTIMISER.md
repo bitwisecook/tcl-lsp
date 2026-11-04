@@ -1,10 +1,11 @@
 # LSP optimiser release verification
 
-The current #2426 diagnostic-payload audit and the two pending typed parse-cut
+The current #2426 diagnostic-payload audit and the two verified typed parse-cut
 consumer fixes are recorded in
 [LSP_RELEASE_DIAGNOSTIC_PAYLOAD_AUDIT.md](LSP_RELEASE_DIAGNOSTIC_PAYLOAD_AUDIT.md).
 The audit is scoped to LSP/compiler consumers; it does not claim the full issue
-is fixed. Its candidate tests are prepared and await a compiler slot.
+is fixed. All seven exact compiler controls and production compiler Clippy
+passed; the remaining consumers and coverage gaps keep #2426 open.
 
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,

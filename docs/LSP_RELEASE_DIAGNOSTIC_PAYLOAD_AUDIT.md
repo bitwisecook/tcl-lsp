@@ -32,14 +32,14 @@ The existing owners are:
   original offsets. Parse kind already belongs to the lexer; recovery needs
   no diagnostic wrapper or new parser.
 
-## Residual semantic consumers
+## Semantic consumers at the audit source cut
 
 Locations below refer to the source cut above. Later edits may move lines.
 
-| Consumer | Current decision | Smallest safe candidate |
+| Consumer | Decision at the source cut | Remediation |
 |---|---|---|
-| `command_binding/incomplete_body_metadata.rs:85` | Matches `fatal.cut.message` to select a quote or brace and recover an incomplete procedure body. | Match existing `ParseCut.kind`; preserve independently checked source geometry and header words. Candidate prepared in this lane. |
-| `compile_service.rs:1124`, called at `1152` | Matches the guest error message to decide which opener a retained malformed-tail term must point at. | Keep the existing structured cut through both text and byte paths, and validate the term using its kind. Preserve message bytes in `FatalTail`. Candidate prepared in this lane. |
+| `command_binding/incomplete_body_metadata.rs:85` | Matches `fatal.cut.message` to select a quote or brace and recover an incomplete procedure body. | Fixed: match existing `ParseCut.kind`; preserve independently checked source geometry and header words. Focused controls passed. |
+| `compile_service.rs:1124`, called at `1152` | Matches the guest error message to decide which opener a retained malformed-tail term must point at. | Fixed: retain the existing structured cut through text and byte paths, and validate the term using its kind. Message bytes in `FatalTail` are preserved. Focused controls passed. |
 | `analyser/diagnostics/proven.rs:640–645` | Deduplicates written/proven index diagnostics using code, span and message, ignoring their retained subjects. | Define same-access identity from the existing registry diagnostic subject and relevant index operands; unsupported subjects must not be guessed from text. |
 | `optimiser/manager.rs:98–117`, then `optimiser/helpers/select.rs:50–80` | Sorts by message before stable overlap arbitration. Otherwise tied span/priority/length candidates inherit message order, which can select a different replacement. | Define a stable rewrite identity/order from the issued rewrite facts before presentation; retain group and overlap rules. Add a tied-candidate wording-change control. |
 | `optimiser/mod.rs:158–174` | `Optimisation` equality and hashing include message. | Separate semantic rewrite identity from whole rendered-row equality where consumers deduplicate; audit each equality use before changing the public comparison. |
@@ -48,9 +48,9 @@ Locations below refer to the source cut above. Later edits may move lines.
 | `tcl-lsp-core/src/refactor/extract_proc.rs:172–201` | Exported legacy helper derives a rename target by scanning `definition.new_text` for `proc ` and whitespace. | Retire/restrict the compatibility helper or require the existing current-analysis entry point. The live Core action path at `code_actions.rs:1985` already uses `extract_proc_rename_command_for_analysis`, with parsed source/name ownership. No in-repository caller of the legacy helper was found. |
 | `analyser/class_hierarchy.rs:976–1001` | Hierarchy error aggregation uses rendered strings, including `e.message`, as duplicate identity. | Retain the MRO owner's structured error kind and actual class subject before formatting. This is error-list aggregation, not name lookup from a message. |
 
-The incomplete-body candidate extracts a private helper so controls can pass a
+The incomplete-body fix extracts a private helper so controls can pass a
 real parser-issued cut with only its presentation changed. The malformed-tail
-candidate returns the existing `segmenter::SegmentedScript` from the lowering
+fix returns the existing `segmenter::SegmentedScript` from the lowering
 helper instead of discarding kind in a `(start, message, term)` tuple. The
 four consumers were checked: compiler service, Tcl 8.4 compile adapter, inline
 body emitter and empty-script codegen query. The two emitters still copy the
@@ -103,26 +103,32 @@ No maintained repository-wide presentation-parsing drift gate was identified
 in this scoped review. The inventory above does not substitute for that gate
 or the required serializer, opaque-name and family coverage tests.
 
-The two compiler candidates have fixed-input metamorphic controls for unchanged
-kind with changed/empty/quote-containing messages, and changed kind with
-unchanged messages. Existing native C8.4 parse-context fixtures are retained and
-now exercise the actual byte-plan entry point, including exact native text.
-The first compiler-lib no-run found one test adapter error (`&Vec<u8>` instead
-of a byte slice), corrected without a production change. The corrected no-run
-passed at `2197c67d0b2eb8330750460eb1f3e072a72effb9` plus the sealed local
-candidate. Seven exact tests then ran directly outside the build lock:
-**six passed, one failed, zero ignored**. The six passes include the complete
-six-environment incomplete-body message/kind control, all 26 C8.4 context rows,
-byte/text plan parity and three retained body-recovery/currency controls.
+The two compiler fixes passed their final compiler-lib no-run and production
+compiler Clippy (`-D warnings`) at frozen base
+`a6408fb3e42d3b903450c3dc78034a3cbf68c5aa` plus the five sealed source files.
+Seven exact tests then ran directly outside the build lock: **seven passed,
+zero failed, zero ignored**.
 
-The native-frame control's opaque `0xff` fixture incorrectly obtained its cut
-through the UTF-8-only segmenter and failed with unavailable source geometry.
-The fixture remains in place; test preparation now uses the actual
-`native_script_words_in` byte owner. That final test adapter correction is
-**not yet compiled or run**. The production candidate remains local pending
-the focused controls. Formatting, `git diff --check` and the 219-site literal
-include preflight pass. Targeted Clippy and full push gates remain unrun.
-Exact source hashes, the failed build and the 6/1 runtime record are retained
-in `/tmp/lsp-2426-evidence.json`; the runtime log is
-`/tmp/lsp-2426-first-focused-unit.log`. No issue comment or closure was made by
-this lane.
+| Focused test | Passing scope |
+|---|---|
+| `incomplete_body_recovery_uses_kind_independently_of_message` | 12 original cuts across Tcl 8.4–9.1 and Jim grammars, 36 changed-message controls and 36 changed-kind controls. |
+| `fatal_tail_geometry_uses_kind_independently_of_message` | Four original byte cuts, including opaque `0xff`, 20 changed-message controls and eight changed-kind controls. |
+| `fatal_tail_preserves_distinct_native_runtime_and_compilation_extents` | All 26 C8.4 native context fixture rows through the actual byte-plan service, including exact guest error text. |
+| `original_byte_command_plan_keeps_c84_compilation_tail_and_runtime_term` | Original byte cases and text/byte service parity wherever UTF-8 is available. |
+| `incomplete_original_body_prefix_has_grammar_without_a_complete_body` | Retained incomplete-body grammar and source/configuration/registry currency. |
+| `incomplete_original_braced_body_owns_geometry_without_a_complete_word` | Actual braced-body geometry and shadowed-command refusal. |
+| `incomplete_body_prefix_declines_outer_substitutions_and_successor_tables` | Substitution and successor-state refusal controls. |
+
+These are Rust implementation contracts and retained native C8.4 fixtures; no
+fresh interpreter execution comparison is claimed. The source seal, exact
+commands, seven results and unit binary hash are recorded in
+[the verification receipt](LSP_RELEASE_DIAGNOSTIC_PAYLOAD_RECEIPT_2026-11-04.json).
+Formatting, `git diff --check` and the 221-site literal include preflight pass.
+Full `rust-check` and `prep-pr` were not run in this lane.
+
+The initial test adapter type error and the first 6/1 run remain recorded in
+`/tmp/lsp-2426-evidence.json` and `/tmp/lsp-2426-first-focused-unit.log`. Both
+adapter corrections preserved all cases and assertions; the opaque fixture
+now uses the actual `native_script_words_in` byte owner. #2426 remains open
+for the residual consumers and acceptance gaps above. No issue comment or
+closure was made by this lane.

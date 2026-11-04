@@ -1,0 +1,143 @@
+{
+  "issue": 2426,
+  "issue_state": "open; partial compiler fix only",
+  "proof_kind": "Verified Rust implementation contracts plus retained native C8.4 context fixtures. No fresh native interpreter execution comparison claimed.",
+  "source_base": "a6408fb3e42d3b903450c3dc78034a3cbf68c5aa",
+  "verified_source_file_sha256": {
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": "4c9f86412a2e5b415e2606d8cdea1bc34b34b9488e4c2cc78b9602fc22f0d673",
+    "rust/tcl-compiler/src/compile_service.rs": "257f36322750ca142167e6ef2efb682a8ad3b3ed074a1f3de963dfc903d037e0",
+    "rust/tcl-compiler/src/lowering/mod.rs": "a9638d0dcbf43bb7a013b8fbf07bb1d69201128db529447f0129cc430f86ec01",
+    "rust/tcl-compiler/src/compile_84.rs": "2050541d0e0b16c6acec16b111b4486fcf23ee96d5374f02c5efb75451d31ac6",
+    "rust/tcl-compiler/src/codegen/control_flow.rs": "760c86ae0d187ae60a7ddb0e083509e2f7e812e8bceae9173db54ba8fa3a44e2"
+  },
+  "gates": [
+    {
+      "gate": "compiler_lib_no_run",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json-render-diagnostics"
+      ],
+      "exit_code": 0,
+      "seconds": 255.971,
+      "log": "/tmp/lsp-2426-compiler-unit-build.jsonl"
+    },
+    {
+      "gate": "production_compiler_clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 74.97,
+      "log": "/tmp/lsp-2426-production-clippy.log"
+    }
+  ],
+  "exact_tests": [
+    {
+      "name": "command_binding::incomplete_body_metadata::tests::incomplete_body_recovery_uses_kind_independently_of_message",
+      "exit_code": 0,
+      "seconds": 0.019,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "compile_service::tests::fatal_tail_geometry_uses_kind_independently_of_message",
+      "exit_code": 0,
+      "seconds": 0.009,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "compile_service::tests::fatal_tail_preserves_distinct_native_runtime_and_compilation_extents",
+      "exit_code": 0,
+      "seconds": 0.061,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "compile_service::tests::original_byte_command_plan_keeps_c84_compilation_tail_and_runtime_term",
+      "exit_code": 0,
+      "seconds": 0.066,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "command_binding::incomplete_body_metadata::tests::incomplete_original_body_prefix_has_grammar_without_a_complete_body",
+      "exit_code": 0,
+      "seconds": 0.168,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "command_binding::incomplete_body_metadata::tests::incomplete_original_braced_body_owns_geometry_without_a_complete_word",
+      "exit_code": 0,
+      "seconds": 0.688,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "name": "command_binding::incomplete_body_metadata::tests::incomplete_body_prefix_declines_outer_substitutions_and_successor_tables",
+      "exit_code": 0,
+      "seconds": 0.218,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "new_control_cases": {
+    "header": {
+      "source_grammar_pairs": 12,
+      "changed_messages": 36,
+      "changed_kinds": 36
+    },
+    "native_frame": {
+      "source_cuts": 4,
+      "changed_messages": 20,
+      "changed_kinds": 8
+    }
+  },
+  "unit_binary": {
+    "path": "/workspace/tcl-lsp/tmp/lsp-optimiser/target/debug/deps/tcl_compiler-1169709807dfb4a1",
+    "sha256": "b65a2ccc99c2e8f81d076736b0d53b04468eb9c66bfcc5f47f1cf908f06a1490",
+    "preserved_path": "/tmp/lsp-2426-final-unit-a6408fb3e.test",
+    "bytes": 334601528
+  },
+  "focused_log": "/tmp/lsp-2426-focused-unit.log",
+  "include_preflight": {
+    "literal_includes_checked": 221,
+    "missing": [],
+    "unresolved_count": 0,
+    "checker": "/tmp/lsp-include-preflight.py"
+  },
+  "formatting": "passed",
+  "diff_check": "passed",
+  "full_rust_check": "not run",
+  "full_prep_pr": "not run",
+  "scope_exclusions": [
+    "VM",
+    "runtime implementation",
+    "BIG-IP/F5-specific consumers",
+    "CLI tooling",
+    "Spec Studio"
+  ],
+  "prior_attempts": "Test-only Vec/slice type error and opaque-byte text-adapter failure retained in /tmp/lsp-2426-evidence.json; all cases/assertions preserved in final verified tests."
+}

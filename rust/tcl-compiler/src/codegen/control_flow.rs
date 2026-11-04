@@ -800,8 +800,8 @@ impl CodegenCtx<'_> {
             }
         }
 
-        if let Some((_, message, _)) = segmented.fatal_tail {
-            self.emit_script_parse_error(message.as_bytes());
+        if let Some(tail) = segmented.fatal_tail {
+            self.emit_script_parse_error(tail.cut.message.as_bytes());
         }
     }
 
