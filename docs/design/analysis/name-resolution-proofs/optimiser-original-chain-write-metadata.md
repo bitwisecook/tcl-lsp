@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `174757c1907ed9e6f6f83d27f088be0fb7c0bd4c31f7443580a02fa9c27038ae`. Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
-- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-optimiser-chain_fold.rs` (implementation): [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs). SHA-256 `59d8c2817f30fe47aa7b415a1fb3c36600c0f7bbb50242efb8ca6197bfda940b`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
+- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-optimiser-chain_fold.rs` (implementation): [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

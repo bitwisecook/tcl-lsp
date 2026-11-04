@@ -92,10 +92,10 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [runtime/rust/tests/data/native_dictionary_receiver/manifest.json](../../../../runtime/rust/tests/data/native_dictionary_receiver/manifest.json). SHA-256 `1afa14e52fbdcee3a122d13505f8ea0c4f66afa0eb7916b1cc6d17b0e93a9f99`. Original provider/version roster, count and observation boundary; build artifacts were not recorded.
-- `e1` (observation): [runtime/rust/tests/data/native_dictionary_receiver/controls.tsv](../../../../runtime/rust/tests/data/native_dictionary_receiver/controls.tsv). SHA-256 `6e8fd61d87f2f87ec975d4dd09d64f2f881388fe6b8539c0e547645361614df8`. Exact 18 hexadecimal source/result rows; no physical object/cache claim.
+- `e0` (provider): [runtime/rust/tests/data/native_dictionary_receiver/manifest.json](../../../../runtime/rust/tests/data/native_dictionary_receiver/manifest.json). Original provider/version roster, count and observation boundary; build artifacts were not recorded.
+- `e1` (observation): [runtime/rust/tests/data/native_dictionary_receiver/controls.tsv](../../../../runtime/rust/tests/data/native_dictionary_receiver/controls.tsv). Exact 18 hexadecimal source/result rows; no physical object/cache claim.
 
 ## Source inspection
 

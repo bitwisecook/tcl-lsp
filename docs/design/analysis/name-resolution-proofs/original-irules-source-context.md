@@ -66,12 +66,12 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
 
-## Exact evidence
+## Historical references
 
-- `source-when-implementation-0` (implementation): [rust/tcl-irules/src/source_context.rs](../../../../rust/tcl-irules/src/source_context.rs). SHA-256 `1111582c6d9129758c3c0a1d17e907ca996eb44c0e8901f3b8e7a990efaa4473`. Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-when-implementation-1` (implementation): [rust/tcl-irules/src/when_block.rs](../../../../rust/tcl-irules/src/when_block.rs). SHA-256 `ac0ff7730e46d7bf351eb16a925c5e04bc6e5df5b75674ac53b865d61f17a3a5`. Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-when-implementation-2` (implementation): [rust/tcl-irules/src/lib.rs](../../../../rust/tcl-irules/src/lib.rs). SHA-256 `7565c038a5e6e256ef75688120da30176df30cb680c331eaa678334f5460b0f8`. Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-when-implementation-3` (implementation): [rust/f5-cli/src/commands/explain.rs](../../../../rust/f5-cli/src/commands/explain.rs). SHA-256 `0784b3b31d1cd2153831b56ad114cebe535829c0a6e2209843782ee7e4502f55`. Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
+- `source-when-implementation-0` (implementation): [rust/tcl-irules/src/source_context.rs](../../../../rust/tcl-irules/src/source_context.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
+- `source-when-implementation-1` (implementation): [rust/tcl-irules/src/when_block.rs](../../../../rust/tcl-irules/src/when_block.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
+- `source-when-implementation-2` (implementation): [rust/tcl-irules/src/lib.rs](../../../../rust/tcl-irules/src/lib.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
+- `source-when-implementation-3` (implementation): [rust/f5-cli/src/commands/explain.rs](../../../../rust/f5-cli/src/commands/explain.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
 
 ## Source inspection
 

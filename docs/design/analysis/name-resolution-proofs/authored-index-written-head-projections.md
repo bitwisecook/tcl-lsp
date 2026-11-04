@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not applicable to this authored advisory projecti
 
 The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
 
-## Exact evidence
+## Historical references
 
-- `authored-index-source608-0` (implementation): [rust/tcl-lsp-core/src/package_resolver/reachability.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability.rs). SHA-256 `3b007f580b998d60e76a5bb8c107f93ae5c650d0dd4c670272f460ff22265753`. Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached.
-- `authored-index-source608-1` (implementation): [rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs). SHA-256 `bcd6de2ef35808cd617344efddb62af8608ac6f980a59ee5f83b2e641133fb71`. Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached.
+- `authored-index-source608-0` (implementation): [rust/tcl-lsp-core/src/package_resolver/reachability.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability.rs). Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached.
+- `authored-index-source608-1` (implementation): [rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs). Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached.
 
 ## Source inspection
 

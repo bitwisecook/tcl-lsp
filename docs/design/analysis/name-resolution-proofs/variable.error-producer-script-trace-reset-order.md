@@ -94,15 +94,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `capture` (provider): [rust/tcl-registry/tests/data/native_error_variables/producer-script-traces-manifest.json](../../../../rust/tcl-registry/tests/data/native_error_variables/producer-script-traces-manifest.json). SHA-256 `2e35c2a3c555bbf1c771fce64dfae1e72524fa64a685b95ebf2902f3e37b25d9`. Exact original build and capture receipt, including all observed engine versions and source/library/output hashes.
-- `probe` (input): [rust/tcl-registry/tests/data/native_error_variables/producer-script-traces.c](../../../../rust/tcl-registry/tests/data/native_error_variables/producer-script-traces.c). SHA-256 `bd8a2e158d6b6bee94fc6084821d2a3c872841b701267afdcf81f7dc02786923`. Original API calls, reporting order, object retention and internal root-cell observation windows.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_error_variables/8.4.20-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/8.4.20-producer-script-traces.tsv). SHA-256 `349183c7efb3256d57c1689666ce036ccc605d3b90c30a5fc683256fd7055f48`. Exact native result/state/callback rows for 8.4.20
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_error_variables/8.5.19-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/8.5.19-producer-script-traces.tsv). SHA-256 `cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad`. Exact native result/state/callback rows for 8.5.19
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_error_variables/8.6.18-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/8.6.18-producer-script-traces.tsv). SHA-256 `cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad`. Exact native result/state/callback rows for 8.6.18
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_error_variables/9.0.4-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/9.0.4-producer-script-traces.tsv). SHA-256 `cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad`. Exact native result/state/callback rows for 9.0.4
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_error_variables/9.1.0-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/9.1.0-producer-script-traces.tsv). SHA-256 `cd203679a572343a5bb21205ed9963d3c5acdec565793896b28f75bf042a7aad`. Exact native result/state/callback rows for 9.1.0
+- `capture` (provider): [rust/tcl-registry/tests/data/native_error_variables/producer-script-traces-manifest.json](../../../../rust/tcl-registry/tests/data/native_error_variables/producer-script-traces-manifest.json). Exact original build and capture receipt, including all observed engine versions and source/library/output hashes.
+- `probe` (input): [rust/tcl-registry/tests/data/native_error_variables/producer-script-traces.c](../../../../rust/tcl-registry/tests/data/native_error_variables/producer-script-traces.c). Original API calls, reporting order, object retention and internal root-cell observation windows.
+- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_error_variables/8.4.20-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/8.4.20-producer-script-traces.tsv). Exact native result/state/callback rows for 8.4.20
+- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_error_variables/8.5.19-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/8.5.19-producer-script-traces.tsv). Exact native result/state/callback rows for 8.5.19
+- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_error_variables/8.6.18-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/8.6.18-producer-script-traces.tsv). Exact native result/state/callback rows for 8.6.18
+- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_error_variables/9.0.4-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/9.0.4-producer-script-traces.tsv). Exact native result/state/callback rows for 9.0.4
+- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_error_variables/9.1.0-producer-script-traces.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/9.1.0-producer-script-traces.tsv). Exact native result/state/callback rows for 9.1.0
 
 ## Source inspection
 

@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (observation): [runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json). SHA-256 `c92823957a01c56555f4b2cfd4e232ed97925fad2ccd93e2066b3aafbbbd5803`. Six exact original compile/run receipts and inline24-control streams with source/header/library hashes.
-- `e1` (input): [runtime/rust/tests/data/native_procedure_relocation/raw-probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-probe.c). SHA-256 `cdc3a3d56cd549f2d85b0f0379bb50d0f1f80ee28c1a2b876d398d177293f05d`. Exact directly constructed counted original and destination procedure name operands, including FF and NUL.
-- `e2` (observation): [runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv). SHA-256 `9874f817a6721b8728c7f9a5bc5e3acfd68724452450e24a49354c7ff9e09434`. Twenty-four projected success/command-identity/future namespace rows.
+- `e0` (observation): [runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json). Six exact original compile/run receipts and inline24-control streams with source/header/library hashes.
+- `e1` (input): [runtime/rust/tests/data/native_procedure_relocation/raw-probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-probe.c). Exact directly constructed counted original and destination procedure name operands, including FF and NUL.
+- `e2` (observation): [runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv). Twenty-four projected success/command-identity/future namespace rows.
 
 ## Source inspection
 

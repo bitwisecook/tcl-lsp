@@ -62,15 +62,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact compiled-object question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [runtime/rust/tests/data/native_command_cache_priming/probe.c](../../../../runtime/rust/tests/data/native_command_cache_priming/probe.c). SHA-256 `dee2b7cae10b26030cd072e61abf89d8562f12b9657ad5b2b2b566d1ed43517e`. Exact original object constructors, Tcl_GetCommandFromObj calls, private TclSetCmdNameObj priming and cache target sampler.
-- `receipt` (provider): [runtime/rust/tests/data/native_command_cache_priming/manifest.json](../../../../runtime/rust/tests/data/native_command_cache_priming/manifest.json). SHA-256 `565b7b78b8747f3c044b1c4ee1679b0cfc4437bea170ba628204ee2fc20adeeb`. Original release/build/process metadata and output digests.
-- `rows-tcl8.4` (observation): [runtime/rust/tests/data/native_command_cache_priming/8.4.20.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/8.4.20.tsv). SHA-256 `4d86bf947b295d1e1b1af21f164f72571879fb6ba6badce07a9297730d1c5079`. Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
-- `rows-tcl8.5` (observation): [runtime/rust/tests/data/native_command_cache_priming/8.5.19.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/8.5.19.tsv). SHA-256 `4d86bf947b295d1e1b1af21f164f72571879fb6ba6badce07a9297730d1c5079`. Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
-- `rows-tcl8.6` (observation): [runtime/rust/tests/data/native_command_cache_priming/8.6.18.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/8.6.18.tsv). SHA-256 `4154073ee08d3bed1f0f81a2daed1faf0927241f70ccf20d12219711a7df1687`. Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
-- `rows-tcl9.0` (observation): [runtime/rust/tests/data/native_command_cache_priming/9.0.4.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/9.0.4.tsv). SHA-256 `f70ef5ea755dd3bab2ea4031df9b786e092532f8cadd91c2c68d507ab4280791`. Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
-- `rows-tcl9.1` (observation): [runtime/rust/tests/data/native_command_cache_priming/9.1.0.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/9.1.0.tsv). SHA-256 `f70ef5ea755dd3bab2ea4031df9b786e092532f8cadd91c2c68d507ab4280791`. Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
+- `probe` (input): [runtime/rust/tests/data/native_command_cache_priming/probe.c](../../../../runtime/rust/tests/data/native_command_cache_priming/probe.c). Exact original object constructors, Tcl_GetCommandFromObj calls, private TclSetCmdNameObj priming and cache target sampler.
+- `receipt` (provider): [runtime/rust/tests/data/native_command_cache_priming/manifest.json](../../../../runtime/rust/tests/data/native_command_cache_priming/manifest.json). Original release/build/process metadata and output digests.
+- `rows-tcl8.4` (observation): [runtime/rust/tests/data/native_command_cache_priming/8.4.20.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/8.4.20.tsv). Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
+- `rows-tcl8.5` (observation): [runtime/rust/tests/data/native_command_cache_priming/8.5.19.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/8.5.19.tsv). Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
+- `rows-tcl8.6` (observation): [runtime/rust/tests/data/native_command_cache_priming/8.6.18.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/8.6.18.tsv). Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
+- `rows-tcl9.0` (observation): [runtime/rust/tests/data/native_command_cache_priming/9.0.4.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/9.0.4.tsv). Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
+- `rows-tcl9.1` (observation): [runtime/rust/tests/data/native_command_cache_priming/9.1.0.tsv](../../../../runtime/rust/tests/data/native_command_cache_priming/9.1.0.tsv). Cases 0–4 in retained order; target 1=A, 2=B, 0=null. Original type/residency is sampled before the second priming call.
 
 ## Source inspection
 

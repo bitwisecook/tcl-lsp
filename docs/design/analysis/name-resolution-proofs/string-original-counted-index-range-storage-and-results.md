@@ -62,93 +62,93 @@ Status: `not-tested`. Version: not tested. Build: No appliance process for these
 
 Measured C Tcl and Jim objects do not establish a BIG-IP/TMM storage or execution protocol.
 
-## Exact evidence
+## Historical references
 
-- `original-counted-probe` (input): [runtime/rust/tests/data/native_original_index_range635/probe.c](../../../../runtime/rust/tests/data/native_original_index_range635/probe.c). SHA-256 `81b03dfd9e5f3763c7cae44aca295c2c9b1c37a172d18f097ea262a378445bde`. Exact counted constructors and original alias roles. Reached snapshots precede both result and subject getters.
-- `original-request` (input): [runtime/rust/tests/data/native_original_index_range635/request.json](../../../../runtime/rust/tests/data/native_original_index_range635/request.json). SHA-256 `c875e21028dc0bc95855caaa46f56486db138ab60c9a41d5da39f591b06c8bf6`. Original problem, full 20-case requirements and four explicit Jim constructor skip indices; no expected answers.
-- `actual-case-projection` (observation): [runtime/rust/tests/data/native_original_index_range635/interpretation.json](../../../../runtime/rust/tests/data/native_original_index_range635/interpretation.json). SHA-256 `1a30139d1f3b85958ec9c0f56a1d9c20e43bea26ee1a9c8858ba8ea22a37e42b`. All original process rows: 116 command outcomes and four constructor skips. Raw fields and raw stream/receipt hashes are retained.
-- `exact-input-map` (provider): [runtime/rust/tests/data/native_original_index_range635/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_index_range635/pinned-input-map.json). SHA-256 `fef9e14559249204b03380cccf73546265e8c88bb3acc49d3716117b6c342e98`. Every actual input pin joined to complete independently verified archive members.
-- `exact-input-bytes` (provider): [runtime/rust/tests/data/native_original_index_range635/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_index_range635/pinned-input-bytes.tar.gz). SHA-256 `dd3b095e11e37ac7e3065aa6c2fa18454e0c96e2f85ede0b0507eb5af3bf95c7`. Whole measured source/header/configuration/library/compiler/CLI/input bytes, losslessly compressed. No complete build/load closure is inferred.
-- `all-original-retention` (provider): [runtime/rust/tests/data/native_original_index_range635/retention.json](../../../../runtime/rust/tests/data/native_original_index_range635/retention.json). SHA-256 `909878efd74ae2b97c61aa15c5fec3b7b7370ff78039be471f463c9d3bee0bfb`. Every original receipt, raw stream and all 12 original driver/version ELFs retained and round-trip verified.
-- `source-window-0` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/0/snippet`. Tcl_StringObjCmd STR_INDEX case: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-1` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/1/snippet`. Tcl_StringObjCmd STR_RANGE case: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-2` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/2/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-3` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/3/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-4` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/4/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-5` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/5/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-6` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/6/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-7` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/7/snippet`. TclUtfToUniChar macro: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-8` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/8/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-9` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/9/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-10` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/10/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-11` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/11/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-12` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/12/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-13` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/13/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-14` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/14/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-15` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/15/snippet`. TclUtfToUniChar macro: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-16` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/16/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-17` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/17/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-18` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/18/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-19` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/19/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-20` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/20/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-21` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/21/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-22` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/22/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-23` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/23/snippet`. GetEndOffsetFromObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-24` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/24/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-25` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/25/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-26` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/26/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-27` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/27/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-28` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/28/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-29` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/29/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-30` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/30/snippet`. Tcl_GetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-31` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/31/snippet`. GetEndOffsetFromObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-32` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/32/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-33` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/33/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-34` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/34/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-35` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/35/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-36` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/36/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-37` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/37/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-38` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/38/snippet`. Tcl_GetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-39` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/39/snippet`. GetEndOffsetFromObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-40` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/40/snippet`. JimStringGetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-41` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/41/snippet`. Jim_StringRangeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-42` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/42/snippet`. Jim_StringByteRangeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-43` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/43/snippet`. Jim_GetIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-44` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/44/snippet`. SetIndexFromAny: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-45` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/45/snippet`. Jim_Utf8Length: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-46` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/46/snippet`. Jim_StringCoreCommand OPT_RANGE case: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-47` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/47/snippet`. Jim_StringCoreCommand OPT_INDEX case: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-48` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/48/snippet`. utf8_strlen: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-49` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/49/snippet`. utf8_index: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `source-window-50` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). SHA-256 `d6dad86f78d371871b997885c1cc4cd997ecc1ea7da6517bc2f8b1c77a9f487f`. JSON pointer `/anchors/50/snippet`. utf8_tounicode: decoded exact snippet with physical-LF lines and whole source/archive join.
-- `tcl8.4-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/receipt.json). SHA-256 `7d5968d1296a1d1d20e7e1a162744e266b0c877edd44409d6a15ca54398721a5`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
-- `tcl8.4-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.4.20/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/cli-version.stdout). SHA-256 `c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl8.4-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/receipt.json). SHA-256 `608d5a953410d8eea25f87d0e229f9899ab65cb16b4acebb8a8d17ec7fef74d5`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl8.4-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/execute.stdout). SHA-256 `ef18d09813e9c05fbd397154e6f786ea0221f2ce8981597665e917a08a5c5d7f`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl8.5-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/receipt.json). SHA-256 `a1c653cc554c12e08cad4b1c26ea66a32d7c619dd695a754c8d0225500dff5c2`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
-- `tcl8.5-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.5.19/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/cli-version.stdout). SHA-256 `6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl8.5-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/receipt.json). SHA-256 `9bb46ab46df34d98fb0627d01f98e6f1017090aa20e33f75bfabdb0422fb99f1`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl8.5-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/execute.stdout). SHA-256 `1bd253489464d3ed255f286efdc8deb3768100a5b873e0a062f5026291fcf9bb`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl8.6-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/receipt.json). SHA-256 `8fc8c5cc6544723b25b8321c36e7c5872dde482c8df4a33044ea30818148bb88`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
-- `tcl8.6-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.6.18/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/cli-version.stdout). SHA-256 `7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl8.6-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/receipt.json). SHA-256 `c5d885481beca67b265fab250d5df48062e483ca01ea251d6bdb579b5be3256b`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl8.6-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/execute.stdout). SHA-256 `dd12d5dc76bfc80ae3033ac87b1932541f275a888adf9e03dabbcb5878b0df8c`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/receipt.json). SHA-256 `3f75cdc6e7992bf672875324dc2c658f3f19f96aed8c3c3cfe7b0698252d302c`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
-- `tcl9.0-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.0.4/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/cli-version.stdout). SHA-256 `b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/receipt.json). SHA-256 `3bd5d016dbf36529d40e394d64e3778b2566d432b655c8e555c23ecc47240fd5`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/execute.stdout). SHA-256 `d016aed0da5636f83bfe6d76f7c26b06e30ce7951203b5d3543001780eb51a2c`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/receipt.json). SHA-256 `9bcc1603df7fe0c0794694d490d7a780a8b2862b04b5f1c894a4e31fb0021899`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
-- `tcl9.1-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.1.0/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/cli-version.stdout). SHA-256 `077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36`. Actual selected CLI version output, independently bound by the original receipt.
-- `tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/receipt.json). SHA-256 `532263333aaa91817a8ae6c19744d9906a6b3b590cc094a465923f7cdb4f4612`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/execute.stdout). SHA-256 `b225f15b75641002abfa4f29d4d1be66051123c85bc897b9a7234b22317ea071`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
-- `jim-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/Jim/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/receipt.json). SHA-256 `6f0f000c9d61a79fce94bc94f13e1c8533aa7b9862b1d61e74ac47ee01327f94`. Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
-- `jim-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/cli-version.stdout). SHA-256 `f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803`. Actual selected CLI version output, independently bound by the original receipt.
-- `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/receipt.json). SHA-256 `ba0f7b68a6e45a047488a9e4878c48606d7fdaf0a7ddffae5ec975e24b28dfa0`. Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
-- `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/execute.stdout). SHA-256 `d7ce62ac8c979a247ad4edf0a43c9133dc8b547cdfc8e5b540fccd9bbe848166`. Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `original-counted-probe` (input): [runtime/rust/tests/data/native_original_index_range635/probe.c](../../../../runtime/rust/tests/data/native_original_index_range635/probe.c). Exact counted constructors and original alias roles. Reached snapshots precede both result and subject getters.
+- `original-request` (input): [runtime/rust/tests/data/native_original_index_range635/request.json](../../../../runtime/rust/tests/data/native_original_index_range635/request.json). Original problem, full 20-case requirements and four explicit Jim constructor skip indices; no expected answers.
+- `actual-case-projection` (observation): [runtime/rust/tests/data/native_original_index_range635/interpretation.json](../../../../runtime/rust/tests/data/native_original_index_range635/interpretation.json). All original process rows: 116 command outcomes and four constructor skips. Raw fields and raw stream/receipt hashes are retained.
+- `exact-input-map` (provider): [runtime/rust/tests/data/native_original_index_range635/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_index_range635/pinned-input-map.json). Every actual input pin joined to complete independently verified archive members.
+- `exact-input-bytes` (provider): [runtime/rust/tests/data/native_original_index_range635/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_index_range635/pinned-input-bytes.tar.gz). Whole measured source/header/configuration/library/compiler/CLI/input bytes, losslessly compressed. No complete build/load closure is inferred.
+- `all-original-retention` (provider): [runtime/rust/tests/data/native_original_index_range635/retention.json](../../../../runtime/rust/tests/data/native_original_index_range635/retention.json). Every original receipt, raw stream and all 12 original driver/version ELFs retained and round-trip verified.
+- `source-window-0` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/0/snippet`. Tcl_StringObjCmd STR_INDEX case: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-1` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/1/snippet`. Tcl_StringObjCmd STR_RANGE case: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-2` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/2/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-3` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/3/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-4` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/4/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-5` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/5/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-6` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/6/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-7` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/7/snippet`. TclUtfToUniChar macro: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-8` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/8/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-9` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/9/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-10` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/10/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-11` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/11/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-12` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/12/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-13` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/13/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-14` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/14/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-15` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/15/snippet`. TclUtfToUniChar macro: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-16` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/16/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-17` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/17/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-18` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/18/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-19` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/19/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-20` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/20/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-21` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/21/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-22` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/22/snippet`. TclGetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-23` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/23/snippet`. GetEndOffsetFromObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-24` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/24/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-25` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/25/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-26` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/26/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-27` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/27/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-28` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/28/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-29` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/29/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-30` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/30/snippet`. Tcl_GetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-31` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/31/snippet`. GetEndOffsetFromObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-32` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/32/snippet`. StringIndexCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-33` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/33/snippet`. StringRangeCmd: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-34` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/34/snippet`. Tcl_GetUniChar: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-35` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/35/snippet`. Tcl_GetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-36` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/36/snippet`. Tcl_GetCharLength: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-37` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/37/snippet`. Tcl_NewUnicodeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-38` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/38/snippet`. Tcl_GetIntForIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-39` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/39/snippet`. GetEndOffsetFromObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-40` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/40/snippet`. JimStringGetRange: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-41` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/41/snippet`. Jim_StringRangeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-42` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/42/snippet`. Jim_StringByteRangeObj: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-43` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/43/snippet`. Jim_GetIndex: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-44` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/44/snippet`. SetIndexFromAny: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-45` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/45/snippet`. Jim_Utf8Length: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-46` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/46/snippet`. Jim_StringCoreCommand OPT_RANGE case: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-47` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/47/snippet`. Jim_StringCoreCommand OPT_INDEX case: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-48` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/48/snippet`. utf8_strlen: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-49` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/49/snippet`. utf8_index: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `source-window-50` (source-anchor): [runtime/rust/tests/data/native_original_index_range635/source-windows.json](../../../../runtime/rust/tests/data/native_original_index_range635/source-windows.json). JSON pointer `/anchors/50/snippet`. utf8_tounicode: decoded exact snippet with physical-LF lines and whole source/archive join.
+- `tcl8.4-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
+- `tcl8.4-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.4.20/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl8.4-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl8.4-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.4.20/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl8.5-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
+- `tcl8.5-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.5.19/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl8.5-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl8.5-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.5.19/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl8.6-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
+- `tcl8.6-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.6.18/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl8.6-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl8.6-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/8.6.18/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
+- `tcl9.0-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.0.4/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.0.4/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
+- `tcl9.1-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.1.0/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/9.1.0/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
+- `jim-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/Jim/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/receipt.json). Actual original compile/link/launch recipes, CLI version, all input pins and exact 20 process receipts.
+- `jim-cli-version-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/cli-version.stdout). Actual selected CLI version output, independently bound by the original receipt.
+- `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/receipt.json). Independent version driver using the identical selected static library and headers; original case receipts remain unchanged.
+- `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_index_range635/Jim/same-library-version/execute.stdout). Actual linked-library patchlevel and, for C, Tcl_GetVersion fields.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_INDEX case`, lines 1456–1500. Line unit: physical LF only. Original byte range [40373, 41584). Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `b119f73d1d3441e0239f186e4a4c49606df2171c034014e8a55055721efb6b79`; retained evidence `source-window-0`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_INDEX case`, lines 1456–1500. Line unit: physical LF only. Original byte range [40373, 41584). Retained reference `source-window-0`.
 
 ```text
 	case STR_INDEX: {
@@ -199,7 +199,7 @@ tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_RANGE case`, lines 2084–2134. Line unit: physical LF only. Original byte range [57197, 58454). Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `6077fb2fb30a674c6a706adaedac4273776a8249bc59099792c5be6026703d66`; retained evidence `source-window-1`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_StringObjCmd STR_RANGE case`, lines 2084–2134. Line unit: physical LF only. Original byte range [57197, 58454). Retained reference `source-window-1`.
 
 ```text
 	case STR_RANGE: {
@@ -256,7 +256,7 @@ tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 482–522. Line unit: physical LF only. Original byte range [16457, 17473). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `2fa8da230e5d84d5c47792180f78ccdbd46236efde83d03494fd596e674402a9`; retained evidence `source-window-2`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 482–522. Line unit: physical LF only. Original byte range [16457, 17473). Retained reference `source-window-2`.
 
 ```text
 Tcl_GetUniChar(objPtr, index)
@@ -303,7 +303,7 @@ Tcl_GetUniChar(objPtr, index)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 651–704. Line unit: physical LF only. Original byte range [21100, 22520). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `e43875efbb18819c72e458f8fabcc5949f3bc35c642a794f4294cce5f5a11dc0`; retained evidence `source-window-3`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 651–704. Line unit: physical LF only. Original byte range [21100, 22520). Retained reference `source-window-3`.
 
 ```text
 Tcl_GetRange(objPtr, first, last)
@@ -363,7 +363,7 @@ Tcl_GetRange(objPtr, first, last)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–462. Line unit: physical LF only. Original byte range [14356, 15994). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `8a0345123a3d160661109480c1af6ac553c74297ec37d58b5f5533aadfa90ee6`; retained evidence `source-window-4`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–462. Line unit: physical LF only. Original byte range [14356, 15994). Retained reference `source-window-4`.
 
 ```text
 Tcl_GetCharLength(objPtr)
@@ -430,7 +430,7 @@ Tcl_GetCharLength(objPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Line unit: physical LF only. Original byte range [13600, 13926). Full-source SHA-256 `a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c`; snippet SHA-256 `d81d8c46a110edd94eeea725b80b3b2efb68139bb08d35828c12857839c0a6cf`; retained evidence `source-window-5`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Line unit: physical LF only. Original byte range [13600, 13926). Retained reference `source-window-5`.
 
 ```text
 Tcl_NewUnicodeObj(unicode, numChars)
@@ -448,7 +448,7 @@ Tcl_NewUnicodeObj(unicode, numChars)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 2331–2381. Line unit: physical LF only. Original byte range [62656, 64092). Full-source SHA-256 `26a0bb5644999077e8a6a82a7ab1bbcf73787f889a35d7ede5369788c66d2e4c`; snippet SHA-256 `c5e3e71cdf92aebc7d1b3d26977965108fe533b9b65063cf629c812bb80709a2`; retained evidence `source-window-6`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 2331–2381. Line unit: physical LF only. Original byte range [62656, 64092). Retained reference `source-window-6`.
 
 ```text
 TclGetIntForIndex(interp, objPtr, endValue, indexPtr)
@@ -505,7 +505,7 @@ TclGetIntForIndex(interp, objPtr, endValue, indexPtr)
 
 ```
 
-tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 2604–2623. Line unit: physical LF only. Original byte range [106143, 106974). Full-source SHA-256 `f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a`; snippet SHA-256 `ff3d12fec44694ddea1f35014764627fceb043f0776786a22960fc401b18fa61`; retained evidence `source-window-7`.
+tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 2604–2623. Line unit: physical LF only. Original byte range [106143, 106974). Retained reference `source-window-7`.
 
 ```text
 #define TclUtfToUniChar(str, chPtr) \
@@ -531,7 +531,7 @@ tcl8.4 8.4.20, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1331–1381. Line unit: physical LF only. Original byte range [32691, 34104). Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `cf43d50641dd32ef8c6ba51ce2762089cf71a970e74be22e8f25363c6d068b9d`; retained evidence `source-window-8`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1331–1381. Line unit: physical LF only. Original byte range [32691, 34104). Retained reference `source-window-8`.
 
 ```text
 StringIndexCmd(
@@ -588,7 +588,7 @@ StringIndexCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2071–2128. Line unit: physical LF only. Original byte range [51436, 52881). Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `9c60c1a66b64e366234348ff685ef65caed36f33654b1d5ae6ff0cd74c61e476`; retained evidence `source-window-9`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2071–2128. Line unit: physical LF only. Original byte range [51436, 52881). Retained reference `source-window-9`.
 
 ```text
 StringRangeCmd(
@@ -652,7 +652,7 @@ StringRangeCmd(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 478–516. Line unit: physical LF only. Original byte range [16509, 17507). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `aa3356a708540a9fd641aba2d9ca112310fe86d924098eb6f70bb437e762d66d`; retained evidence `source-window-10`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 478–516. Line unit: physical LF only. Original byte range [16509, 17507). Retained reference `source-window-10`.
 
 ```text
 Tcl_GetUniChar(
@@ -697,7 +697,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 645–696. Line unit: physical LF only. Original byte range [21100, 22483). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `f21bc1e9040b3317a3cae4978a935112f7d5e3c38877bf1549957a3fdd0fb427`; retained evidence `source-window-11`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 645–696. Line unit: physical LF only. Original byte range [21100, 22483). Retained reference `source-window-11`.
 
 ```text
 Tcl_GetRange(
@@ -755,7 +755,7 @@ Tcl_GetRange(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 395–458. Line unit: physical LF only. Original byte range [14378, 16047). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `dc5437a179e5f3dc28b8590347693274e9a4d531f82b9194c164ff41d0985f7a`; retained evidence `source-window-12`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 395–458. Line unit: physical LF only. Original byte range [14378, 16047). Retained reference `source-window-12`.
 
 ```text
 Tcl_GetCharLength(
@@ -825,7 +825,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 364–375. Line unit: physical LF only. Original byte range [13641, 13949). Full-source SHA-256 `d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449`; snippet SHA-256 `5106fe8044b31c6e7e3f121b0787b6fd7dc564e2b5f60cf07f18d4c0a05fb007`; retained evidence `source-window-13`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 364–375. Line unit: physical LF only. Original byte range [13641, 13949). Retained reference `source-window-13`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -843,7 +843,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3234–3325. Line unit: physical LF only. Original byte range [92509, 94743). Full-source SHA-256 `67be2e4aed576288b31069a98a1ddacf8354c87ca1a8c8e85e53421364a989cd`; snippet SHA-256 `a7968238557112ae80779f5b5ade88692a05399b891743a618062eb81edf7b56`; retained evidence `source-window-14`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3234–3325. Line unit: physical LF only. Original byte range [92509, 94743). Retained reference `source-window-14`.
 
 ```text
 TclGetIntForIndex(
@@ -941,7 +941,7 @@ TclGetIntForIndex(
 
 ```
 
-tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 3670–3708. Line unit: physical LF only. Original byte range [141500, 143213). Full-source SHA-256 `72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa`; snippet SHA-256 `fccd790ea7cdcbc2cd7a1a0518a75f44fa6f0f8a0a717f5b9ac0c9c175b8cfc4`; retained evidence `source-window-15`.
+tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h`, function `TclUtfToUniChar macro`, lines 3670–3708. Line unit: physical LF only. Original byte range [141500, 143213). Retained reference `source-window-15`.
 
 ```text
 #define TclUtfToUniChar(str, chPtr) \
@@ -986,7 +986,7 @@ tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1381–1423. Line unit: physical LF only. Original byte range [34868, 35899). Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `8f56884c0c122c9c107a1fa785cda8e51ae78ff2e6d53c7aee8f19ab01789316`; retained evidence `source-window-16`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1381–1423. Line unit: physical LF only. Original byte range [34868, 35899). Retained reference `source-window-16`.
 
 ```text
 StringIndexCmd(
@@ -1035,7 +1035,7 @@ StringIndexCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2161–2196. Line unit: physical LF only. Original byte range [54494, 55397). Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `3af80b13196f9690c9f503fcdebe658ebb4735233f43dedccf88577cdb366d7b`; retained evidence `source-window-17`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2161–2196. Line unit: physical LF only. Original byte range [54494, 55397). Retained reference `source-window-17`.
 
 ```text
 StringRangeCmd(
@@ -1077,7 +1077,7 @@ StringRangeCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 515–570. Line unit: physical LF only. Original byte range [16001, 17254). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `eb4561c41cbc60ce9bc68c63fc943cca7d3545f31a682cdd9309336f2f43f0a4`; retained evidence `source-window-18`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 515–570. Line unit: physical LF only. Original byte range [16001, 17254). Retained reference `source-window-18`.
 
 ```text
 Tcl_GetUniChar(
@@ -1139,7 +1139,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 741–829. Line unit: physical LF only. Original byte range [21606, 23971). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `3233dcf7e82eabc6d832cbd7cc7afc8e9f57871d1b08de1a46353eb9458dc80e`; retained evidence `source-window-19`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 741–829. Line unit: physical LF only. Original byte range [21606, 23971). Retained reference `source-window-19`.
 
 ```text
 Tcl_GetRange(
@@ -1234,7 +1234,7 @@ Tcl_GetRange(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–453. Line unit: physical LF only. Original byte range [13279, 14616). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `2eb391d5c09386d8ab2c714a78697dee02310bdded451a8cb9400f76c4c3d07f`; retained evidence `source-window-20`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 402–453. Line unit: physical LF only. Original byte range [13279, 14616). Retained reference `source-window-20`.
 
 ```text
 Tcl_GetCharLength(
@@ -1292,7 +1292,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Line unit: physical LF only. Original byte range [12542, 12850). Full-source SHA-256 `d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9`; snippet SHA-256 `5106fe8044b31c6e7e3f121b0787b6fd7dc564e2b5f60cf07f18d4c0a05fb007`; retained evidence `source-window-21`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 371–382. Line unit: physical LF only. Original byte range [12542, 12850). Retained reference `source-window-21`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -1310,7 +1310,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3634–3714. Line unit: physical LF only. Original byte range [101826, 103787). Full-source SHA-256 `452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372`; snippet SHA-256 `4afd7808861ad1c1108aded9122cad8a8a0879b96160adb8579cdf9d8b222812`; retained evidence `source-window-22`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `TclGetIntForIndex`, lines 3634–3714. Line unit: physical LF only. Original byte range [101826, 103787). Retained reference `source-window-22`.
 
 ```text
 TclGetIntForIndex(
@@ -1397,7 +1397,7 @@ TclGetIntForIndex(
 
 ```
 
-tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3772–3786. Line unit: physical LF only. Original byte range [105138, 105708). Full-source SHA-256 `452b96a108330de9bf79c52a6266634127b468b704512ffb93e0dc66685df372`; snippet SHA-256 `68ea1d9b31b30e07aa171f045c4144ce5be95da386aae27f5e8e5ecb2f489036`; retained evidence `source-window-23`.
+tcl8.6 8.6.18, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3772–3786. Line unit: physical LF only. Original byte range [105138, 105708). Retained reference `source-window-23`.
 
 ```text
 GetEndOffsetFromObj(
@@ -1418,7 +1418,7 @@ GetEndOffsetFromObj(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1399–1445. Line unit: physical LF only. Original byte range [36397, 37452). Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `90cef86ead0e37d95bddb09fb40076f39feac97f6ed36db6453e1bf6c9ea84cc`; retained evidence `source-window-24`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1399–1445. Line unit: physical LF only. Original byte range [36397, 37452). Retained reference `source-window-24`.
 
 ```text
 StringIndexCmd(
@@ -1471,7 +1471,7 @@ StringIndexCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2286–2315. Line unit: physical LF only. Original byte range [58732, 59522). Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `878a80fbc714c3a804e3cd310890e541f7f67c29dcaa18d9f4a38c7bfdaba894`; retained evidence `source-window-25`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2286–2315. Line unit: physical LF only. Original byte range [58732, 59522). Retained reference `source-window-25`.
 
 ```text
 StringRangeCmd(
@@ -1507,7 +1507,7 @@ StringRangeCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 532–589. Line unit: physical LF only. Original byte range [16892, 18182). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `0adf65b1842f583608923976258c985d80a5229ad2257b604978082a4e579e7c`; retained evidence `source-window-26`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 532–589. Line unit: physical LF only. Original byte range [16892, 18182). Retained reference `source-window-26`.
 
 ```text
 Tcl_GetUniChar(
@@ -1571,7 +1571,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 725–802. Line unit: physical LF only. Original byte range [21719, 23746). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-27`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 725–802. Line unit: physical LF only. Original byte range [21719, 23746). Retained reference `source-window-27`.
 
 ```text
 Tcl_GetRange(
@@ -1655,7 +1655,7 @@ Tcl_GetRange(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 378–427. Line unit: physical LF only. Original byte range [12857, 14260). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `c6abedf2bf8abac93b0289e8d2031f2092f8ebbb3d47eb1807f9a63ad7928598`; retained evidence `source-window-28`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 378–427. Line unit: physical LF only. Original byte range [12857, 14260). Retained reference `source-window-28`.
 
 ```text
 Tcl_GetCharLength(
@@ -1711,7 +1711,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 347–358. Line unit: physical LF only. Original byte range [12110, 12423). Full-source SHA-256 `d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4`; snippet SHA-256 `46108912ae8807a53ab4e976f0544a4cb283f328400dfd84fc84519e26911dd5`; retained evidence `source-window-29`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 347–358. Line unit: physical LF only. Original byte range [12110, 12423). Retained reference `source-window-29`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -1729,7 +1729,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3470–3500. Line unit: physical LF only. Original byte range [97702, 98838). Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `78756b3cdf9bac765d88a74ef22ef2de5f69fe66e3db11c68dd4a89c7f548a57`; retained evidence `source-window-30`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3470–3500. Line unit: physical LF only. Original byte range [97702, 98838). Retained reference `source-window-30`.
 
 ```text
 Tcl_GetIntForIndex(
@@ -1766,7 +1766,7 @@ Tcl_GetIntForIndex(
 
 ```
 
-tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3532–3770. Line unit: physical LF only. Original byte range [99708, 106500). Full-source SHA-256 `13df44c0c262d3445b5c5db138d14c6e45e4993b076387f6e4f272f89d62bcf4`; snippet SHA-256 `8b9c41fda6225b676a897a3b0bc631e4a523655bd99859c8ec877d94fa7d18b1`; retained evidence `source-window-31`.
+tcl9.0 9.0.4, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3532–3770. Line unit: physical LF only. Original byte range [99708, 106500). Retained reference `source-window-31`.
 
 ```text
 GetEndOffsetFromObj(
@@ -2011,7 +2011,7 @@ GetEndOffsetFromObj(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1464–1510. Line unit: physical LF only. Original byte range [39626, 40684). Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `221469366523bdb3c10889585247e221941606b04fde1952a008d2521fb39e96`; retained evidence `source-window-32`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringIndexCmd`, lines 1464–1510. Line unit: physical LF only. Original byte range [39626, 40684). Retained reference `source-window-32`.
 
 ```text
 StringIndexCmd(
@@ -2064,7 +2064,7 @@ StringIndexCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2351–2380. Line unit: physical LF only. Original byte range [61981, 62774). Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `0967cdbc006e0fcfb4d8e977f99a5a8b9e9c287d4bc8e623c9a52ac941f9884f`; retained evidence `source-window-33`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `StringRangeCmd`, lines 2351–2380. Line unit: physical LF only. Original byte range [61981, 62774). Retained reference `source-window-33`.
 
 ```text
 StringRangeCmd(
@@ -2100,7 +2100,7 @@ StringRangeCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 535–592. Line unit: physical LF only. Original byte range [16905, 18198). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `461be8e0a8670fac6d1dd2515e8804d1c791026bfe54a177b9781b75fd14af4a`; retained evidence `source-window-34`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetUniChar`, lines 535–592. Line unit: physical LF only. Original byte range [16905, 18198). Retained reference `source-window-34`.
 
 ```text
 Tcl_GetUniChar(
@@ -2164,7 +2164,7 @@ Tcl_GetUniChar(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 728–805. Line unit: physical LF only. Original byte range [21720, 23747). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `d36a3c13a434922d1818009f1e44331371e6af564d609516708f5db2e60ff251`; retained evidence `source-window-35`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetRange`, lines 728–805. Line unit: physical LF only. Original byte range [21720, 23747). Retained reference `source-window-35`.
 
 ```text
 Tcl_GetRange(
@@ -2248,7 +2248,7 @@ Tcl_GetRange(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 381–430. Line unit: physical LF only. Original byte range [12869, 14272). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `c6abedf2bf8abac93b0289e8d2031f2092f8ebbb3d47eb1807f9a63ad7928598`; retained evidence `source-window-36`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_GetCharLength`, lines 381–430. Line unit: physical LF only. Original byte range [12869, 14272). Retained reference `source-window-36`.
 
 ```text
 Tcl_GetCharLength(
@@ -2304,7 +2304,7 @@ Tcl_GetCharLength(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 350–361. Line unit: physical LF only. Original byte range [12122, 12435). Full-source SHA-256 `d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8`; snippet SHA-256 `46108912ae8807a53ab4e976f0544a4cb283f328400dfd84fc84519e26911dd5`; retained evidence `source-window-37`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclStringObj.c`, function `Tcl_NewUnicodeObj`, lines 350–361. Line unit: physical LF only. Original byte range [12122, 12435). Retained reference `source-window-37`.
 
 ```text
 Tcl_NewUnicodeObj(
@@ -2322,7 +2322,7 @@ Tcl_NewUnicodeObj(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3535–3565. Line unit: physical LF only. Original byte range [100090, 101224). Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `8213f51c4bcb466aa11daa1bf3d4ebb4ad64bbb722df17d78952db2224fc3f69`; retained evidence `source-window-38`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `Tcl_GetIntForIndex`, lines 3535–3565. Line unit: physical LF only. Original byte range [100090, 101224). Retained reference `source-window-38`.
 
 ```text
 Tcl_GetIntForIndex(
@@ -2359,7 +2359,7 @@ Tcl_GetIntForIndex(
 
 ```
 
-tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3597–3835. Line unit: physical LF only. Original byte range [102089, 108881). Full-source SHA-256 `509c893e8aef8f1ae70d0d1e279bbefc60baa758a56d1be184421794f6868e64`; snippet SHA-256 `8b9c41fda6225b676a897a3b0bc631e4a523655bd99859c8ec877d94fa7d18b1`; retained evidence `source-window-39`.
+tcl9.1 9.1.0, revision `retained released source bytes`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtil.c`, function `GetEndOffsetFromObj`, lines 3597–3835. Line unit: physical LF only. Original byte range [102089, 108881). Retained reference `source-window-39`.
 
 ```text
 GetEndOffsetFromObj(
@@ -2604,7 +2604,7 @@ GetEndOffsetFromObj(
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimStringGetRange`, lines 2706–2719. Line unit: physical LF only. Original byte range [79361, 79839). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `a706ac09e3b9a5c1722d4044c1378d854fe033d6e81792f288bbd26ce7f94354`; retained evidence `source-window-40`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimStringGetRange`, lines 2706–2719. Line unit: physical LF only. Original byte range [79361, 79839). Retained reference `source-window-40`.
 
 ```text
 static int JimStringGetRange(Jim_Interp *interp, Jim_Obj *firstObjPtr, Jim_Obj *lastObjPtr,
@@ -2624,7 +2624,7 @@ static int JimStringGetRange(Jim_Interp *interp, Jim_Obj *firstObjPtr, Jim_Obj *
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringRangeObj`, lines 2741–2768. Line unit: physical LF only. Original byte range [80361, 81177). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `beee166c4a381a4041f5a2808af0bdcf2a289589396f338ae16f1a8056b96598`; retained evidence `source-window-41`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringRangeObj`, lines 2741–2768. Line unit: physical LF only. Original byte range [80361, 81177). Retained reference `source-window-41`.
 
 ```text
 Jim_Obj *Jim_StringRangeObj(Jim_Interp *interp,
@@ -2658,7 +2658,7 @@ Jim_Obj *Jim_StringRangeObj(Jim_Interp *interp,
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringByteRangeObj`, lines 2721–2739. Line unit: physical LF only. Original byte range [79840, 80360). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `bc8b322ce5dd70de6b42cf7246ca7d09ac5e4b629c7f7752307f6be5cf4f4feb`; retained evidence `source-window-42`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringByteRangeObj`, lines 2721–2739. Line unit: physical LF only. Original byte range [79840, 80360). Retained reference `source-window-42`.
 
 ```text
 Jim_Obj *Jim_StringByteRangeObj(Jim_Interp *interp,
@@ -2683,7 +2683,7 @@ Jim_Obj *Jim_StringByteRangeObj(Jim_Interp *interp,
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetIndex`, lines 8326–8344. Line unit: physical LF only. Original byte range [259686, 260276). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `e69392d845af7ada0d169c8703b7ec2127156f90f1755797a93e0b0ba85152d9`; retained evidence `source-window-43`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_GetIndex`, lines 8326–8344. Line unit: physical LF only. Original byte range [259686, 260276). Retained reference `source-window-43`.
 
 ```text
 int Jim_GetIndex(Jim_Interp *interp, Jim_Obj *objPtr, int *indexPtr)
@@ -2708,7 +2708,7 @@ int Jim_GetIndex(Jim_Interp *interp, Jim_Obj *objPtr, int *indexPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `SetIndexFromAny`, lines 8254–8324. Line unit: physical LF only. Original byte range [257892, 259685). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `efadbb2defc05a6d97ac2f56086add8851119ab90cf80ba8ea74824380f8be00`; retained evidence `source-window-44`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `SetIndexFromAny`, lines 8254–8324. Line unit: physical LF only. Original byte range [257892, 259685). Retained reference `source-window-44`.
 
 ```text
 static int SetIndexFromAny(Jim_Interp *interp, Jim_Obj *objPtr)
@@ -2785,7 +2785,7 @@ static int SetIndexFromAny(Jim_Interp *interp, Jim_Obj *objPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_Utf8Length`, lines 2491–2503. Line unit: physical LF only. Original byte range [73003, 73369). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `42b7da0bec907380a4163c0c1d18622cacbf844fa007c0a7af4ed7ebd5888076`; retained evidence `source-window-45`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_Utf8Length`, lines 2491–2503. Line unit: physical LF only. Original byte range [73003, 73369). Retained reference `source-window-45`.
 
 ```text
 int Jim_Utf8Length(Jim_Interp *interp, Jim_Obj *objPtr)
@@ -2804,7 +2804,7 @@ int Jim_Utf8Length(Jim_Interp *interp, Jim_Obj *objPtr)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_RANGE case`, lines 14962–14979. Line unit: physical LF only. Original byte range [473428, 474034). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `7a49dbdc64977f03b18f5cad0defbbfbb51f085bb44d2e238d00d45619965159`; retained evidence `source-window-46`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_RANGE case`, lines 14962–14979. Line unit: physical LF only. Original byte range [473428, 474034). Retained reference `source-window-46`.
 
 ```text
         case OPT_RANGE:{
@@ -2828,7 +2828,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_INDEX case`, lines 15029–15053. Line unit: physical LF only. Original byte range [475600, 476521). Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `c33188ea103aa42e528c1e810678099a965926c32fda51a8ebb40b1e21812229`; retained evidence `source-window-47`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_StringCoreCommand OPT_INDEX case`, lines 15029–15053. Line unit: physical LF only. Original byte range [475600, 476521). Retained reference `source-window-47`.
 
 ```text
         case OPT_INDEX:{
@@ -2859,7 +2859,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_strlen`, lines 63–77. Line unit: physical LF only. Original byte range [1330, 1628). Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `13cdf8195f1c948c31d8e1758dccd9e35654c319632b64b2db969f49e371a510`; retained evidence `source-window-48`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_strlen`, lines 63–77. Line unit: physical LF only. Original byte range [1330, 1628). Retained reference `source-window-48`.
 
 ```text
 int utf8_strlen(const char *str, int bytelen)
@@ -2880,7 +2880,7 @@ int utf8_strlen(const char *str, int bytelen)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_index`, lines 79–86. Line unit: physical LF only. Original byte range [1629, 1780). Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `7e1134644e87f15b1ccd3f9e89c4e9adc092d35a9430cb1d5f5231f3940e3dba`; retained evidence `source-window-49`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_index`, lines 79–86. Line unit: physical LF only. Original byte range [1629, 1780). Retained reference `source-window-49`.
 
 ```text
 int utf8_index(const char *str, int index)
@@ -2894,7 +2894,7 @@ int utf8_index(const char *str, int index)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_tounicode`, lines 109–148. Line unit: physical LF only. Original byte range [2207, 3429). Full-source SHA-256 `905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526`; snippet SHA-256 `ae10829cddca29646acfb3c2ffdb42425cdff5e5c6aa3600e5914f4376be7916`; retained evidence `source-window-50`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/utf8.c`, function `utf8_tounicode`, lines 109–148. Line unit: physical LF only. Original byte range [2207, 3429). Retained reference `source-window-50`.
 
 ```text
 int utf8_tounicode(const char *str, int *uc)

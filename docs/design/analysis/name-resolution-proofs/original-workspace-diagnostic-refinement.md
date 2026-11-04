@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This input-ownership and workspace-consumer implementation question has no native execution observation.
 
-## Exact evidence
+## Historical references
 
-- `receiver-workspace-source603-fc5e047254448481` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d`. Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
-- `receiver-workspace-source603-e53bdf1bc59ff08f` (implementation): [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs). SHA-256 `43d5da928c774579b91deebbcca54102b2a3f6f1b6121621eae8d30cec4ec8ce`. Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
-- `receiver-workspace-source603-6923f13443c0c002` (implementation): [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs). SHA-256 `e1a5885d0e0e8a312240f35f283f618a32f794a6c4d80490607deaf67fe33d4a`. Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
+- `receiver-workspace-source603-fc5e047254448481` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
+- `receiver-workspace-source603-e53bdf1bc59ff08f` (implementation): [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs). Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
+- `receiver-workspace-source603-6923f13443c0c002` (implementation): [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs). Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
 
 ## Source inspection
 

@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
 
-## Exact evidence
+## Historical references
 
-- `receiver-whole-source609-f0146add77c7` (implementation): [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs). SHA-256 `3f81d885fb8bb45fc72b544be4368538d7c31bf00da60c19acc7f55e8a4ef080`. Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
+- `receiver-whole-source609-f0146add77c7` (implementation): [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs). Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
 
 ## Source inspection
 

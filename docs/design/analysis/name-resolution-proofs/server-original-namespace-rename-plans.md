@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
 
-## Exact evidence
+## Historical references
 
-- `consumer-source` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d`. Current actual typed Server consumer and fixed emitted-edit/collision assertion; not an execution receipt.
+- `consumer-source` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current actual typed Server consumer and fixed emitted-edit/collision assertion; not an execution receipt.
 
 ## Source inspection
 

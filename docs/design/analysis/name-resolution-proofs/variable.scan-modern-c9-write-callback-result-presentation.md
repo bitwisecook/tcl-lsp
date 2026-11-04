@@ -66,12 +66,12 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/manifest.json). SHA-256 `3a3c741d8e833e60af1b7be32e355cef2ba15d89d9d59cf1310fe1181b2a74c6`. Exact original compiler/header/library/executable hashes, process receipts and native source anchors where supplied.
-- `e1` (input): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/probe.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/probe.c). SHA-256 `c687dddc068d14cc5f717f2e67a4ef455e40bba1b103406814447712784bf2da`. Complete original C translation unit; selected public API and reporter stages are retained.
-- `e2` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.0.4-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.0.4-run.stdout). SHA-256 `d131722e346e2ccd56c5656a1747cb31bb1c20fba4d5d1dcafe4495d130664a1`. 9.0.4 complete original captured native transcript.
-- `e3` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.1.0-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.1.0-run.stdout). SHA-256 `b6995d7c5c4a79028dd1470552f44d1f4799b33b8cb9fada0521ab4efdbcc60b`. 9.1.0 complete original captured native transcript.
+- `e0` (provider): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/manifest.json). Exact original compiler/header/library/executable hashes, process receipts and native source anchors where supplied.
+- `e1` (input): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/probe.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/probe.c). Complete original C translation unit; selected public API and reporter stages are retained.
+- `e2` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.0.4-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.0.4-run.stdout). 9.0.4 complete original captured native transcript.
+- `e3` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.1.0-run.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/scan-presenter/modern-c9-write-trace/9.1.0-run.stdout). 9.1.0 complete original captured native transcript.
 
 ## Source inspection
 

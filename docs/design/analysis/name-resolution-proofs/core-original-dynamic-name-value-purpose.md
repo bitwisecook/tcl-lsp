@@ -70,7 +70,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

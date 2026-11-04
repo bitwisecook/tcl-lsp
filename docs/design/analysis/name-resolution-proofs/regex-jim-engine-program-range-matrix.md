@@ -62,16 +62,16 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
-## Exact evidence
+## Historical references
 
-- `original-build` (provider): [rust/tcl-regex/tests/data/native_jim_regexp/manifest.json](../../../../rust/tcl-regex/tests/data/native_jim_regexp/manifest.json). SHA-256 `2a623a8e4d6ba5827cc0f8d9c1347406b01895a9e420eec7d06f6d31ca29ccbf`. Original exact probe build and linked Jim source/library/header identities.
-- `original-probe` (input): [rust/tcl-regex/tests/data/native_jim_regexp/probe.c](../../../../rust/tcl-regex/tests/data/native_jim_regexp/probe.c). SHA-256 `c2eb3a6c97d6b3d638ec84c908545d1538e081a081b598315342fed546ed396f`. Exact fixed patterns/subjects and direct low-level compile/execute reporting.
-- `original-matrix` (observation): [rust/tcl-regex/tests/data/native_jim_regexp/programs.txt](../../../../rust/tcl-regex/tests/data/native_jim_regexp/programs.txt). SHA-256 `e1833e37c5b6930ab3f900c16d73943c6aa3ac697287e494b3e08a6a6def9645`. Complete retained per-pattern/flag program, compile code/message and range rows; no missing process statuses are manufactured.
-- `exact-source-2` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). SHA-256 `f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c`. JSON pointer `/2/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
+- `original-build` (provider): [rust/tcl-regex/tests/data/native_jim_regexp/manifest.json](../../../../rust/tcl-regex/tests/data/native_jim_regexp/manifest.json). Original exact probe build and linked Jim source/library/header identities.
+- `original-probe` (input): [rust/tcl-regex/tests/data/native_jim_regexp/probe.c](../../../../rust/tcl-regex/tests/data/native_jim_regexp/probe.c). Exact fixed patterns/subjects and direct low-level compile/execute reporting.
+- `original-matrix` (observation): [rust/tcl-regex/tests/data/native_jim_regexp/programs.txt](../../../../rust/tcl-regex/tests/data/native_jim_regexp/programs.txt). Complete retained per-pattern/flag program, compile code/message and range rows; no missing process statuses are manufactured.
+- `exact-source-2` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). JSON pointer `/2/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
 
 ## Source inspection
 
-jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jimregexp.c`, function `jim_regcomp`, lines 284–342. Full-source SHA-256 `97cff9c0d8f2b0b6e09c40b46e77d09b80e667ea50aa2382e5e9b74552692acf`; snippet SHA-256 `f4bb5293214ea7920646df0d88c596fc0cc1d8b776c705d729184dcbc66c8324`; retained evidence `exact-source-2`.
+jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jimregexp.c`, function `jim_regcomp`, lines 284–342. Retained reference `exact-source-2`.
 
 ```text
 int jim_regcomp(regex_t *preg, const char *exp, int cflags)

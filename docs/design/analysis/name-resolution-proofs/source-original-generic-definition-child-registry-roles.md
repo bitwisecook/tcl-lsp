@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No appliance execution for this source contract.
 
-## Exact evidence
+## Historical references
 
 No provider evidence or test execution is attached.
 

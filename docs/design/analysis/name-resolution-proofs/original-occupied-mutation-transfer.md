@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: R
 
 No native observation is asserted; the Rust contract has independent exact test selectors.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

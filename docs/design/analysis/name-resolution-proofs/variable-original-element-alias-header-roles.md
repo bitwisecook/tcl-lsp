@@ -314,11 +314,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.c). SHA-256 `8ad9fdc08a5eb3ad539d95dbd1d9c0d0856ebb4f75934a14a0539d576c45ac6f`. Exact original public/private observer and declared reference ownership.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json). SHA-256 `7cbb0d09f92d0e628e6634220b790f873cd53def5ceddc09d6e9a46d1b87a7b1`. Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
-- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.txt). SHA-256 `c750947708fb8498600e7032656d18978509733afc25f281efaa970c886c81ab`. Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
+- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.c). Exact original public/private observer and declared reference ownership.
+- `receipt` (provider): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.provenance.json). Original independently attributed compilation and process captures; inline observations preserve full raw outcomes.
+- `rows` (observation): [rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.txt). Exact checked per-provider projection. Selection is specified in the provider answer; omitted call lines remain in the receipt.
 
 ## Source inspection
 

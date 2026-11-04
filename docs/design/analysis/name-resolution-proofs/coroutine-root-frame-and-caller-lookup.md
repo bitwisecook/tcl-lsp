@@ -62,18 +62,18 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `root-frame-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). SHA-256 `77219fe9606d5eafe5fdaa1de7a4088b4619f7eb7fbefc192dacad970de6de0a`. JSON pointer `/0/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
-- `root-frame-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). SHA-256 `77219fe9606d5eafe5fdaa1de7a4088b4619f7eb7fbefc192dacad970de6de0a`. JSON pointer `/1/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
-- `root-frame-window-2` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). SHA-256 `77219fe9606d5eafe5fdaa1de7a4088b4619f7eb7fbefc192dacad970de6de0a`. JSON pointer `/2/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
-- `association-tcl8.6` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json). SHA-256 `8043de3fc616f71722feccbb550d117d5f573f5dff9f0d162ac57fcc3ecea4e3`. Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
-- `association-tcl9.0` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json). SHA-256 `2b48085da900371c3947fbc6befa11418fc55c8f498fc4c4e9d9742edfd97b26`. Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
-- `association-tcl9.1` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json). SHA-256 `9bd5decf3fa0e8b465b817c8eef53551aa674896bfe582592011660c006300a6`. Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
+- `root-frame-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). JSON pointer `/0/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
+- `root-frame-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). JSON pointer `/1/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
+- `root-frame-window-2` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). JSON pointer `/2/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
+- `association-tcl8.6` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json). Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
+- `association-tcl9.0` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json). Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
+- `association-tcl9.1` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json). Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `8.6.18`, `generic/tclBasic.c`, function `TclNRCoroutineObjCmd`, lines 9150–9277. Full-source SHA-256 `19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198`; snippet SHA-256 `ea97ca023959ed234fd0015350052bbf42fcef8b09cb33888302dae059b00135`; retained evidence `root-frame-window-0`.
+tcl8.6 8.6.18, revision `8.6.18`, `generic/tclBasic.c`, function `TclNRCoroutineObjCmd`, lines 9150–9277. Retained reference `root-frame-window-0`.
 
 ```text
 int
@@ -207,7 +207,7 @@ TclNRCoroutineObjCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `generic/tclBasic.c`, function `TclNRCoroutineObjCmd`, lines 9737–9865. Full-source SHA-256 `6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67`; snippet SHA-256 `7a53741e3a4b468901bc2977e188a0b35b0d37eafc6540a838ccf94f613358bb`; retained evidence `root-frame-window-1`.
+tcl9.0 9.0.4, revision `9.0.4`, `generic/tclBasic.c`, function `TclNRCoroutineObjCmd`, lines 9737–9865. Retained reference `root-frame-window-1`.
 
 ```text
 int
@@ -342,7 +342,7 @@ TclNRCoroutineObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `generic/tclBasic.c`, function `TclNRCoroutineObjCmd`, lines 10047–10174. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `fd36d2744f3c1110f91366659aaa5de473d1d06a4d29b895016becf7a38a3dcb`; retained evidence `root-frame-window-2`.
+tcl9.1 9.1.0, revision `9.1.0`, `generic/tclBasic.c`, function `TclNRCoroutineObjCmd`, lines 10047–10174. Retained reference `root-frame-window-2`.
 
 ```text
 int

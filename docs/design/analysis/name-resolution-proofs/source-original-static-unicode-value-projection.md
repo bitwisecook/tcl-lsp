@@ -64,7 +64,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: No origin
 
 The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

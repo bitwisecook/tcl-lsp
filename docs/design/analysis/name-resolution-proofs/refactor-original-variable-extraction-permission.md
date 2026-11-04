@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This Rust consumer contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs). SHA-256 `7b7c344cba091ffd30934ea72f212ae1a06642989862bc850c2b727915b21797`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-1` (implementation): [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs). SHA-256 `020b98d12fe6bb4e9d2bcfbfa0f383a4fe85afe1667681704c453490084126c0`. Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs). Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
+- `implementation-1` (implementation): [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs). Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
 
 ## Source inspection
 

@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This precise Rust source contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/command_presence.rs](../../../../rust/tcl-compiler/src/command_binding/command_presence.rs). SHA-256 `bbef6fa998b984f4bad594ae9ee3c18fa0e4b5e923c62de7107fa36f80196a83`. Current implementation source and fixed assertion bindings; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). SHA-256 `c44ea509aa5c225acdc07ab7140c8dc55a783b77b2d670f7fb1210f9c96b99ea`. Current implementation source and fixed assertion bindings; no execution receipt.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/command_presence.rs](../../../../rust/tcl-compiler/src/command_binding/command_presence.rs). Current implementation source and fixed assertion bindings; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). Current implementation source and fixed assertion bindings; no execution receipt.
 
 ## Source inspection
 

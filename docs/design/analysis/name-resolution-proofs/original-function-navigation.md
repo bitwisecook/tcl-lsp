@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This is a Rust implementation contract. No interpreter or appliance observation is attached.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs). SHA-256 `36dc5cf970e350b7846fe2f337b182830875cf6e8bc1cd2910d3cdacc6aa3d96`. Reviewed Rust owner for this invariant; not a provider execution capture.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). SHA-256 `174757c1907ed9e6f6f83d27f088be0fb7c0bd4c31f7443580a02fa9c27038ae`. Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
-- `implementation-2` (implementation): [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs). SHA-256 `4637e42630d5087b4dcc65c36aecff7c1659a5abc47d57203b91d34c2f784bec`. Reviewed Rust owner for this invariant; not a provider execution capture.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs). Reviewed Rust owner for this invariant; not a provider execution capture.
+- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
+- `implementation-2` (implementation): [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs). Reviewed Rust owner for this invariant; not a provider execution capture.
 
 ## Source inspection
 

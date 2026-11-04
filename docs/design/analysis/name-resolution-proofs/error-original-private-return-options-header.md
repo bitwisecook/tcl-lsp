@@ -103,11 +103,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c). SHA-256 `bafa27b7e79c9b847bf456e829cddd35f50011ab7724de6c469ea8552ce2a64b`. Exact private field conditional boundaries, original child selection and saved-state pointer/count sampling.
-- `receipt` (observation): [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json). SHA-256 `fe5f818e8c364774d335d037beeeb3da22dcfc1354fa786d002a8980b48e8ad0`. All five separate compile/process status/stdout/stderr captures; sentinel branches retained.
-- `rows` (observation): [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv). SHA-256 `8db9e4d50d705dc72c4b4940ef34b7d1619f955c311d693a0db76042031c0c17`. Exact 38-row projection agrees byte-for-byte with the prefixed original inline streams.
+- `probe` (input): [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c). Exact private field conditional boundaries, original child selection and saved-state pointer/count sampling.
+- `receipt` (observation): [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json). All five separate compile/process status/stdout/stderr captures; sentinel branches retained.
+- `rows` (observation): [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv). Exact 38-row projection agrees byte-for-byte with the prefixed original inline streams.
 
 ## Source inspection
 

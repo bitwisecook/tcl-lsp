@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This precise Rust source contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). SHA-256 `b397e577d15a2b3b3a6d2118843f0c77c0bae15bea34c73b2b5fdb3d15eb303d`. Shared participant collector and fixed mixed-workspace assertion source; no Rust or native execution receipt.
+- `implementation` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Shared participant collector and fixed mixed-workspace assertion source; no Rust or native execution receipt.
 
 ## Source inspection
 

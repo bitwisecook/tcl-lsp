@@ -62,17 +62,17 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
-## Exact evidence
+## Historical references
 
-- `original-capture` (provider): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). SHA-256 `6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e`. Original source/library/header/build context and every process status/stream, including incomplete attempts.
-- `original-probe` (input): [runtime/rust/tests/data/native_regexp_jim_regsub/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/probe.c). SHA-256 `b427c8677cb8dcf5d7343c9cda1bae6d93e492fbe964a5c2de49c88b8fa5a803`. Exact direct Jim worker invocation, object construction and physical reporting order.
-- `jim-case-9` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). SHA-256 `6f5e36c0589ba3c4e5b40e21f880bdd5afaba2c54c488f03e7deedc01079ee8e`. JSON pointer `/captures/9`. Exact original process status and raw output/error of this case.
-- `exact-source-0` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). SHA-256 `f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c`. JSON pointer `/0/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
-- `exact-source-1` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). SHA-256 `f36a41d7658d9b17accf0b4bf93dc17a1c11008bd8d1261ff9c10ce83f58678c`. JSON pointer `/1/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
+- `original-capture` (provider): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). Original source/library/header/build context and every process status/stream, including incomplete attempts.
+- `original-probe` (input): [runtime/rust/tests/data/native_regexp_jim_regsub/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/probe.c). Exact direct Jim worker invocation, object construction and physical reporting order.
+- `jim-case-9` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/9`. Exact original process status and raw output/error of this case.
+- `exact-source-0` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). JSON pointer `/0/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
+- `exact-source-1` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). JSON pointer `/1/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
 
 ## Source inspection
 
-jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jim-regexp.c`, function `SetRegexpFromAny`, lines 64–118. Full-source SHA-256 `7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd`; snippet SHA-256 `59666c07b5a37595ac1f946f1a627d8212ece3241bf8c95609abfbdd66380a5f`; retained evidence `exact-source-0`.
+jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jim-regexp.c`, function `SetRegexpFromAny`, lines 64–118. Retained reference `exact-source-0`.
 
 ```text
 static void FreeRegexpInternalRep(Jim_Interp *interp, Jim_Obj *objPtr)
@@ -133,7 +133,7 @@ static regex_t *SetRegexpFromAny(Jim_Interp *interp, Jim_Obj *objPtr, unsigned f
 
 ```
 
-jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jim-regexp.c`, function `Jim_RegsubCmd`, lines 452–483. Full-source SHA-256 `7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd`; snippet SHA-256 `60d1754027bfbe5928e2189ffd553ac28fab8a6d907b8874249f81775ff5b5c3`; retained evidence `exact-source-1`.
+jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03 (current source inspection; full-file digest equals captured source)`, `jim-regexp.c`, function `Jim_RegsubCmd`, lines 452–483. Retained reference `exact-source-1`.
 
 ```text
     }

@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

@@ -66,10 +66,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This precise Rust source contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/code_lens.rs](../../../../rust/tcl-lsp-core/src/code_lens.rs). SHA-256 `3ba67c08c9d3379d221166ee2d85c6e47947c2c749f66a59153caf91d372284a`. Current implementation source and fixed assertion bindings; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). SHA-256 `1e72c30cdc65eb27bc88a2ff4f1234959f22bf34ff72a13db2c19fe117407be1`. Current implementation source and fixed assertion bindings; no execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/code_lens.rs](../../../../rust/tcl-lsp-core/src/code_lens.rs). Current implementation source and fixed assertion bindings; no execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). Current implementation source and fixed assertion bindings; no execution receipt.
 
 ## Source inspection
 

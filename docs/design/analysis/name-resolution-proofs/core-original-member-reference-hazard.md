@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-core-original-member-reference-hazard-source_scoped_body.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs). SHA-256 `d260e580e2337038e3c2c5ed6559c44e89b16e037685ff7c1ce5e29e9073ef0d`. Current selected source/API owner; no executed assertion or native provider observation.
-- `naming-core-original-member-reference-hazard-definer.rs` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). SHA-256 `d73eca05046b2e483597bde652eb3e1509d7540bb8b3f520650e3e078db44593`. Current selected source/API owner; no executed assertion or native provider observation.
+- `naming-core-original-member-reference-hazard-source_scoped_body.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs). Current selected source/API owner; no executed assertion or native provider observation.
+- `naming-core-original-member-reference-hazard-definer.rs` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). Current selected source/API owner; no executed assertion or native provider observation.
 
 ## Source inspection
 

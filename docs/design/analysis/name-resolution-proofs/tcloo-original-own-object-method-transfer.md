@@ -62,15 +62,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json). SHA-256 `1ec16579b42c78b8dc2012d2b1cd8b6ed57901487f6aabdef55c2949f333d512`. JSON pointer `/source_anchors`. Retained complete function snippets and full original C source file hashes for the setter, procedure method creation, own object table replacement and known procedure deletion boundaries.
+- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json). JSON pointer `/source_anchors`. Retained complete function snippets and full original C source file hashes for the setter, procedure method creation, own object table replacement and known procedure deletion boundaries.
 
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). SHA-256 `903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c`. JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
+- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 1548–1592. Full-source SHA-256 `56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81`; snippet SHA-256 `149f61556901b38088f841f849e86b9e55a4b7d2730a1fa0ccd39871531f1ca4`; retained evidence `c-source`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 1548–1592. Retained reference `c-source`.
 
 ```text
 TclOODefineMethodObjCmd(
@@ -121,7 +121,7 @@ TclOODefineMethodObjCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `TclOOMakeProcInstanceMethod`, lines 430–523. Full-source SHA-256 `c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728`; snippet SHA-256 `fedc40da244048f038d3711262486ee7da96b47622c70e68983d0c599a278fd2`; retained evidence `c-source`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `TclOOMakeProcInstanceMethod`, lines 430–523. Retained reference `c-source`.
 
 ```text
 TclOOMakeProcInstanceMethod(
@@ -221,7 +221,7 @@ TclOOMakeProcInstanceMethod(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `Tcl_NewInstanceMethod`, lines 136–192. Full-source SHA-256 `c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728`; snippet SHA-256 `e53a1b9f6d25737a47b657a664438d3d48b31884a00e540c1ab0352c0eeab381`; retained evidence `c-source`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `Tcl_NewInstanceMethod`, lines 136–192. Retained reference `c-source`.
 
 ```text
 Tcl_NewInstanceMethod(
@@ -284,7 +284,7 @@ Tcl_NewInstanceMethod(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `DeleteProcedureMethod`, lines 1227–1235. Full-source SHA-256 `c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728`; snippet SHA-256 `18171600f0682d3b789cc7439c9acea4b02f9afa5aa482c81bb5a737b5adb859`; retained evidence `c-source`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `DeleteProcedureMethod`, lines 1227–1235. Retained reference `c-source`.
 
 ```text
 DeleteProcedureMethod(
@@ -299,7 +299,7 @@ DeleteProcedureMethod(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2277–2361. Full-source SHA-256 `1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d`; snippet SHA-256 `ca528ef582289d9f8483cc4767b04c7b0b97395acfa1a112abf3a591d5c9853f`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2277–2361. Retained reference `c-source`.
 
 ```text
 TclOODefineMethodObjCmd(
@@ -390,7 +390,7 @@ TclOODefineMethodObjCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `TclOOMakeProcInstanceMethod`, lines 615–651. Full-source SHA-256 `ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c`; snippet SHA-256 `0d12907dc5ed11638a5557d82bd266c58a2564a8d010d240544984b72e1b10c3`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `TclOOMakeProcInstanceMethod`, lines 615–651. Retained reference `c-source`.
 
 ```text
 TclOOMakeProcInstanceMethod(
@@ -433,7 +433,7 @@ TclOOMakeProcInstanceMethod(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `Tcl_NewInstanceMethod`, lines 199–220. Full-source SHA-256 `ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c`; snippet SHA-256 `8ec2e9e7b1ee9765dcb56d1a99704765478cf65aeec0da73e34c4bd2639b1280`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `Tcl_NewInstanceMethod`, lines 199–220. Retained reference `c-source`.
 
 ```text
 Tcl_NewInstanceMethod(
@@ -461,7 +461,7 @@ Tcl_NewInstanceMethod(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `DeleteProcedureMethod`, lines 1401–1409. Full-source SHA-256 `ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c`; snippet SHA-256 `bb88abeac6295b42cb4a9dad06019c03d53e4ccb00807898281b8fd1afb7a6fe`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `DeleteProcedureMethod`, lines 1401–1409. Retained reference `c-source`.
 
 ```text
 DeleteProcedureMethod(
@@ -476,7 +476,7 @@ DeleteProcedureMethod(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2237–2318. Full-source SHA-256 `bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106`; snippet SHA-256 `a10f879e9ab4d7269c1f889ab63cb99cf586d0d07f8f5423c4b69c4d36c0e57b`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2237–2318. Retained reference `c-source`.
 
 ```text
 TclOODefineMethodObjCmd(
@@ -564,7 +564,7 @@ TclOODefineMethodObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `TclOOMakeProcInstanceMethod`, lines 622–658. Full-source SHA-256 `1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1`; snippet SHA-256 `c4294003964f6e418f9425a0e88ebc734dcf1349a6a39d149270ca240e1ea125`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `TclOOMakeProcInstanceMethod`, lines 622–658. Retained reference `c-source`.
 
 ```text
 TclOOMakeProcInstanceMethod(
@@ -607,7 +607,7 @@ TclOOMakeProcInstanceMethod(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `Tcl_NewInstanceMethod`, lines 203–224. Full-source SHA-256 `1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1`; snippet SHA-256 `40a8bfd03b8fd168229f697f0e19abfafd4fc3794080b91cb4733cbbaf5ffcda`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `Tcl_NewInstanceMethod`, lines 203–224. Retained reference `c-source`.
 
 ```text
 Tcl_NewInstanceMethod(
@@ -635,7 +635,7 @@ Tcl_NewInstanceMethod(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `DeleteProcedureMethod`, lines 1464–1472. Full-source SHA-256 `1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1`; snippet SHA-256 `bb88abeac6295b42cb4a9dad06019c03d53e4ccb00807898281b8fd1afb7a6fe`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source association; full source digest is authoritative`, `generic/tclOOMethod.c`, function `DeleteProcedureMethod`, lines 1464–1472. Retained reference `c-source`.
 
 ```text
 DeleteProcedureMethod(

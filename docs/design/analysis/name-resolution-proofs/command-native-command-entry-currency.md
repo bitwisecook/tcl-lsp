@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-command-native-command-entry-currency-native_body_artifact.rs` (implementation): [runtime/rust/src/interp/native_body_artifact.rs](../../../../runtime/rust/src/interp/native_body_artifact.rs). SHA-256 `88a19960571a9c71ace5bc2a34627dd9412003375d6d07c4c89024de7e6839c9`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-command-native-command-entry-currency-native_compilation.rs` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). SHA-256 `9f308bfa783f09d410ba5df7ab51829da46226f5e290e59d63ec56e590619525`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-command-native-command-entry-currency-native_body_artifact.rs` (implementation): [runtime/rust/src/interp/native_body_artifact.rs](../../../../runtime/rust/src/interp/native_body_artifact.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-command-native-command-entry-currency-native_compilation.rs` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

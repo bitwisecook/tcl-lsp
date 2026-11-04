@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
 
-## Exact evidence
+## Historical references
 
-- `actual-consumer-source` (implementation): [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs). SHA-256 `68a9f560418213001cce36c0060ac4c3fd8185bcdf40ad85698ce347a696fe54`. Exact current consumer and fixed test source; not an execution receipt or native observation.
+- `actual-consumer-source` (implementation): [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs). Exact current consumer and fixed test source; not an execution receipt or native observation.
 
 ## Source inspection
 

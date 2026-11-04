@@ -62,16 +62,16 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `manifest` (provider): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json). SHA-256 `ab9f2482c437c47c5d4ff6f5eae676fee712e453c8fb61ed246097d4a0757107`. Captured original compiler arguments and library/header/probe/log hashes, with completed 36-row runs per measured provider.
-- `probe` (input): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c). SHA-256 `70d3e32511cb1985132f624fbc670402eefda17b6fb18b64a0a09f4c134da684`. Exact counted formal lists, original bodies and completion-first probe.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl). SHA-256 `32349492892755457a1ed8f4045eb072b94ff4aa698442544fbd23084529037e`. All 36 exact definition/completion records for 8.4.20.
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl). SHA-256 `86dabdaa707558e87df42892b99d197837314c4d6ddbc7174130625afe47d9ca`. All 36 exact definition/completion records for 8.5.19.
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl). SHA-256 `1ef39d66055d854868789bbc5bc5638003ee36a4382cbf4f73766c76c935ab63`. All 36 exact definition/completion records for 8.6.18.
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl). SHA-256 `1ef39d66055d854868789bbc5bc5638003ee36a4382cbf4f73766c76c935ab63`. All 36 exact definition/completion records for 9.0.4.
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl). SHA-256 `f4659fd880cdade2333ed290148126074139963846b92a04fae6cc34355d6549`. All 36 exact definition/completion records for 9.1.0.
-- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl). SHA-256 `3194509d8ae3cb1fb396946b0761ec6e3b3929c992532cc19e8f6c60ebea98d7`. All 36 exact definition/completion records for Jim.
+- `manifest` (provider): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json). Captured original compiler arguments and library/header/probe/log hashes, with completed 36-row runs per measured provider.
+- `probe` (input): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c). Exact counted formal lists, original bodies and completion-first probe.
+- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl). All 36 exact definition/completion records for 8.4.20.
+- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl). All 36 exact definition/completion records for 8.5.19.
+- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl). All 36 exact definition/completion records for 8.6.18.
+- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl). All 36 exact definition/completion records for 9.0.4.
+- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl). All 36 exact definition/completion records for 9.1.0.
+- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl). All 36 exact definition/completion records for Jim.
 
 ## Source inspection
 

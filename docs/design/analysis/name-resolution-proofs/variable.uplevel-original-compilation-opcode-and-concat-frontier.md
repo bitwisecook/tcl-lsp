@@ -204,10 +204,10 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json). SHA-256 `680808f88cec21780f182ba04dadfdd6985730e604ffb9f134aff3b92b05867d`. 12 original shell artifact records, source/binary hashes and opcode flags.
-- `e1` (observation): [rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv). SHA-256 `a20ae4aae4b2e7d6eb5a145366d379b2f89a7d9e565e2f6e08e2dc4364a1cbc1`. Exact six body spellings and opcode/concat answers per queried provider.
+- `e0` (provider): [rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json). 12 original shell artifact records, source/binary hashes and opcode flags.
+- `e1` (observation): [rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv). Exact six body spellings and opcode/concat answers per queried provider.
 
 ## Source inspection
 

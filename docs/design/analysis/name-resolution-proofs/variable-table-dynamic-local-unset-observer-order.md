@@ -86,16 +86,16 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No original observation for this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-core-types/tests/data/native_variable_tables/probe.c](../../../../rust/tcl-core-types/tests/data/native_variable_tables/probe.c). SHA-256 `515d491323ffb7be74530b7736484608cd6de17060240ff87eb31eedd9335846`. Exact original keys, constructor/evaluator flags, native metadata and independent script observer cases.
-- `receipt` (provider): [rust/tcl-core-types/tests/data/native_variable_tables/manifest.json](../../../../rust/tcl-core-types/tests/data/native_variable_tables/manifest.json). SHA-256 `ef2b629ba28eeae46b8823ea8e02bdb7b32b28d2326a004b8cad350d53425a72`. Six original source/header/library/compile/process/raw output closures; absent additional artifacts remain explicit.
-- `rows-tcl8.4` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl). SHA-256 `f2e9bf0f841206ee09d7b6d2fa0879fe4ff6c9035720bbc89df808f271b5a043`. Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl8.5` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl). SHA-256 `0b2a033f8057e4398eebee5374bf7530e1c33c5bf0a6c80f12773b05107f6d6f`. Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl8.6` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl). SHA-256 `f0aab00c89ff26c20e7a9c7c16eb8fcbcb2dc2fd5c02ee6175ff58eee73a410c`. Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl9.0` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl). SHA-256 `950174873e3c020bbb6678850238ef83f4e37d2e3e1327c00499aa94a989b039`. Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl9.1` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl). SHA-256 `950174873e3c020bbb6678850238ef83f4e37d2e3e1327c00499aa94a989b039`. Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-jim` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl). SHA-256 `59b46068237c18aaed0fd8e81ba0706291089a0ac4057f183208b721494df451`. Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
+- `probe` (input): [rust/tcl-core-types/tests/data/native_variable_tables/probe.c](../../../../rust/tcl-core-types/tests/data/native_variable_tables/probe.c). Exact original keys, constructor/evaluator flags, native metadata and independent script observer cases.
+- `receipt` (provider): [rust/tcl-core-types/tests/data/native_variable_tables/manifest.json](../../../../rust/tcl-core-types/tests/data/native_variable_tables/manifest.json). Six original source/header/library/compile/process/raw output closures; absent additional artifacts remain explicit.
+- `rows-tcl8.4` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
+- `rows-tcl8.5` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
+- `rows-tcl8.6` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
+- `rows-tcl9.0` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
+- `rows-tcl9.1` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
+- `rows-jim` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
 
 ## Source inspection
 

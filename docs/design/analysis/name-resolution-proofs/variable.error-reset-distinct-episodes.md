@@ -67,15 +67,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `capture` (provider): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes-manifest.json](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes-manifest.json). SHA-256 `38b32ca3b24b6ab3f53f4c851e18e9719f30b4fa1ed652b4b4b6441e021d9e18`. Exact original build and capture receipt, including all observed engine versions and source/library/output hashes.
-- `probe` (input): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.c](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.c). SHA-256 `ba54cc68a231bff05900bcad3b890882e5971e81dc24208efd45564652845199`. Original API calls, reporting order, object retention and internal root-cell observation windows.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). SHA-256 `9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8`. Exact native result/state/callback rows for 8.4.20
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). SHA-256 `9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8`. Exact native result/state/callback rows for 8.5.19
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). SHA-256 `9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8`. Exact native result/state/callback rows for 8.6.18
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). SHA-256 `9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8`. Exact native result/state/callback rows for 9.0.4
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). SHA-256 `9646fcdfe5c93cbd36f3b4c6ec03f3dffe724a86fedaaa20e6e787ca98a0f4f8`. Exact native result/state/callback rows for 9.1.0
+- `capture` (provider): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes-manifest.json](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes-manifest.json). Exact original build and capture receipt, including all observed engine versions and source/library/output hashes.
+- `probe` (input): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.c](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.c). Original API calls, reporting order, object retention and internal root-cell observation windows.
+- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). Exact native result/state/callback rows for 8.4.20
+- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). Exact native result/state/callback rows for 8.5.19
+- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). Exact native result/state/callback rows for 8.6.18
+- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). Exact native result/state/callback rows for 9.0.4
+- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv](../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv). Exact native result/state/callback rows for 9.1.0
 
 ## Source inspection
 

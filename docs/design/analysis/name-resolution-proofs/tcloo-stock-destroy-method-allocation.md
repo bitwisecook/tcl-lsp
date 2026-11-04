@@ -62,25 +62,25 @@ Status: `not-tested`. Version: not recorded for this question. Build: not record
 
 No observation from this finite probe. Availability or behaviour cannot be inferred from another provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/probe.tcl](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/probe.tcl). SHA-256 `2fce418c8bceb36c81645bebddff5dc9704c1ba797edde2f9d0d7105add422f5`. Exact ASCII LF script, passed to each fresh tclsh stdin.
-- `capture` (provider): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/receipt.json). SHA-256 `1f032d641892798fd998a64db400285a4b2487a5f2699b80c7a2690a02b02bb8`. Original process exit, executable/source/output/anchor digests; build flags and library/header hashes are not retained by this script capture.
-- `version-probe` (input): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/probe.tcl](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/probe.tcl). SHA-256 `f8183395c8b9ce7d2602a62c8fd67bd33e4698122592863a5bc47cb34e754c87`. Separate additive info patchlevel/tclversion script.
-- `version-capture` (provider): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/receipt.json). SHA-256 `79352f5b605dbad9766d0fbe6274efc0aed93b1c639dc0fecb6ebe7aeb4fd730`. Same original executable hashes and original receipt hash; separate process0 version queries.
-- `stdout-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/8.6.18.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/8.6.18.stdout). SHA-256 `a62ff3518ecddcb2f157c9eb829f0582b2dee3507b773d7cf93d35e885f02157`. Two original rows: inherited class/object rosters before removal and both rosters plus actual O destroy failure after deletion.
-- `version-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/8.6.18.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/8.6.18.stdout). SHA-256 `29668c20e5d19ff4694f84937d4fa5ff89170e453eaf70dc693ed1d71353369d`. Same executable separately reports exact patchlevel and Tcl version.
-- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json). SHA-256 `20cfa8c0f2a7826cce1eed6d9b904ca3769d216d3d0df59ba2b8978c47f9ac3f`. JSON pointer `/0/snippet`. Exact objMethods/DCM window retained from the full source whose digest is in original capture.
-- `stdout-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.0.4.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.0.4.stdout). SHA-256 `a62ff3518ecddcb2f157c9eb829f0582b2dee3507b773d7cf93d35e885f02157`. Two original rows: inherited class/object rosters before removal and both rosters plus actual O destroy failure after deletion.
-- `version-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.0.4.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.0.4.stdout). SHA-256 `4ca15c39f2af5d89227af7785878f742753ef3906f625a87dad669d4e80bf80a`. Same executable separately reports exact patchlevel and Tcl version.
-- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json). SHA-256 `20cfa8c0f2a7826cce1eed6d9b904ca3769d216d3d0df59ba2b8978c47f9ac3f`. JSON pointer `/1/snippet`. Exact objMethods/DCM window retained from the full source whose digest is in original capture.
-- `stdout-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.1.0.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.1.0.stdout). SHA-256 `a62ff3518ecddcb2f157c9eb829f0582b2dee3507b773d7cf93d35e885f02157`. Two original rows: inherited class/object rosters before removal and both rosters plus actual O destroy failure after deletion.
-- `version-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.1.0.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.1.0.stdout). SHA-256 `aabb2775485d430c29816c1e2737adb1c004aa879efa3f8aee19634aac547f40`. Same executable separately reports exact patchlevel and Tcl version.
-- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json). SHA-256 `20cfa8c0f2a7826cce1eed6d9b904ca3769d216d3d0df59ba2b8978c47f9ac3f`. JSON pointer `/2/snippet`. Exact objMethods/DCM window retained from the full source whose digest is in original capture.
+- `probe` (input): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/probe.tcl](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/probe.tcl). Exact ASCII LF script, passed to each fresh tclsh stdin.
+- `capture` (provider): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/receipt.json). Original process exit, executable/source/output/anchor digests; build flags and library/header hashes are not retained by this script capture.
+- `version-probe` (input): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/probe.tcl](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/probe.tcl). Separate additive info patchlevel/tclversion script.
+- `version-capture` (provider): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/receipt.json). Same original executable hashes and original receipt hash; separate process0 version queries.
+- `stdout-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/8.6.18.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/8.6.18.stdout). Two original rows: inherited class/object rosters before removal and both rosters plus actual O destroy failure after deletion.
+- `version-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/8.6.18.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/8.6.18.stdout). Same executable separately reports exact patchlevel and Tcl version.
+- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json). JSON pointer `/0/snippet`. Exact objMethods/DCM window retained from the full source whose digest is in original capture.
+- `stdout-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.0.4.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.0.4.stdout). Two original rows: inherited class/object rosters before removal and both rosters plus actual O destroy failure after deletion.
+- `version-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.0.4.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.0.4.stdout). Same executable separately reports exact patchlevel and Tcl version.
+- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json). JSON pointer `/1/snippet`. Exact objMethods/DCM window retained from the full source whose digest is in original capture.
+- `stdout-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.1.0.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/9.1.0.stdout). Two original rows: inherited class/object rosters before removal and both rosters plus actual O destroy failure after deletion.
+- `version-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.1.0.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/version-query/9.1.0.stdout). Same executable separately reports exact patchlevel and Tcl version.
+- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json](../../../../rust/tcl-registry/tests/data/native_tcloo_stock_destroy/source-windows.json). JSON pointer `/2/snippet`. Exact objMethods/DCM window retained from the full source whose digest is in original capture.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `exact pinned source associated with original receipt; linked binary version queried separately`, `generic/tclOO.c`, function `objMethods`, lines 106–122. Full-source SHA-256 `e749370dcaeab6d214b811a246536c1cf06f92edf2c51c8f1dbd8f4a6f57b3ef`; snippet SHA-256 `bd7780841ca69a40a4b0e18d7bec1e2774291857ec4956c0f92baedb9ebf0b0d`; retained evidence `source-tcl8.6`.
+tcl8.6 8.6.18, revision `exact pinned source associated with original receipt; linked binary version queried separately`, `generic/tclOO.c`, function `objMethods`, lines 106–122. Retained reference `source-tcl8.6`.
 
 ```text
 #define DCM(name,visibility,proc) \
@@ -103,7 +103,7 @@ static const DeclaredClassMethod objMethods[] = {
 
 ```
 
-tcl9.0 9.0.4, revision `exact pinned source associated with original receipt; linked binary version queried separately`, `generic/tclOO.c`, function `objMethods`, lines 131–159. Full-source SHA-256 `2e26684094bbe01c988c20386de1a3bf53646f47ce84ad50a807414455d1d3a7`; snippet SHA-256 `e5bc66d9c081231b8aa32aba90cfbf1a8405d210bd6ca45b7429cbfeaf1de7a4`; retained evidence `source-tcl9.0`.
+tcl9.0 9.0.4, revision `exact pinned source associated with original receipt; linked binary version queried separately`, `generic/tclOO.c`, function `objMethods`, lines 131–159. Retained reference `source-tcl9.0`.
 
 ```text
 #define DCM(name,visibility,proc) \
@@ -138,7 +138,7 @@ static const DeclaredClassMethod objMethods[] = {
 
 ```
 
-tcl9.1 9.1.0, revision `exact pinned source associated with original receipt; linked binary version queried separately`, `generic/tclOO.c`, function `objMethods`, lines 132–160. Full-source SHA-256 `f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd`; snippet SHA-256 `a59f7d98a7e68ba17412d19252c9a3a9eb629219c87e6b30517bdd22c7654b59`; retained evidence `source-tcl9.1`.
+tcl9.1 9.1.0, revision `exact pinned source associated with original receipt; linked binary version queried separately`, `generic/tclOO.c`, function `objMethods`, lines 132–160. Retained reference `source-tcl9.1`.
 
 ```text
 #define DCM(name,visibility,proc) \

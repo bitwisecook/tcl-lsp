@@ -62,25 +62,25 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This exact C substitution/private-header question was not tested on this provider.
 
-## Exact evidence
+## Historical references
 
-- `e0` (input): [rust/tcl-registry/tests/data/native_substitution_owner/inputs.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/inputs.json). SHA-256 `364bf581c1b5d6b4e6b2b321ae4005d553f7c84fe120ca17c0c61e443022c307`. Complete ten native template byte arrays as hexadecimal. v1 shortened counts are separately encoded in its original probe.
-- `e1` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c). SHA-256 `b633702ddc869247bc9b00acb1f6068a72bf2b36066c21595d5e879a72f6bfc4`. Exact immutable v1 translation unit and original counted template/setup operations.
-- `e2` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c). SHA-256 `eb0eb2cc580340b982745d616d9d9db9c6fc36bb4c0171c2d275f0fe9c1bdd9c`. Exact immutable v2 translation unit and original counted template/setup operations.
-- `e3` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c). SHA-256 `7d7cedcd46b03c3634d8c974e9557a21333a2424c75a25aaec3603b5feac3538`. Exact immutable v3 translation unit and original counted template/setup operations.
-- `e4` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c). SHA-256 `9a0dd266956f6bbd7a283d95b8942681642135dd5e8b1edbdc5a3828ac562b8b`. Exact immutable v4 translation unit and original counted template/setup operations.
-- `e5` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c). SHA-256 `f42aa9712f61038336f07e84b6b4182a8e0e4bde03621457f0c1e742d605139a`. Exact immutable v5 translation unit and original counted template/setup operations.
-- `e6` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c). SHA-256 `1d19fec43fcd1f3de7809dcce3f9fead2dbac32de27c3711a01dcd9aefb08f56`. Exact immutable v6 translation unit and original counted template/setup operations.
-- `e7` (provider): [rust/tcl-registry/tests/data/native_substitution_owner/manifest.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/manifest.json). SHA-256 `762b4287fd6746d901efbfb000d1bc4e50012af00d0260ca9364e395f88377f4`. Finite corpus provider mapping, variant input/setup/process limits and source excerpts.
-- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.4.20.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.4.20.json). SHA-256 `9aac3b4133f72a9c85c20ab494a86c35a85e56631126d0c9d95464a8080961cf`. JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.5.19.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.5.19.json). SHA-256 `ba1772af2cf3f9ad9416853099aceee4669f53023c5f040a8b898ac089255266`. JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e10` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.6.18.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.6.18.json). SHA-256 `1a31bc570e4965fb2cc150a6337ab2c88e04fb02f8e20663a3aded0d9c88e009`. JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e11` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.0.4.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.0.4.json). SHA-256 `f5ab0243e1ecfd6e11fe6434d5f6f5792f574c7394643955d8fb5caf38f69b0b`. JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e12` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.1.0.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.1.0.json). SHA-256 `5ae5ddbaf48a6ef7bea8d63ad9b90937ff27c362e681ad72f95739d44ce9fbe0`. JSON pointer `/snippet`. Actual retained function text from exact configured native release.
+- `e0` (input): [rust/tcl-registry/tests/data/native_substitution_owner/inputs.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/inputs.json). Complete ten native template byte arrays as hexadecimal. v1 shortened counts are separately encoded in its original probe.
+- `e1` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c). Exact immutable v1 translation unit and original counted template/setup operations.
+- `e2` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c). Exact immutable v2 translation unit and original counted template/setup operations.
+- `e3` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c). Exact immutable v3 translation unit and original counted template/setup operations.
+- `e4` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c). Exact immutable v4 translation unit and original counted template/setup operations.
+- `e5` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c). Exact immutable v5 translation unit and original counted template/setup operations.
+- `e6` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c). Exact immutable v6 translation unit and original counted template/setup operations.
+- `e7` (provider): [rust/tcl-registry/tests/data/native_substitution_owner/manifest.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/manifest.json). Finite corpus provider mapping, variant input/setup/process limits and source excerpts.
+- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.4.20.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.4.20.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
+- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.5.19.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.5.19.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
+- `e10` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.6.18.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.6.18.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
+- `e11` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.0.4.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.0.4.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
+- `e12` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.1.0.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.1.0.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Pinned Tcl release 8.4.20; https://github.com/tcltk/tcl/blob/core-8-4-20/generic/tclCmdMZ.c`, `generic/tclCmdMZ.c`, function `Tcl_SubstObj`, lines 2577–2704. Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `fab16539af8a6f8f908eb092de556c3351bca4562740b134ac59122d642ed122`; retained evidence `e8`.
+tcl8.4 8.4.20, revision `Pinned Tcl release 8.4.20; https://github.com/tcltk/tcl/blob/core-8-4-20/generic/tclCmdMZ.c`, `generic/tclCmdMZ.c`, function `Tcl_SubstObj`, lines 2577–2704. Retained reference `e8`.
 
 ```text
 
@@ -213,7 +213,7 @@ Tcl_SubstObj(interp, objPtr, flags)
 
 ```
 
-tcl8.5 8.5.19, revision `Pinned Tcl release 8.5.19; https://github.com/tcltk/tcl/blob/core-8-5-19/generic/tclParse.c`, `generic/tclParse.c`, function `Tcl_SubstObj`, lines 1925–2155. Full-source SHA-256 `4855b382f7acc6e02e53383f667169a6a9d348a30b44c586c8622e97f34a3a8c`; snippet SHA-256 `48efdcd6f516f2f9489d9569601bb55abea122a26605877f83fbfb720a275aa7`; retained evidence `e9`.
+tcl8.5 8.5.19, revision `Pinned Tcl release 8.5.19; https://github.com/tcltk/tcl/blob/core-8-5-19/generic/tclParse.c`, `generic/tclParse.c`, function `Tcl_SubstObj`, lines 1925–2155. Retained reference `e9`.
 
 ```text
 
@@ -449,7 +449,7 @@ Tcl_SubstObj(
 
 ```
 
-tcl8.6 8.6.18, revision `Pinned Tcl release 8.6.18; https://github.com/tcltk/tcl/blob/core-8-6-18/generic/tclCompile.c`, `generic/tclCompile.c`, function `CompileSubstObj`, lines 1275–1344. Full-source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `c7651a3355ff148e6450d252f681e57ea91882a4ecb6c7a999b4a4bb2ddfa875`; retained evidence `e10`.
+tcl8.6 8.6.18, revision `Pinned Tcl release 8.6.18; https://github.com/tcltk/tcl/blob/core-8-6-18/generic/tclCompile.c`, `generic/tclCompile.c`, function `CompileSubstObj`, lines 1275–1344. Retained reference `e10`.
 
 ```text
 
@@ -524,7 +524,7 @@ CompileSubstObj(
 
 ```
 
-tcl9.0 9.0.4, revision `Pinned Tcl release 9.0.4; https://github.com/tcltk/tcl/blob/core-9-0-4/generic/tclCompile.c`, `generic/tclCompile.c`, function `CompileSubstObj`, lines 1316–1384. Full-source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `60b41530211e2c334c36aeadf0eb5d7593993fed3c549903a12e3c7c53e2776a`; retained evidence `e11`.
+tcl9.0 9.0.4, revision `Pinned Tcl release 9.0.4; https://github.com/tcltk/tcl/blob/core-9-0-4/generic/tclCompile.c`, `generic/tclCompile.c`, function `CompileSubstObj`, lines 1316–1384. Retained reference `e11`.
 
 ```text
 
@@ -598,7 +598,7 @@ CompileSubstObj(
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned Tcl release 9.1.0; https://github.com/tcltk/tcl/blob/core-9-1-0/generic/tclCompile.c`, `generic/tclCompile.c`, function `CompileSubstObj`, lines 1634–1702. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `29b23e12e807e9d4f31ed1a0e5afe7e8cf7dcfa461309795e7375cbdd4cb2333`; retained evidence `e12`.
+tcl9.1 9.1.0, revision `Pinned Tcl release 9.1.0; https://github.com/tcltk/tcl/blob/core-9-1-0/generic/tclCompile.c`, `generic/tclCompile.c`, function `CompileSubstObj`, lines 1634–1702. Retained reference `e12`.
 
 ```text
 

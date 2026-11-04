@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-cli-original-source-highlight-geometry-highlight.rs` (implementation): [rust/tcl-cli-support/src/highlight.rs](../../../../rust/tcl-cli-support/src/highlight.rs). SHA-256 `a0e016ba97dea1a578b99839f5009eeff2f6a1868fefaef11ae4f017cfc0e4eb`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-cli-original-source-highlight-geometry-source_structure.rs` (implementation): [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs). SHA-256 `3cc56d094553d0fac6de91248a06fd6a1dd99701fa3f60e79d0ce0443fe19e29`. Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-cli-original-source-highlight-geometry-highlight.rs` (implementation): [rust/tcl-cli-support/src/highlight.rs](../../../../rust/tcl-cli-support/src/highlight.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
+- `naming-cli-original-source-highlight-geometry-source_structure.rs` (implementation): [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 

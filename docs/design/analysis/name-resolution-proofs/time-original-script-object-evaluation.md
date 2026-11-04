@@ -62,18 +62,18 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.4-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json). SHA-256 `a5bf8f54cab6a794c3e237f9328e0265dfb21580a186f73d36c10e2995d802dd`. JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl8.5-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json). SHA-256 `47a0abe55aae7b4c8de5ecc9cee43d930457b9f419cc8e63966a747e5a3dbe4f`. JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl8.6-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json). SHA-256 `3cb2ddd6b066780961315689013892dd6e93de05a78f1328df90813af9277e82`. JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl9.0-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json). SHA-256 `370fdf29006151b8f4a4b9351b26fbd22dd3398e8240406f958505bfdefc63ce`. JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl9.1-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json). SHA-256 `e213a6250d15039f534027c44cf48212e0e10c4c3392dec023b4614b1d845525`. JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `jim-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json). SHA-256 `949e5e675050462385848d43cce5b90479d55a0b31395a19ef9d713c7b349385`. JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
+- `tcl8.4-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
+- `tcl8.5-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
+- `tcl8.6-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
+- `tcl9.0-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
+- `tcl9.1-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
+- `jim-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `8.4.20`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 3002–3051. Full-source SHA-256 `b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc`; snippet SHA-256 `089660eb29fb03e3ddbcdf692bc28c743120f26a7dba56e67d5c8a746561e079`; retained evidence `tcl8.4-time-object`.
+tcl8.4 8.4.20, revision `8.4.20`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 3002–3051. Retained reference `tcl8.4-time-object`.
 
 ```text
 Tcl_TimeObjCmd(dummy, interp, objc, objv)
@@ -129,7 +129,7 @@ Tcl_TimeObjCmd(dummy, interp, objc, objv)
 
 ```
 
-tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 3867–3939. Full-source SHA-256 `fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348`; snippet SHA-256 `f973be136d1de8f33d5bfebe1aabf6d872e4959f79c76289ad7b2e9204a0bfdc`; retained evidence `tcl8.5-time-object`.
+tcl8.5 8.5.19, revision `8.5.19`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 3867–3939. Retained reference `tcl8.5-time-object`.
 
 ```text
 Tcl_TimeObjCmd(
@@ -208,7 +208,7 @@ Tcl_TimeObjCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 4184–4256. Full-source SHA-256 `c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e`; snippet SHA-256 `dca517014952273457a9f3746c8d7e30b987f44517212a46a09ea9b4099d22a5`; retained evidence `tcl8.6-time-object`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 4184–4256. Retained reference `tcl8.6-time-object`.
 
 ```text
 Tcl_TimeObjCmd(
@@ -287,7 +287,7 @@ Tcl_TimeObjCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 4022–4094. Full-source SHA-256 `080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc`; snippet SHA-256 `8183959deeecccc90c306093d7428c8f42039a48bd613aff3260a8470a96e852`; retained evidence `tcl9.0-time-object`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 4022–4094. Retained reference `tcl9.0-time-object`.
 
 ```text
 Tcl_TimeObjCmd(
@@ -366,7 +366,7 @@ Tcl_TimeObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 4068–4135. Full-source SHA-256 `62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f`; snippet SHA-256 `c8ee625f3bab957c06acc608bbbfefc8ccd59467de3148a0c05773e57f4368a3`; retained evidence `tcl9.1-time-object`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c`, function `Tcl_TimeObjCmd`, lines 4068–4135. Retained reference `tcl9.1-time-object`.
 
 ```text
 Tcl_TimeObjCmd(
@@ -440,7 +440,7 @@ Tcl_TimeObjCmd(
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_TimeCoreCommand`, lines 15120–15150. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `4b305af21727e2c09bec0d7731ef5c2998ff769c5e112409f6f3d5bdcd71839e`; retained evidence `jim-time-object`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_TimeCoreCommand`, lines 15120–15150. Retained reference `jim-time-object`.
 
 ```text
 static int Jim_TimeCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)

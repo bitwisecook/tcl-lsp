@@ -62,14 +62,14 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
-## Exact evidence
+## Historical references
 
-- `original-build-and-rows` (provider): [rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json). SHA-256 `c948a2263a22c072d9377ed90ee814482e5a06577a2e17ad97f475d16fab37bc`. Exact original builds, warnings, process statuses and converter output rows.
-- `original-probe` (input): [rust/tcl-syntax/tests/data/native_regexp_glob/probe.c](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/probe.c). SHA-256 `12f235e3a3e124f12fd567e6daaa3c58b5b05a304a5c8622cc1405288fa5c879`. Exact counted pattern strings, version-selected ABI and observed output fields.
-- `tcl8.5-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt). SHA-256 `0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7`. Exact completed original fourteen converter result rows.
-- `tcl8.6-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt). SHA-256 `0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7`. Exact completed original fourteen converter result rows.
-- `tcl9.0-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt). SHA-256 `0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7`. Exact completed original fourteen converter result rows.
-- `tcl9.1-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt). SHA-256 `0f6bb55aa687df36661ee1c0a2f0523ad9fede3f401903a67397e6d37d2506f7`. Exact completed original fourteen converter result rows.
+- `original-build-and-rows` (provider): [rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json). Exact original builds, warnings, process statuses and converter output rows.
+- `original-probe` (input): [rust/tcl-syntax/tests/data/native_regexp_glob/probe.c](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/probe.c). Exact counted pattern strings, version-selected ABI and observed output fields.
+- `tcl8.5-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt). Exact completed original fourteen converter result rows.
+- `tcl8.6-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt). Exact completed original fourteen converter result rows.
+- `tcl9.0-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt). Exact completed original fourteen converter result rows.
+- `tcl9.1-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt). Exact completed original fourteen converter result rows.
 
 ## Source inspection
 

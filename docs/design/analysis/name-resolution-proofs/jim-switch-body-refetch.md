@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
 
-## Exact evidence
+## Historical references
 
-- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json). SHA-256 `df559cb3ee9f02165f24e4a325faf32b4b0a4d60f0e25db265a158f557ac767e`. Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-8` (observation): [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv). SHA-256 `beb0bb0b0f9115f5e12aacee61efc0384080fe8bf4e0a9b6b0951a3ada3012ed`. Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
+- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
+- `artifact-8` (observation): [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
 
 ## Source inspection
 

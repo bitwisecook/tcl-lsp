@@ -30,7 +30,7 @@ The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18,
 
 C8.4/8.5 read LOCAL, then GLOBAL through the reused localVarName object and return GLOBAL. C8.6–C9.1 read LOCAL once and finish the simple sequence with the observed cannot-read-v Error; their compiler-selected source tail does not restore local v. The qualified sequence records parsedVarName/QUALIFIED twice in all five releases, but its final completion is success only in C8.4/8.5. These are source-token/handler/cache observations for the exact two sequences, not a general cache validity or alias identity grant.
 
-## Exact evidence
+## Historical references
 
 - `runtime/rust/tests/data/native_global_cache_token/manifest.json`, SHA-256 `32fd592ec8270e02072e43455702b3010de9bfc55c24cc814c5a73c1849981f0`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
 - `runtime/rust/tests/data/native_global_cache_token/probe.c`, SHA-256 `0d690fca1392b40a5a5aa43b0c011ca276e9927014a872599ce6c8070e6f11d9`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.

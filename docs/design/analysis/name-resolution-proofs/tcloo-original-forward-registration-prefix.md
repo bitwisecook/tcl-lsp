@@ -62,24 +62,24 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native execution of this source transfer implementation question.
 
-## Exact evidence
+## Historical references
 
-- `forward-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/0/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/1/snippet`. Exact LF source window for TclOONewForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/2/snippet`. Exact LF source window for InvokeForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/3/snippet`. Exact LF source window for DeleteForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/4/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/5/snippet`. Exact LF source window for TclOONewForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-6` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/6/snippet`. Exact LF source window for InvokeForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-7` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/7/snippet`. Exact LF source window for DeleteForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-8` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/8/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 9.1.0; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-9` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/9/snippet`. Exact LF source window for TclOONewForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-10` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/10/snippet`. Exact LF source window for InvokeForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-11` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). SHA-256 `4b3d69a17bacfaeb329750a19c3134a95a645a01a08292607fbd83e3c359f7b6`. JSON pointer `/source_anchors/11/snippet`. Exact LF source window for DeleteForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/0/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 8.6.18; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/1/snippet`. Exact LF source window for TclOONewForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/2/snippet`. Exact LF source window for InvokeForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/3/snippet`. Exact LF source window for DeleteForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/4/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 9.0.4; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/5/snippet`. Exact LF source window for TclOONewForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-6` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/6/snippet`. Exact LF source window for InvokeForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-7` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/7/snippet`. Exact LF source window for DeleteForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-8` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/8/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 9.1.0; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-9` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/9/snippet`. Exact LF source window for TclOONewForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-10` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/10/snippet`. Exact LF source window for InvokeForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
+- `forward-source-11` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/11/snippet`. Exact LF source window for DeleteForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOODefineCmds.c`, function `TclOODefineForwardObjCmd`, lines 1488–1535. Full-source SHA-256 `56fb36d62f1ec51cca4cc5177bb90dc57986021206ea9700454ff67db7905e81`; snippet SHA-256 `f140566a374c781a058d1a738c81d6fb02126ca5e78478a2bee25f82188a3196`; retained evidence `forward-source-0`.
+tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOODefineCmds.c`, function `TclOODefineForwardObjCmd`, lines 1488–1535. Retained reference `forward-source-0`.
 
 ```text
 TclOODefineForwardObjCmd(
@@ -132,7 +132,7 @@ TclOODefineForwardObjCmd(
 }
 ```
 
-tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOOMethod.c`, function `TclOONewForwardMethod`, lines 1356–1382. Full-source SHA-256 `c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728`; snippet SHA-256 `316b599ae175155cbe15b162cb51c3a39dc5a530e4ec1a9a13e37f0e7d9e417a`; retained evidence `forward-source-1`.
+tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOOMethod.c`, function `TclOONewForwardMethod`, lines 1356–1382. Retained reference `forward-source-1`.
 
 ```text
 TclOONewForwardMethod(
@@ -164,7 +164,7 @@ TclOONewForwardMethod(
 }
 ```
 
-tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOOMethod.c`, function `InvokeForwardMethod`, lines 1396–1427. Full-source SHA-256 `c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728`; snippet SHA-256 `645960a0e61e355fafe3989b70911ab19ffa4410d8a91ecfd3108fde1cc66137`; retained evidence `forward-source-2`.
+tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOOMethod.c`, function `InvokeForwardMethod`, lines 1396–1427. Retained reference `forward-source-2`.
 
 ```text
 InvokeForwardMethod(
@@ -201,7 +201,7 @@ InvokeForwardMethod(
 }
 ```
 
-tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOOMethod.c`, function `DeleteForwardMethod`, lines 1452–1459. Full-source SHA-256 `c9212d902416d74246b9c6283e17b094c749171b65c86213b7b0af590da7a728`; snippet SHA-256 `b63ce720bcfafdae58aa3d84710ff03016991218d062bbfa87fe5e942c7715db`; retained evidence `forward-source-3`.
+tcl8.6 8.6.18, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl8.6.18/generic/tclOOMethod.c`, function `DeleteForwardMethod`, lines 1452–1459. Retained reference `forward-source-3`.
 
 ```text
 DeleteForwardMethod(
@@ -214,7 +214,7 @@ DeleteForwardMethod(
 }
 ```
 
-tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOODefineCmds.c`, function `TclOODefineForwardObjCmd`, lines 2166–2216. Full-source SHA-256 `1eb881c851f09719a9cb932c5ceb36034b96569affda2b2f870652a0bf29426d`; snippet SHA-256 `ef487a11221432f53f4232e26c938c8ad2c62f8693d7a085de8ce5ade61b058d`; retained evidence `forward-source-4`.
+tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOODefineCmds.c`, function `TclOODefineForwardObjCmd`, lines 2166–2216. Retained reference `forward-source-4`.
 
 ```text
 TclOODefineForwardObjCmd(
@@ -270,7 +270,7 @@ TclOODefineForwardObjCmd(
 }
 ```
 
-tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOOMethod.c`, function `TclOONewForwardMethod`, lines 1530–1556. Full-source SHA-256 `ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c`; snippet SHA-256 `472d26670e36190b8d987a92bcf89eaf802bfac766e3748ac3a7baa64917411b`; retained evidence `forward-source-5`.
+tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOOMethod.c`, function `TclOONewForwardMethod`, lines 1530–1556. Retained reference `forward-source-5`.
 
 ```text
 TclOONewForwardMethod(
@@ -302,7 +302,7 @@ TclOONewForwardMethod(
 }
 ```
 
-tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOOMethod.c`, function `InvokeForwardMethod`, lines 1570–1602. Full-source SHA-256 `ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c`; snippet SHA-256 `ecbc33a80d9ed9812a1afef72ca6fed0cb1bbf441d0311a406c783596c85c105`; retained evidence `forward-source-6`.
+tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOOMethod.c`, function `InvokeForwardMethod`, lines 1570–1602. Retained reference `forward-source-6`.
 
 ```text
 InvokeForwardMethod(
@@ -340,7 +340,7 @@ InvokeForwardMethod(
 }
 ```
 
-tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOOMethod.c`, function `DeleteForwardMethod`, lines 1627–1634. Full-source SHA-256 `ad958b2a136ed614f53f2c1fc132a844738d4ff24298e098ce3bc5986525447c`; snippet SHA-256 `02a93f58efaf4653d025310ef0f48d1e07e27aeb8f4ffa05c5637fcfbcbade33`; retained evidence `forward-source-7`.
+tcl9.0 9.0.4, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.0.4/generic/tclOOMethod.c`, function `DeleteForwardMethod`, lines 1627–1634. Retained reference `forward-source-7`.
 
 ```text
 DeleteForwardMethod(
@@ -353,7 +353,7 @@ DeleteForwardMethod(
 }
 ```
 
-tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOODefineCmds.c`, function `TclOODefineForwardObjCmd`, lines 2129–2176. Full-source SHA-256 `bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106`; snippet SHA-256 `66d60d360674ddeed47a8e1120f97aa400499f5f3da85854d9e4fce4782f9337`; retained evidence `forward-source-8`.
+tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOODefineCmds.c`, function `TclOODefineForwardObjCmd`, lines 2129–2176. Retained reference `forward-source-8`.
 
 ```text
 TclOODefineForwardObjCmd(
@@ -406,7 +406,7 @@ TclOODefineForwardObjCmd(
 }
 ```
 
-tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOOMethod.c`, function `TclOONewForwardMethod`, lines 1593–1619. Full-source SHA-256 `1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1`; snippet SHA-256 `472d26670e36190b8d987a92bcf89eaf802bfac766e3748ac3a7baa64917411b`; retained evidence `forward-source-9`.
+tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOOMethod.c`, function `TclOONewForwardMethod`, lines 1593–1619. Retained reference `forward-source-9`.
 
 ```text
 TclOONewForwardMethod(
@@ -438,7 +438,7 @@ TclOONewForwardMethod(
 }
 ```
 
-tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOOMethod.c`, function `InvokeForwardMethod`, lines 1633–1665. Full-source SHA-256 `1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1`; snippet SHA-256 `dd7c33d60cff74780fba8384066b2e0cfd1eea87adc603fa199bfa5cd0bdb8b7`; retained evidence `forward-source-10`.
+tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOOMethod.c`, function `InvokeForwardMethod`, lines 1633–1665. Retained reference `forward-source-10`.
 
 ```text
 InvokeForwardMethod(
@@ -476,7 +476,7 @@ InvokeForwardMethod(
 }
 ```
 
-tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOOMethod.c`, function `DeleteForwardMethod`, lines 1690–1697. Full-source SHA-256 `1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1`; snippet SHA-256 `02a93f58efaf4653d025310ef0f48d1e07e27aeb8f4ffa05c5637fcfbcbade33`; retained evidence `forward-source-11`.
+tcl9.1 9.1.0, revision `Exact full-file SHA retained; source revision not separately recorded by this probe.`, `tmp/tcl9.1.0/generic/tclOOMethod.c`, function `DeleteForwardMethod`, lines 1690–1697. Retained reference `forward-source-11`.
 
 ```text
 DeleteForwardMethod(

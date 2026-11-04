@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No interpreter observation is attached to this readonly source-role projection invariant.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

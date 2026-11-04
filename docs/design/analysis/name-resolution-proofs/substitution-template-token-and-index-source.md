@@ -62,16 +62,16 @@ Status: `not-tested`. Version: not inspected. Build: not recorded. Channel: not 
 
 This source-inspection question has no retained excerpt for this provider.
 
-## Exact evidence
+## Historical references
 
-- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt). SHA-256 `88cc94b4dc5ca78dbeb1cd978afbdab82f0a141ea35946aac6ef1423bf468eef`. Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
-- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt). SHA-256 `c851c13aa7ac6d665130089a73637ea1732bda9d2f289cee8d40c08a1cb6e0f4`. Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
-- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt). SHA-256 `b6e090f0417269ae766b4fe9c2f2ec8e1aa92098f81f90175d23b7bc9d59a87d`. Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
-- `source-jim` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt). SHA-256 `cd609742df46cff9d3b06a38b2613c781846dd811dc7a5086b9960cbacd08071`. Exact JimExpandDictSugar function from pinned revision5bac7c99ad65864c87da513e22e2f01703fa4e03.
+- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt). Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
+- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt). Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
+- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt). Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
+- `source-jim` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt). Exact JimExpandDictSugar function from pinned revision5bac7c99ad65864c87da513e22e2f01703fa4e03.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclParse.c`, function `ParseTokens`, lines 1123–1339. Full-source SHA-256 `bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6`; snippet SHA-256 `e36e7892b797757a733676537f2de82b3be4a6c5957df60947b1f9c70d638988`; retained evidence `source-tcl8.6`.
+tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclParse.c`, function `ParseTokens`, lines 1123–1339. Retained reference `source-tcl8.6`.
 
 ```text
 ParseTokens(
@@ -294,7 +294,7 @@ ParseTokens(
 
 ```
 
-tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclParse.c`, function `Tcl_ParseVarName`, lines 1398–1569. Full-source SHA-256 `bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6`; snippet SHA-256 `649e596ff7c56b98d7c3c1ecec4928ae626e041c3204ffb89080c70f1cece245`; retained evidence `source-tcl8.6`.
+tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclParse.c`, function `Tcl_ParseVarName`, lines 1398–1569. Retained reference `source-tcl8.6`.
 
 ```text
 Tcl_ParseVarName(
@@ -472,7 +472,7 @@ Tcl_ParseVarName(
 
 ```
 
-tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclCompCmdsSZ.c`, function `TclSubstCompile`, lines 1460–1703. Full-source SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; snippet SHA-256 `1e3bfb579469fa0d6adcccd4863e593ca1ba50070c966d68432766289002481e`; retained evidence `source-tcl8.6`.
+tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclCompCmdsSZ.c`, function `TclSubstCompile`, lines 1460–1703. Retained reference `source-tcl8.6`.
 
 ```text
 TclSubstCompile(
@@ -722,7 +722,7 @@ TclSubstCompile(
 
 ```
 
-tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2355–2550. Full-source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `0ac0749c57f793286af6437c49c109c4146287f3bb34658926e5802980819dd7`; retained evidence `source-tcl8.6`.
+tcl8.6 8.6.18, revision `core8-6-18`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2355–2550. Retained reference `source-tcl8.6`.
 
 ```text
 TclCompileTokens(
@@ -924,7 +924,7 @@ TclCompileTokens(
 
 ```
 
-tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclParse.c`, function `ParseTokens`, lines 1040–1256. Full-source SHA-256 `5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0`; snippet SHA-256 `479a7d74bf25d9a3c057d3f427d36b38b62875c71c6f9d88a850ba868a94e4d4`; retained evidence `source-tcl9.0`.
+tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclParse.c`, function `ParseTokens`, lines 1040–1256. Retained reference `source-tcl9.0`.
 
 ```text
 ParseTokens(
@@ -1147,7 +1147,7 @@ ParseTokens(
 
 ```
 
-tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclParse.c`, function `Tcl_ParseVarName`, lines 1315–1512. Full-source SHA-256 `5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0`; snippet SHA-256 `48adc96829325ff76f8dc1d02f8e48abf32a4f3c4e0929ac603b3335269d751c`; retained evidence `source-tcl9.0`.
+tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclParse.c`, function `Tcl_ParseVarName`, lines 1315–1512. Retained reference `source-tcl9.0`.
 
 ```text
 Tcl_ParseVarName(
@@ -1351,7 +1351,7 @@ Tcl_ParseVarName(
 
 ```
 
-tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclCompCmdsSZ.c`, function `TclSubstCompile`, lines 1512–1758. Full-source SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; snippet SHA-256 `3f5c721972dc511da5828d61cd4a15a4e552a03d4a3e55105929bb37be8aeb1f`; retained evidence `source-tcl9.0`.
+tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclCompCmdsSZ.c`, function `TclSubstCompile`, lines 1512–1758. Retained reference `source-tcl9.0`.
 
 ```text
 TclSubstCompile(
@@ -1604,7 +1604,7 @@ TclSubstCompile(
 
 ```
 
-tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2416–2610. Full-source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `2f8084251e4df3b7d823a494d9d8b1e7b38ec050a58ca905efab16dd0b52ed33`; retained evidence `source-tcl9.0`.
+tcl9.0 9.0.4, revision `core9-0-4`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2416–2610. Retained reference `source-tcl9.0`.
 
 ```text
 TclCompileTokens(
@@ -1805,7 +1805,7 @@ TclCompileTokens(
 
 ```
 
-tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclParse.c`, function `ParseTokens`, lines 1039–1252. Full-source SHA-256 `914176e1d5a1fb79630a45f5f45df438da9943281751855057caa17e921b969f`; snippet SHA-256 `1729687b120ce3cb8c2dbdfcb41dae9f3118b5446204d55ee27e5efe64268ca5`; retained evidence `source-tcl9.1`.
+tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclParse.c`, function `ParseTokens`, lines 1039–1252. Retained reference `source-tcl9.1`.
 
 ```text
 ParseTokens(
@@ -2025,7 +2025,7 @@ ParseTokens(
 
 ```
 
-tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclParse.c`, function `Tcl_ParseVarName`, lines 1311–1509. Full-source SHA-256 `914176e1d5a1fb79630a45f5f45df438da9943281751855057caa17e921b969f`; snippet SHA-256 `7b015100e701db035720761d63ded16ef5f84ffc922d6941022e99d3e6e023cf`; retained evidence `source-tcl9.1`.
+tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclParse.c`, function `Tcl_ParseVarName`, lines 1311–1509. Retained reference `source-tcl9.1`.
 
 ```text
 Tcl_ParseVarName(
@@ -2230,7 +2230,7 @@ Tcl_ParseVarName(
 
 ```
 
-tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclCompCmdsSZ.c`, function `TclSubstCompile`, lines 1493–1695. Full-source SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; snippet SHA-256 `64595211dc576ab048fd702a7da9fc4dc01622185305bff48c1b5a6155a10861`; retained evidence `source-tcl9.1`.
+tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclCompCmdsSZ.c`, function `TclSubstCompile`, lines 1493–1695. Retained reference `source-tcl9.1`.
 
 ```text
 TclSubstCompile(
@@ -2439,7 +2439,7 @@ TclSubstCompile(
 
 ```
 
-tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2739–2927. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `0192854ccad7c779a5db78f6ab91a9c47d6edcf50c2ffd889e0384ffab8ee5ba`; retained evidence `source-tcl9.1`.
+tcl9.1 9.1.0, revision `core9-1-0`, `generic/tclCompile.c`, function `TclCompileTokens`, lines 2739–2927. Retained reference `source-tcl9.1`.
 
 ```text
 TclCompileTokens(
@@ -2634,7 +2634,7 @@ TclCompileTokens(
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimExpandDictSugar`, lines 5231–5254. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `66140f88847571c4275cc1b6114b5a40e1244f3eca9d6dc8dd59f0cbf2196278`; retained evidence `source-jim`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimExpandDictSugar`, lines 5231–5254. Retained reference `source-jim`.
 
 ```text
 static Jim_Obj *JimExpandDictSugar(Jim_Interp *interp, Jim_Obj *objPtr)

@@ -241,16 +241,16 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json). SHA-256 `24daacf3a132fac16d19c2a3d786fafa89540b1f6ab94269ca74388a8ccbc15f`. Original compiler argv/library/binary/stdout hashes and window counts for all five C providers.
-- `e1` (input): [rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c). SHA-256 `bcc9a46141da632b600910c405f88af61bc5905b3f3331c6b4ebdb9b095290de`. Original case scripts, initial globals/procedure frames and original object/header observation probe.
-- `e2` (input): [rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs). SHA-256 `2bd4c21b85362214daad4bb1836ffdb4218a1a90bb7e0bcc0cecfd8d4d295bf2`. Exact shared 28-program roster retained by current comparisons.
-- `e3` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt). SHA-256 `f346f6f2647489d68f259ebd6e3cd0bf11d459a267b63050b1c875e81443bda6`. All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e4` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt). SHA-256 `ff2a2f35c7525c61c9951424dd06c53c8d71d4e309fbb15ff29b5c446b8b9118`. All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e5` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt). SHA-256 `f29d0f4a6e8fd58a54d2864d742fdeb5698266e2a6335f5c4ee65ff5c388070b`. All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt). SHA-256 `93a44c635222267d858586ef1c020a5b5bd39c9ad574f0dd9bb51f5f2b23bebf`. All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e7` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt). SHA-256 `93a44c635222267d858586ef1c020a5b5bd39c9ad574f0dd9bb51f5f2b23bebf`. All 28 completion/opcode rows and four header observation rows, including guest failures.
+- `e0` (provider): [rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json). Original compiler argv/library/binary/stdout hashes and window counts for all five C providers.
+- `e1` (input): [rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c). Original case scripts, initial globals/procedure frames and original object/header observation probe.
+- `e2` (input): [rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs). Exact shared 28-program roster retained by current comparisons.
+- `e3` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
+- `e4` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
+- `e5` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
+- `e6` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
+- `e7` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
 
 ## Source inspection
 

@@ -62,20 +62,20 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This Jim-specific source inspection supplies no provider execution or C/BIG-IP source/formatting result. Current software rendering/assertion definitions do not issue original invocation, object/header or activation ownership.
 
-## Exact evidence
+## Historical references
 
-- `procedure-usage-source285-JimCmdUsage.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt). SHA-256 `cd284667e1a21dad2255ad2f9f0ff09a32929234ad98fa88bdb432eae12e673e`. Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-JimSetProcWrongArgs.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt). SHA-256 `e46d076ea5318725573531d8f01dd95281ce819df333d449b6dc7cf4e561572f`. Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-Jim_SetResultFormatted.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt). SHA-256 `6594903ebcd01fd3242fcaeed9be04baa434799636b02db02d814dbc87a279d1`. Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-jim.c` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/jim.c](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/jim.c). SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`. Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/request.json](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/request.json). SHA-256 `eaaab69f3e58d45bd20e3c4566197868d22109015ef852ca54a58d66fed9fb61`. Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `naming-procedure-original-usage-called-name-and-formatter-runtime-rust-src-interp.rs` (implementation): [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs). SHA-256 `95365905b66c41c79377243a3970cb9e5736b5e32b765d0f2ef8e8e6870265b7`. Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
-- `naming-procedure-original-usage-called-name-and-formatter-rust-tcl-registry-src-native_usage.rs` (implementation): [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs). SHA-256 `d0799b31d3a87be8de7d09610362751bd1bb1955de9291d4283321cc997ab866`. Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
-- `naming-procedure-original-usage-called-name-and-formatter-rust-tcl-vm-src-exec.rs` (implementation): [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs). SHA-256 `d4575b75531a60e48d78f7013784c5b75ba56033cf90a3a571c54025835bbcdf`. Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
+- `procedure-usage-source285-JimCmdUsage.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
+- `procedure-usage-source285-JimSetProcWrongArgs.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
+- `procedure-usage-source285-Jim_SetResultFormatted.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
+- `procedure-usage-source285-jim.c` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/jim.c](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/jim.c). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
+- `procedure-usage-source285-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/request.json](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/request.json). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
+- `naming-procedure-original-usage-called-name-and-formatter-runtime-rust-src-interp.rs` (implementation): [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs). Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
+- `naming-procedure-original-usage-called-name-and-formatter-rust-tcl-registry-src-native_usage.rs` (implementation): [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs). Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
+- `naming-procedure-original-usage-called-name-and-formatter-rust-tcl-vm-src-exec.rs` (implementation): [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs). Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
 
 ## Source inspection
 
-jim Version/revision not recorded by this source-only appendix; whole content SHA independently pinned., revision `Read-only exact source content; no source-control revision claimed.`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimCmdUsage`, lines 11833–11878. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `cd284667e1a21dad2255ad2f9f0ff09a32929234ad98fa88bdb432eae12e673e`; retained evidence `procedure-usage-source285-jim.c`.
+jim Version/revision not recorded by this source-only appendix; whole content SHA independently pinned., revision `Read-only exact source content; no source-control revision claimed.`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimCmdUsage`, lines 11833–11878. Retained reference `procedure-usage-source285-jim.c`.
 
 ```text
     Jim_Obj *usage = Jim_DuplicateObj(interp, cmdNameObj);
@@ -127,7 +127,7 @@ jim Version/revision not recorded by this source-only appendix; whole content SH
 
 ```
 
-jim Version/revision not recorded by this source-only appendix; whole content SHA independently pinned., revision `Read-only exact source content; no source-control revision claimed.`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimSetProcWrongArgs`, lines 11882–11886. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `e46d076ea5318725573531d8f01dd95281ce819df333d449b6dc7cf4e561572f`; retained evidence `procedure-usage-source285-jim.c`.
+jim Version/revision not recorded by this source-only appendix; whole content SHA independently pinned., revision `Read-only exact source content; no source-control revision claimed.`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimSetProcWrongArgs`, lines 11882–11886. Retained reference `procedure-usage-source285-jim.c`.
 
 ```text
  */
@@ -138,7 +138,7 @@ static void JimSetProcWrongArgs(Jim_Interp *interp, Jim_Obj *procNameObj, Jim_Cm
 
 ```
 
-jim Version/revision not recorded by this source-only appendix; whole content SHA independently pinned., revision `Read-only exact source content; no source-control revision claimed.`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_SetResultFormatted`, lines 17112–17178. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `6594903ebcd01fd3242fcaeed9be04baa434799636b02db02d814dbc87a279d1`; retained evidence `procedure-usage-source285-jim.c`.
+jim Version/revision not recorded by this source-only appendix; whole content SHA independently pinned., revision `Read-only exact source content; no source-control revision claimed.`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `Jim_SetResultFormatted`, lines 17112–17178. Retained reference `procedure-usage-source285-jim.c`.
 
 ```text
  * Very simple printf-like formatting, designed for error messages.

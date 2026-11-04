@@ -62,14 +62,14 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact compiled-object question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-syntax/tests/data/native_object_cat/bytes/probe.c](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/probe.c). SHA-256 `28bdfaa274155b6d531b7ed75c26ac4ef0a450799c46ce5221038a3a90f09f07`. Exact counted/native object constructors, private TclStringCat call and original snapshot/render order.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_object_cat/bytes/manifest.json](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/manifest.json). SHA-256 `4a34f17932cf7eb50d4834613e4f9098f1ab975e69b7ad96375f9a561c5892a9`. Original compile/run metadata and header/library/executable/full-log/projection digests.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.jsonl). SHA-256 `b98a6e8654a20569ae2be38739db90fefded0c5eba7218ac21dff7f1acae7a8e`. Full original before/after/result-before-render JSONL and final result identity/hex; observer order is preserved.
-- `projection-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.tsv](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.tsv). SHA-256 `009a8057def8f7b54cca7712e848135fce6d9990c94e0cf964c74056806065e8`. Exact13-column fixture projection; its digest agrees with the original manifest.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.jsonl). SHA-256 `b98a6e8654a20569ae2be38739db90fefded0c5eba7218ac21dff7f1acae7a8e`. Full original before/after/result-before-render JSONL and final result identity/hex; observer order is preserved.
-- `projection-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.tsv](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.tsv). SHA-256 `009a8057def8f7b54cca7712e848135fce6d9990c94e0cf964c74056806065e8`. Exact13-column fixture projection; its digest agrees with the original manifest.
+- `probe` (input): [rust/tcl-syntax/tests/data/native_object_cat/bytes/probe.c](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/probe.c). Exact counted/native object constructors, private TclStringCat call and original snapshot/render order.
+- `receipt` (provider): [rust/tcl-syntax/tests/data/native_object_cat/bytes/manifest.json](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/manifest.json). Original compile/run metadata and header/library/executable/full-log/projection digests.
+- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.jsonl). Full original before/after/result-before-render JSONL and final result identity/hex; observer order is preserved.
+- `projection-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.tsv](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.0.4.tsv). Exact13-column fixture projection; its digest agrees with the original manifest.
+- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.jsonl). Full original before/after/result-before-render JSONL and final result identity/hex; observer order is preserved.
+- `projection-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.tsv](../../../../rust/tcl-syntax/tests/data/native_object_cat/bytes/9.1.0.tsv). Exact13-column fixture projection; its digest agrees with the original manifest.
 
 ## Source inspection
 

@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This original produced-prefix source receipt has no native interpreter observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

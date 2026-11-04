@@ -62,24 +62,24 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/manifest.json). SHA-256 `33d27c5048bff4c625711a4c3ffbd638139e5f9c5399e21a28c5d0ca333565be`. Untraced original C source/build/stream receipt.
-- `e1` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/jim-manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim-manifest.json). SHA-256 `763459489b2d9d60857c9dd474e0f686c6b1d4d842e8e324d7cb46da5252a5de`. Independent Jim original program/build/output receipt.
-- `e2` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/trace-manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/trace-manifest.json). SHA-256 `be07955445b52686f6b957449f5976f90ea54fc5dd4b78553a8b313301bedb90`. Ten distinct C source-trace builds/process streams and allow-inline versus generic runtime arguments.
-- `e3` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/probe.c). SHA-256 `41ad70151861b4690b055cf4826c92de18b8c02b1625864422ffc3330b6cd8cf`. Four original substitutions and before/after header observation order.
-- `e4` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/trace-probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/trace-probe.c). SHA-256 `70920f2f8f2808ee0c50aade7107739e2a42d3d7a6744ffc83e5b3d173cb3660`. Actual inert observer and independently selected flags; source differs from untraced program.
-- `e5` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c). SHA-256 `d3883a8b40f65358ea0bb8c839552f02508942e83671c7e5f2d27864b9bd6a15`. Independent Jim program; no native C bytecode assumption.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.4.20.txt). SHA-256 `b06cb99183069a170f9592fe876c83ead333a8013df54dfc6f40bfdce2b71b7f`. Original untraced four cases and source object snapshots.
-- `e7` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.5.19.txt). SHA-256 `baac8dda0263ae4a9359c4d15d9e9c6b7eae821d70eb6fccb2848051b0a275b5`. Original untraced four cases and source object snapshots.
-- `e8` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.6.18.txt). SHA-256 `cc8e3677ba54f3dc25337497a91544ddac021c408e96bbb1505f392748b0eeee`. Original untraced four cases and source object snapshots.
-- `e9` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/9.0.4.txt). SHA-256 `cc8e3677ba54f3dc25337497a91544ddac021c408e96bbb1505f392748b0eeee`. Original untraced four cases and source object snapshots.
-- `e10` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/9.1.0.txt). SHA-256 `4c415b1486b7e72f07cd29d6b76d7f29874c1562a0585887a867c0e466c485a0`. Original untraced four cases and source object snapshots.
-- `e11` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/jim.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim.txt). SHA-256 `e3c71f0276164549be3980f8ebc9e272997c7f3c0b3197ce089d7411a5b65992`. Exact Jim four missing-first results and original snapshots; no C object trace API measured.
+- `e0` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/manifest.json). Untraced original C source/build/stream receipt.
+- `e1` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/jim-manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim-manifest.json). Independent Jim original program/build/output receipt.
+- `e2` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/trace-manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/trace-manifest.json). Ten distinct C source-trace builds/process streams and allow-inline versus generic runtime arguments.
+- `e3` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/probe.c). Four original substitutions and before/after header observation order.
+- `e4` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/trace-probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/trace-probe.c). Actual inert observer and independently selected flags; source differs from untraced program.
+- `e5` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c). Independent Jim program; no native C bytecode assumption.
+- `e6` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.4.20.txt). Original untraced four cases and source object snapshots.
+- `e7` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.5.19.txt). Original untraced four cases and source object snapshots.
+- `e8` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.6.18.txt). Original untraced four cases and source object snapshots.
+- `e9` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/9.0.4.txt). Original untraced four cases and source object snapshots.
+- `e10` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/9.1.0.txt). Original untraced four cases and source object snapshots.
+- `e11` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/jim.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim.txt). Exact Jim four missing-first results and original snapshots; no C object trace API measured.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Full-source SHA-256 `41ad70151861b4690b055cf4826c92de18b8c02b1625864422ffc3330b6cd8cf`; snippet SHA-256 `b374015746364573b1970a29a60c3907d3b4635587895b954848ccf96fc5cf6d`; retained evidence `e3`.
+tcl8.4 8.4.20, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Retained reference `e3`.
 
 ```text
 int main(int argc,char **argv){Tcl_FindExecutable(argv[0]);Tcl_Interp *ip=Tcl_CreateInterp();Tcl_CreateObjCommand(ip,"mark",Mark,NULL,NULL);
@@ -89,7 +89,7 @@ Tcl_EvalEx(ip,"catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch
 
 ```
 
-tcl8.5 8.5.19, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Full-source SHA-256 `41ad70151861b4690b055cf4826c92de18b8c02b1625864422ffc3330b6cd8cf`; snippet SHA-256 `b374015746364573b1970a29a60c3907d3b4635587895b954848ccf96fc5cf6d`; retained evidence `e3`.
+tcl8.5 8.5.19, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Retained reference `e3`.
 
 ```text
 int main(int argc,char **argv){Tcl_FindExecutable(argv[0]);Tcl_Interp *ip=Tcl_CreateInterp();Tcl_CreateObjCommand(ip,"mark",Mark,NULL,NULL);
@@ -99,7 +99,7 @@ Tcl_EvalEx(ip,"catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch
 
 ```
 
-tcl8.6 8.6.18, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Full-source SHA-256 `41ad70151861b4690b055cf4826c92de18b8c02b1625864422ffc3330b6cd8cf`; snippet SHA-256 `b374015746364573b1970a29a60c3907d3b4635587895b954848ccf96fc5cf6d`; retained evidence `e3`.
+tcl8.6 8.6.18, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Retained reference `e3`.
 
 ```text
 int main(int argc,char **argv){Tcl_FindExecutable(argv[0]);Tcl_Interp *ip=Tcl_CreateInterp();Tcl_CreateObjCommand(ip,"mark",Mark,NULL,NULL);
@@ -109,7 +109,7 @@ Tcl_EvalEx(ip,"catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch
 
 ```
 
-tcl9.0 9.0.4, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Full-source SHA-256 `41ad70151861b4690b055cf4826c92de18b8c02b1625864422ffc3330b6cd8cf`; snippet SHA-256 `b374015746364573b1970a29a60c3907d3b4635587895b954848ccf96fc5cf6d`; retained evidence `e3`.
+tcl9.0 9.0.4, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Retained reference `e3`.
 
 ```text
 int main(int argc,char **argv){Tcl_FindExecutable(argv[0]);Tcl_Interp *ip=Tcl_CreateInterp();Tcl_CreateObjCommand(ip,"mark",Mark,NULL,NULL);
@@ -119,7 +119,7 @@ Tcl_EvalEx(ip,"catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch
 
 ```
 
-tcl9.1 9.1.0, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Full-source SHA-256 `41ad70151861b4690b055cf4826c92de18b8c02b1625864422ffc3330b6cd8cf`; snippet SHA-256 `b374015746364573b1970a29a60c3907d3b4635587895b954848ccf96fc5cf6d`; retained evidence `e3`.
+tcl9.1 9.1.0, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/probe.c`, function `main: original source/object invocation and observation`, lines 15–18. Retained reference `e3`.
 
 ```text
 int main(int argc,char **argv){Tcl_FindExecutable(argv[0]);Tcl_Interp *ip=Tcl_CreateInterp();Tcl_CreateObjCommand(ip,"mark",Mark,NULL,NULL);
@@ -129,7 +129,7 @@ Tcl_EvalEx(ip,"catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch
 
 ```
 
-jim Jim0.84, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c`, function `main: original source/object invocation and observation`, lines 8–8. Full-source SHA-256 `d3883a8b40f65358ea0bb8c839552f02508942e83671c7e5f2d27864b9bd6a15`; snippet SHA-256 `0a14759f5d2a37deb04343a84b97aa7e0751ec0e931cdfb8f8f7005611e7b061`; retained evidence `e5`.
+jim Jim0.84, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c`, function `main: original source/object invocation and observation`, lines 8–8. Retained reference `e5`.
 
 ```text
 int main(void){Jim_Interp*i=Jim_CreateInterp();Jim_RegisterCoreCommands(i);Jim_CreateCommand(i,"mark",Mark,NULL,NULL);const char*cases[]={"lassign $name first [set first]; list $first $A", "catch {lassign $name first [error STOP]} caught; list $first $caught", "lassign $name first a([set first]); list $first $a(A)", "lassign $name first [proc lassign args {return CUSTOM}; set first]; list $first $A"};for(caseId=0;caseId<sizeof(cases)/sizeof(*cases);caseId++){Jim_Eval(i,"catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch {unset ::g};set ::log {}; proc tap {v} {lappend ::log $v;return $v};proc traceRead {n e op} {set ::g CREATED}; proc traceFail {n e op} {error TRACE}");char source[4096];snprintf(source,sizeof source,"proc p {name idx} {set x $name;set a(1) $name;%s}",cases[caseId]);if(Jim_Eval(i,source)!=JIM_OK){printf("SETUP|%d\n",caseId);continue;}Jim_Obj*v[]={Jim_NewStringObj(i,"p",-1),Jim_NewStringObj(i,"{A} B C",-1),Jim_NewStringObj(i,"1",-1)};for(int k=0;k<3;k++)Jim_IncrRefCount(v[k]);markCount=0;int code=Jim_EvalObjVector(i,3,v);printf("R|%d|%d|",caseId,code);state(Jim_GetResult(i));puts("|");printf("O|%d|",caseId);state(v[1]);puts("");for(int k=0;k<3;k++)Jim_DecrRefCount(i,v[k]);}Jim_FreeInterp(i);return 0;}

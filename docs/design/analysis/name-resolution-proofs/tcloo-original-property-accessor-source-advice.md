@@ -62,13 +62,13 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `syntax-naming-scoped-24df4e573153` (observation): [Scoped syntax naming receipt](rust-validation/syntax-naming-20261103/receipt.json). SHA-256 `1c2318b1facfaaec3af7780fd8b41c3119fb230d1ed1692cc59b95141679eef5`. Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows.
+- `syntax-naming-scoped-24df4e573153` (observation): [Scoped syntax naming receipt](rust-validation/syntax-naming-20261103/receipt.json). Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows.
 
-- `option-purpose` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). SHA-256 `4b8d34b06d6a4826aae36b763f535bf830eba6ef84584e59e9ba9936f2a046b4`. Reviewed source role: Source option-name formatting and counted declaration-name purposes; no provider or runtime accessor observation. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-- `accessor-protocol` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). SHA-256 `d73eca05046b2e483597bde652eb3e1509d7540bb8b3f520650e3e078db44593`. Grammar-owned source accessor layout and its independently retained immutable protocol.
-- `original-property` (implementation): [rust/tcl-compiler/src/analyser/types/original_properties.rs](../../../../rust/tcl-compiler/src/analyser/types/original_properties.rs). SHA-256 `b878ef9e12157b68ecb7983415a9d7880919c98d19a8604045b055cf606390ca`. Metadata retains original producer, selected protocol and distinct option projection.
+- `option-purpose` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). Reviewed source role: Source option-name formatting and counted declaration-name purposes; no provider or runtime accessor observation. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
+- `accessor-protocol` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). Grammar-owned source accessor layout and its independently retained immutable protocol.
+- `original-property` (implementation): [rust/tcl-compiler/src/analyser/types/original_properties.rs](../../../../rust/tcl-compiler/src/analyser/types/original_properties.rs). Metadata retains original producer, selected protocol and distinct option projection.
 
 ## Source inspection
 

@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (observation): [runtime/rust/tests/data/native_property_clientdata/initial-manifest.json](../../../../runtime/rust/tests/data/native_property_clientdata/initial-manifest.json). SHA-256 `94a30168d64768558962ee34471c14e8df06f9b132fee43eb27b1c78ac7699ac`. Compile success and run exit -11, exact failed probe/build/executable hashes; no emitted native rows.
-- `e1` (input): [runtime/rust/tests/data/native_property_clientdata/initial-probe.c](../../../../runtime/rust/tests/data/native_property_clientdata/initial-probe.c). SHA-256 `c176f65164e16d8db1363db652da51546652e6e8ee5f37b3e24605ba2c12b7a0`. Exact failed C probe whose hash matches the original receipt.
-- `e2` (observation): [runtime/rust/tests/data/native_property_clientdata/initial-native.tsv](../../../../runtime/rust/tests/data/native_property_clientdata/initial-native.tsv). SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. Empty retained stdout for the failed process.
+- `e0` (observation): [runtime/rust/tests/data/native_property_clientdata/initial-manifest.json](../../../../runtime/rust/tests/data/native_property_clientdata/initial-manifest.json). Compile success and run exit -11, exact failed probe/build/executable hashes; no emitted native rows.
+- `e1` (input): [runtime/rust/tests/data/native_property_clientdata/initial-probe.c](../../../../runtime/rust/tests/data/native_property_clientdata/initial-probe.c). Exact failed C probe whose hash matches the original receipt.
+- `e2` (observation): [runtime/rust/tests/data/native_property_clientdata/initial-native.tsv](../../../../runtime/rust/tests/data/native_property_clientdata/initial-native.tsv). Empty retained stdout for the failed process.
 
 ## Source inspection
 

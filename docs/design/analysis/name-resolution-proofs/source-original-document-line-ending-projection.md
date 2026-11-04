@@ -68,7 +68,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: No origin
 
 No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

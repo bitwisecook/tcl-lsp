@@ -62,12 +62,12 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This Rust consumer contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). SHA-256 `c96d983aa91a639d27bd4e0416eee420b0ec9be1aab8523aa4a49638a51229fe`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). SHA-256 `0cd60dbad54665a9790df9eb97887a03d90ae9b8e336e8237afc5aa79653b35d`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-2` (implementation): [rust/tcl-cli/src/commands/transform.rs](../../../../rust/tcl-cli/src/commands/transform.rs). SHA-256 `e0c3daa06994d6f0445a5f89fa08da4df91903bbe5d618cc959daf6a98a1c639`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-3` (implementation): [rust/f5-cli/src/commands/irule.rs](../../../../rust/f5-cli/src/commands/irule.rs). SHA-256 `eeb443c027a20694b14621a7c4e6ba457d54ad965d4ae9ee645b3437e1319697`. Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-1` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-2` (implementation): [rust/tcl-cli/src/commands/transform.rs](../../../../rust/tcl-cli/src/commands/transform.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
+- `implementation-3` (implementation): [rust/f5-cli/src/commands/irule.rs](../../../../rust/f5-cli/src/commands/irule.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

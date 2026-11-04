@@ -62,22 +62,22 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-registrations.txt). SHA-256 `651d31494953853c211fe2e9ec9333018710c0d3dc4079820f82a189947a35dd`. Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
-- `e1` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-compiler-call.txt). SHA-256 `54023432b224c8f21db9cc676d3d9c01a9ede1b5856e49c92bf24a7cd5869178`. Exact TclCompileScript source excerpt; original full-file SHA and lines are retained separately.
-- `e2` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-registrations.txt). SHA-256 `5d566598fa4e60e7a5740882bbce809813869994a21e06a317257459a1ce1c60`. Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
-- `e3` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-compiler-call.txt). SHA-256 `971d284c64dbb2a417a5e44d6100ac57b58820fe915e61885238e9e1b916c73b`. Exact TclCompileScript source excerpt; original full-file SHA and lines are retained separately.
-- `e4` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-registrations.txt). SHA-256 `1c95fcd7477dc5193bc8cc9189cbb25647b912c67bc5ce6c3b1f4fc883b2de62`. Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
-- `e5` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-compiler-call.txt). SHA-256 `11d13a1e2b8c109bea5b3d87750adc9579516628b1ae79cae9b49f6ad741e67f`. Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately.
-- `e6` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-registrations.txt). SHA-256 `280338db7b87258e9475c5e6b37d8537479044d0ced867c0c9ba9510b0eb4fa5`. Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
-- `e7` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-compiler-call.txt). SHA-256 `1803863626befe725c472ff52c33e0a3d9919044d3920e17af30aa5e096dabef`. Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately.
-- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-registrations.txt). SHA-256 `932ce572de6b1c38032a93a1f673baee4339cbd25e2c6588c0e7c9a512fed4e8`. Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
-- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-compiler-call.txt). SHA-256 `c1d6c7e554b93ce3728a1e0b7799be86c0be49d0514047c9d729937cf7cef099`. Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately.
+- `e0` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-registrations.txt). Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
+- `e1` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.4.20-compiler-call.txt). Exact TclCompileScript source excerpt; original full-file SHA and lines are retained separately.
+- `e2` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-registrations.txt). Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
+- `e3` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.5.19-compiler-call.txt). Exact TclCompileScript source excerpt; original full-file SHA and lines are retained separately.
+- `e4` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-registrations.txt). Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
+- `e5` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/8.6.18-compiler-call.txt). Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately.
+- `e6` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-registrations.txt). Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
+- `e7` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.0.4-compiler-call.txt). Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately.
+- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-registrations.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-registrations.txt). Exact builtInCmds source excerpt; original full-file SHA and lines are retained separately.
+- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-compiler-call.txt](../../../../rust/tcl-registry/tests/data/native_no_hook_source/9.1.0-compiler-call.txt). Exact CompileCommandTokens source excerpt; original full-file SHA and lines are retained separately.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclBasic.c`, function `builtInCmds`, lines 168–177. Full-source SHA-256 `cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a`; snippet SHA-256 `651d31494953853c211fe2e9ec9333018710c0d3dc4079820f82a189947a35dd`; retained evidence `e0`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclBasic.c`, function `builtInCmds`, lines 168–177. Retained reference `e0`.
 
 ```text
     {"proc",		(Tcl_CmdProc *) NULL,	Tcl_ProcObjCmd,	
@@ -93,7 +93,7 @@ tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclBasic.c`, funct
 
 ```
 
-tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompile.c`, function `TclCompileScript`, lines 1277–1292. Full-source SHA-256 `0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8`; snippet SHA-256 `54023432b224c8f21db9cc676d3d9c01a9ede1b5856e49c92bf24a7cd5869178`; retained evidence `e1`.
+tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompile.c`, function `TclCompileScript`, lines 1277–1292. Retained reference `e1`.
 
 ```text
 				Tcl_DStringValue(&ds),
@@ -115,7 +115,7 @@ tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCompile.c`, fun
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclBasic.c`, function `builtInCmds`, lines 159–163. Full-source SHA-256 `d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63`; snippet SHA-256 `5d566598fa4e60e7a5740882bbce809813869994a21e06a317257459a1ce1c60`; retained evidence `e2`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclBasic.c`, function `builtInCmds`, lines 159–163. Retained reference `e2`.
 
 ```text
     {"proc",		Tcl_ProcObjCmd,		NULL,			1},
@@ -126,7 +126,7 @@ tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclBasic.c`, funct
 
 ```
 
-tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompile.c`, function `TclCompileScript`, lines 1402–1415. Full-source SHA-256 `8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988`; snippet SHA-256 `971d284c64dbb2a417a5e44d6100ac57b58820fe915e61885238e9e1b916c73b`; retained evidence `e3`.
+tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompile.c`, function `TclCompileScript`, lines 1402–1415. Retained reference `e3`.
 
 ```text
 		    cmdPtr = (Command *) Tcl_FindCommand(interp,
@@ -146,7 +146,7 @@ tcl8.5 8.5.19, revision `pinned Tcl release 8.5.19`, `generic/tclCompile.c`, fun
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclBasic.c`, function `builtInCmds`, lines 274–278. Full-source SHA-256 `19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198`; snippet SHA-256 `1c95fcd7477dc5193bc8cc9189cbb25647b912c67bc5ce6c3b1f4fc883b2de62`; retained evidence `e4`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclBasic.c`, function `builtInCmds`, lines 274–278. Retained reference `e4`.
 
 ```text
     {"proc",		Tcl_ProcObjCmd,		NULL,			NULL,	CMD_IS_SAFE},
@@ -157,7 +157,7 @@ tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclBasic.c`, funct
 
 ```
 
-tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `CompileCommandTokens`, lines 2030–2060. Full-source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `11d13a1e2b8c109bea5b3d87750adc9579516628b1ae79cae9b49f6ad741e67f`; retained evidence `e5`.
+tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, function `CompileCommandTokens`, lines 2030–2060. Retained reference `e5`.
 
 ```text
     tokenPtr = parsePtr->tokenPtr;
@@ -194,7 +194,7 @@ tcl8.6 8.6.18, revision `pinned Tcl release 8.6.18`, `generic/tclCompile.c`, fun
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclBasic.c`, function `builtInCmds`, lines 386–390. Full-source SHA-256 `6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67`; snippet SHA-256 `280338db7b87258e9475c5e6b37d8537479044d0ced867c0c9ba9510b0eb4fa5`; retained evidence `e6`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclBasic.c`, function `builtInCmds`, lines 386–390. Retained reference `e6`.
 
 ```text
     {"proc",		ProcObjCmd,		NULL,			NULL,	CMD_IS_SAFE},
@@ -205,7 +205,7 @@ tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclBasic.c`, functio
 
 ```
 
-tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `CompileCommandTokens`, lines 2073–2103. Full-source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `1803863626befe725c472ff52c33e0a3d9919044d3920e17af30aa5e096dabef`; retained evidence `e7`.
+tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, function `CompileCommandTokens`, lines 2073–2103. Retained reference `e7`.
 
 ```text
     tokenPtr = parsePtr->tokenPtr;
@@ -242,7 +242,7 @@ tcl9.0 9.0.4, revision `pinned Tcl release 9.0.4`, `generic/tclCompile.c`, funct
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, function `builtInCmds`, lines 355–360. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `932ce572de6b1c38032a93a1f673baee4339cbd25e2c6588c0e7c9a512fed4e8`; retained evidence `e8`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, function `builtInCmds`, lines 355–360. Retained reference `e8`.
 
 ```text
     {"proc",		Tcl_ProcObjCmd,		NULL,			NULL,	CMD_IS_SAFE},
@@ -254,7 +254,7 @@ tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, functio
 
 ```
 
-tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `CompileCommandTokens`, lines 2391–2421. Full-source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `c1d6c7e554b93ce3728a1e0b7799be86c0be49d0514047c9d729937cf7cef099`; retained evidence `e9`.
+tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclCompile.c`, function `CompileCommandTokens`, lines 2391–2421. Retained reference `e9`.
 
 ```text
     tokenPtr = parsePtr->tokenPtr;

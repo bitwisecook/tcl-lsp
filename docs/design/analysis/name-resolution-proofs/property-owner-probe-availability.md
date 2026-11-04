@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (observation): [rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json](../../../../rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json). SHA-256 `7c80d5d7665fd659c389ab58d251a7199cd450e4e8cbf0f105502f0e85b0fbcf`. Compile0, process2, exact partial stdout/error stream and original source/build/executable hashes.
-- `e1` (observation): [rust/tcl-registry/tests/data/native_property_owners/initial.tsv](../../../../rust/tcl-registry/tests/data/native_property_owners/initial.tsv). SHA-256 `348302dc14eaec5a35e19bcaeff2389964344e7719fba0f11b4af47c89231604`. Only the two emitted header/copy rows.
+- `e0` (observation): [rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json](../../../../rust/tcl-registry/tests/data/native_property_owners/initial-manifest.json). Compile0, process2, exact partial stdout/error stream and original source/build/executable hashes.
+- `e1` (observation): [rust/tcl-registry/tests/data/native_property_owners/initial.tsv](../../../../rust/tcl-registry/tests/data/native_property_owners/initial.tsv). Only the two emitted header/copy rows.
 
 ## Source inspection
 

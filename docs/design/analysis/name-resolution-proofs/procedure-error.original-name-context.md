@@ -99,11 +99,11 @@ Status: `not-tested`. Version: not measured. Build: not measured. Channel: not t
 
 No original procedure parse-context capture for this provider is attached.
 
-## Exact evidence
+## Historical references
 
-- `input` (input): [rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c). SHA-256 `ebc8fe1b6c27e5244e30fc89e4aa3cff9354bc15c02a15d376dfa70a47bac014`. Exact original counted definition/call vectors and reached result/error metadata observer.
-- `rows` (observation): [rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv). SHA-256 `180b9330842af42f44e9a12e29f38f34eaed7022301876ef6678df7b86ef1100`. Complete original case/code/name/body/result/errorInfo/errorCode stdout.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json). SHA-256 `07a3d2f2b7e324fc2c6ab1ec7e08f92ed57a48b1b54ccbe36eabf3ac9ed1da2e`. Original source/archive/observer/output/status associations.
+- `input` (input): [rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c). Exact original counted definition/call vectors and reached result/error metadata observer.
+- `rows` (observation): [rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv). Complete original case/code/name/body/result/errorInfo/errorCode stdout.
+- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json). Original source/archive/observer/output/status associations.
 
 ## Source inspection
 

@@ -157,15 +157,15 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native observation of this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c). SHA-256 `07998ce7fd101f2b8faad99ae82dc664518c07917a1791e8c3fb57e49c167bcb`. Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json). SHA-256 `7570c7e689881907b85bbdbe2f29a714981bf90fd2e909abf96eb120fc1c13ed`. Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt). SHA-256 `b2a76489fbc21d1928a2bcc6712aad4a48f7260db9731ff96ae5b276ef7423c4`. Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt). SHA-256 `d7925477646a3b55cc39183531741b817a2bec418262f7d2bee95e1c43bb1f53`. Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt). SHA-256 `e2897daca308717db608ec26584bd5f88cc37aa51a90e0b9b49c0d39bf97dee1`. Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt). SHA-256 `b740babf3a8ba0c945ad09c29952c0ad8d2a36e54e838f3b523ec59266c967d0`. Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt). SHA-256 `b740babf3a8ba0c945ad09c29952c0ad8d2a36e54e838f3b523ec59266c967d0`. Original retained full stream; provider answer selects only this question's relevant windows.
+- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
+- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
+- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt). Original retained full stream; provider answer selects only this question's relevant windows.
+- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt). Original retained full stream; provider answer selects only this question's relevant windows.
+- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt). Original retained full stream; provider answer selects only this question's relevant windows.
+- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt). Original retained full stream; provider answer selects only this question's relevant windows.
+- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt). Original retained full stream; provider answer selects only this question's relevant windows.
 
 ## Source inspection
 

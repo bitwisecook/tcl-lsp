@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-optimiser-original-definition-resurrection-guard-manager.rs` (implementation): [rust/tcl-compiler/src/optimiser/manager.rs](../../../../rust/tcl-compiler/src/optimiser/manager.rs). SHA-256 `3c70e2c9d77675a874a1d87d90cec00e2d7e8ac923b01ab54777ffa08f48f13b`. Current selected source/API owner; no executed assertion or native provider observation.
+- `naming-optimiser-original-definition-resurrection-guard-manager.rs` (implementation): [rust/tcl-compiler/src/optimiser/manager.rs](../../../../rust/tcl-compiler/src/optimiser/manager.rs). Current selected source/API owner; no executed assertion or native provider observation.
 
 ## Source inspection
 

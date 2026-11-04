@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `naming-refactor-original-exact-case-source-rust-tcl-lsp-core-src-refactor-datagroup-source_subject.rs` (implementation): [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs). SHA-256 `70ca2dc4502649faa12acd8cc25cf3f5030fdefed3fab16d38423b8a5a2bf41e`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-refactor-original-exact-case-source-rust-tcl-lsp-core-src-refactor-switch_to_dict.rs` (implementation): [rust/tcl-lsp-core/src/refactor/switch_to_dict.rs](../../../../rust/tcl-lsp-core/src/refactor/switch_to_dict.rs). SHA-256 `0dbe8ee28e9c19d0c43df84490ea7bc2878e3de1ce694bf2c13e7b0d2eb94856`. Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-refactor-original-exact-case-source-rust-tcl-lsp-core-src-refactor-datagroup-source_subject.rs` (implementation): [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
+- `naming-refactor-original-exact-case-source-rust-tcl-lsp-core-src-refactor-switch_to_dict.rs` (implementation): [rust/tcl-lsp-core/src/refactor/switch_to_dict.rs](../../../../rust/tcl-lsp-core/src/refactor/switch_to_dict.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 

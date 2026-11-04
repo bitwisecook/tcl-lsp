@@ -62,15 +62,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `tcl8.6-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json). SHA-256 `6a6e6101dcb9d186948b65c02a4bd1e96e7f58d5636acec4be1e79568cc88083`. JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
-- `tcl9.0-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json). SHA-256 `9c15c4cd0c5fc01786fe841f40aa9a9cd1bfd6364e3960e73507a307122e7355`. JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
-- `tcl9.1-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json). SHA-256 `5c34f03f495ab1c6eb2bc76df6e9704f7e2152a570a91205fbb4ab75a482d290`. JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
+- `tcl8.6-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json). JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
+- `tcl9.0-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json). JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
+- `tcl9.1-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json). JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c`, function `TclOO_Object_Eval`, lines 392–451. Full-source SHA-256 `1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98`; snippet SHA-256 `9f8f90f78d0a25409c432a13eceaf6a8f7f824203bee215fefd9e961c09c6e72`; retained evidence `tcl8.6-object-eval`.
+tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOOBasic.c`, function `TclOO_Object_Eval`, lines 392–451. Retained reference `tcl8.6-object-eval`.
 
 ```text
 TclOO_Object_Eval(
@@ -136,7 +136,7 @@ TclOO_Object_Eval(
 
 ```
 
-tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOO_Object_Eval`, lines 733–792. Full-source SHA-256 `5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68`; snippet SHA-256 `0502e157f3930fb6eaaaa1a369c75b43aaee2ada9a172293ef88ba4dd22fa097`; retained evidence `tcl9.0-object-eval`.
+tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOOBasic.c`, function `TclOO_Object_Eval`, lines 733–792. Retained reference `tcl9.0-object-eval`.
 
 ```text
 TclOO_Object_Eval(
@@ -202,7 +202,7 @@ TclOO_Object_Eval(
 
 ```
 
-tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOO_Object_Eval`, lines 789–848. Full-source SHA-256 `d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158`; snippet SHA-256 `ae2e0121fecb09c5cdcc5f024b6f77259f9f65782450970a5aaf557bd21f5305`; retained evidence `tcl9.1-object-eval`.
+tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOBasic.c`, function `TclOO_Object_Eval`, lines 789–848. Retained reference `tcl9.1-object-eval`.
 
 ```text
 TclOO_Object_Eval(

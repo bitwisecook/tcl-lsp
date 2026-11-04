@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `current-compiler-source-ef7ed85a7f48baaa` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). SHA-256 `26e7cde53ba40f33001cd1a8908eccba17b6f1704e04fcd666f13ad02f2ad06b`. Current original source/software control definitions and independent retained owner purpose; no executed assertion, external Native observation or provider grant.
+- `current-compiler-source-ef7ed85a7f48baaa` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). Current original source/software control definitions and independent retained owner purpose; no executed assertion, external Native observation or provider grant.
 
 ## Source inspection
 

@@ -62,15 +62,15 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `tcl9.1-coroutine-object-transport-0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). SHA-256 `b03940c855f6acd11bad740e9dd3ca4692f77090fc1878b1e11730f4390972d7`. JSON pointer `/0/snippet`. GetCoroutineFromObj pinned original-object source window; no native execution.
-- `tcl9.1-coroutine-object-transport-1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). SHA-256 `b03940c855f6acd11bad740e9dd3ca4692f77090fc1878b1e11730f4390972d7`. JSON pointer `/1/snippet`. TclNRCoroInjectObjCmd and TclNRCoroProbeObjCmd pinned original-object source window; no native execution.
-- `tcl9.1-coroutine-object-transport-2` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). SHA-256 `b03940c855f6acd11bad740e9dd3ca4692f77090fc1878b1e11730f4390972d7`. JSON pointer `/2/snippet`. InjectHandler pinned original-object source window; no native execution.
+- `tcl9.1-coroutine-object-transport-0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). JSON pointer `/0/snippet`. GetCoroutineFromObj pinned original-object source window; no native execution.
+- `tcl9.1-coroutine-object-transport-1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). JSON pointer `/1/snippet`. TclNRCoroInjectObjCmd and TclNRCoroProbeObjCmd pinned original-object source window; no native execution.
+- `tcl9.1-coroutine-object-transport-2` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). JSON pointer `/2/snippet`. InjectHandler pinned original-object source window; no native execution.
 
 ## Source inspection
 
-tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `generic/tclBasic.c`, function `GetCoroutineFromObj`, lines 9738–9756. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `d1e3373fbbc2fc0644719ffe331fab3bb477b540d930eda7ac47ace162e6ff8e`; retained evidence `tcl9.1-coroutine-object-transport-0`.
+tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `generic/tclBasic.c`, function `GetCoroutineFromObj`, lines 9738–9756. Retained reference `tcl9.1-coroutine-object-transport-0`.
 
 ```text
     Tcl_Interp *interp,
@@ -95,7 +95,7 @@ tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `g
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `generic/tclBasic.c`, function `TclNRCoroInjectObjCmd and TclNRCoroProbeObjCmd`, lines 9758–9880. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `2271149923c5df711c613bc240789c3740925ca7798d7cdfbab1ac47ea94acce`; retained evidence `tcl9.1-coroutine-object-transport-1`.
+tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `generic/tclBasic.c`, function `TclNRCoroInjectObjCmd and TclNRCoroProbeObjCmd`, lines 9758–9880. Retained reference `tcl9.1-coroutine-object-transport-1`.
 
 ```text
 TclNRCoroInjectObjCmd(
@@ -224,7 +224,7 @@ TclNRCoroProbeObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `generic/tclBasic.c`, function `InjectHandler`, lines 9898–9941. Full-source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `443d02746fe61d51c12fd3b0f98e920d3d0096c048b93d9fc7d8be7bdb53ec35`; retained evidence `tcl9.1-coroutine-object-transport-2`.
+tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `generic/tclBasic.c`, function `InjectHandler`, lines 9898–9941. Retained reference `tcl9.1-coroutine-object-transport-2`.
 
 ```text
 InjectHandler(

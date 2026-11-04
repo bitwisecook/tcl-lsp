@@ -62,32 +62,32 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/manifest.json](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/manifest.json). SHA-256 `c8b35636c48f0330856e568d4e794ce82505aa43cf4b76b66f0d03a5b7d15056`. 17 original source/output/library rows for independent C/Jim object hook programs; no executable/argv/startup hashes recorded.
-- `e1` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-native.json](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-native.json). SHA-256 `fe3f7eae797db7fbbe5e9e04f89ecc3887d9c35c37693dc11c1715c8087e8d32`. Older independent C labelled process outputs including exact stdout/stderr; no library/executable/build is borrowed from the newer corpus.
-- `e2` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.4.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.4.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Byte-exact older C stdout projection for labelled 8.4; original precise build unavailable.
-- `e3` (input): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-probe.c). SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`. Adjacent retained older factory input; the older JSON has no executed-source hash. This is context, not reconstruction of the executed program or equivalence to newer source.
-- `e4` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.5.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.5.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Byte-exact older C stdout projection for labelled 8.5; original precise build unavailable.
-- `e5` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.6.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.6.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Byte-exact older C stdout projection for labelled 8.6; original precise build unavailable.
-- `e6` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.0.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.0.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Byte-exact older C stdout projection for labelled 9.0; original precise build unavailable.
-- `e7` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.1.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.1.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Byte-exact older C stdout projection for labelled 9.1; original precise build unavailable.
-- `e8` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`. Exact independently executed custom updater/free factory and observation point.
-- `e9` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.4.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.4.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Exact complete original stream; selected empty rows belong to this question.
-- `e10` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`. Exact independently executed custom updater/free factory and observation point.
-- `e11` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.5.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.5.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Exact complete original stream; selected empty rows belong to this question.
-- `e12` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`. Exact independently executed custom updater/free factory and observation point.
-- `e13` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.6.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.6.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Exact complete original stream; selected empty rows belong to this question.
-- `e14` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`. Exact independently executed custom updater/free factory and observation point.
-- `e15` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.0.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.0.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Exact complete original stream; selected empty rows belong to this question.
-- `e16` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`. Exact independently executed custom updater/free factory and observation point.
-- `e17` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.1.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.1.txt). SHA-256 `e3b750fbee8885e0ab6a1f32629932227ef6323afbeb498c54330a01fe01ccfa`. Exact complete original stream; selected empty rows belong to this question.
-- `e18` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-probe.c). SHA-256 `52c7b83ea0c29348f286645ee96b28ee8de50944871e2be0575f2ea414e26694`. Exact independently executed custom updater/free factory and observation point.
-- `e19` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-native.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-native.txt). SHA-256 `082c636323a0700a9c3aed8830be9fc7403645bccf6cc8aa57f36024a9c24002`. Exact complete original stream; selected empty rows belong to this question.
+- `e0` (provider): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/manifest.json](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/manifest.json). 17 original source/output/library rows for independent C/Jim object hook programs; no executable/argv/startup hashes recorded.
+- `e1` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-native.json](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-native.json). Older independent C labelled process outputs including exact stdout/stderr; no library/executable/build is borrowed from the newer corpus.
+- `e2` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.4.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.4.txt). Byte-exact older C stdout projection for labelled 8.4; original precise build unavailable.
+- `e3` (input): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-probe.c). Adjacent retained older factory input; the older JSON has no executed-source hash. This is context, not reconstruction of the executed program or equivalence to newer source.
+- `e4` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.5.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.5.txt). Byte-exact older C stdout projection for labelled 8.5; original precise build unavailable.
+- `e5` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.6.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-8.6.txt). Byte-exact older C stdout projection for labelled 8.6; original precise build unavailable.
+- `e6` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.0.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.0.txt). Byte-exact older C stdout projection for labelled 9.0; original precise build unavailable.
+- `e7` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.1.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string-callbacks/empty-foreach-9.1.txt). Byte-exact older C stdout projection for labelled 9.1; original precise build unavailable.
+- `e8` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). Exact independently executed custom updater/free factory and observation point.
+- `e9` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.4.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.4.txt). Exact complete original stream; selected empty rows belong to this question.
+- `e10` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). Exact independently executed custom updater/free factory and observation point.
+- `e11` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.5.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.5.txt). Exact complete original stream; selected empty rows belong to this question.
+- `e12` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). Exact independently executed custom updater/free factory and observation point.
+- `e13` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.6.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-8.6.txt). Exact complete original stream; selected empty rows belong to this question.
+- `e14` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). Exact independently executed custom updater/free factory and observation point.
+- `e15` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.0.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.0.txt). Exact complete original stream; selected empty rows belong to this question.
+- `e16` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c). Exact independently executed custom updater/free factory and observation point.
+- `e17` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.1.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-9.1.txt). Exact complete original stream; selected empty rows belong to this question.
+- `e18` (input): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-probe.c). Exact independently executed custom updater/free factory and observation point.
+- `e19` (observation): [rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-native.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-native.txt). Exact complete original stream; selected empty rows belong to this question.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Full-source SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`; snippet SHA-256 `7090ff56b21f5caec79eaec183211a7cb7043acf65dedbad7ac85fe9768c2e78`; retained evidence `e8`.
+tcl8.4 8.4.20, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Retained reference `e8`.
 
 ```text
 int main(int argc,char **argv) {
@@ -97,7 +97,7 @@ int main(int argc,char **argv) {
 
 ```
 
-tcl8.5 8.5.19, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Full-source SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`; snippet SHA-256 `7090ff56b21f5caec79eaec183211a7cb7043acf65dedbad7ac85fe9768c2e78`; retained evidence `e10`.
+tcl8.5 8.5.19, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Retained reference `e10`.
 
 ```text
 int main(int argc,char **argv) {
@@ -107,7 +107,7 @@ int main(int argc,char **argv) {
 
 ```
 
-tcl8.6 8.6.18, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Full-source SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`; snippet SHA-256 `7090ff56b21f5caec79eaec183211a7cb7043acf65dedbad7ac85fe9768c2e78`; retained evidence `e12`.
+tcl8.6 8.6.18, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Retained reference `e12`.
 
 ```text
 int main(int argc,char **argv) {
@@ -117,7 +117,7 @@ int main(int argc,char **argv) {
 
 ```
 
-tcl9.0 9.0.4, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Full-source SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`; snippet SHA-256 `7090ff56b21f5caec79eaec183211a7cb7043acf65dedbad7ac85fe9768c2e78`; retained evidence `e14`.
+tcl9.0 9.0.4, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Retained reference `e14`.
 
 ```text
 int main(int argc,char **argv) {
@@ -127,7 +127,7 @@ int main(int argc,char **argv) {
 
 ```
 
-tcl9.1 9.1.0, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Full-source SHA-256 `8879e5c69d2ed691012fea1a35f1f5ded4b8b2715c3a4a45d34b08ad29fa26d0`; snippet SHA-256 `7090ff56b21f5caec79eaec183211a7cb7043acf65dedbad7ac85fe9768c2e78`; retained evidence `e16`.
+tcl9.1 9.1.0, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 27–30. Retained reference `e16`.
 
 ```text
 int main(int argc,char **argv) {
@@ -137,7 +137,7 @@ int main(int argc,char **argv) {
 
 ```
 
-jim Jim0.84, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 24–27. Full-source SHA-256 `52c7b83ea0c29348f286645ee96b28ee8de50944871e2be0575f2ea414e26694`; snippet SHA-256 `3783f7330e725491864ed7e14a18208ecc49aff1f6177b5eb2d1df6e6073f009`; retained evidence `e18`.
+jim Jim0.84, revision `Exact retained executed probe; native engine source snapshot is not reconstructed from its library hash.`, `rust/tcl-syntax/tests/data/native_list_methods/string_callbacks/jim-empty-foreach-probe.c`, function `main: original source/object invocation and observation`, lines 24–27. Retained reference `e18`.
 
 ```text
 int main(void) {

@@ -66,9 +66,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This precise Rust source contract has no native execution receipt.
 
-## Exact evidence
+## Historical references
 
-- `implementation-source` (implementation): [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs). SHA-256 `40e7a51d3b4e90268ea0983192230b498f02c09f778d732a3ee9918e4dec3821`. Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
+- `implementation-source` (implementation): [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs). Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

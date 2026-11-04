@@ -99,13 +99,13 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c). SHA-256 `bafa27b7e79c9b847bf456e829cddd35f50011ab7724de6c469ea8552ce2a64b`. Exact private field conditional boundaries, original child selection and saved-state pointer/count sampling.
-- `receipt` (observation): [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json). SHA-256 `fe5f818e8c364774d335d037beeeb3da22dcfc1354fa786d002a8980b48e8ad0`. All five separate compile/process status/stdout/stderr captures; sentinel branches retained.
-- `rows` (observation): [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv). SHA-256 `8db9e4d50d705dc72c4b4940ef34b7d1619f955c311d693a0db76042031c0c17`. Exact 38-row projection agrees byte-for-byte with the prefixed original inline streams.
-- `authored-consumer645d-697f7e7187ab` (implementation): [runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs). SHA-256 `a3b120d6b27b883da79b726a98efbc9af8eb15a38bbc7d69255a8f22061ca3a4`. Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
-- `authored-consumer645d-2db75cd5b415` (implementation): [runtime/rust/src/interp/native_error_headers.rs](../../../../runtime/rust/src/interp/native_error_headers.rs). SHA-256 `c01cfdeda1429b2c50f791e44b6f8191132118d48d4676ff6550db208c961627`. Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
+- `probe` (input): [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c). Exact private field conditional boundaries, original child selection and saved-state pointer/count sampling.
+- `receipt` (observation): [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json). All five separate compile/process status/stdout/stderr captures; sentinel branches retained.
+- `rows` (observation): [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv). Exact 38-row projection agrees byte-for-byte with the prefixed original inline streams.
+- `authored-consumer645d-697f7e7187ab` (implementation): [runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs). Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
+- `authored-consumer645d-2db75cd5b415` (implementation): [runtime/rust/src/interp/native_error_headers.rs](../../../../runtime/rust/src/interp/native_error_headers.rs). Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
 
 ## Source inspection
 

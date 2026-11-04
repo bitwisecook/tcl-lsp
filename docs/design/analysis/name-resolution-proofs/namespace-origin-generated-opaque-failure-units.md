@@ -62,17 +62,17 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No captured result for this exact purpose is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `source` (input): [runtime/rust/tests/data/native_namespace_origin_failures/source.tcl](../../../../runtime/rust/tests/data/native_namespace_origin_failures/source.tcl). SHA-256 `b17c5c05efa5cd7e252d755486b2d26c0de2aa51bb9744b3ae3fc6294c997b6c`. Exact binary-format original source.
-- `observer` (input): [runtime/rust/tests/data/native_namespace_origin_failures/run.py](../../../../runtime/rust/tests/data/native_namespace_origin_failures/run.py). SHA-256 `14fd14a468631155ad0748fb4b8fa442114994912190e8a19399e7c1504f2df8`. Retained original wrapper/capture algorithm; reconstructed observer matches its recorded full digest.
-- `receipt` (provider): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). SHA-256 `7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8`. Five exact stdin shell/source/wrapper/status/stream associations.
-- `projection` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv](../../../../runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv). SHA-256 `85f53ec956998e3b390de992750962d92485863b605e60ccafa9ae1454a3b278`. Five exact final value-byte projections; not original input-object headers.
-- `row-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). SHA-256 `7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8`. JSON pointer `/0`. Actual process0/stdin result/errorCode byte projection.
-- `row-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). SHA-256 `7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8`. JSON pointer `/1`. Actual process0/stdin result/errorCode byte projection.
-- `row-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). SHA-256 `7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8`. JSON pointer `/2`. Actual process0/stdin result/errorCode byte projection.
-- `row-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). SHA-256 `7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8`. JSON pointer `/3`. Actual process0/stdin result/errorCode byte projection.
-- `row-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). SHA-256 `7917d75a2fa66fd434f8a6cb762731b8042b3d9c18ce2dec7d80084bc4e2dca8`. JSON pointer `/4`. Actual process0/stdin result/errorCode byte projection.
+- `source` (input): [runtime/rust/tests/data/native_namespace_origin_failures/source.tcl](../../../../runtime/rust/tests/data/native_namespace_origin_failures/source.tcl). Exact binary-format original source.
+- `observer` (input): [runtime/rust/tests/data/native_namespace_origin_failures/run.py](../../../../runtime/rust/tests/data/native_namespace_origin_failures/run.py). Retained original wrapper/capture algorithm; reconstructed observer matches its recorded full digest.
+- `receipt` (provider): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). Five exact stdin shell/source/wrapper/status/stream associations.
+- `projection` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv](../../../../runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv). Five exact final value-byte projections; not original input-object headers.
+- `row-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). JSON pointer `/0`. Actual process0/stdin result/errorCode byte projection.
+- `row-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). JSON pointer `/1`. Actual process0/stdin result/errorCode byte projection.
+- `row-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). JSON pointer `/2`. Actual process0/stdin result/errorCode byte projection.
+- `row-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). JSON pointer `/3`. Actual process0/stdin result/errorCode byte projection.
+- `row-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_origin_failures/manifest.json](../../../../runtime/rust/tests/data/native_namespace_origin_failures/manifest.json). JSON pointer `/4`. Actual process0/stdin result/errorCode byte projection.
 
 ## Source inspection
 

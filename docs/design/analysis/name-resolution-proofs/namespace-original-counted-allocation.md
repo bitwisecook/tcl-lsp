@@ -62,18 +62,18 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native execution of this Rust implementation question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `namespace-registration-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). SHA-256 `8cfbb2f59cac8e08322d59d0ce4a161e9039cc0f4caecb0e10f37c6d6e1a9e1a`. JSON pointer `/source_anchors/0/snippet`. tcl8.4 exact builtInCmds namespace registration source window; no native or Rust execution result inferred.
-- `namespace-registration-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). SHA-256 `8cfbb2f59cac8e08322d59d0ce4a161e9039cc0f4caecb0e10f37c6d6e1a9e1a`. JSON pointer `/source_anchors/1/snippet`. tcl8.5 exact builtInCmds namespace registration source window; no native or Rust execution result inferred.
-- `namespace-registration-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). SHA-256 `8cfbb2f59cac8e08322d59d0ce4a161e9039cc0f4caecb0e10f37c6d6e1a9e1a`. JSON pointer `/source_anchors/2/snippet`. tcl8.5 exact TclCompileNamespaceCmd initial decline source window; no native or Rust execution result inferred.
-- `namespace-registration-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). SHA-256 `8cfbb2f59cac8e08322d59d0ce4a161e9039cc0f4caecb0e10f37c6d6e1a9e1a`. JSON pointer `/source_anchors/3/snippet`. tcl8.6 exact namespace implementation map source window; no native or Rust execution result inferred.
-- `namespace-registration-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). SHA-256 `8cfbb2f59cac8e08322d59d0ce4a161e9039cc0f4caecb0e10f37c6d6e1a9e1a`. JSON pointer `/source_anchors/4/snippet`. tcl9.0 exact namespace implementation map source window; no native or Rust execution result inferred.
-- `namespace-registration-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). SHA-256 `8cfbb2f59cac8e08322d59d0ce4a161e9039cc0f4caecb0e10f37c6d6e1a9e1a`. JSON pointer `/source_anchors/5/snippet`. tcl9.1 exact namespace implementation map source window; no native or Rust execution result inferred.
+- `namespace-registration-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. tcl8.4 exact builtInCmds namespace registration source window; no native or Rust execution result inferred.
+- `namespace-registration-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/1/snippet`. tcl8.5 exact builtInCmds namespace registration source window; no native or Rust execution result inferred.
+- `namespace-registration-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/2/snippet`. tcl8.5 exact TclCompileNamespaceCmd initial decline source window; no native or Rust execution result inferred.
+- `namespace-registration-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/3/snippet`. tcl8.6 exact namespace implementation map source window; no native or Rust execution result inferred.
+- `namespace-registration-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/4/snippet`. tcl9.0 exact namespace implementation map source window; no native or Rust execution result inferred.
+- `namespace-registration-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/5/snippet`. tcl9.1 exact namespace implementation map source window; no native or Rust execution result inferred.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclBasic.c`, function `builtInCmds namespace registration`, lines 164–165. Full-source SHA-256 `cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a`; snippet SHA-256 `d8572ff3819a77cfadf044c198dc6953a3e7b1c614ad80b794e4ddd5b6bbbb39`; retained evidence `namespace-registration-source-0`.
+tcl8.4 8.4.20, revision `Retained release source identified by complete file digest`, `tmp/tcl8.4.20/generic/tclBasic.c`, function `builtInCmds namespace registration`, lines 164–165. Retained reference `namespace-registration-source-0`.
 
 ```text
     {"namespace",	(Tcl_CmdProc *) NULL,	Tcl_NamespaceObjCmd,
@@ -81,14 +81,14 @@ tcl8.4 8.4.20, revision `Retained release source identified by complete file dig
 
 ```
 
-tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclBasic.c`, function `builtInCmds namespace registration`, lines 157–157. Full-source SHA-256 `d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63`; snippet SHA-256 `54766aa16dcebd5e0625bddd6f2f5ab4b9928af57271b5959d0c9a0b4503cee0`; retained evidence `namespace-registration-source-1`.
+tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclBasic.c`, function `builtInCmds namespace registration`, lines 157–157. Retained reference `namespace-registration-source-1`.
 
 ```text
     {"namespace",	Tcl_NamespaceObjCmd,	TclCompileNamespaceCmd,	1},
 
 ```
 
-tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclCompCmds.c`, function `TclCompileNamespaceCmd initial decline`, lines 5784–5821. Full-source SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; snippet SHA-256 `45d419dfdb7d23ba724c61bf85cf4e05ee7d2ec0e0c7f67e596c70a10a2f64dd`; retained evidence `namespace-registration-source-2`.
+tcl8.5 8.5.19, revision `Retained release source identified by complete file digest`, `tmp/tcl8.5.19/generic/tclCompCmds.c`, function `TclCompileNamespaceCmd initial decline`, lines 5784–5821. Retained reference `namespace-registration-source-2`.
 
 ```text
 TclCompileNamespaceCmd(
@@ -132,7 +132,7 @@ TclCompileNamespaceCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `namespace implementation map`, lines 141–162. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `b79eac5ddc66d6bff4bd274df2453c8b942ac320885355aee2f3d6c4995e5a17`; retained evidence `namespace-registration-source-3`.
+tcl8.6 8.6.18, revision `Retained release source identified by complete file digest`, `tmp/tcl8.6.18/generic/tclNamesp.c`, function `namespace implementation map`, lines 141–162. Retained reference `namespace-registration-source-3`.
 
 ```text
 static const EnsembleImplMap defaultNamespaceMap[] = {
@@ -160,7 +160,7 @@ static const EnsembleImplMap defaultNamespaceMap[] = {
 
 ```
 
-tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `namespace implementation map`, lines 159–180. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `b79eac5ddc66d6bff4bd274df2453c8b942ac320885355aee2f3d6c4995e5a17`; retained evidence `namespace-registration-source-4`.
+tcl9.0 9.0.4, revision `Retained release source identified by complete file digest`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `namespace implementation map`, lines 159–180. Retained reference `namespace-registration-source-4`.
 
 ```text
 static const EnsembleImplMap defaultNamespaceMap[] = {
@@ -188,7 +188,7 @@ static const EnsembleImplMap defaultNamespaceMap[] = {
 
 ```
 
-tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `namespace implementation map`, lines 159–180. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `1c805ac9f2bce92e0863469bd0608b5683f9c4c40acb82510a37079eb3eb2eaf`; retained evidence `namespace-registration-source-5`.
+tcl9.1 9.1.0, revision `Retained release source identified by complete file digest`, `tmp/tcl9.1.0/generic/tclNamesp.c`, function `namespace implementation map`, lines 159–180. Retained reference `namespace-registration-source-5`.
 
 ```text
 const EnsembleImplMap tclNamespaceImplMap[] = {

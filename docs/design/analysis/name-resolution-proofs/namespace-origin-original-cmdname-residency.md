@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `e0` (observation): [runtime/rust/tests/data/native_namespace_origin/original_provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/original_provenance.json). SHA-256 `e272081d1b2b831762605ffd8b53f200faf0c10f95ff29db68d5143e994ef0ee`. Nine exact resident/stringless process receipts, inline stdout/stderr and source/archive/executable hashes.
-- `e1` (input): [runtime/rust/tests/data/native_namespace_origin/original_probe.c](../../../../runtime/rust/tests/data/native_namespace_origin/original_probe.c). SHA-256 `a92f35cb0dafec70f001edf032334266fa4f53aaf16f9fd0b815d808dffd5e01`. Original ::dest::p object reused across public Tcl_EvalObjv namespace origin, rename/replacement and explicit string invalidation.
+- `e0` (observation): [runtime/rust/tests/data/native_namespace_origin/original_provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/original_provenance.json). Nine exact resident/stringless process receipts, inline stdout/stderr and source/archive/executable hashes.
+- `e1` (input): [runtime/rust/tests/data/native_namespace_origin/original_probe.c](../../../../runtime/rust/tests/data/native_namespace_origin/original_probe.c). Original ::dest::p object reused across public Tcl_EvalObjv namespace origin, rename/replacement and explicit string invalidation.
 
 ## Source inspection
 

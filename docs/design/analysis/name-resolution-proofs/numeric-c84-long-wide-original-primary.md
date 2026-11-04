@@ -107,11 +107,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No native observation of this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c). SHA-256 `dbfa61509809d5d20c0b89e9334f7b95c828bb89d888440bfa110ab49992ef87`. Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json). SHA-256 `c87897b71108a7116232510ba74679eb4c4c7db376ac03bd0e27d6971c13849a`. Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv). SHA-256 `b8b4fda4caffa67734ee9d362536c94d49085c01eeba07eb04c3db416bc6d3f8`. Original retained full stream; provider answer selects only this question's relevant windows.
+- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
+- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
+- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv). Original retained full stream; provider answer selects only this question's relevant windows.
 
 ## Source inspection
 

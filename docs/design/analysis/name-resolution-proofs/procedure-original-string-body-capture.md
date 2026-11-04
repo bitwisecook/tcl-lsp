@@ -122,16 +122,16 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No retained observation of this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c). SHA-256 `9e3ac596288aa6ca93319ea7a421a960e99c0100282fa076d2ebf1d59cb7825c`. Exact original body constructors and owner-aware before/stored-body observer.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json). SHA-256 `198367bcff3aab8515a41ce005318e439e433ca616cea540f5f1e6cafd62b1ff`. Six original compile/run/build/output associations; Jim Bytearray skip remains explicit.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv). SHA-256 `e18091015fcd43d95d0f71e829120fce2c423f7489a985c2214ef5e9455a4ddb`. Full original12-column header stream; selected kind IDs [0, 3, 4].
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv). SHA-256 `e18091015fcd43d95d0f71e829120fce2c423f7489a985c2214ef5e9455a4ddb`. Full original12-column header stream; selected kind IDs [0, 3, 4].
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv). SHA-256 `e18091015fcd43d95d0f71e829120fce2c423f7489a985c2214ef5e9455a4ddb`. Full original12-column header stream; selected kind IDs [0, 3, 4].
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv). SHA-256 `e18091015fcd43d95d0f71e829120fce2c423f7489a985c2214ef5e9455a4ddb`. Full original12-column header stream; selected kind IDs [0, 3, 4].
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv). SHA-256 `e18091015fcd43d95d0f71e829120fce2c423f7489a985c2214ef5e9455a4ddb`. Full original12-column header stream; selected kind IDs [0, 3, 4].
-- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv). SHA-256 `49ea0f02deb9fb79c85010e718bad6badb9ee787db300b625972fbdcca83c0d1`. Full original12-column header stream; selected kind IDs [0, 3, 4].
+- `probe` (input): [rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c). Exact original body constructors and owner-aware before/stored-body observer.
+- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json). Six original compile/run/build/output associations; Jim Bytearray skip remains explicit.
+- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv). Full original12-column header stream; selected kind IDs [0, 3, 4].
+- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv). Full original12-column header stream; selected kind IDs [0, 3, 4].
+- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv). Full original12-column header stream; selected kind IDs [0, 3, 4].
+- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv). Full original12-column header stream; selected kind IDs [0, 3, 4].
+- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv). Full original12-column header stream; selected kind IDs [0, 3, 4].
+- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv). Full original12-column header stream; selected kind IDs [0, 3, 4].
 
 ## Source inspection
 

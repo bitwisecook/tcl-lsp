@@ -66,7 +66,7 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

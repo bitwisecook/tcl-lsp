@@ -62,12 +62,12 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This record is a Rust implementation contract; no native or Rust execution is claimed.
 
-## Exact evidence
+## Historical references
 
-- `e0` (implementation): [rust/tcl-runtime-api/src/native_substitution.rs](../../../../rust/tcl-runtime-api/src/native_substitution.rs). SHA-256 `25e8c49e680c9b5706488cd00fa8f52e8e3debbea654bf2ae28743e8a316dc3e`. Implementation source at the recorded digest. It is not native execution evidence.
-- `e1` (implementation): [rust/tcl-compiler/src/codegen/native_substitution.rs](../../../../rust/tcl-compiler/src/codegen/native_substitution.rs). SHA-256 `d3843f2992315380b7255af10f3499034ae1632a7934e1d740d95aa2f5d12ec7`. Implementation source at the recorded digest. It is not native execution evidence.
-- `e2` (implementation): [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs). SHA-256 `d26f4995fe1178068ad587a6ba8567976d7131ef63f6350198dc390c3cd73133`. Implementation source at the recorded digest. It is not native execution evidence.
-- `e3` (implementation): [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs). SHA-256 `224069297d6ec5b43e2d40bab2c8f28f7342f33b262fafbed7826d73980cb5a6`. Implementation source at the recorded digest. It is not native execution evidence.
+- `e0` (implementation): [rust/tcl-runtime-api/src/native_substitution.rs](../../../../rust/tcl-runtime-api/src/native_substitution.rs). Implementation source at the recorded digest. It is not native execution evidence.
+- `e1` (implementation): [rust/tcl-compiler/src/codegen/native_substitution.rs](../../../../rust/tcl-compiler/src/codegen/native_substitution.rs). Implementation source at the recorded digest. It is not native execution evidence.
+- `e2` (implementation): [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs). Implementation source at the recorded digest. It is not native execution evidence.
+- `e3` (implementation): [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs). Implementation source at the recorded digest. It is not native execution evidence.
 
 ## Source inspection
 

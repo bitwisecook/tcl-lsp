@@ -62,25 +62,25 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No exact source inspection or interpreter execution is recorded for this C teardown question.
 
-## Exact evidence
+## Historical references
 
-- `namespace-teardown227-question.json` (input): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json). SHA-256 `6266877387102d54b746a6a2b6c85004412c11512d9c4f36d49181c0ddca12ea`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.4.20-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt). SHA-256 `25e45517b8c90fabc792156b80bee403604b0fccda14ddfcabb75c319d14f9bb`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.4.20-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-tclNamesp.c). SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.5.19-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt). SHA-256 `eadfe9fb1eceab0de4305e3644fc2ebf142fdc1d9b8128d5ee0f5fc1e1e51422`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.5.19-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-tclNamesp.c). SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.6.18-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt). SHA-256 `7254f4aaa3b4568bc07966467400ad6427ad72c7e14c0b12168a664df17af553`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.6.18-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-tclNamesp.c). SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.0.4-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt). SHA-256 `cc31f776e8d614edd90c8384b3f8c57d0f2b224ca1f20a1ecc725f1282bf5c6b`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.0.4-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-tclNamesp.c). SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.1.0-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt). SHA-256 `cc31f776e8d614edd90c8384b3f8c57d0f2b224ca1f20a1ecc725f1282bf5c6b`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.1.0-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-tclNamesp.c). SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`. Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `naming-namespace-command-teardown-frontier-native.rs` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). SHA-256 `bb8ed465174f9828b4963f699c079b1e437286c5c18536a85b716ad34c51d8f8`. Current selected source/API owner; no executed assertion or native provider observation.
-- `naming-namespace-command-teardown-frontier-native_namespace_name.rs` (implementation): [rust/tcl-syntax/src/native_namespace_name.rs](../../../../rust/tcl-syntax/src/native_namespace_name.rs). SHA-256 `bdf94315fab13c1f734be52fab731e0f6d7ff543e625387e5eb7057f34ea403a`. Current selected source/API owner; no executed assertion or native provider observation.
+- `namespace-teardown227-question.json` (input): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-8.4.20-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-8.4.20-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-8.5.19-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-8.5.19-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-8.6.18-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-8.6.18-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-9.0.4-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-9.0.4-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-9.1.0-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `namespace-teardown227-tcl-9.1.0-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
+- `naming-namespace-command-teardown-frontier-native.rs` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). Current selected source/API owner; no executed assertion or native provider observation.
+- `naming-namespace-command-teardown-frontier-native_namespace_name.rs` (implementation): [rust/tcl-syntax/src/native_namespace_name.rs](../../../../rust/tcl-syntax/src/native_namespace_name.rs). Current selected source/API owner; no executed assertion or native provider observation.
 
 ## Source inspection
 
-tcl8.4 8.4.20, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 746–759. Full-source SHA-256 `cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb`; snippet SHA-256 `25e45517b8c90fabc792156b80bee403604b0fccda14ddfcabb75c319d14f9bb`; retained evidence `namespace-teardown227-tcl-8.4.20-command-teardown.txt`.
+tcl8.4 8.4.20, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 746–759. Retained reference `namespace-teardown227-tcl-8.4.20-command-teardown.txt`.
 
 ```text
     /*
@@ -99,7 +99,7 @@ tcl8.4 8.4.20, revision `Source-control revision unrecorded; exact release sourc
     Tcl_InitHashTable(&nsPtr->cmdTable, TCL_STRING_KEYS);
 ```
 
-tcl8.5 8.5.19, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1107–1122. Full-source SHA-256 `60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f`; snippet SHA-256 `eadfe9fb1eceab0de4305e3644fc2ebf142fdc1d9b8128d5ee0f5fc1e1e51422`; retained evidence `namespace-teardown227-tcl-8.5.19-command-teardown.txt`.
+tcl8.5 8.5.19, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1107–1122. Retained reference `namespace-teardown227-tcl-8.5.19-command-teardown.txt`.
 
 ```text
     /*
@@ -120,7 +120,7 @@ tcl8.5 8.5.19, revision `Source-control revision unrecorded; exact release sourc
     Tcl_InitHashTable(&nsPtr->cmdTable, TCL_STRING_KEYS);
 ```
 
-tcl8.6 8.6.18, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1090–1119. Full-source SHA-256 `b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24`; snippet SHA-256 `7254f4aaa3b4568bc07966467400ad6427ad72c7e14c0b12168a664df17af553`; retained evidence `namespace-teardown227-tcl-8.6.18-command-teardown.txt`.
+tcl8.6 8.6.18, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1090–1119. Retained reference `namespace-teardown227-tcl-8.6.18-command-teardown.txt`.
 
 ```text
     /*
@@ -155,7 +155,7 @@ tcl8.6 8.6.18, revision `Source-control revision unrecorded; exact release sourc
     Tcl_InitHashTable(&nsPtr->cmdTable, TCL_STRING_KEYS);
 ```
 
-tcl9.0 9.0.4, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1274–1303. Full-source SHA-256 `73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d`; snippet SHA-256 `cc31f776e8d614edd90c8384b3f8c57d0f2b224ca1f20a1ecc725f1282bf5c6b`; retained evidence `namespace-teardown227-tcl-9.0.4-command-teardown.txt`.
+tcl9.0 9.0.4, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1274–1303. Retained reference `namespace-teardown227-tcl-9.0.4-command-teardown.txt`.
 
 ```text
     /*
@@ -190,7 +190,7 @@ tcl9.0 9.0.4, revision `Source-control revision unrecorded; exact release source
     Tcl_InitHashTable(&nsPtr->cmdTable, TCL_STRING_KEYS);
 ```
 
-tcl9.1 9.1.0, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1273–1302. Full-source SHA-256 `fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815`; snippet SHA-256 `cc31f776e8d614edd90c8384b3f8c57d0f2b224ca1f20a1ecc725f1282bf5c6b`; retained evidence `namespace-teardown227-tcl-9.1.0-command-teardown.txt`.
+tcl9.1 9.1.0, revision `Source-control revision unrecorded; exact release source and excerpt SHA retained.`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclNamesp.c`, function `TclTeardownNamespace`, lines 1273–1302. Retained reference `namespace-teardown227-tcl-9.1.0-command-teardown.txt`.
 
 ```text
     /*

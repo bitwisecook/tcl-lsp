@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust Registry effect/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `selected-descriptor` (implementation): [rust/tcl-registry/src/commands/tcl/oo_class.rs](../../../../rust/tcl-registry/src/commands/tcl/oo_class.rs). SHA-256 `f37614eaecdcfa654f58e82547e11a3888651f9e234675b3a7ddc7b116eb10c1`. Registry-selected descriptor and regression assertion source; no test execution outcome is attached.
-- `effect-merge` (implementation): [rust/tcl-registry/src/world_effect.rs](../../../../rust/tcl-registry/src/world_effect.rs). SHA-256 `8be16401238212a1965051a4eced54d21decfa0810754ff5660bf9abe188bb30`. Shared source-qualified transition coverage and callback composition owner.
+- `selected-descriptor` (implementation): [rust/tcl-registry/src/commands/tcl/oo_class.rs](../../../../rust/tcl-registry/src/commands/tcl/oo_class.rs). Registry-selected descriptor and regression assertion source; no test execution outcome is attached.
+- `effect-merge` (implementation): [rust/tcl-registry/src/world_effect.rs](../../../../rust/tcl-registry/src/world_effect.rs). Shared source-qualified transition coverage and callback composition owner.
 
 ## Source inspection
 

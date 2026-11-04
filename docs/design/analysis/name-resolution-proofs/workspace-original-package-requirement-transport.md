@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `workspace-requirements` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). SHA-256 `feefb4b2da2ae821f3ebec02282bd7a92da59461cfbccfd7f09bf21aea6c13dc`. Inspected original requirement metadata/projection and exact constraints/preference/unknown/withdrawal regression.
-- `generic-source-graph` (implementation): [rust/tcl-lsp-core/src/source_graph.rs](../../../../rust/tcl-lsp-core/src/source_graph.rs). SHA-256 `5ed1d9e78b4c3ecdbe07c1b80712984a7a1f9e06f70f5b3fa9defedb0e8994c3`. Inspected generic ancestor/positioned descendant requirement transport retaining complete K records.
+- `workspace-requirements` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). Inspected original requirement metadata/projection and exact constraints/preference/unknown/withdrawal regression.
+- `generic-source-graph` (implementation): [rust/tcl-lsp-core/src/source_graph.rs](../../../../rust/tcl-lsp-core/src/source_graph.rs). Inspected generic ancestor/positioned descendant requirement transport retaining complete K records.
 
 ## Source inspection
 

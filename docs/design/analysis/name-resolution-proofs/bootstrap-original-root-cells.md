@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `source` (input): [rust/tcl-registry/tests/data/native_bootstrap/probe.c](../../../../rust/tcl-registry/tests/data/native_bootstrap/probe.c). SHA-256 `70656e83c723b4e39a2819a7317d8c8c87cbf6278fe13e120f4dbebb1de8cfa0`. Exact retained native/script control source.
-- `manifest` (provider): [rust/tcl-registry/tests/data/native_bootstrap/capture-manifest.json](../../../../rust/tcl-registry/tests/data/native_bootstrap/capture-manifest.json). SHA-256 `8ab0c79e76d1dc3b4373ed3266028cc70e5330bc4378b687e1e786e578f1ec98`. Retained provider, input/source, build and observation metadata.
-- `roots` (observation): [rust/tcl-registry/tests/data/native_bootstrap/core-roots.tsv](../../../../rust/tcl-registry/tests/data/native_bootstrap/core-roots.tsv). SHA-256 `9311ac43348a859b82f2fcb3da180bca59e4f72e26c7cbdd35a86c8c1ef671bb`. Constructor root cells in retained native bucket order; defined and C-array flags.
+- `source` (input): [rust/tcl-registry/tests/data/native_bootstrap/probe.c](../../../../rust/tcl-registry/tests/data/native_bootstrap/probe.c). Exact retained native/script control source.
+- `manifest` (provider): [rust/tcl-registry/tests/data/native_bootstrap/capture-manifest.json](../../../../rust/tcl-registry/tests/data/native_bootstrap/capture-manifest.json). Retained provider, input/source, build and observation metadata.
+- `roots` (observation): [rust/tcl-registry/tests/data/native_bootstrap/core-roots.tsv](../../../../rust/tcl-registry/tests/data/native_bootstrap/core-roots.tsv). Constructor root cells in retained native bucket order; defined and C-array flags.
 
 ## Source inspection
 

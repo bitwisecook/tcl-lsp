@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

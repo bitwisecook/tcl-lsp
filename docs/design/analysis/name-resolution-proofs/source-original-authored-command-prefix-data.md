@@ -62,10 +62,10 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
 
-## Exact evidence
+## Historical references
 
-- `naming.source.original-authored-command-prefix-data.definition.0` (implementation): [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs). SHA-256 `81903657c7b10bfe9e1633cf7e6ba308d913650149f4d89603a767e3c5532c0d`. Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-- `naming.source.original-authored-command-prefix-data.definition.1` (implementation): [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs). SHA-256 `6a132935c7016cc2af026d34309f796a8fe1c1bf8f060324ddee160da30cb55a`. Original source-case and supplied-word projections distinguish genuine Logical source purpose from retained Native/source recipes. Full source/vector/realm/input and actual Native handler/word-provider checks remain separate.
+- `naming.source.original-authored-command-prefix-data.definition.0` (implementation): [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs). Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
+- `naming.source.original-authored-command-prefix-data.definition.1` (implementation): [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs). Original source-case and supplied-word projections distinguish genuine Logical source purpose from retained Native/source recipes. Full source/vector/realm/input and actual Native handler/word-provider checks remain separate.
 
 ## Source inspection
 

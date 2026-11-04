@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 This is a Rust ownership contract. No interpreter or appliance observation is attached.
 
-## Exact evidence
+## Historical references
 
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs). SHA-256 `36e6afdc5cd67cf659d6f0c42d003af46520986cb273c9b03faf1a822778d355`. Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
+- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs). Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
 
 ## Source inspection
 

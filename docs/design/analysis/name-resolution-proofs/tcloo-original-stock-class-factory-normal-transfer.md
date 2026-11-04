@@ -62,13 +62,13 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No guest execution of this Rust implementation question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json). SHA-256 `53c976b6bf08cd637639877ddd0a2d0a99155a555765ced00e46b9f624500ee1`. JSON pointer `/source_anchors`. Complete release-specific stock create/constructor/post-constructor function excerpts with full original file digests. This is source inspection, not guest execution.
+- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json). JSON pointer `/source_anchors`. Complete release-specific stock create/constructor/post-constructor function excerpts with full original file digests. This is source inspection, not guest execution.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Create`, lines 153–205. Full-source SHA-256 `1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98`; snippet SHA-256 `99e5f9fd0bd9f8516122a699c44ef3d94fe975a6856a6e7f1a097cd0356025ea`; retained evidence `c-source`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Create`, lines 153–205. Retained reference `c-source`.
 
 ```text
 TclOO_Class_Create(
@@ -127,7 +127,7 @@ TclOO_Class_Create(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Constructor`, lines 80–124. Full-source SHA-256 `1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98`; snippet SHA-256 `0bbcd8ff3a0e02589c3361b134e8e07934f8ebfeb152fe5a287cdb2590ad50d1`; retained evidence `c-source`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Constructor`, lines 80–124. Retained reference `c-source`.
 
 ```text
 TclOO_Class_Constructor(
@@ -178,7 +178,7 @@ TclOO_Class_Constructor(
 
 ```
 
-tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `DecrRefsPostClassConstructor`, lines 127–139. Full-source SHA-256 `1a8f47994517980c374d71d6914412ec3348cacf5e272b6d87c2d973626cdc98`; snippet SHA-256 `8682a62f8de5e79d134109a6b99e30e50303861379b04c9d8ede7bca1f9c9c33`; retained evidence `c-source`.
+tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `DecrRefsPostClassConstructor`, lines 127–139. Retained reference `c-source`.
 
 ```text
 DecrRefsPostClassConstructor(
@@ -197,7 +197,7 @@ DecrRefsPostClassConstructor(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Create`, lines 312–364. Full-source SHA-256 `5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68`; snippet SHA-256 `b69c78f5b99ba9872f968746fd4a207cc3cb069e062579185febf421aca46f5f`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Create`, lines 312–364. Retained reference `c-source`.
 
 ```text
 TclOO_Class_Create(
@@ -256,7 +256,7 @@ TclOO_Class_Create(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Constructor`, lines 204–272. Full-source SHA-256 `5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68`; snippet SHA-256 `0cc16608cdf1925101ebe74e153f58685dcbbbc70ebdf40b8c73a57afed11209`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Constructor`, lines 204–272. Retained reference `c-source`.
 
 ```text
 TclOO_Class_Constructor(
@@ -331,7 +331,7 @@ TclOO_Class_Constructor(
 
 ```
 
-tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `PostClassConstructor`, lines 279–298. Full-source SHA-256 `5782e57ef2753b052d904088cf26f43ceb96ab27afb7dbe99438e24a69e68e68`; snippet SHA-256 `15fb3b57a11e456c4c9f6744fc532a06728bb140d8250425cd1c0b7892fed8a9`; retained evidence `c-source`.
+tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `PostClassConstructor`, lines 279–298. Retained reference `c-source`.
 
 ```text
 PostClassConstructor(
@@ -357,7 +357,7 @@ PostClassConstructor(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Create`, lines 398–444. Full-source SHA-256 `d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158`; snippet SHA-256 `1422da8d6b4068c37acc67fbf55aec1a85d2e3fc3b7a39626bcc241e1b6f1d4a`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Create`, lines 398–444. Retained reference `c-source`.
 
 ```text
 TclOO_Class_Create(
@@ -410,7 +410,7 @@ TclOO_Class_Create(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Constructor`, lines 248–313. Full-source SHA-256 `d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158`; snippet SHA-256 `07566792891a1d7d3e089a4011a1c48f9c3b7af69924bbbec9d10a407bcb3f69`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `TclOO_Class_Constructor`, lines 248–313. Retained reference `c-source`.
 
 ```text
 TclOO_Class_Constructor(
@@ -482,7 +482,7 @@ TclOO_Class_Constructor(
 
 ```
 
-tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `PostClassConstructor`, lines 326–344. Full-source SHA-256 `d8b40b5adf0e96bbcac34fa6a7035dbc4ac431218c28924766c4c13532aff158`; snippet SHA-256 `aa27bb613bdb340f6dca9b34a038144a57277531b8b9067b19ee4a676be0ef06`; retained evidence `c-source`.
+tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; full file digest identifies the source bytes`, `generic/tclOOBasic.c`, function `PostClassConstructor`, lines 326–344. Retained reference `c-source`.
 
 ```text
 PostClassConstructor(

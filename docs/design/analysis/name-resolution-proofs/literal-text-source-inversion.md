@@ -62,11 +62,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
 
-## Exact evidence
+## Historical references
 
-- `source-backslash` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). SHA-256 `f6d0996915c8ed4b65233bf4fbd8fe08e1e9e8016c2c78c857f5ee9b02113fa7`. Literal-text source rendering checks retranslation under the explicitly selected native string protocol and input channel. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution.
+- `source-backslash` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). Literal-text source rendering checks retranslation under the explicitly selected native string protocol and input channel. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution.
 
-- `syntax-backslash-fixed-software-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-backslash-20261103/receipt.json). SHA-256 `ba8a011b60860ab0b8f1be47ba1573b0556373702806a22a1aa0bf08f6a2a2fb`. Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
+- `syntax-backslash-fixed-software-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-backslash-20261103/receipt.json). Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
 
 ## Source inspection
 

@@ -62,14 +62,14 @@ Status: `not-tested`. Version: not tested. Build: Authored Rust implementation; 
 
 Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
 
-## Exact evidence
+## Historical references
 
-- `implementation0` (implementation): [rust/tcl-cmd-core/src/event.rs](../../../../rust/tcl-cmd-core/src/event.rs). SHA-256 `9817803a7b9def02c773794477100ed15b4285416f47c7d1f029a408f208c63c`. Current implementation source only; no native launch or Rust execution inferred.
-- `implementation1` (implementation): [rust/tcl-registry/src/native_event.rs](../../../../rust/tcl-registry/src/native_event.rs). SHA-256 `95b8ad49be4eaa78cd0aeea8a6e24a75fd334402b872217da1ca65c83a5839be`. Current implementation source only; no native launch or Rust execution inferred.
-- `implementation2` (implementation): [rust/tcl-vm/src/cmd_event.rs](../../../../rust/tcl-vm/src/cmd_event.rs). SHA-256 `7e3477ce9bae5ce48f9d9975884c234e0049ef1dd37c0173b54522fccfb09c3f`. Current implementation source only; no native launch or Rust execution inferred.
-- `implementation3` (implementation): [runtime/rust/src/cmd_event.rs](../../../../runtime/rust/src/cmd_event.rs). SHA-256 `c37e4957633efd221adaf90fa098ab385e21be3f0d97507027e30d35eab7ef4d`. Current implementation source only; no native launch or Rust execution inferred.
-- `implementation4` (implementation): [rust/tcl-vm/src/interp/native_event_context.rs](../../../../rust/tcl-vm/src/interp/native_event_context.rs). SHA-256 `8e1402b5bdc6b38cdd8c9807b3afc602a447d6af9d9548dc5b85f9345e65fa9f`. Current implementation source only; no native launch or Rust execution inferred.
-- `implementation5` (implementation): [runtime/rust/src/interp/native_event_context.rs](../../../../runtime/rust/src/interp/native_event_context.rs). SHA-256 `d36529b6605058a42a15a45ea75415e762ec50de5af1a72e238b65f82704fea2`. Current implementation source only; no native launch or Rust execution inferred.
+- `implementation0` (implementation): [rust/tcl-cmd-core/src/event.rs](../../../../rust/tcl-cmd-core/src/event.rs). Current implementation source only; no native launch or Rust execution inferred.
+- `implementation1` (implementation): [rust/tcl-registry/src/native_event.rs](../../../../rust/tcl-registry/src/native_event.rs). Current implementation source only; no native launch or Rust execution inferred.
+- `implementation2` (implementation): [rust/tcl-vm/src/cmd_event.rs](../../../../rust/tcl-vm/src/cmd_event.rs). Current implementation source only; no native launch or Rust execution inferred.
+- `implementation3` (implementation): [runtime/rust/src/cmd_event.rs](../../../../runtime/rust/src/cmd_event.rs). Current implementation source only; no native launch or Rust execution inferred.
+- `implementation4` (implementation): [rust/tcl-vm/src/interp/native_event_context.rs](../../../../rust/tcl-vm/src/interp/native_event_context.rs). Current implementation source only; no native launch or Rust execution inferred.
+- `implementation5` (implementation): [runtime/rust/src/interp/native_event_context.rs](../../../../runtime/rust/src/interp/native_event_context.rs). Current implementation source only; no native launch or Rust execution inferred.
 
 ## Source inspection
 

@@ -82,14 +82,14 @@ def render(record):
     text += "## Provider answers\n\n"
     for provider in record["providers"]:
         text += f"### {provider['id']}\n\nStatus: `{provider['status']}`. Version: {provider['version']}. Build: {provider['build']}. Channel: {provider['input_channel']}. Dialect: {provider['dialect']}.\n\n{provider['answer']}\n\n"
-    text += "## Exact evidence\n\n"
+    text += "## Historical references\n\n"
     for item in record["evidence"]:
         selector = (
             f" JSON pointer `{item['json_pointer']}`." if "json_pointer" in item else ""
         )
         if "lines" in item:
             selector += f" Lines {item['lines'][0]}–{item['lines'][1]}."
-        text += f"- `{item['id']}` ({item['role']}): [{item['path']}](../../../../{item['path']}). SHA-256 `{item['sha256']}`.{selector} {item['description']}\n"
+        text += f"- `{item['id']}` ({item['role']}): [{item['path']}](../../../../{item['path']}).{selector} {item['description']}\n"
     if not record["evidence"]:
         text += "No evidence artifact is attached.\n"
     text += "\n## Source inspection\n\n"
@@ -101,7 +101,7 @@ def render(record):
             geometry += f" Line unit: {anchor['line_unit']}."
         if "byte_range" in anchor:
             geometry += f" Original byte range [{anchor['byte_range'][0]}, {anchor['byte_range'][1]})."
-        text += f"{anchor['provider']} {anchor['version']}, revision `{anchor['revision']}`, `{anchor['original_path']}`, function `{anchor['function']}`, lines {anchor['lines'][0]}–{anchor['lines'][1]}.{geometry} Full-source SHA-256 `{anchor['source_sha256']}`; snippet SHA-256 `{anchor['snippet_sha256']}`; retained evidence `{anchor['evidence']}`.\n\n```text\n{anchor['snippet']}\n```\n\n"
+        text += f"{anchor['provider']} {anchor['version']}, revision `{anchor['revision']}`, `{anchor['original_path']}`, function `{anchor['function']}`, lines {anchor['lines'][0]}–{anchor['lines'][1]}.{geometry} Retained reference `{anchor['evidence']}`.\n\n```text\n{anchor['snippet']}\n```\n\n"
     text += "\n## Consumer bindings\n\n"
     for owner in record["owners"]:
         text += f"- [{owner['path']}](../../../../{owner['path']}), `{owner['symbol']}`: {owner['purpose']}\n"

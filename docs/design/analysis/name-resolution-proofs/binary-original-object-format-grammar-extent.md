@@ -62,7 +62,7 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
 
-## Exact evidence
+## Historical references
 
 No evidence artifact is attached.
 

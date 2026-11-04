@@ -62,12 +62,12 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
 
-## Exact evidence
+## Historical references
 
-- `syntax-projection-scoped-99194dd7b6ec` (observation): [Scoped syntax projection receipt](rust-validation/syntax-projection-20261103/receipt.json). SHA-256 `27d7546f0c5c82d21ea7474a7e4039c4f15b72f0f48c519792ba4548d342ea03`. Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows.
+- `syntax-projection-scoped-99194dd7b6ec` (observation): [Scoped syntax projection receipt](rust-validation/syntax-projection-20261103/receipt.json). Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows.
 
-- `naming-compiler-logical-upvar-target-element-geometry-handlers.rs` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). SHA-256 `9309be38d569aa3976b4fc033a017ca0ec818d980ec4affec12cea31277790ae`. Original invocation completion and retained whole-source advice query the common purpose owner. Supplied refusal remains unknown; independently guarded authored/Native source routes are preserved.
-- `naming-compiler-logical-upvar-target-element-geometry-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). SHA-256 `492e927dcd11047554156bc88d54808bfbc8be0ccef8f8cba88aab739b10795f`. Reviewed source role: split_element_ref partitions literal text only when a final close parenthesis and opening parenthesis exist; linked controls cover fixed indirect caller examples, not every upvar or frame. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows.
+- `naming-compiler-logical-upvar-target-element-geometry-handlers.rs` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). Original invocation completion and retained whole-source advice query the common purpose owner. Supplied refusal remains unknown; independently guarded authored/Native source routes are preserved.
+- `naming-compiler-logical-upvar-target-element-geometry-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed source role: split_element_ref partitions literal text only when a final close parenthesis and opening parenthesis exist; linked controls cover fixed indirect caller examples, not every upvar or frame. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows.
 
 ## Source inspection
 

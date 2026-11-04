@@ -152,11 +152,11 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No observation of this exact question is retained for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c). SHA-256 `75eda78208cfd7af1ada6b0ad57c4735eaff74250a2d232a29e49f3186f2caa4`. Exact original object/cache/getter order and five modes.
-- `receipt` (observation): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json). SHA-256 `559c1d434d826cab00e78f6fe9d73c95bc104efdb75e1f432a4eabc9edcea024`. Original full per-mode native process status/stdout/stderr and release-specific fatal diagnostics.
-- `projection` (observation): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt). SHA-256 `d804a750ac091297a0d6be1b7a8297e80e90fc6a4ae9f52b3c010fdee2c52658`. All 25 checked projected paths. updater-unavailable labels summarize fatal status; exact signals remain in receipt.
+- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c). Exact original object/cache/getter order and five modes.
+- `receipt` (observation): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json). Original full per-mode native process status/stdout/stderr and release-specific fatal diagnostics.
+- `projection` (observation): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt). All 25 checked projected paths. updater-unavailable labels summarize fatal status; exact signals remain in receipt.
 
 ## Source inspection
 

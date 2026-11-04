@@ -62,9 +62,9 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
 
-## Exact evidence
+## Historical references
 
-- `implementation-source` (implementation): [rust/tcl-lsp-core/src/namespace_symbol.rs](../../../../rust/tcl-lsp-core/src/namespace_symbol.rs). SHA-256 `05328f39832a65c317bc9e5c1235859a677cfef6dfe59a94ea9778451613ea21`. Current source selector and fixed public-provider assertions; no native or Rust execution receipt.
+- `implementation-source` (implementation): [rust/tcl-lsp-core/src/namespace_symbol.rs](../../../../rust/tcl-lsp-core/src/namespace_symbol.rs). Current source selector and fixed public-provider assertions; no native or Rust execution receipt.
 
 ## Source inspection
 

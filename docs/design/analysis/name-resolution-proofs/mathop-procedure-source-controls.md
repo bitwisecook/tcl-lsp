@@ -66,12 +66,12 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
 
-## Exact evidence
+## Historical references
 
-- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json). SHA-256 `1696d1501d6fcca41cd2efcef40a81cdba73743377ce5c3e6891cbf232e703fb`. Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-1` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt). SHA-256 `213c7f7bb86af5448af160fc0e7eb77857d2dca7cf9dfccec2b1a3ce652e7764`. Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `receipt-2` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json). SHA-256 `8c8ef1a69276438889277e1f591075d7fabc6cbd89f30a7c9a998f44f32079a4`. Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `maintained-source-replayer` (implementation): [scripts/dev/replay-grammar-native-source.py](../../../../scripts/dev/replay-grammar-native-source.py). SHA-256 `a19ace0e42037b34b6493703885b22a55167e88c4ef91c8ac097a33e45fa88e6`. Maintained source-only replay adapter; no fresh native execution is recorded by this contribution.
+- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
+- `artifact-1` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
+- `receipt-2` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
+- `maintained-source-replayer` (implementation): [scripts/dev/replay-grammar-native-source.py](../../../../scripts/dev/replay-grammar-native-source.py). Maintained source-only replay adapter; no fresh native execution is recorded by this contribution.
 
 ## Source inspection
 

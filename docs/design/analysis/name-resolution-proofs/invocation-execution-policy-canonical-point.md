@@ -66,9 +66,9 @@ Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not r
 
 No appliance observation for this question.
 
-## Exact evidence
+## Historical references
 
-- `contract` (implementation): [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs). SHA-256 `a29147645f597d20cd3246b75a3d2affa3eb0f82b082d8969230b3920dc0ce5c`. Current complete-policy equality kernel and actual negative-axis test; this implementation source supplies no native execution observation.
+- `contract` (implementation): [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs). Current complete-policy equality kernel and actual negative-axis test; this implementation source supplies no native execution observation.
 
 ## Source inspection
 

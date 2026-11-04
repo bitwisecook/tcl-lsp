@@ -167,16 +167,16 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 No original observation for this exact question is attached for this provider.
 
-## Exact evidence
+## Historical references
 
-- `probe` (input): [rust/tcl-cmd-core/tests/data/native_each_loop/original/probe.c](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/probe.c). SHA-256 `9151561b7aa1309982ecbdb44e436e575fa8c65e01abff2a21ac03725bbe98d7`. Exact native object constructors, direct evaluator flags, observer windows and ten case layouts.
-- `receipt` (provider): [rust/tcl-cmd-core/tests/data/native_each_loop/original/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/manifest.json). SHA-256 `6331df842ad47fb5610d98174f248ce32b3c657f35736ef95afb0c1405e1a22c`. Actual original per-provider compilation/process/output hashes and explicitly limited header scopes.
-- `rows-tcl8.4` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.4.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.4.txt). SHA-256 `42230e280a24132e1770f25498854c4046c923091565d94c3c42215497fe12f8`. Full original stream; selected exact case IDs [0, 1, 8].
-- `rows-tcl8.5` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.5.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.5.txt). SHA-256 `6fe04f828f139082f99d09280c7b6219216a2839797353d767f7cc928b407369`. Full original stream; selected exact case IDs [0, 1, 8].
-- `rows-tcl8.6` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.6.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.6.txt). SHA-256 `aae7374777c02c90e356049fc6f510a9bb3bad413a8e8e37d281a8d6571ab948`. Full original stream; selected exact case IDs [0, 1, 8].
-- `rows-tcl9.0` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.0.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.0.txt). SHA-256 `aae7374777c02c90e356049fc6f510a9bb3bad413a8e8e37d281a8d6571ab948`. Full original stream; selected exact case IDs [0, 1, 8].
-- `rows-tcl9.1` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.1.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.1.txt). SHA-256 `aae7374777c02c90e356049fc6f510a9bb3bad413a8e8e37d281a8d6571ab948`. Full original stream; selected exact case IDs [0, 1, 8].
-- `rows-jim` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/jim.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/jim.txt). SHA-256 `f513876ec1aee700ec831bdc53e569afa873bd5d45e46fca7261a78b18f2c6d2`. Full original stream; selected exact case IDs [0, 1, 8].
+- `probe` (input): [rust/tcl-cmd-core/tests/data/native_each_loop/original/probe.c](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/probe.c). Exact native object constructors, direct evaluator flags, observer windows and ten case layouts.
+- `receipt` (provider): [rust/tcl-cmd-core/tests/data/native_each_loop/original/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/manifest.json). Actual original per-provider compilation/process/output hashes and explicitly limited header scopes.
+- `rows-tcl8.4` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.4.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.4.txt). Full original stream; selected exact case IDs [0, 1, 8].
+- `rows-tcl8.5` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.5.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.5.txt). Full original stream; selected exact case IDs [0, 1, 8].
+- `rows-tcl8.6` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.6.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl8.6.txt). Full original stream; selected exact case IDs [0, 1, 8].
+- `rows-tcl9.0` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.0.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.0.txt). Full original stream; selected exact case IDs [0, 1, 8].
+- `rows-tcl9.1` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.1.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/tcl9.1.txt). Full original stream; selected exact case IDs [0, 1, 8].
+- `rows-jim` (observation): [rust/tcl-cmd-core/tests/data/native_each_loop/original/jim.txt](../../../../rust/tcl-cmd-core/tests/data/native_each_loop/original/jim.txt). Full original stream; selected exact case IDs [0, 1, 8].
 
 ## Source inspection
 

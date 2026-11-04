@@ -62,13 +62,13 @@ Status: `not-tested`. Version: not tested. Build: not tested. Channel: not teste
 
 This is a Rust source-metadata/provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
 
-## Exact evidence
+## Historical references
 
-- `owner-0` (implementation): [rust/tcl-compiler/src/command_binding/original_class_configuration.rs](../../../../rust/tcl-compiler/src/command_binding/original_class_configuration.rs). SHA-256 `ecdd952b2a4521aaec8561f028eb94290c44df9111c9b3057282ebc6489eeb3c`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-0` (implementation): [rust/tcl-compiler/src/command_binding/original_class_configuration.rs](../../../../rust/tcl-compiler/src/command_binding/original_class_configuration.rs). Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
-- `owner-1` (implementation): [rust/tcl-compiler/src/analyser/types/original_configurations.rs](../../../../rust/tcl-compiler/src/analyser/types/original_configurations.rs). SHA-256 `aced1d1971e50aba337adc7de949c28de56894aaef3edecae8aacdb2d1d37892`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-1` (implementation): [rust/tcl-compiler/src/analyser/types/original_configurations.rs](../../../../rust/tcl-compiler/src/analyser/types/original_configurations.rs). Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
-- `owner-2` (implementation): [rust/tcl-compiler/src/analyser/original_members.rs](../../../../rust/tcl-compiler/src/analyser/original_members.rs). SHA-256 `b51859ddb419258de159067ea5215255e83d532f34cb7f7c68e7c23414fac2c7`. Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
+- `owner-2` (implementation): [rust/tcl-compiler/src/analyser/original_members.rs](../../../../rust/tcl-compiler/src/analyser/original_members.rs). Inspected current shared producer, readonly metadata and regression assertion source; this evidence supplies no native execution outcome.
 
 ## Source inspection
 
