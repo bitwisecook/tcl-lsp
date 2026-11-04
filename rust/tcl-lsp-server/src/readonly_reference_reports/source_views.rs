@@ -851,7 +851,7 @@ impl Backend {
             SourceViewPublicationMode::ReplaceFirstEdge => table.replace(uri, next_id, &views),
             SourceViewPublicationMode::AppendInherited
             | SourceViewPublicationMode::AppendRegions => {
-                table.append_regions(uri, next_id, &views)
+                table.append_regions(uri, next_id, &views);
             }
         }
         Some(OriginalSourceViewAttempt::Ready(views))

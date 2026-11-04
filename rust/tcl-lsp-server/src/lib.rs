@@ -67,7 +67,6 @@ mod original_workspace_diagnostics_tests;
 pub mod path_glob;
 mod provider_source;
 mod readonly_reference_reports;
-use readonly_reference_reports::source_views::OriginalCommandSourceWorldCapture;
 mod recovery_source;
 #[cfg(test)]
 use recovery_source::widen_recovery_extra_commands;
