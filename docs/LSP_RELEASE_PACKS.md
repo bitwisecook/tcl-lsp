@@ -55,4 +55,4 @@ Current scoped result: the fresh five-ELF SpecTcl/Registry diagnostic passes17/1
 
 Actual Browser and WASI host jobs succeed on e5b98d38, including non-tabulated hook execution and changed-content responses; newer run41919112254 also has successful Browser/WASI jobs. These do not certify every hook family or the final recapture source. The named vendor E2E control, generated manifest drift and full rust-check/prep-pr gates remain open.
 
-Parallel pack work is stopped at the user's request. Investigation notes are `/tmp/spec-hook-two-failures-stop-handoff/HANDOFF.md`; no partial emitter/CR patch is adopted. Finish only the active autoload fix, update status, push and stop.
+Parallel pack work is stopped at the user's request. Investigation notes are `/tmp/spec-hook-two-failures-stop-handoff/HANDOFF.md`; no partial emitter/CR patch is adopted. The active autoload fix is now verified by9/9 selected controls and three consecutive public definitions. All other pack investigations remain stopped; final status and push conclude the session.
