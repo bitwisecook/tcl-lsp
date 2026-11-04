@@ -40,6 +40,10 @@ applied while scanning the index — it bounds the work, not merely the payload
 — and the scan is document-major, so a truncated answer is a prefix of the
 workspace rather than a prefix of one symbol table.
 
+The first search waits for the initial workspace scan, which can take time on
+large workspaces or slow library paths. Cancel the search in the editor if you
+do not want to wait.
+
 ## Failure modes
 
 - Results up to one diagnostics publish behind the buffer for a document being
