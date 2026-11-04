@@ -1,0 +1,612 @@
+{
+  "tested_source_commit": "cab14d1a4fe76da7e88eb5225b9533408d35e95b",
+  "source_tree_clean_before_and_after_build": true,
+  "server_binary_sha256": "e4e4153afadf5906975a94fe661d81ef1040ecce0c630416c4cde9c0742d2ab7",
+  "server_binary_hash_unchanged_after_probe": true,
+  "build_command": "cargo build -p tcl-lsp-server --bin tcl-lsp-server --message-format=json",
+  "probe_command": "LSP_940_SERVER=/path/to/tcl-lsp-server python3 probe.py",
+  "protocol": "textDocument/publishDiagnostics, tcl-lsp.currentDiagnostics, tcl-lsp.validateDiagnosticPublication, textDocument/codeAction",
+  "controls": {
+    "default": {
+      "lineLength": 117
+    },
+    "off": {
+      "lineLength": 117,
+      "shimmer": {
+        "enabled": false
+      }
+    },
+    "error": {
+      "lineLength": 117,
+      "diagnosticSeverity": {
+        "S102": "error"
+      }
+    }
+  },
+  "cases": {
+    "default/positive": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/positive.tcl",
+        "version": 1,
+        "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1",
+        "diagnostics": [
+          {
+            "range": {
+              "start": {
+                "line": 0,
+                "character": 43
+              },
+              "end": {
+                "line": 0,
+                "character": 45
+              }
+            },
+            "severity": 2,
+            "code": "S102",
+            "source": "tcl-lsp",
+            "message": "variable 'x' may repeatedly convert between int and list in this loop"
+          }
+        ]
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/positive.tcl",
+        "version": 1,
+        "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1"
+      },
+      "S102": [
+        {
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 43
+            },
+            "end": {
+              "line": 0,
+              "character": 45
+            }
+          },
+          "severity": 2,
+          "code": "S102",
+          "source": "tcl-lsp",
+          "message": "variable 'x' may repeatedly convert between int and list in this loop"
+        }
+      ],
+      "ACTIONS": [
+        {
+          "title": "Suppress S102 with a noqa comment",
+          "kind": "quickfix",
+          "edit": {
+            "documentChanges": [
+              {
+                "textDocument": {
+                  "uri": "file:///tmp/s102-native-w_rxwder/positive.tcl",
+                  "version": 1
+                },
+                "edits": [
+                  {
+                    "range": {
+                      "start": {
+                        "line": 0,
+                        "character": 0
+                      },
+                      "end": {
+                        "line": 0,
+                        "character": 0
+                      }
+                    },
+                    "newText": "# noqa: S102\n"
+                  }
+                ]
+              }
+            ]
+          },
+          "data": {
+            "sourceAction": {
+              "kind": "versioned",
+              "uri": "file:///tmp/s102-native-w_rxwder/positive.tcl",
+              "version": 1,
+              "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n"
+            }
+          }
+        },
+        {
+          "title": "Extract into variable 'result'",
+          "kind": "refactor.extract",
+          "edit": {
+            "documentChanges": [
+              {
+                "textDocument": {
+                  "uri": "file:///tmp/s102-native-w_rxwder/positive.tcl",
+                  "version": 1
+                },
+                "edits": []
+              }
+            ]
+          },
+          "disabled": {
+            "reason": "The selection is not a pure original complete word at a reached local source point"
+          },
+          "data": {
+            "sourceAction": {
+              "kind": "versioned",
+              "uri": "file:///tmp/s102-native-w_rxwder/positive.tcl",
+              "version": 1,
+              "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n"
+            }
+          }
+        }
+      ]
+    },
+    "default/invalid": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/invalid.tcl",
+        "version": 1,
+        "source": "set x abc; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-2",
+        "diagnostics": []
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/invalid.tcl",
+        "version": 1,
+        "source": "set x abc; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-2"
+      },
+      "S102": []
+    },
+    "default/one_trip": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/one_trip.tcl",
+        "version": 1,
+        "source": "set x 0; foreach i {1} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-3",
+        "diagnostics": []
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/one_trip.tcl",
+        "version": 1,
+        "source": "set x 0; foreach i {1} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-3"
+      },
+      "S102": []
+    },
+    "default/original": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/original.tcl",
+        "version": 1,
+        "source": "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; if {$y > 2} {lappend ys $y; lappend pts $pt}}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-4",
+        "diagnostics": [
+          {
+            "range": {
+              "start": {
+                "line": 0,
+                "character": 0
+              },
+              "end": {
+                "line": 0,
+                "character": 122
+              }
+            },
+            "severity": 2,
+            "code": "W111",
+            "source": "tcl-lsp",
+            "message": "Line exceeds 120 characters (122 characters)"
+          }
+        ]
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/original.tcl",
+        "version": 1,
+        "source": "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; if {$y > 2} {lappend ys $y; lappend pts $pt}}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-4"
+      },
+      "S102": []
+    },
+    "default/unconditional": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/unconditional.tcl",
+        "version": 1,
+        "source": "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; lappend ys $y; lappend pts $pt}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-5",
+        "diagnostics": []
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/unconditional.tcl",
+        "version": 1,
+        "source": "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; lappend ys $y; lappend pts $pt}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-5"
+      },
+      "S102": []
+    },
+    "default/font_braced": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/font_braced.tcl",
+        "version": 1,
+        "source": "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-6",
+        "diagnostics": []
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/font_braced.tcl",
+        "version": 1,
+        "source": "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-6"
+      },
+      "S102": []
+    },
+    "default/font_list": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/font_list.tcl",
+        "version": 1,
+        "source": "set fontSizes [list 10.0 12.0 16.0 24.0]\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-7",
+        "diagnostics": []
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/font_list.tcl",
+        "version": 1,
+        "source": "set fontSizes [list 10.0 12.0 16.0 24.0]\nforeach size $fontSizes { puts $size }\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-7"
+      },
+      "S102": []
+    },
+    "default/suppressed": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/suppressed.tcl",
+        "version": 1,
+        "source": "# noqa: S102\nset x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-8",
+        "diagnostics": []
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/suppressed.tcl",
+        "version": 1,
+        "source": "# noqa: S102\nset x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-8"
+      },
+      "S102": []
+    },
+    "default/unrelated_noqa": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-w_rxwder/unrelated_noqa.tcl",
+        "version": 1,
+        "source": "# noqa: W999\nset x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-9",
+        "diagnostics": [
+          {
+            "range": {
+              "start": {
+                "line": 1,
+                "character": 43
+              },
+              "end": {
+                "line": 1,
+                "character": 45
+              }
+            },
+            "severity": 2,
+            "code": "S102",
+            "source": "tcl-lsp",
+            "message": "variable 'x' may repeatedly convert between int and list in this loop"
+          }
+        ]
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-w_rxwder/unrelated_noqa.tcl",
+        "version": 1,
+        "source": "# noqa: W999\nset x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "2",
+        "resultId": "pd-9"
+      },
+      "S102": [
+        {
+          "range": {
+            "start": {
+              "line": 1,
+              "character": 43
+            },
+            "end": {
+              "line": 1,
+              "character": 45
+            }
+          },
+          "severity": 2,
+          "code": "S102",
+          "source": "tcl-lsp",
+          "message": "variable 'x' may repeatedly convert between int and list in this loop"
+        }
+      ],
+      "ACTIONS": [
+        {
+          "title": "Suppress S102 with a noqa comment",
+          "kind": "quickfix",
+          "edit": {
+            "documentChanges": [
+              {
+                "textDocument": {
+                  "uri": "file:///tmp/s102-native-w_rxwder/unrelated_noqa.tcl",
+                  "version": 1
+                },
+                "edits": [
+                  {
+                    "range": {
+                      "start": {
+                        "line": 1,
+                        "character": 0
+                      },
+                      "end": {
+                        "line": 1,
+                        "character": 0
+                      }
+                    },
+                    "newText": "# noqa: S102\n"
+                  }
+                ]
+              }
+            ]
+          },
+          "data": {
+            "sourceAction": {
+              "kind": "versioned",
+              "uri": "file:///tmp/s102-native-w_rxwder/unrelated_noqa.tcl",
+              "version": 1,
+              "source": "# noqa: W999\nset x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n"
+            }
+          }
+        },
+        {
+          "title": "Extract into variable 'result'",
+          "kind": "refactor.extract",
+          "edit": {
+            "documentChanges": [
+              {
+                "textDocument": {
+                  "uri": "file:///tmp/s102-native-w_rxwder/unrelated_noqa.tcl",
+                  "version": 1
+                },
+                "edits": []
+              }
+            ]
+          },
+          "disabled": {
+            "reason": "The selection is not a pure original complete word at a reached local source point"
+          },
+          "data": {
+            "sourceAction": {
+              "kind": "versioned",
+              "uri": "file:///tmp/s102-native-w_rxwder/unrelated_noqa.tcl",
+              "version": 1,
+              "source": "# noqa: W999\nset x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n"
+            }
+          }
+        }
+      ]
+    },
+    "off/positive": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-6wfk18em/positive.tcl",
+        "version": 1,
+        "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1",
+        "diagnostics": []
+      },
+      "S102": []
+    },
+    "error/positive": {
+      "RECEIPT": {
+        "status": "complete",
+        "uri": "file:///tmp/s102-native-2x_ptcij/positive.tcl",
+        "version": 1,
+        "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1",
+        "diagnostics": [
+          {
+            "range": {
+              "start": {
+                "line": 0,
+                "character": 43
+              },
+              "end": {
+                "line": 0,
+                "character": 45
+              }
+            },
+            "severity": 1,
+            "code": "S102",
+            "source": "tcl-lsp",
+            "message": "variable 'x' may repeatedly convert between int and list in this loop"
+          }
+        ]
+      },
+      "REBORROW": {
+        "status": "current",
+        "uri": "file:///tmp/s102-native-2x_ptcij/positive.tcl",
+        "version": 1,
+        "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n",
+        "dialectId": "tcl8.6",
+        "revision": "0",
+        "inputsEpoch": "1",
+        "resultId": "pd-1"
+      },
+      "S102": [
+        {
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 43
+            },
+            "end": {
+              "line": 0,
+              "character": 45
+            }
+          },
+          "severity": 1,
+          "code": "S102",
+          "source": "tcl-lsp",
+          "message": "variable 'x' may repeatedly convert between int and list in this loop"
+        }
+      ],
+      "ACTIONS": [
+        {
+          "title": "Suppress S102 with a noqa comment",
+          "kind": "quickfix",
+          "edit": {
+            "documentChanges": [
+              {
+                "textDocument": {
+                  "uri": "file:///tmp/s102-native-2x_ptcij/positive.tcl",
+                  "version": 1
+                },
+                "edits": [
+                  {
+                    "range": {
+                      "start": {
+                        "line": 0,
+                        "character": 0
+                      },
+                      "end": {
+                        "line": 0,
+                        "character": 0
+                      }
+                    },
+                    "newText": "# noqa: S102\n"
+                  }
+                ]
+              }
+            ]
+          },
+          "data": {
+            "sourceAction": {
+              "kind": "versioned",
+              "uri": "file:///tmp/s102-native-2x_ptcij/positive.tcl",
+              "version": 1,
+              "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n"
+            }
+          }
+        },
+        {
+          "title": "Extract into variable 'result'",
+          "kind": "refactor.extract",
+          "edit": {
+            "documentChanges": [
+              {
+                "textDocument": {
+                  "uri": "file:///tmp/s102-native-2x_ptcij/positive.tcl",
+                  "version": 1
+                },
+                "edits": []
+              }
+            ]
+          },
+          "disabled": {
+            "reason": "The selection is not a pure original complete word at a reached local source point"
+          },
+          "data": {
+            "sourceAction": {
+              "kind": "versioned",
+              "uri": "file:///tmp/s102-native-2x_ptcij/positive.tcl",
+              "version": 1,
+              "source": "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}\n"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "artifacts_sha256": {
+    "lsp-s102-auth-default-messages.jsonl": "12b66e61bc4023577724f7e8c12fda2121758175779ad5f3be7d1167423488f5",
+    "lsp-s102-auth-default-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lsp-s102-auth-error-messages.jsonl": "3573a25cf592a06d033bc0c6e91b19e67a405e35e7ebb49b7fba3e14afda0e59",
+    "lsp-s102-auth-error-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lsp-s102-auth-off-messages.jsonl": "ac5cba9efe27722d9b7ca6bcf9e2cd35e4c3089068df956dbf527008318e7e59",
+    "lsp-s102-auth-off-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "probe.log": "5c0922a7d29866f52b11cb082e3f99f84f95f57d42c97ed136f07dcdaabc3a8d",
+    "probe.py": "941924f8f3c91e0a17664054f51a767c0263e330e87a66c42ea582ab145ae6da",
+    "verify-receipt.py": "640479b9a42e8370c5e70e4c69ef6f24eb60172cb226caf8b3098332d18a1fdb"
+  },
+  "interpretation": {
+    "action": "The enabled action is the generic versioned noqa suppression; the unrelated extract action is disabled. Conditional compiler diagnostics do not grant source-context rewrite authority.",
+    "original_940": "Original and unconditional accumulator examples are quiet, but coverage is inconclusive: if, lappend and index-one body operations were not all modelled in this snapshot.",
+    "scope": "Native server delivery tested with Tcl 8.6; five Tcl profile and compiler authority comparisons are separately recorded in phase8-same-cu-2026-11-04."
+  }
+}

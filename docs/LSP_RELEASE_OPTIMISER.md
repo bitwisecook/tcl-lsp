@@ -67,14 +67,17 @@ effect topology are reused first.
 
 The next reviewed if seam is a temporary field-only prototype:
 `/tmp/lsp-940-source_conditional_control.rs`, SHA-256
-`4b6dded5c642f93309b5e04d465c660c8041e9ddd8e028ce5e17795570ee089b`.
+`cba08f26397b382d6a562e889cad34b574825c7203522c555a26d30abf6532df`.
 It adds an opaque default-None source-control descriptor without changing
 `SemanticsDeclaration`, `InvocationSemantics` or `InvocationFacts`. Exact
 literal condition/body values and the existing clause ordinals are retained
-in an owned receipt; outer dynamic/expanded words decline. Five unrun fixed
+in an owned receipt; outer dynamic/expanded words decline. Six unrun fixed
 controls include unchanged generic None/effects/completion/body topology,
-literal0/1 and lazy/substitution text, raw/effective descriptor refusals and
-receipt lifetime. The seven-file metadata wiring includes an explicit SpecTcl
+literal0/1 and lazy/substitution text, raw/effective descriptor refusals,
+receipt lifetime and direct representation-effect overrides. The latter keeps
+the actual selected source marker while adding a registry-declared list
+coercion; exact raw None/effective None guards withdraw the receipt. Conditions
+and bodies retain their separate representation effects. The seven-file metadata wiring includes an explicit SpecTcl
 GAPS exclusion and passes apply-check; child rustfmt passes. All product source
 remains under `/tmp`, with no Cargo or new Tcl execution. Paths and hashes are
 in `/tmp/lsp-940-if-field-manifest.json`. Exact distinct if-body Job custody
@@ -85,7 +88,8 @@ The exact parent-body design is retained separately in
 owner and authentic immediate-parent catalogue chain, with a distinct If
 protocol and no reconstructed root or blind nested-Job inheritance. It has not
 been implemented. The prior test-only receipt is preserved under
-`/tmp/lsp-940-source_conditional_control-516d3e07.rs`.
+`/tmp/lsp-940-source_conditional_control-516d3e07.rs`; the pre-correction source
+is also retained as `/tmp/lsp-940-source_conditional_control-4b6dded5.rs`.
 
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,
