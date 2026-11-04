@@ -150,6 +150,15 @@ compiled or verified. The first compilation was cancelled for the exclusive
 cancelled before acquiring a slot for the coordinator's provider-codegen retry.
 No production change has been made in this follow-up. Evidence is retained in
 `/tmp/lsp-2384-frozen-audit.log`, `/tmp/lsp-2384-native.json` and
-`/tmp/lsp-2384-evidence.json`. Next: compile only the focused three tests when
-the coordinator releases the single compiler slot, then inspect the zero-entry
-control before proposing any further semantic change.
+`/tmp/lsp-2384-evidence.json`. Next: compile only the focused tests when the coordinator releases the single
+compiler slot, then inspect the zero-entry control before proposing any further
+semantic change.
+
+
+A fourth fixed control checks user procedures named `while` and `for` against
+W240/W241/W242. Read-only inspection found loop candidate collection still
+consults spelling/catalogue metadata independently of the original selected
+invocation; the control tests that boundary rather than asserting a reproduced
+defect. All 24 native shadowed-head cases complete once and print `always`
+under the six exact interpreters (`/tmp/lsp-2384-shadowed-native.json`). The Rust
+control remains uncompiled, and no new production fix or closure is claimed.

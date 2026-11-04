@@ -717,6 +717,31 @@ fn issue_2384_literal_false_loop_is_still_reported() {
 }
 
 #[test]
+fn issue_2384_shadowed_loop_heads_are_not_reported() {
+    for (name, parameters, arguments) in [
+        ("while", "condition body", "0 {puts never}"),
+        ("while", "condition body", "1 {puts never}"),
+        ("for", "start test next body", "{} 0 {} {puts never}"),
+        ("for", "start test next body", "{} 1 {} {puts never}"),
+    ] {
+        let source = format!("proc {name} {{{parameters}}} {{puts always}}\n{name} {arguments}\n");
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let result = analyse(&source, dialect);
+            assert!(
+                result.diagnostics.iter().all(|diagnostic| !matches!(
+                    diagnostic.code,
+                    tcl_core_types::DiagCode::W240
+                        | tcl_core_types::DiagCode::W241
+                        | tcl_core_types::DiagCode::W242
+                )),
+                "{dialect}: {source}: {:?}",
+                result.diagnostics
+            );
+        }
+    }
+}
+
+#[test]
 fn issue_2384_loop_execution() {
     for (body, condition, expected) in [
         ("set i 5", "$i < 3", "1 6"),
