@@ -45,6 +45,8 @@ pub(crate) struct DeclarationInvocationFlow {
     pub representation_words: Option<super::source_structure::OriginalRegistryWords>,
     /// Original point has the shared quiet scalar-context receipt.
     pub representation_quiet: bool,
+    /// No known scalar observer or alias; unknown state remains conditional.
+    pub representation_no_known_counterevidence: bool,
     pub effects: DeclarationEffectKnowledge,
 }
 
@@ -75,6 +77,7 @@ impl DeclarationInvocationFlow {
             caller_alias_operands,
             representation_words,
             representation_quiet: _,
+            representation_no_known_counterevidence: _,
             effects,
         } = self;
         let Some(left_head) = effective.words.first() else {
@@ -109,6 +112,7 @@ impl DeclarationInvocationFlow {
             && representation_words.is_some()
             && other.representation_words.is_none()
             && !other.representation_quiet
+            && !other.representation_no_known_counterevidence
             && effects.representation_effects_correspond(&other.effects)
     }
 }
@@ -507,6 +511,7 @@ pub(crate) fn declaration_original_words_flow(
     if retain_representation_words {
         selected.representation_quiet =
             super::authored_source_structure::authored_script_scalar_context_is_quiet(tokens);
+        selected.representation_no_known_counterevidence = super::authored_source_structure::authored_script_scalar_context_has_no_known_counterevidence(tokens);
         selected.representation_words = Some(words);
     }
     Some(selected)
@@ -578,6 +583,7 @@ fn declaration_flow_projection(
         caller_alias_operands: Vec::new(),
         representation_words: None,
         representation_quiet: false,
+        representation_no_known_counterevidence: false,
         effects: DeclarationEffectKnowledge {
             unknown_writes: false,
             unknown_reads: facts.traits.contains(Traits::PERFORMS_SUBSTITUTION)

@@ -318,6 +318,12 @@ pub(crate) struct DeclarationFlowReport {
     represented: BTreeSet<u32>,
     #[cfg(test)]
     conditional_handler_sites: BTreeSet<u32>,
+    #[cfg(test)]
+    conditional_loop_sites: BTreeSet<u32>,
+    #[cfg(test)]
+    conditional_body_contexts: Vec<Arc<ConditionalRepresentationBodyContext>>,
+    #[cfg(test)]
+    conditional_loop_exits: Vec<(u32, usize, usize, usize, usize)>,
     unavailable_before: BTreeSet<u32>,
     unavailable: bool,
     unknown_reads: bool,
@@ -677,14 +683,30 @@ impl SourceInvocationBinding {
             entry: &frame,
             purpose,
             representation_realm,
+            representation_loops: Vec::new(),
+            current_representation_body: None,
             nodes: vec![Node::default()],
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
             read_sites: BTreeSet::new(),
         };
         let entry = builder.placeholder();
+        let exits = if purpose == DeclarationFlowPurpose::Representation {
+            Exits {
+                normal: 0,
+                error: builder.placeholder(),
+                returned: builder.placeholder(),
+                broken: builder.placeholder(),
+                continued: builder.placeholder(),
+                other: builder.placeholder(),
+                cleanup_entry: None,
+            }
+        } else {
+            Exits::all(0)
+        };
         builder.jobs.push(Job {
             source: first.entry.source().clone(),
+            representation_body: None,
             purpose: match first.entry.as_ref() {
                 super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { .. } => {
                     tcl_lexer::SourceSegmentationPurpose::WholeInput
@@ -692,7 +714,7 @@ impl SourceInvocationBinding {
                 _ => tcl_lexer::SourceSegmentationPurpose::NestedScript,
             },
             entry,
-            exits: Exits::all(0),
+            exits,
         });
         while let Some(job) = builder.jobs.pop() {
             builder.script(&job);
@@ -802,6 +824,8 @@ impl super::SourceCommandBindings {
             entry: &frame,
             purpose: DeclarationFlowPurpose::Reads,
             representation_realm: None,
+            representation_loops: Vec::new(),
+            current_representation_body: None,
             nodes: vec![Node::default()],
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
@@ -983,8 +1007,40 @@ impl Exits {
         }
     }
 }
+// Conditional source-only body premises; this is never an actual child
+// snapshot, execution admission, or a variable/command lookup proof.
+#[derive(Clone)]
+struct ConditionalRepresentationBodyContext {
+    owner: Arc<super::OriginalSourceAnalysisOwner>,
+    input: crate::analyser::ResolvedAnalysisInput,
+    site: CommandAllocationSite,
+    words: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    body: crate::registry_invocation::OriginalSourceScriptBody,
+    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    binder: tcl_registry::iteration_entry::ConditionalSourceSingleLoopBinding,
+    count: tcl_registry::iteration_entry::ConditionalSourceFiniteIteration,
+}
+
+impl PartialEq for ConditionalRepresentationBodyContext {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.owner, &other.owner)
+            && Arc::ptr_eq(&self.site.source, &other.site.source)
+            && self.site.offset == other.site.offset
+            && self.input == other.input
+            && self.words == other.words
+            && self.body == other.body
+            && self.namespace == other.namespace
+            && self.policy == other.policy
+            && self.binder == other.binder
+            && self.count == other.count
+    }
+}
+impl Eq for ConditionalRepresentationBodyContext {}
+
 struct Job {
     source: ExecutedScriptSource,
+    representation_body: Option<Arc<ConditionalRepresentationBodyContext>>,
     purpose: tcl_lexer::SourceSegmentationPurpose,
     entry: usize,
     exits: Exits,
@@ -995,15 +1051,50 @@ struct DeclarationSelectionScope<'a> {
     config: tcl_lexer::LexerConfig,
 }
 
+struct ConditionalRepresentationNaming {
+    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    body_context: Option<Arc<ConditionalRepresentationBodyContext>>,
+}
+
 struct ConditionalRepresentationPlan {
     source: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    body_context: Option<Arc<ConditionalRepresentationBodyContext>>,
     captures: VecDeque<representation::CaptureSource>,
     relation: Option<tcl_registry::value_transfer::ConditionalSourceRepresentation>,
+    prior_target: Option<representation::PriorTargetUpdate>,
     target: Option<(
         tcl_registry::value_transfer::TargetId,
         crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
     )>,
     coercion: Option<tcl_registry::representation::ConditionalSourceListIndexCoercion>,
+}
+
+struct ConditionalRepresentationLoopPlan {
+    source: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    body_context: Option<Arc<ConditionalRepresentationBodyContext>>,
+    count: tcl_registry::iteration_entry::ConditionalSourceFiniteIteration,
+    binder: crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    span: tcl_lexer::Span,
+}
+
+struct ConditionalRepresentationBodyInputs<'a> {
+    site: &'a CommandAllocationSite,
+    words: &'a Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    body_argument: usize,
+    context: &'a tcl_registry::model::ContextRegistry,
+    namespace: crate::signature_scan::scope::SignatureNamespaceScope,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    binder: tcl_registry::iteration_entry::ConditionalSourceSingleLoopBinding,
+    count: tcl_registry::iteration_entry::ConditionalSourceFiniteIteration,
+}
+
+#[derive(Clone, Copy)]
+struct ConditionalRepresentationLoopNodes {
+    first_gate: usize,
+    bindings: usize,
+    repeated_entry: usize,
+    header: usize,
 }
 
 /// Only a conditional source read may use a declared-body frame without a
@@ -1089,6 +1180,8 @@ struct Builder<'a> {
     entry: &'a DeclarationFlowFrame,
     purpose: DeclarationFlowPurpose,
     representation_realm: Option<&'a crate::realm::CommandBindingRealm>,
+    representation_loops: Vec<representation::LoopRegion>,
+    current_representation_body: Option<Arc<ConditionalRepresentationBodyContext>>,
     nodes: Vec<Node>,
     jobs: Vec<Job>,
     conditional_overwrites: Vec<(usize, DeclaredOverwrite)>,
@@ -1101,6 +1194,7 @@ impl Builder<'_> {
         &self,
         tokens: &CommandTokens,
         site: &CommandAllocationSite,
+        conditional_flow: Option<&crate::registry_invocation::DeclarationInvocationFlow>,
     ) -> Option<(
         crate::signature_scan::scope::SignatureNamespaceScope,
         tcl_syntax::naming::NamePolicyProtocol,
@@ -1140,19 +1234,24 @@ impl Builder<'_> {
             || !seed.matches_registry(self.registry)
             || tokens.synthetic.is_some()
             || !tokens.original_words_match_argv_text()
-            || !matches!(
-                self.source_read_point_scope(tokens, site)?,
-                DeclarationReadPointScope::Observed(_)
-            )
         {
             return None;
         }
+        let related = self.representation_naming_is_related(tokens, site, conditional_flow)?;
         let rows = super::declaration_layout::original_declaration_layouts(
             self.inventory.layouts.get(site)?,
         )?;
         let mut selected = None;
         for row in rows {
-            if row.entry.as_ref() != entry
+            let current_entry = if related {
+                matches!(
+                    row.entry.as_ref(),
+                    OriginalDiagnosticFrameEntry::ScriptActivation { .. }
+                )
+            } else {
+                row.entry.as_ref() == entry
+            };
+            if !current_entry
                 || !Arc::ptr_eq(&row.entry.source().origin, &source.origin)
                 || row.config != self.config
                 || row.namespace != *namespace
@@ -1201,6 +1300,140 @@ impl Builder<'_> {
         selected
     }
 
+    fn representation_naming_is_related(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        conditional_flow: Option<&crate::registry_invocation::DeclarationInvocationFlow>,
+    ) -> Option<bool> {
+        Some(match self.source_read_point_scope(tokens, site)? {
+            DeclarationReadPointScope::Observed(_) => false,
+            DeclarationReadPointScope::ConditionalRootRelated { .. } => {
+                let flow = conditional_flow?;
+                if self.source_read_selection(tokens, site).as_ref() != Some(flow) {
+                    return None;
+                }
+                true
+            }
+            _ => return None,
+        })
+    }
+
+    /// Revalidate a conditional body against its actual immediate source
+    /// parent. The returned context is a premise, not the child's snapshot.
+    fn conditional_representation_body_scope(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+    ) -> Option<Arc<ConditionalRepresentationBodyContext>> {
+        let held = self.current_representation_body.as_ref()?;
+        let seed = self.inventory.source_seed.as_ref()?;
+        let owner = seed.analysis_owner.as_ref()?;
+        let input = seed.baseline.metadata_context.source_analysis_input()?;
+        if !selected.representation_no_known_counterevidence
+            || !Arc::ptr_eq(owner, &held.owner)
+            || !Arc::ptr_eq(&site.source, &held.site.source)
+            || !Arc::ptr_eq(&site.source, &seed.origin)
+            || input != &held.input
+            || input.lexer_config() != self.config
+            || !seed.matches_registry(self.registry)
+            || !held.binder.direct_phase_preserves_lookup()
+            || held.count.iterations() < 2
+        {
+            return None;
+        }
+        let DeclarationReadPointScope::ConditionalRootRelated { root, .. } =
+            self.source_read_point_scope(tokens, site)?
+        else {
+            return None;
+        };
+        if !Arc::ptr_eq(&root.source().origin, &held.site.source)
+            || self.source_read_selection(tokens, site).as_ref() != Some(selected)
+        {
+            return None;
+        }
+        let rows = super::declaration_layout::original_declaration_layouts(
+            self.inventory.layouts.get(site)?,
+        )?;
+        if rows.into_iter().any(|row| {
+            row.snapshot
+                .state
+                .baseline
+                .execution_name_policy
+                .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
+                != Some(held.policy)
+        }) {
+            return None;
+        }
+        let catalogue = self
+            .inventory
+            .source_read_catalogue(self.registry, self.purpose)?;
+        catalogue.scope_with_ancestry(site, tokens, self.config, |advice, context| {
+            self.conditional_representation_immediate_parent(held, advice, context)
+        })?;
+        Some(Arc::clone(held))
+    }
+
+    fn conditional_representation_immediate_parent(
+        &self,
+        held: &ConditionalRepresentationBodyContext,
+        advice: &super::OriginalSourceCommandTransitionAdvice,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> bool {
+        use super::source_transition_advice::OriginalSourceCatalogueBody;
+        use crate::registry_invocation::source_structure::OriginalRegistrySource;
+        let check = || -> Option<()> {
+            if !std::ptr::eq(held.input.borrowed_context_registry(), context) {
+                return None;
+            }
+            let OriginalSourceCatalogueBody::Script(body) =
+                advice.original_catalogue_source_body()?
+            else {
+                return None;
+            };
+            if body.content_span() != held.body.content_span()
+                || body.original_container() != held.body.original_container()
+                || !body.matches_source(held.site.source.source_image(), self.config)
+                || !body.inherits_immediate_caller_source_context(context)
+                || !body
+                    .source_words()
+                    .source_script_bodies(context)
+                    .contains(body.as_ref())
+            {
+                return None;
+            }
+            let parent_words = body.source_words();
+            let OriginalRegistrySource::SourceTransitions(parent) = parent_words.source() else {
+                return None;
+            };
+            if !Arc::ptr_eq(&parent.site().source, &held.site.source)
+                || parent.site().offset != held.site.offset
+                || !parent.matches_context(context)
+                || !parent.matches_source(held.site.source.source_image(), self.config)
+                || parent_words
+                    .original_source_head_correspondence(&held.words, context)
+                    .is_none()
+            {
+                return None;
+            }
+            let original = parent.original_words();
+            if original.len() != held.words.arguments().len() + 1
+                || original.first() != held.words.head_source().and_then(|head| head.word())
+                || original
+                    .iter()
+                    .skip(1)
+                    .enumerate()
+                    .any(|(index, word)| held.words.original_argument_word(index) != Some(word))
+                || parent_words.origins().get(1..) != held.words.origins().get(1..)
+            {
+                return None;
+            }
+            Some(())
+        };
+        check().is_some()
+    }
+
     fn representation_plan(
         &self,
         tokens: &CommandTokens,
@@ -1211,20 +1444,20 @@ impl Builder<'_> {
             OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
             SignatureSourceVariableSymbol,
         };
-        use tcl_registry::value_transfer::{
-            AnalysisContext, ConditionalSourceRepresentation, InvocationLayout,
-        };
+        use tcl_registry::value_transfer::{AnalysisContext, InvocationLayout};
         if !Self::representation_is_applicable(tokens, selected) {
             return None;
         }
+        let naming = self.representation_plan_naming(tokens, site, selected)?;
         let words = selected.representation_words.as_ref()?;
-        if words.arguments().len() + 1 != tokens.words().len()
-            || tokens.argv_texts.len() != tokens.words().len()
-            || !crate::registry_invocation::source_cut_declaration_origins(words)
-        {
+        if !Self::representation_words_match_tokens(tokens, words) {
             return None;
         }
-        let (namespace, policy) = self.representation_root_naming_scope(tokens, site)?;
+        let ConditionalRepresentationNaming {
+            namespace,
+            policy,
+            body_context,
+        } = naming;
         if !namespace.is_root() {
             return None;
         }
@@ -1248,66 +1481,303 @@ impl Builder<'_> {
             .skip(1)
             .map(String::as_str)
             .collect();
-        let (relation, target, coercion) = words.with_source_schema(&context, |schema| {
-            let view = crate::value_transfer::view_of(
-                schema,
-                &texts,
-                &argument_words,
-                InvocationLayout::Source,
-            );
-            let analysis = AnalysisContext::detached(Some(input.unit_profile()));
-            let structure = crate::value_transfer::StructureInputs::new(view, &analysis);
-            let relation = schema
-                .semantics
-                .value
-                .semantics()
-                .and_then(|semantics| semantics.conditional_source_representation(&structure));
-            let target_id = match relation {
-                Some(ConditionalSourceRepresentation::IntegerResult { target }) => target,
-                Some(ConditionalSourceRepresentation::ForwardValue { target, .. }) => Some(target),
-                None => None,
-            };
-            let target = if let Some(target) = target_id {
-                let name = words.original_argument_value_input(target.0.0)?;
-                if tcl_syntax::naming::split_element_ref_bytes(name.bytes()).is_some() {
-                    return None;
-                }
-                let form = schema.authored_source_variable_receiver_operand_form(target.0.0)?;
-                let symbol = SignatureSourceVariableSymbol::from_original_input(
-                    name,
-                    &namespace,
-                    OriginalVariableSymbolPurpose::NamespaceStorage,
-                    OriginalVariableSymbolReceiver::Operand(form),
-                )?;
-                Some((target, symbol))
-            } else {
-                None
-            };
-            let coercion = schema
-                .semantics
-                .representation_effect
-                .conditional_source_list_index_coercion(
-                    schema.words.arguments(),
-                    schema.semantics.argument_offset,
-                )
-                .filter(|coercion| coercion.is_single_literal_zero());
-            Some((relation, target, coercion))
-        })??;
+        let (relation, prior_target, target, coercion) =
+            words.with_source_schema(&context, |schema| {
+                let view = crate::value_transfer::view_of(
+                    schema,
+                    &texts,
+                    &argument_words,
+                    InvocationLayout::Source,
+                );
+                let analysis = AnalysisContext::detached(Some(input.unit_profile()));
+                let structure = crate::value_transfer::StructureInputs::new(view, &analysis);
+                let relation =
+                    schema.semantics.value.semantics().and_then(|semantics| {
+                        semantics.conditional_source_representation(&structure)
+                    });
+                let prior_target = Self::conditional_prior_target(
+                    schema.semantics.value.semantics(),
+                    &structure,
+                    relation,
+                    words,
+                );
+                let target_id = Self::conditional_representation_target(relation);
+                let target = if let Some(target) = target_id {
+                    let name = words.original_argument_value_input(target.0.0)?;
+                    if name.policy() != policy
+                        || tcl_syntax::naming::split_element_ref_bytes(name.bytes()).is_some()
+                    {
+                        return None;
+                    }
+                    let form = schema.authored_source_variable_receiver_operand_form(target.0.0)?;
+                    let symbol = SignatureSourceVariableSymbol::from_original_input(
+                        name,
+                        &namespace,
+                        OriginalVariableSymbolPurpose::NamespaceStorage,
+                        OriginalVariableSymbolReceiver::Operand(form),
+                    )?;
+                    Some((target, symbol))
+                } else {
+                    None
+                };
+                let coercion = schema
+                    .semantics
+                    .representation_effect
+                    .conditional_source_list_index_coercion(
+                        schema.words.arguments(),
+                        schema.semantics.argument_offset,
+                    )
+                    .filter(|coercion| coercion.is_single_literal_zero());
+                Some((relation, prior_target, target, coercion))
+            })??;
         (relation.is_some() || coercion.is_some()).then_some(ConditionalRepresentationPlan {
             source,
+            body_context,
             captures,
             relation,
+            prior_target,
             target,
             coercion,
         })
+    }
+
+    fn representation_words_match_tokens(
+        tokens: &CommandTokens,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> bool {
+        words.arguments().len() + 1 == tokens.words().len()
+            && tokens.argv_texts.len() == tokens.words().len()
+            && crate::registry_invocation::source_cut_declaration_origins(words)
+    }
+
+    fn representation_plan_naming(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+    ) -> Option<ConditionalRepresentationNaming> {
+        if selected.representation_quiet
+            && let Some((namespace, policy)) =
+                self.representation_root_naming_scope(tokens, site, Some(selected))
+        {
+            return Some(ConditionalRepresentationNaming {
+                namespace,
+                policy,
+                body_context: None,
+            });
+        }
+        let context = self.conditional_representation_body_scope(tokens, site, selected)?;
+        Some(ConditionalRepresentationNaming {
+            namespace: context.namespace.clone(),
+            policy: context.policy,
+            body_context: Some(context),
+        })
+    }
+
+    fn conditional_representation_target(
+        relation: Option<tcl_registry::value_transfer::ConditionalSourceRepresentation>,
+    ) -> Option<tcl_registry::value_transfer::TargetId> {
+        use tcl_registry::value_transfer::ConditionalSourceRepresentation;
+        match relation {
+            Some(ConditionalSourceRepresentation::IntegerResult { target }) => target,
+            Some(ConditionalSourceRepresentation::ForwardValue { target, .. }) => Some(target),
+            None => None,
+        }
+    }
+
+    fn conditional_prior_target(
+        semantics: Option<&dyn tcl_registry::value_transfer::CommandSemantics>,
+        inputs: &dyn tcl_registry::value_transfer::AnalysisInputs,
+        relation: Option<tcl_registry::value_transfer::ConditionalSourceRepresentation>,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> Option<representation::PriorTargetUpdate> {
+        use tcl_registry::value_transfer::{ConditionalSourceRepresentation, PlanAnswer};
+        let semantics = semantics?;
+        let update = semantics.conditional_source_target_update(inputs)?;
+        let PlanAnswer::CellReadModifyWrite { target, .. } = semantics.structure(inputs) else {
+            return None;
+        };
+        if update.target() != target
+            || relation
+                != Some(ConditionalSourceRepresentation::IntegerResult {
+                    target: Some(target),
+                })
+        {
+            return None;
+        }
+        Some(representation::PriorTargetUpdate {
+            relation: update,
+            read_span: words.original_argument_word(target.0.0)?.span(),
+        })
+    }
+
+    fn representation_loop_plan(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+    ) -> Option<ConditionalRepresentationLoopPlan> {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+            SignatureSourceVariableSymbol,
+        };
+        let ScriptBodyFlow::Loop {
+            initial,
+            repeated,
+            continued,
+            conditions,
+        } = &selected.flow
+        else {
+            return None;
+        };
+        let words = selected.representation_words.as_ref()?;
+        let body = words.arguments().len().checked_sub(1)?;
+        if !initial.is_empty()
+            || !continued.is_empty()
+            || !conditions.is_empty()
+            || repeated.as_slice() != [body]
+            || words.arguments().len() != 3
+            || !matches!(tokens.words().last(), Some(WordExpr::BracedLiteral { .. }))
+            || tokens.words().len() != words.arguments().len() + 1
+            || tokens.argv_texts.len() != tokens.words().len()
+            || !tokens.original_words_match_argv_text()
+            || tokens.synthetic.is_some()
+            || !crate::registry_invocation::source_cut_declaration_origins(words)
+            || !selected.representation_quiet
+            || selected.effects.unknown_writes
+            || selected.effects.frame_reachable()
+            || !selected.writes.is_empty()
+            || !selected.reads.is_empty()
+            || !selected.name_queries.is_empty()
+            || !selected.aliases.is_empty()
+            || !selected.caller_frame_aliases.is_empty()
+            || !selected.removes.is_empty()
+            || !selected.possible_output_writes.is_empty()
+        {
+            return None;
+        }
+        let (namespace, policy) =
+            self.representation_root_naming_scope(tokens, site, Some(selected))?;
+        if !namespace.is_root() {
+            return None;
+        }
+        let context = self
+            .inventory
+            .source_seed
+            .as_ref()?
+            .source_context(self.registry)?;
+        let (count, binder, binder_receipt) = words.with_source_schema(&context, |schema| {
+            let args = schema.words.arguments();
+            let facts = schema.facts();
+            let count = facts.conditional_source_finite_iteration(args)?;
+            if count.iterations() < 2 {
+                return None;
+            }
+            let binder = schema.conditional_source_single_loop_binding()?;
+            if !binder.direct_phase_preserves_lookup()
+                || !crate::registry_invocation::source_advice_has_no_declared_lookup_mutation(
+                    &facts,
+                )
+            {
+                return None;
+            }
+            let input = words.original_argument_value_input(binder.operand())?;
+            if input.policy() != policy
+                || input.bytes() != binder.name()
+                || tcl_syntax::naming::split_element_ref_bytes(input.bytes()).is_some()
+                || selected.loop_bindings.len() != 1
+                || selected.loop_bindings[0].as_bytes() != binder.name()
+            {
+                return None;
+            }
+            let symbol = SignatureSourceVariableSymbol::from_original_input(
+                input,
+                &namespace,
+                OriginalVariableSymbolPurpose::NamespaceStorage,
+                OriginalVariableSymbolReceiver::Operand(binder.receiver_form()),
+            )?;
+            Some((count, symbol, binder))
+        })??;
+        let source = Arc::new(words.clone());
+        let body_context =
+            self.representation_loop_body_context(ConditionalRepresentationBodyInputs {
+                site,
+                words: &source,
+                body_argument: body,
+                context: &context,
+                namespace,
+                policy,
+                binder: binder_receipt,
+                count,
+            });
+        Some(ConditionalRepresentationLoopPlan {
+            source,
+            body_context,
+            count,
+            binder,
+            span: tokens.words().first()?.source().span,
+        })
+    }
+
+    fn representation_loop_body_context(
+        &self,
+        request: ConditionalRepresentationBodyInputs<'_>,
+    ) -> Option<Arc<ConditionalRepresentationBodyContext>> {
+        let ConditionalRepresentationBodyInputs {
+            site,
+            words,
+            body_argument,
+            context,
+            namespace,
+            policy,
+            binder,
+            count,
+        } = request;
+        let seed = self.inventory.source_seed.as_ref()?;
+        let owner = seed.analysis_owner.as_ref()?;
+        let input = seed.baseline.metadata_context.source_analysis_input()?;
+        if !Arc::ptr_eq(&site.source, &owner.source)
+            || !Arc::ptr_eq(&site.source, &seed.origin)
+            || input.lexer_config() != self.config
+            || !std::ptr::eq(input.borrowed_context_registry(), context)
+            || !seed.matches_registry(self.registry)
+        {
+            return None;
+        }
+        let container = words.original_argument_word(body_argument)?;
+        let mut bodies = words
+            .source_script_bodies_for(
+                context,
+                crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            )
+            .into_iter()
+            .filter(|body| {
+                body.original_container() == container
+                    && body.matches_source(site.source.source_image(), self.config)
+                    && body.inherits_immediate_caller_source_context(context)
+            });
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        Some(Arc::new(ConditionalRepresentationBodyContext {
+            owner: Arc::clone(owner),
+            input: input.clone(),
+            site: site.clone(),
+            words: Arc::clone(words),
+            body,
+            namespace,
+            policy,
+            binder,
+            count,
+        }))
     }
 
     fn representation_is_applicable(
         tokens: &CommandTokens,
         selected: &crate::registry_invocation::DeclarationInvocationFlow,
     ) -> bool {
-        selected.representation_quiet
-            && !selected.effects.unknown_writes
+        !selected.effects.unknown_writes
             && !selected.effects.unknown_reads
             && selected.effects.lookup_stable
             && selected.aliases.is_empty()
@@ -1366,7 +1836,10 @@ impl Builder<'_> {
                 expression,
                 WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
             ) {
-                representation::CaptureSource::Unknown
+                tcl_syntax::word_rules::original_static_word_source_bytes(word)
+                    .map_or(representation::CaptureSource::Unknown, |bytes| {
+                        representation::CaptureSource::Literal { bytes }
+                    })
             } else {
                 return None;
             };
@@ -1406,6 +1879,16 @@ impl Builder<'_> {
         self.nodes[id].successors = vec![next];
     }
     fn script(&mut self, job: &Job) {
+        let previous = self.current_representation_body.take();
+        self.current_representation_body
+            .clone_from(&job.representation_body);
+        if let Some(context) = &job.representation_body {
+            self.nodes[job.entry]
+                .representation_events
+                .push(representation::Event::BodyContext {
+                    context: Arc::clone(context),
+                });
+        }
         self.original_script(
             &job.source.text,
             job.source.base(),
@@ -1414,6 +1897,7 @@ impl Builder<'_> {
             job.entry,
             job.exits,
         );
+        self.current_representation_body = previous;
     }
     fn original_script(
         &mut self,
@@ -2211,13 +2695,29 @@ impl Builder<'_> {
     ) {
         self.nodes[id].site = Some(site.offset);
         let selected = self.selection(tokens, site);
+        let loop_plan = if self.purpose == DeclarationFlowPurpose::Representation {
+            selected
+                .as_ref()
+                .and_then(|(selected, _)| self.representation_loop_plan(tokens, site, selected))
+        } else {
+            None
+        };
+        let loop_control = loop_plan.as_ref().map(|plan| Arc::clone(&plan.source));
         let mut representation_plan = if self.purpose == DeclarationFlowPurpose::Representation {
+            let plan = selected
+                .as_ref()
+                .and_then(|(selected, _)| self.representation_plan(tokens, site, selected));
+            if let Some(context) = plan.as_ref().and_then(|plan| plan.body_context.as_ref()) {
+                self.nodes[id].representation_events.push(
+                    representation::Event::RequireBodyContext {
+                        context: Arc::clone(context),
+                    },
+                );
+            }
             self.nodes[id]
                 .representation_events
                 .push(representation::Event::ClearResult);
-            selected
-                .as_ref()
-                .and_then(|(selected, _)| self.representation_plan(tokens, site, selected))
+            plan
         } else {
             None
         };
@@ -2251,7 +2751,9 @@ impl Builder<'_> {
                 && index > 0
             {
                 let Some(from) = plan.captures.pop_front() else {
-                    operands.push(Event::Representation(representation::Event::Barrier));
+                    operands.push(Event::Representation(Box::new(
+                        representation::Event::Barrier,
+                    )));
                     continue;
                 };
                 if matches!(&from, representation::CaptureSource::Variable { .. }) {
@@ -2261,14 +2763,16 @@ impl Builder<'_> {
                         }
                     }
                 }
-                operands.push(Event::Representation(representation::Event::Capture {
-                    into: representation::OperandSnapshot {
-                        site: site.offset,
-                        operand: tcl_registry::value_transfer::OperandId(index - 1),
+                operands.push(Event::Representation(Box::new(
+                    representation::Event::Capture {
+                        into: representation::OperandSnapshot {
+                            site: site.offset,
+                            operand: tcl_registry::value_transfer::OperandId(index - 1),
+                        },
+                        from,
+                        source: Arc::clone(&plan.source),
                     },
-                    from,
-                    source: Arc::clone(&plan.source),
-                }));
+                )));
             }
         }
         let next = self.events_before(operands, dispatch, exits);
@@ -2278,8 +2782,16 @@ impl Builder<'_> {
             return;
         };
         let after = self.selected_effect_nodes(id, dispatch, site, &selected, exits.normal);
-        self.representation_completion(representation_plan, tokens, site, after, dispatch);
-        let successors = self.command_flow(site, &selected, lifecycle.as_ref(), after, exits);
+        self.representation_completion(
+            representation_plan,
+            loop_control,
+            tokens,
+            site,
+            after,
+            dispatch,
+        );
+        let successors =
+            self.command_flow(site, &selected, lifecycle.as_ref(), after, exits, loop_plan);
         self.nodes[dispatch].successors = successors;
     }
 
@@ -2332,6 +2844,9 @@ impl Builder<'_> {
     fn representation_completion(
         &mut self,
         representation_plan: Option<ConditionalRepresentationPlan>,
+        loop_control: Option<
+            Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+        >,
         tokens: &CommandTokens,
         site: &CommandAllocationSite,
         after: usize,
@@ -2347,6 +2862,7 @@ impl Builder<'_> {
                             site: site.offset,
                             span,
                             relation,
+                            prior_target: plan.prior_target,
                             target: plan.target,
                             source: Arc::clone(&plan.source),
                         });
@@ -2361,6 +2877,10 @@ impl Builder<'_> {
                         },
                     );
                 }
+            } else if let Some(source) = loop_control {
+                self.nodes[dispatch]
+                    .representation_events
+                    .push(representation::Event::Control { source });
             } else {
                 self.nodes[dispatch]
                     .representation_events
@@ -2376,6 +2896,7 @@ impl Builder<'_> {
         lifecycle: Option<&super::lifecycle_advice::SourceScopedLifecycleAdvice>,
         after: usize,
         exits: Exits,
+        loop_plan: Option<ConditionalRepresentationLoopPlan>,
     ) -> Vec<usize> {
         let body_exits = Exits {
             normal: after,
@@ -2428,7 +2949,7 @@ impl Builder<'_> {
                 self.conditional_flow(site, selected, branches, after, body_exits, exits)
             }
             flow @ ScriptBodyFlow::Loop { .. } => {
-                self.loop_flow(site, selected, flow, after, exits)
+                self.loop_flow(site, selected, flow, after, exits, loop_plan)
             }
             ScriptBodyFlow::Capture(
                 tcl_registry::catch_invocation::CatchInvocationSelection::Valid(capture),
@@ -2630,6 +3151,7 @@ impl Builder<'_> {
         flow: &ScriptBodyFlow,
         after: usize,
         exits: Exits,
+        loop_plan: Option<ConditionalRepresentationLoopPlan>,
     ) -> usize {
         let ScriptBodyFlow::Loop {
             initial,
@@ -2660,7 +3182,9 @@ impl Builder<'_> {
             continued: update,
             ..exits
         };
+        let jobs_before = self.jobs.len();
         let repeated = self.sequence(site, &selected.effective, repeated, body_exits);
+        self.attach_representation_body_job(jobs_before, loop_plan.as_ref());
         self.nodes[bindings].successors = vec![repeated];
         let mut test = bindings;
         if conditions.is_empty() {
@@ -2708,6 +3232,15 @@ impl Builder<'_> {
                 );
             }
         }
+        if let Some(plan) = loop_plan {
+            let nodes = ConditionalRepresentationLoopNodes {
+                first_gate: first_test,
+                bindings,
+                repeated_entry: repeated,
+                header,
+            };
+            self.retain_representation_loop(plan, site, nodes, after, exits);
+        }
         self.sequence(
             site,
             &selected.effective,
@@ -2718,6 +3251,68 @@ impl Builder<'_> {
             },
         )
     }
+    fn attach_representation_body_job(
+        &mut self,
+        jobs_before: usize,
+        plan: Option<&ConditionalRepresentationLoopPlan>,
+    ) {
+        let Some(context) = plan.and_then(|plan| plan.body_context.as_ref()) else {
+            return;
+        };
+        if self.jobs.len() != jobs_before + 1 {
+            return;
+        }
+        let Some(job) = self.jobs.last_mut() else {
+            return;
+        };
+        let span = context.body.content_span();
+        let length = u32::try_from(job.source.text.len()).ok();
+        if Arc::ptr_eq(&job.source.origin, &context.site.source)
+            && job.source.mapping == (ExecutedScriptMapping::Contiguous { base: span.start() })
+            && length.and_then(|length| span.start().checked_add(length)) == Some(span.end())
+            && context
+                .site
+                .source
+                .source_image()
+                .bytes()
+                .get(span.as_range())
+                == Some(job.source.text.bytes())
+        {
+            job.representation_body = Some(Arc::clone(context));
+        }
+    }
+
+    fn retain_representation_loop(
+        &mut self,
+        plan: ConditionalRepresentationLoopPlan,
+        site: &CommandAllocationSite,
+        nodes: ConditionalRepresentationLoopNodes,
+        after: usize,
+        exits: Exits,
+    ) {
+        self.nodes[nodes.bindings]
+            .representation_events
+            .push(representation::Event::Reset {
+                targets: vec![plan.binder],
+                source: Arc::clone(&plan.source),
+            });
+        self.representation_loops.push(representation::LoopRegion {
+            id: representation::LoopId(self.representation_loops.len()),
+            site: site.offset,
+            span: plan.span,
+            source: plan.source,
+            count: plan.count,
+            first_gate: nodes.first_gate,
+            bindings: nodes.bindings,
+            repeated_entry: nodes.repeated_entry,
+            header: nodes.header,
+            normal_exit: after,
+            error_exit: exits.error,
+            returned_exit: exits.returned,
+            other_exit: exits.other,
+        });
+    }
+
     fn events_before(&mut self, events: Vec<Event>, next: usize, exits: Exits) -> usize {
         let mut next = next;
         for event in events.into_iter().rev() {
@@ -2739,6 +3334,7 @@ impl Builder<'_> {
                     }
                     self.jobs.push(Job {
                         source,
+                        representation_body: None,
                         purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                         entry: id,
                         exits: Exits {
@@ -2748,7 +3344,7 @@ impl Builder<'_> {
                     });
                 }
                 Event::Representation(event) => {
-                    self.nodes[id].representation_events.push(event);
+                    self.nodes[id].representation_events.push(*event);
                     self.nodes[id].successors = vec![next];
                 }
                 Event::ReadUnavailable => {
@@ -2962,6 +3558,7 @@ impl Builder<'_> {
         if let Some(source) = source {
             self.jobs.push(Job {
                 source,
+                representation_body: None,
                 purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 entry: id,
                 exits,
@@ -3309,6 +3906,36 @@ impl Builder<'_> {
                 .iter()
                 .filter_map(|node| node.handler_site)
                 .collect(),
+            #[cfg(test)]
+            conditional_loop_sites: self
+                .representation_loops
+                .iter()
+                .map(|region| region.site)
+                .collect(),
+            #[cfg(test)]
+            conditional_body_contexts: self
+                .nodes
+                .iter()
+                .flat_map(|node| node.representation_events.iter())
+                .filter_map(|event| match event {
+                    representation::Event::BodyContext { context } => Some(Arc::clone(context)),
+                    _ => None,
+                })
+                .collect(),
+            #[cfg(test)]
+            conditional_loop_exits: self
+                .representation_loops
+                .iter()
+                .map(|region| {
+                    (
+                        region.site,
+                        region.normal_exit,
+                        region.error_exit,
+                        region.returned_exit,
+                        region.other_exit,
+                    )
+                })
+                .collect(),
             unavailable_before: BTreeSet::new(),
             unavailable: false,
             unknown_reads: false,
@@ -3349,6 +3976,12 @@ impl Builder<'_> {
         );
         self.record_warning_observations(&mut report, &warning_paths);
         #[cfg(debug_assertions)]
+        self.trace_rbs_report(&report, &warning_paths);
+        report
+    }
+
+    #[cfg(debug_assertions)]
+    fn trace_rbs_report(&self, report: &DeclarationFlowReport, warning_paths: &[Option<State>]) {
         if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             eprintln!(
                 "RBS_GRAPH stage=report nodes={} warnings={} strict_reads={} unavailable={} unknown_reads={}",
@@ -3389,7 +4022,6 @@ impl Builder<'_> {
                 }
             }
         }
-        report
     }
 
     fn record_warning_observations(
@@ -3802,7 +4434,7 @@ enum Event {
     AuthoredRead(String, tcl_lexer::Span),
     Read(String, tcl_lexer::Span),
     Script(ExecutedScriptSource),
-    Representation(representation::Event),
+    Representation(Box<representation::Event>),
     ConditionalReadUnavailable,
     ReadUnavailable,
     Unknown,
@@ -3869,6 +4501,8 @@ mod tests {
             entry: &frame,
             purpose: DeclarationFlowPurpose::Representation,
             representation_realm: Some(realm),
+            representation_loops: Vec::new(),
+            current_representation_body: None,
             nodes: Vec::new(),
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
@@ -3888,19 +4522,19 @@ mod tests {
         let later_tokens = CommandTokens::from_segmented(&image.source_map(), config, later);
         assert!(
             builder
-                .representation_root_naming_scope(&earlier_tokens, &earlier_site)
+                .representation_root_naming_scope(&earlier_tokens, &earlier_site, None)
                 .is_some()
         );
         assert!(
             builder
-                .representation_root_naming_scope(&later_tokens, &later_site)
+                .representation_root_naming_scope(&later_tokens, &later_site, None)
                 .is_none()
         );
         let mut changed = earlier_tokens.clone();
         changed.argv_texts[1] = "$foreign".to_owned();
         assert!(
             builder
-                .representation_root_naming_scope(&changed, &earlier_site)
+                .representation_root_naming_scope(&changed, &earlier_site, None)
                 .is_none()
         );
     }
@@ -3942,6 +4576,8 @@ mod tests {
             entry: &frame,
             purpose: DeclarationFlowPurpose::Representation,
             representation_realm: Some(realm),
+            representation_loops: Vec::new(),
+            current_representation_body: None,
             nodes: Vec::new(),
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
@@ -4031,6 +4667,288 @@ mod tests {
                 foreign_input.borrowed_context_registry(),
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_loop_receipts_require_known_count_and_original_binder() {
+        for (source, expected) in [
+            ("set x 0; foreach i {1 2 3} {incr x; lindex $x 0}", true),
+            ("set x 0; foreach i {} {incr x; lindex $x 0}", false),
+            ("set x 0; foreach i {1} {incr x; lindex $x 0}", false),
+            ("set x 0; foreach i $unknown {incr x; lindex $x 0}", false),
+            (
+                "set x 0; foreach {i j} {1 2 3} {incr x; lindex $x 0}",
+                false,
+            ),
+            (
+                "set x 0; foreach i {1 2 3} j {4 5} {incr x; lindex $x 0}",
+                false,
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let config = input.lexer_config();
+            let realm = analysis.retained_command_realm().unwrap();
+            let image = tcl_lexer::SourceImage::document(source);
+            let segments =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let mut tokens =
+                CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+            realm
+                .source_bindings_ref()
+                .stamp_original_tokens(&mut tokens);
+            let report = tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .declaration_representation_flow_report(&tokens, input, registry, Some(realm))
+                .expect("authentic root representation report");
+            let offset = u32::try_from(source.find("foreach").unwrap()).unwrap();
+            assert_eq!(
+                report.conditional_loop_sites.contains(&offset),
+                expected,
+                "{source}"
+            );
+            if expected {
+                assert_eq!(
+                    report.conditional_body_contexts.len(),
+                    1,
+                    "authentic immediate body context: {source}"
+                );
+                let context = &report.conditional_body_contexts[0];
+                assert_eq!(context.site.offset, offset);
+                representation::assert_body_context_state_laws(context, &context.words);
+                assert!(
+                    report.representation_occurrences.iter().any(|observation| {
+                        observation
+                            .body_contexts()
+                            .iter()
+                            .any(|held| held == context)
+                    }),
+                    "conditional conversion retains its actual body context: {source}"
+                );
+                let (_, normal, error, returned, other) = report
+                    .conditional_loop_exits
+                    .iter()
+                    .find(|(site, ..)| *site == offset)
+                    .copied()
+                    .expect("original loop exits");
+                let exits = [normal, error, returned, other];
+                for (index, exit) in exits.iter().enumerate() {
+                    assert!(
+                        !exits[..index].contains(exit),
+                        "distinct normal/error/return/other exits"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn conditional_body_context_requires_exact_original_loop_and_source() {
+        let source = "set x 0; foreach i {1 2 3} {incr x; lindex $x 0; if {1} {incr x}}; foreach j {1 2 3} {incr x}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let realm = analysis.retained_command_realm().unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut anchor = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+        realm
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut anchor);
+        let binding = anchor.source_binding.as_ref().unwrap();
+        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
+        let root_site = binding.invocation_site().unwrap();
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory.layouts.get(root_site).unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+        let report = binding
+            .declaration_representation_flow_report(&anchor, input, registry, Some(realm))
+            .unwrap();
+        let loop_offset = u32::try_from(source.find("foreach i").unwrap()).unwrap();
+        let context = Arc::clone(
+            report
+                .conditional_body_contexts
+                .iter()
+                .find(|context| context.site.offset == loop_offset)
+                .expect("original immediate body receipt"),
+        );
+        let offset = u32::try_from(source.find("incr x").unwrap()).unwrap();
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config("incr x", offset, config)
+                .remove(0);
+        let child = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        let site = CommandAllocationSite {
+            source: Arc::clone(frame.origin()),
+            offset,
+        };
+        let mut builder = Builder {
+            inventory,
+            registry,
+            config,
+            dialect: observation
+                .snapshot
+                .state
+                .source_variables
+                .invocation_dialect
+                .unwrap(),
+            entry: &frame,
+            purpose: DeclarationFlowPurpose::Representation,
+            representation_realm: Some(realm),
+            representation_loops: Vec::new(),
+            current_representation_body: Some(Arc::clone(&context)),
+            nodes: Vec::new(),
+            jobs: Vec::new(),
+            conditional_overwrites: Vec::new(),
+            read_sites: BTreeSet::new(),
+        };
+        let selected = builder
+            .source_read_selection(&child, &site)
+            .expect("original child source selection");
+        assert!(
+            builder
+                .conditional_representation_body_scope(&child, &site, &selected)
+                .is_some()
+        );
+        let mut changed_words = child.clone();
+        changed_words.argv_texts[1] = "foreign".to_owned();
+        assert!(
+            builder
+                .conditional_representation_body_scope(&changed_words, &site, &selected)
+                .is_none()
+        );
+        let mut wrong_parent = context.as_ref().clone();
+        wrong_parent.site.offset += 1;
+        builder.current_representation_body = Some(Arc::new(wrong_parent));
+        assert!(
+            builder
+                .conditional_representation_body_scope(&child, &site, &selected)
+                .is_none()
+        );
+        let foreign_analysis = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let mut foreign_input = context.as_ref().clone();
+        foreign_input.input = foreign_analysis.resolved_input.unwrap();
+        builder.current_representation_body = Some(Arc::new(foreign_input));
+        assert!(
+            builder
+                .conditional_representation_body_scope(&child, &site, &selected)
+                .is_none()
+        );
+        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let foreign_realm = foreign.retained_command_realm().unwrap();
+        let mut foreign_anchor =
+            CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+        foreign_realm
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut foreign_anchor);
+        let foreign_owner = foreign_anchor
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .declaration_flow_inventory
+            .as_ref()
+            .unwrap()
+            .source_seed
+            .as_ref()
+            .unwrap()
+            .analysis_owner
+            .as_ref()
+            .unwrap();
+        assert!(!Arc::ptr_eq(foreign_owner, &context.owner));
+        let mut foreign_context = context.as_ref().clone();
+        foreign_context.owner = Arc::clone(foreign_owner);
+        builder.current_representation_body = Some(Arc::new(foreign_context));
+        assert!(
+            builder
+                .conditional_representation_body_scope(&child, &site, &selected)
+                .is_none()
+        );
+        builder.current_representation_body = Some(Arc::clone(&context));
+        let nested = source.find("if {1} {incr x}").unwrap() + "if {1} {".len();
+        let sibling = source.rfind("incr x").unwrap();
+        for (label, raw_offset) in [("nested", nested), ("sibling", sibling)] {
+            let offset = u32::try_from(raw_offset).unwrap();
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config("incr x", offset, config)
+                    .remove(0);
+            let other = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+            let other_site = CommandAllocationSite {
+                source: Arc::clone(frame.origin()),
+                offset,
+            };
+            let other_flow = builder
+                .source_read_selection(&other, &other_site)
+                .expect("genuine independently selected source child");
+            assert!(
+                builder
+                    .conditional_representation_body_scope(&other, &other_site, &other_flow)
+                    .is_none(),
+                "{label} body cannot borrow the first loop's receipt"
+            );
+        }
+        let mut known_observer = selected.clone();
+        known_observer.representation_no_known_counterevidence = false;
+        assert!(
+            builder
+                .conditional_representation_body_scope(&child, &site, &known_observer)
+                .is_none()
+        );
+        builder.current_representation_body = None;
+        assert!(
+            builder
+                .conditional_representation_body_scope(&child, &site, &selected)
+                .is_none()
+        );
+        let mut changed = inventory.layouts.as_ref().clone();
+        let alternate =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0);
+        assert_ne!(alternate, context.policy);
+        for row in changed.get_mut(&site).unwrap() {
+            let mut state = row.snapshot.state.clone();
+            Arc::make_mut(&mut state.baseline).execution_name_policy = Some(
+                tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(alternate),
+            );
+            row.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
+                state,
+                row.snapshot.realm,
+            ));
+        }
+        let mut changed_inventory = DeclarationFlowInventory::new(
+            Arc::new(changed),
+            Arc::clone(&inventory.accesses),
+            Arc::clone(&inventory.origin_accesses),
+            Arc::clone(&inventory.points),
+            Arc::clone(&inventory.origin_points),
+        );
+        changed_inventory.source_seed = inventory.source_seed.clone();
+        let changed_builder = Builder {
+            inventory: &changed_inventory,
+            current_representation_body: Some(Arc::clone(&context)),
+            ..builder
+        };
+        assert!(
+            changed_builder
+                .source_read_point_scope(&child, &site)
+                .is_some()
+        );
+        assert!(
+            changed_builder
+                .source_read_selection(&child, &site)
+                .as_ref()
+                == Some(&selected)
+        );
+        assert!(
+            changed_builder
+                .conditional_representation_body_scope(&child, &site, &selected)
+                .is_none()
         );
     }
 
@@ -4128,6 +5046,8 @@ mod tests {
                     entry: &frame,
                     purpose: $purpose,
                     representation_realm: None,
+                    representation_loops: Vec::new(),
+                    current_representation_body: None,
                     nodes: Vec::new(),
                     jobs: Vec::new(),
                     conditional_overwrites: Vec::new(),
@@ -4152,6 +5072,30 @@ mod tests {
             .source_read_selection(&child, &site)
             .expect("conditional original body schema");
         assert!(selected.accumulator_writes.iter().any(|name| name == "ys"));
+        assert!(
+            root_builder
+                .representation_root_naming_scope(&child, &site, Some(&selected))
+                .is_some()
+        );
+        assert!(
+            root_builder
+                .representation_root_naming_scope(&child, &site, None)
+                .is_none()
+        );
+        let mut changed_child = child.clone();
+        changed_child.argv_texts[1] = "foreign".to_owned();
+        assert!(
+            root_builder
+                .representation_root_naming_scope(&changed_child, &site, Some(&selected))
+                .is_none()
+        );
+        let mut changed_flow = selected.clone();
+        changed_flow.effects.unknown_writes = true;
+        assert!(
+            root_builder
+                .representation_root_naming_scope(&child, &site, Some(&changed_flow))
+                .is_none()
+        );
         let foreign_analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         let foreign_realm = foreign_analysis.retained_command_realm().unwrap();
         assert!(
@@ -4410,6 +5354,8 @@ mod tests {
             entry: &frame,
             purpose: DeclarationFlowPurpose::Reads,
             representation_realm: None,
+            representation_loops: Vec::new(),
+            current_representation_body: None,
             nodes: Vec::new(),
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
@@ -4467,6 +5413,8 @@ mod tests {
                 entry: &frame,
                 purpose: DeclarationFlowPurpose::Reads,
                 representation_realm: None,
+                representation_loops: Vec::new(),
+                current_representation_body: None,
                 nodes: Vec::new(),
                 jobs: Vec::new(),
                 conditional_overwrites: Vec::new(),
@@ -4555,6 +5503,8 @@ mod tests {
                 entry: &frame,
                 purpose: DeclarationFlowPurpose::Reads,
                 representation_realm: None,
+                representation_loops: Vec::new(),
+                current_representation_body: None,
                 nodes: Vec::new(),
                 jobs: Vec::new(),
                 conditional_overwrites: Vec::new(),
@@ -5519,6 +6469,8 @@ mod conditional_declared_read_point_tests {
                 entry: &self.frame,
                 purpose: DeclarationFlowPurpose::Reads,
                 representation_realm: None,
+                representation_loops: Vec::new(),
+                current_representation_body: None,
                 nodes: Vec::new(),
                 jobs: Vec::new(),
                 conditional_overwrites: Vec::new(),

@@ -62,12 +62,165 @@ impl FiniteIteration {
     }
 }
 
+/// Conditional cardinality of the selected paired-list source schema.
+///
+/// This assumes the original handler executes successfully with the supplied
+/// original literal values and ordinary list parsing. It grants no Native
+/// argv, reached body, completed stores, object identity or execution proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConditionalSourceFiniteIteration {
+    iterations: usize,
+}
+
+impl ConditionalSourceFiniteIteration {
+    /// Number of iterations under the retained source premises.
+    #[must_use]
+    pub const fn iterations(self) -> usize {
+        self.iterations
+    }
+}
+
+/// One original literal loop-variable-list element under a conditional
+/// successful C Tcl foreach handler. This is not an entered or completed store.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConditionalSourceSingleLoopBinding {
+    operand: usize,
+    name: Vec<u8>,
+    receiver: crate::resolved_invocation::VariableReceiverOperandForm,
+    direct_phase_lookup_unchanged: bool,
+}
+
+impl ConditionalSourceSingleLoopBinding {
+    /// Whether the audited direct phase leaves lookup unchanged under the
+    /// ordinary-list and unobserved-cell premises. The separately modelled
+    /// body retains its own effects and lookup obligations.
+    #[must_use]
+    pub const fn direct_phase_preserves_lookup(&self) -> bool {
+        self.direct_phase_lookup_unchanged
+    }
+
+    /// Original varlist operand in the selected source schema.
+    #[must_use]
+    pub const fn operand(&self) -> usize {
+        self.operand
+    }
+
+    /// The one decoded list element, not an actual runtime name value.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+
+    /// Conditional handler receiver for that single decoded element.
+    #[must_use]
+    pub const fn receiver_form(&self) -> crate::resolved_invocation::VariableReceiverOperandForm {
+        self.receiver
+    }
+}
+
+/// Audited aggregate legacy effect of the stock paired-list loop. The
+/// conditional source phase treats its body separately; generic facts retain it.
+pub(crate) const PAIRED_LOOP_LEGACY_EFFECTS: &[crate::side_effects::SideEffect] =
+    &[crate::side_effects::SideEffect {
+        reads: true,
+        writes: true,
+        ..crate::side_effects::SideEffect::DEFAULT
+    }];
+
+/// Registry-owned opt-in for the stock ordinary-object paired-list handler.
+/// This carries no entered body, store, callback or execution permission.
+#[derive(Debug, Clone, Copy)]
+pub struct ConditionalSourcePairedLoopHandler {
+    _private: (),
+}
+
+pub(crate) const CONDITIONAL_SOURCE_PAIRED_LOOP_HANDLER: ConditionalSourcePairedLoopHandler =
+    ConditionalSourcePairedLoopHandler { _private: () };
+
+impl crate::ResolvedInvocation<'_, '_> {
+    /// One source binder under the selected original handler, ordinary list,
+    /// unobserved cell and separately modelled body premises.
+    #[must_use]
+    pub fn conditional_source_single_loop_binding(
+        &self,
+    ) -> Option<ConditionalSourceSingleLoopBinding> {
+        use crate::hooks::LoweringHookId;
+        use crate::native_compilation::{
+            NativeBodyCompilation, NativeCompilationGrammar, SuccessfulHandlerSpec,
+        };
+        let arguments = self.words.arguments();
+        let dialect = arguments.dialect()?;
+        let semantics = &self.semantics;
+        semantics
+            .value
+            .semantics()?
+            .conditional_source_paired_loop_handler()?;
+        let native = semantics.native_compilation?;
+        if self.selected.spec.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
+            || self.selected.sub.is_some()
+            || self.selected.instance
+            || self.selected.form.is_some()
+            || dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+            || dialect.tcl_version.is_none()
+            || self.facts().operation
+                != SemanticOperationId::StructuredLowering(LoweringHookId::Foreach)
+            || native.grammar != NativeCompilationGrammar::Foreach
+            || native.operation != SemanticOperationId::StructuredLowering(LoweringHookId::Foreach)
+            || native.body != NativeBodyCompilation::Inherit
+            || semantics.successful_handler != Some(SuccessfulHandlerSpec::PossibleBodies)
+            || semantics.body_kind != crate::body_kind::BodyKind::Plain
+            || semantics.body_interpreter != crate::body_kind::BodyInterpreter::Current
+            || semantics.frame_effect.is_some()
+            || semantics.body_execution.is_some()
+            || self.facts().arity_accepts_frozen_arguments() != Some(true)
+            || semantics.state_transitions.is_declared()
+            || semantics.world_effects.is_declared()
+            || semantics.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
+        {
+            return None;
+        }
+        let shape = self.facts().finite_iteration_shape(arguments)?;
+        let [group] = shape.groups.as_slice() else {
+            return None;
+        };
+        let [name] = group.names.as_slice() else {
+            return None;
+        };
+        Some(ConditionalSourceSingleLoopBinding {
+            operand: semantics.argument_offset,
+            name: name.clone(),
+            receiver: crate::resolved_invocation::VariableReceiverOperandForm::Combined,
+            direct_phase_lookup_unchanged: true,
+        })
+    }
+}
+
 impl InvocationFacts {
     /// Exact native paired-list rows from complete frozen literal operands.
     /// This uses the same selected contract as iteration entry, retaining
     /// native list parsing independently from word spelling and compiler hooks.
     #[must_use]
     pub fn finite_iteration(&self, arguments: InvocationArguments<'_>) -> Option<FiniteIteration> {
+        self.finite_iteration_shape(arguments)
+    }
+
+    /// Paired-list cardinality only under the original-source premises.
+    /// This conditional view cannot be converted to native iteration proof.
+    #[must_use]
+    pub fn conditional_source_finite_iteration(
+        &self,
+        arguments: InvocationArguments<'_>,
+    ) -> Option<ConditionalSourceFiniteIteration> {
+        self.finite_iteration_shape(arguments)
+            .map(|shape| ConditionalSourceFiniteIteration {
+                iterations: shape.iterations,
+            })
+    }
+
+    fn finite_iteration_shape(
+        &self,
+        arguments: InvocationArguments<'_>,
+    ) -> Option<FiniteIteration> {
         if !matches!(
             self.iteration_entry(arguments),
             IterationEntry::Empty | IterationEntry::Required
@@ -224,6 +377,228 @@ mod tests {
                 .with_dialect(crate::InvocationDialect::of_profile(profile));
             assert!(facts.finite_iteration(unknown).is_none());
         }
+    }
+
+    #[test]
+    fn conditional_source_count_retains_only_known_paired_list_shape() {
+        use InvocationWord::{Dynamic, Expanded, Literal as L};
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            let registry = crate::CommandRegistry::build_default();
+            let seed = [L("i"), L("1 2 3"), L("")];
+            let arguments = InvocationArguments::structured(&seed).with_dialect(dialect);
+            let selection = registry.resolve_structured_invocation(
+                InvocationWords::from_arguments(L("foreach"), arguments),
+                None,
+            );
+            let selected = selection.resolved().unwrap();
+            let facts = selected.facts();
+            let binding = selected.conditional_source_single_loop_binding();
+            if environment == "jim" {
+                assert!(binding.is_none());
+            } else {
+                let binding = binding.expect("conditional single binder");
+                assert_eq!(binding.operand(), 0);
+                assert_eq!(binding.name(), b"i");
+                assert!(binding.direct_phase_preserves_lookup());
+                assert_eq!(
+                    binding.receiver_form(),
+                    crate::resolved_invocation::VariableReceiverOperandForm::Combined
+                );
+            }
+            let multiple = [L("i j"), L("1 2"), L("")];
+            let multiple = InvocationArguments::structured(&multiple).with_dialect(dialect);
+            let multiple_selection = registry.resolve_structured_invocation(
+                InvocationWords::from_arguments(L("foreach"), multiple),
+                None,
+            );
+            assert!(
+                multiple_selection
+                    .resolved()
+                    .unwrap()
+                    .conditional_source_single_loop_binding()
+                    .is_none()
+            );
+            for (values, expected) in [("", 0), ("1", 1), ("1 2 3", 3)] {
+                let words = [L("i"), L(values), L("")];
+                let args = InvocationArguments::structured(&words).with_dialect(dialect);
+                assert_eq!(
+                    facts
+                        .conditional_source_finite_iteration(args)
+                        .unwrap()
+                        .iterations(),
+                    expected,
+                    "{environment} {values:?}"
+                );
+                assert_eq!(facts.finite_iteration(args).unwrap().iterations(), expected);
+            }
+            for words in [
+                [L("i"), Dynamic, L("")],
+                [Expanded, L("1"), L("")],
+                [L(""), L("1"), L("")],
+            ] {
+                let args = InvocationArguments::structured(&words).with_dialect(dialect);
+                assert!(
+                    facts.conditional_source_finite_iteration(args).is_none(),
+                    "{environment} {words:?}"
+                );
+            }
+            let words = [L("i"), L("{"), L("")];
+            let args = InvocationArguments::structured(&words).with_dialect(dialect);
+            let count = facts
+                .conditional_source_finite_iteration(args)
+                .map(ConditionalSourceFiniteIteration::iterations);
+            assert_eq!(count, (environment == "jim").then_some(1), "{environment}");
+        }
+    }
+
+    #[test]
+    fn conditional_single_binder_declines_other_profiles_and_handlers() {
+        use InvocationWord::Literal as L;
+        let registry = crate::CommandRegistry::build_default();
+        let profile = crate::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let dialect = crate::InvocationDialect::of_profile(profile);
+        let words = [L("i"), L("1 2 3"), L("")];
+        let arguments = InvocationArguments::structured(&words).with_dialect(dialect);
+        let lmap = registry.resolve_structured_invocation(
+            InvocationWords::from_arguments(L("lmap"), arguments),
+            None,
+        );
+        assert!(
+            lmap.resolved()
+                .unwrap()
+                .conditional_source_single_loop_binding()
+                .is_none()
+        );
+        let foreach = registry.resolve_structured_invocation(
+            InvocationWords::from_arguments(L("foreach"), arguments),
+            None,
+        );
+        let selected = foreach.resolved().unwrap();
+        assert!(selected.conditional_source_single_loop_binding().is_some());
+        let mut extra = selected;
+        const EXTRA: &[crate::side_effects::SideEffect] = &[
+            crate::iteration_entry::PAIRED_LOOP_LEGACY_EFFECTS[0],
+            crate::side_effects::SideEffect {
+                target: crate::side_effects::SideEffectTarget::FileIo,
+                writes: true,
+                ..crate::side_effects::SideEffect::DEFAULT
+            },
+        ];
+        extra.semantics.side_effects = EXTRA;
+        assert!(extra.conditional_source_single_loop_binding().is_none());
+        let mut declined = selected;
+        declined.semantics.value =
+            crate::value_transfer::declaration::ResolvedSemantics::Declined {
+                scope: crate::value_transfer::declaration::DeclarationScope::Form,
+            };
+        assert!(declined.conditional_source_single_loop_binding().is_none());
+        let mut explicit_world = selected;
+        explicit_world.semantics.world_effects.form =
+            Some(crate::world_effect::WorldEffectDescriptor::EMPTY);
+        assert!(
+            explicit_world
+                .conditional_source_single_loop_binding()
+                .is_none()
+        );
+        let mut transition = selected;
+        transition.semantics.state_transitions.form =
+            Some(crate::state_transition::StateTransitionDescriptor::EMPTY);
+        assert!(
+            transition
+                .conditional_source_single_loop_binding()
+                .is_none()
+        );
+        let mut invalid_arity = selected;
+        invalid_arity.semantics.arity = crate::Arity::exact(0);
+        assert!(
+            invalid_arity
+                .conditional_source_single_loop_binding()
+                .is_none()
+        );
+        let mut extra_body = selected;
+        extra_body.semantics.body_execution =
+            Some(crate::body_execution::BodyExecutionSpec::DeferredGlobalScript);
+        assert!(
+            extra_body
+                .conditional_source_single_loop_binding()
+                .is_none()
+        );
+        let mut wrong_body = selected;
+        wrong_body.semantics.successful_handler =
+            Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf);
+        assert!(
+            wrong_body
+                .conditional_source_single_loop_binding()
+                .is_none()
+        );
+        let effects = selected.facts().effects;
+        assert_eq!(
+            effects.callback().kinds,
+            crate::world_effect::CallbackKinds::UNKNOWN
+        );
+        assert!(
+            effects
+                .accesses()
+                .iter()
+                .any(|access| access.domain
+                    == crate::world_effect::WorldStateDomain::HostCapabilities)
+        );
+        let f5 = crate::model::ingress::resolve_environment("f5-irules").unit_profile();
+        let arguments = InvocationArguments::structured(&words)
+            .with_dialect(crate::InvocationDialect::of_profile(f5));
+        let f5 = registry.resolve_structured_invocation(
+            InvocationWords::from_arguments(L("foreach"), arguments),
+            None,
+        );
+        assert!(
+            f5.resolved()
+                .unwrap()
+                .conditional_source_single_loop_binding()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_paired_loop_refuses_effects_hidden_by_form_override() {
+        use crate::side_effects::{SideEffect, SideEffectTarget};
+        use crate::{ArgRole, Arity};
+        use InvocationWord::Literal as L;
+        const EXTRA: &[SideEffect] = &[
+            PAIRED_LOOP_LEGACY_EFFECTS[0],
+            SideEffect {
+                target: SideEffectTarget::FileIo,
+                writes: true,
+                ..SideEffect::DEFAULT
+            },
+        ];
+        const FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
+            name: "three",
+            arity: Arity::exact(3),
+            arg_roles: &[(0, ArgRole::LoopVarList), (2, ArgRole::Body)],
+            side_effects: Some(PAIRED_LOOP_LEGACY_EFFECTS),
+            ..crate::forms::CommandForm::DEFAULT
+        }];
+        let mut registry = crate::CommandRegistry::build_default();
+        let mut spec = registry.get("foreach").unwrap().clone();
+        spec.name = "test-paired-loop";
+        spec.side_effects = EXTRA;
+        spec.command_forms = FORMS;
+        registry.insert(spec);
+        let profile = crate::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let words = [L("i"), L("1 2 3"), L("")];
+        let arguments = InvocationArguments::structured(&words)
+            .with_dialect(crate::InvocationDialect::of_profile(profile));
+        let resolution = registry.resolve_structured_invocation(
+            InvocationWords::from_arguments(L("test-paired-loop"), arguments),
+            None,
+        );
+        let selected = resolution.resolved().expect("selected fixture");
+        assert!(selected.form.is_some());
+        assert_eq!(selected.semantics.side_effects, PAIRED_LOOP_LEGACY_EFFECTS);
+        assert_eq!(selected.selected.spec.side_effects, EXTRA);
+        assert!(selected.conditional_source_single_loop_binding().is_none());
     }
 
     fn entry(environment: &str, command: &str, values: &[InvocationWord<'_>]) -> IterationEntry {

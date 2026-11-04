@@ -180,3 +180,134 @@ fn shadowed_handlers_and_traces_withdraw_source_assumptions() {
         );
     }
 }
+
+#[test]
+fn fixed_count_dependent_increment_and_list_index_report_thunking() {
+    let source = "set x 0; foreach i {1 2 3} {incr x; lindex $x 0}";
+    for version in tcl_dialect::TclVersion::ALL {
+        with_unit(
+            source,
+            version.dialect_profile_name(),
+            |unit, registry, profile| {
+                let warnings = tcl_compiler::shimmer::find_thunking_warnings_for_cu(unit, registry);
+                let matching: Vec<_> = warnings
+                    .iter()
+                    .filter(|warning| warning.code == DiagCode::S102 && warning.variable == "x")
+                    .collect();
+                assert_eq!(matching.len(), 1, "{version:?}: {warnings:?}");
+                let warning = matching[0];
+                assert_eq!(
+                    (warning.type_a, warning.type_b),
+                    (TclType::Int, TclType::List)
+                );
+                assert_eq!(warning.span.start() as usize, source.rfind("$x").unwrap());
+                let checks =
+                    tcl_compiler::compiler_checks::run_all_checks(unit, registry, Some(profile));
+                let diagnostics: Vec<_> = checks
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code == DiagCode::S102)
+                    .collect();
+                assert_eq!(diagnostics.len(), 1, "{version:?}: {checks:?}");
+                assert_eq!(diagnostics[0].span, warning.span);
+                assert!(
+                    !checks
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == DiagCode::S100
+                            && diagnostic.span == warning.span),
+                    "a proved cycle must not duplicate its own single-conversion diagnostic"
+                );
+                assert_eq!(diagnostics[0].message, warning.message);
+                assert!(diagnostics[0].replacement.is_none() && diagnostics[0].fixes.is_empty());
+                assert!(
+                    diagnostics[0]
+                        .source_context
+                        .as_ref()
+                        .is_some_and(|context| !context.allows_context_action_subject())
+                );
+            },
+        );
+    }
+}
+
+#[test]
+fn overwritten_or_large_valid_seed_still_reports_carried_conversion() {
+    for source in [
+        "set x abc; set x 0; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "set x 9223372036854775807; foreach i {1 2 3} {incr x; lindex $x 0}",
+    ] {
+        with_unit(source, "tcl8.6", |unit, registry, _| {
+            let warnings = tcl_compiler::shimmer::find_thunking_warnings_for_cu(unit, registry);
+            assert_eq!(
+                warnings
+                    .iter()
+                    .filter(|warning| warning.code == DiagCode::S102)
+                    .count(),
+                1,
+                "{source}: {warnings:?}"
+            );
+        });
+    }
+}
+
+#[test]
+fn finite_loop_without_a_carried_conversion_does_not_report_thunking() {
+    for source in [
+        "set x abc; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "set a abc; set x $a; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "set x Inf; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "set x NaN; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "set x {1 2}; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "set x 0; foreach i {} {incr x; lindex $x 0}",
+        "set x 0; foreach i {1} {incr x; lindex $x 0}",
+        "set x 0; foreach i $unknown {incr x; lindex $x 0}",
+        "set x 0; foreach x {1 2 3} {incr x; lindex $x 0}",
+        "set x 0; foreach i {1 2 3} {set x 0; incr x; lindex $x 0}",
+        "set x 0; foreach i {1 2 3} {incr y; lindex $x 0}",
+        "set x 0; foreach i {1 2 3} {incr x; lindex $x 0; proc incr args {}}",
+        "proc observe args {}; set x 0; foreach i {1 2 3} {incr x; lindex $x 0; trace add variable x write observe}",
+        "set x 0; foreach i {1 2 3} {lindex $x 0}",
+        "set x 0; foreach i {1 2 3} {break; incr x; lindex $x 0}",
+        "set x 0; foreach i {1 2 3} {continue; incr x; lindex $x 0}",
+        "set x 0; foreach i {1 2 3} {if {$i == 2} {return}; incr x; lindex $x 0}",
+        "proc incr args {}; set x 0; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "rename incr saved; set x 0; foreach i {1 2 3} {incr x; lindex $x 0}",
+        "proc observe args {}; set x 0; trace add variable x write observe; foreach i {1 2 3} {incr x; lindex $x 0}",
+    ] {
+        with_unit(source, "tcl8.6", |unit, registry, _| {
+            let warnings = tcl_compiler::shimmer::find_thunking_warnings_for_cu(unit, registry);
+            assert!(
+                !warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::S102),
+                "{source}: {warnings:?}"
+            );
+        });
+    }
+}
+
+#[test]
+fn reported_conditional_list_accumulators_remain_quiet() {
+    for source in [
+        "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; if {$y > 2} {lappend ys $y; lappend pts $pt}}",
+        "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; lappend ys $y; lappend pts $pt}",
+        "set fontSizes {10.0 12.0 16.0 24.0}; foreach size $fontSizes {puts $size}",
+    ] {
+        with_unit(source, "tcl8.6", |unit, registry, profile| {
+            let warnings = tcl_compiler::shimmer::find_thunking_warnings_for_cu(unit, registry);
+            assert!(
+                !warnings
+                    .iter()
+                    .any(|warning| warning.code == DiagCode::S102),
+                "{source}: {warnings:?}"
+            );
+            let diagnostics =
+                tcl_compiler::compiler_checks::run_all_checks(unit, registry, Some(profile));
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == DiagCode::S102),
+                "{source}: {diagnostics:?}"
+            );
+        });
+    }
+}

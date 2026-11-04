@@ -126,6 +126,61 @@ pub enum ConditionalSourceRepresentation {
     },
 }
 
+/// A conditional prior-cell dependency and numeric store from an audited
+/// original increment handler. This assumes successful integer parsing and an
+/// ordinary cell without observers; it grants no dispatch, completion, absence
+/// of traces, object sharing or physical mutation proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConditionalSourceTargetUpdate {
+    target: TargetId,
+    prior: crate::TclType,
+    stored: crate::TclType,
+    numbers: tcl_dialect::NumberSyntax,
+}
+
+impl ConditionalSourceTargetUpdate {
+    /// Whether an exact ASCII source value cannot be parsed by the selected
+    /// C Tcl integer grammar. Unknown encoding and large valid integers stay
+    /// conditional; this does not prove completion or representation.
+    #[must_use]
+    pub fn definitely_rejects_literal(self, bytes: &[u8]) -> bool {
+        if !bytes.is_ascii() {
+            return false;
+        }
+        let Ok(text) = std::str::from_utf8(bytes) else {
+            return false;
+        };
+        !matches!(
+            tcl_syntax::number::parse_whole_with(
+                text,
+                tcl_syntax::number::ParseFlags {
+                    integer_only: true,
+                    ..tcl_syntax::number::ParseFlags::for_syntax(self.numbers)
+                },
+            ),
+            Some(tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. })
+        )
+    }
+
+    /// The source-owned cell whose previous value is read and updated.
+    #[must_use]
+    pub const fn target(self) -> TargetId {
+        self.target
+    }
+
+    /// The prior value is consumed as an integer under these premises.
+    #[must_use]
+    pub const fn prior_representation_requirement(self) -> crate::TclType {
+        self.prior
+    }
+
+    /// The conditional store contains an integer representation.
+    #[must_use]
+    pub const fn stored_representation(self) -> crate::TclType {
+        self.stored
+    }
+}
+
 /// What a registry-owned specialisation supplies for one invocation.
 ///
 /// Returned plans and facts are preferred to callbacks because a plan can
@@ -147,6 +202,24 @@ pub trait CommandSemantics: Sync + Send {
         &self,
         input: &dyn AnalysisInputs,
     ) -> Option<ConditionalSourceRepresentation> {
+        let _ = input;
+        None
+    }
+
+    /// Conditional source phase of an audited ordinary-object paired loop.
+    /// This does not provide a reached handler or body entry.
+    fn conditional_source_paired_loop_handler(
+        &self,
+    ) -> Option<crate::iteration_entry::ConditionalSourcePairedLoopHandler> {
+        None
+    }
+
+    /// A separately audited source-only prior-target update. The default
+    /// declines; this never supplies a reached store or execution authority.
+    fn conditional_source_target_update(
+        &self,
+        input: &dyn AnalysisInputs,
+    ) -> Option<ConditionalSourceTargetUpdate> {
         let _ = input;
         None
     }
@@ -242,6 +315,71 @@ pub trait CommandSemantics: Sync + Send {
 #[cfg(test)]
 mod conditional_source_representation_tests {
     use super::*;
+
+    #[test]
+    fn conditional_increment_target_update_requires_audited_c_profile_and_shape() {
+        let update = cell_update::CellUpdateSemantics {
+            update: crate::native_lowering::CellUpdate::Increment,
+            creates_absent: None,
+        };
+        let append = cell_update::CellUpdateSemantics {
+            update: crate::native_lowering::CellUpdate::ListAppend,
+            creates_absent: None,
+        };
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                crate::model::ingress::resolve_environment(version.dialect_profile_name())
+                    .unit_profile();
+            let one = LiteralInputs::new("incr", None, &["x"], Some(profile));
+            let relation = update
+                .conditional_source_target_update(&one)
+                .expect("audited source relation");
+            assert_eq!(relation.target(), TargetId(OperandId(0)));
+            assert_eq!(
+                relation.prior_representation_requirement(),
+                crate::TclType::Int
+            );
+            assert_eq!(relation.stored_representation(), crate::TclType::Int);
+            assert!(relation.definitely_rejects_literal(b"abc"));
+            assert!(relation.definitely_rejects_literal(b"1 2"));
+            assert!(relation.definitely_rejects_literal(b"Inf"));
+            assert!(relation.definitely_rejects_literal(b"NaN"));
+            assert!(!relation.definitely_rejects_literal(b"0"));
+            assert!(!relation.definitely_rejects_literal(b"9223372036854775807"));
+            assert!(!relation.definitely_rejects_literal(b"922337203685477581000000000000000"));
+            assert!(!relation.definitely_rejects_literal(&[0xff]));
+            let explicit = LiteralInputs::new("incr", None, &["x", "1"], Some(profile));
+            assert!(update.conditional_source_target_update(&explicit).is_none());
+            assert!(append.conditional_source_target_update(&one).is_none());
+        }
+        let f5 = crate::model::ingress::resolve_environment("f5-irules").unit_profile();
+        assert!(
+            update
+                .conditional_source_target_update(&LiteralInputs::new(
+                    "incr",
+                    None,
+                    &["x"],
+                    Some(f5)
+                ))
+                .is_none()
+        );
+        let jim = crate::model::ingress::resolve_environment("jim").unit_profile();
+        assert!(
+            update
+                .conditional_source_target_update(&LiteralInputs::new(
+                    "incr",
+                    None,
+                    &["x"],
+                    Some(jim)
+                ))
+                .is_none()
+        );
+        assert!(
+            update
+                .conditional_source_target_update(&LiteralInputs::new("incr", None, &["x"], None))
+                .is_none()
+        );
+    }
 
     #[test]
     fn audited_result_relations_keep_source_value_and_arity_distinct() {

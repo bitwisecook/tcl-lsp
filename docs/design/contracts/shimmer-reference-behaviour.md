@@ -147,6 +147,26 @@ dataflow over the SCCP-executable blocks, shared by the use-site, expr, and
   ValueKey selected by the original source owner — hover renders
   "string (first used as: list)" at the creation site.
 
+#### Conditional source recurrence
+
+A separate source-only diagnostic follows an authenticated, immediate
+same-frame body of a fixed-count C Tcl `foreach` with at least two iterations.
+It reports S102 only when the registry's conditional increment relation reads a
+carried scalar, stores an integer result, and a later single-index list use
+converts that same value on two returning iterations. The graph retains the
+original loop, body and source-input receipts, snapshots operands in evaluation
+order, and carries their conditional premises into the warning. The ordinary
+object, unobserved cell and successful original-handler premises do not prove
+runtime dispatch, Native or Normal admission, or a safe edit.
+
+A literal supplies bytes rather than an integer representation. A known invalid
+integer seed, zero or one iteration, an independent reset, or an unsupported
+mutation cannot prove this cycle. Unknown operations, aliases and trace effects
+remain barriers; a branch or backedge cannot borrow a body context from a path
+that did not enter it. The diagnostic is conditional and carries no action.
+The focused controls live in
+`rust/tcl-compiler/tests/lsp_shimmer_conditional_source.rs`.
+
 ## Where the command-level knowledge lives
 
 The mapping above is validated against the Tcl 9.0.3 C sources. The `arg_types`

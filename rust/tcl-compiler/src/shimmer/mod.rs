@@ -352,52 +352,123 @@ pub(crate) fn conditional_source_shimmer_warnings(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
 ) -> Vec<ShimmerWarning> {
+    let observations = conditional_source_observations(cu, registry);
     let mut out: Vec<ShimmerWarning> = Vec::new();
-    if let Some(bindings) = cu.ir_module.retained_source_bindings.as_ref()
-        && let Some(positioned) = bindings.positioned_for_module(&cu.ir_module, registry)
-    {
-        let observations =
-            positioned.conditional_representation_observations(&cu.ir_module, registry);
-        for observation in observations {
-            if observation.premises().is_empty() {
-                continue;
-            }
-            let name = match observation.symbol().slot() {
-                SignatureSourceVariableSlot::C { simple, .. }
-                | SignatureSourceVariableSlot::Local { simple, .. } => simple.try_utf8().ok(),
-                SignatureSourceVariableSlot::Jim(name) => name.try_utf8().ok(),
-            };
-            let Some(name) = name else { continue };
-            let from = observation.prior_type();
-            let to = observation.to_type();
-            if out.iter().any(|warning| {
-                warning.span == observation.span()
-                    && warning.variable == name
-                    && warning.from_type == from
-                    && warning.to_type == to
-            }) {
-                continue;
-            }
-            let command = observation.consumer().command().to_owned();
-            out.push(ShimmerWarning {
-                span: observation.span(),
-                variable: name.to_owned(),
-                from_type: from,
-                to_type: to,
-                command: command.clone(),
-                in_loop: false,
-                code: DiagCode::S100,
-                message: format!(
-                    "variable '{name}' may be converted from {} to {} by '{command}'",
-                    type_name(from),
-                    type_name(to)
-                ),
-                related: vec![(
-                    observation.producer_span(),
-                    "value produced here".to_owned(),
-                )],
-            });
+    for observation in &observations {
+        if observation.premises().is_empty()
+            || observation.is_loop_carried()
+            || observations.iter().any(|other| {
+                other.is_loop_carried()
+                    && !other.premises().is_empty()
+                    && other.span() == observation.span()
+                    && other.symbol() == observation.symbol()
+            })
+        {
+            continue;
         }
+        let Some(name) = conditional_source_variable_name(observation) else {
+            continue;
+        };
+        let from = observation.prior_type();
+        let to = observation.to_type();
+        if out.iter().any(|warning| {
+            warning.span == observation.span()
+                && warning.variable == name
+                && warning.from_type == from
+                && warning.to_type == to
+        }) {
+            continue;
+        }
+        let command = observation.consumer().command().to_owned();
+        out.push(ShimmerWarning {
+            span: observation.span(),
+            variable: name.to_owned(),
+            from_type: from,
+            to_type: to,
+            command: command.clone(),
+            in_loop: false,
+            code: DiagCode::S100,
+            message: format!(
+                "variable '{name}' may be converted from {} to {} by '{command}'",
+                type_name(from),
+                type_name(to)
+            ),
+            related: vec![(
+                observation.producer_span(),
+                "value produced here".to_owned(),
+            )],
+        });
+    }
+    out
+}
+
+fn conditional_source_observations(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> Vec<crate::command_binding::SourceConversionObservation> {
+    cu.ir_module
+        .retained_source_bindings
+        .as_ref()
+        .and_then(|bindings| bindings.positioned_for_module(&cu.ir_module, registry))
+        .map(|positioned| {
+            positioned.conditional_representation_observations(&cu.ir_module, registry)
+        })
+        .unwrap_or_default()
+}
+
+fn conditional_source_variable_name(
+    observation: &crate::command_binding::SourceConversionObservation,
+) -> Option<&str> {
+    match observation.symbol().slot() {
+        SignatureSourceVariableSlot::C { simple, .. }
+        | SignatureSourceVariableSlot::Local { simple, .. } => simple.try_utf8().ok(),
+        SignatureSourceVariableSlot::Jim(name) => name.try_utf8().ok(),
+    }
+}
+
+/// Completed source-only loop witnesses under their retained premises.
+pub(crate) fn conditional_source_thunking_warnings(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+) -> Vec<ThunkingWarning> {
+    let mut out: Vec<ThunkingWarning> = Vec::new();
+    for observation in conditional_source_observations(cu, registry) {
+        if !observation.is_loop_carried() || observation.premises().is_empty() {
+            continue;
+        }
+        let Some(name) = conditional_source_variable_name(&observation) else {
+            continue;
+        };
+        let from = observation.prior_type();
+        let to = observation.to_type();
+        if out.iter().any(|warning| {
+            warning.span == observation.span()
+                && warning.variable == name
+                && warning.type_a == from
+                && warning.type_b == to
+        }) {
+            continue;
+        }
+        let mut related = vec![(
+            observation.producer_span(),
+            "dependent update here".to_owned(),
+        )];
+        if let Some(span) = observation.loop_span() {
+            related.push((span, "conditional loop here".to_owned()));
+        }
+        out.push(ThunkingWarning {
+            span: observation.span(),
+            variable: name.to_owned(),
+            type_a: from,
+            type_b: to,
+            code: DiagCode::S102,
+            message: format!(
+                "variable '{name}' may repeatedly convert between {} and {} in this loop",
+                type_name(from),
+                type_name(to)
+            ),
+            related,
+        });
     }
     out
 }
@@ -514,6 +585,16 @@ pub fn find_thunking_warnings_for_cu(
             context,
             cu.method_instance_vars(fu.body_id),
         ));
+    }
+    for warning in conditional_source_thunking_warnings(cu, registry) {
+        if !out.iter().any(|existing| {
+            existing.span == warning.span
+                && existing.variable == warning.variable
+                && existing.type_a == warning.type_a
+                && existing.type_b == warning.type_b
+        }) {
+            out.push(warning);
+        }
     }
     out
 }

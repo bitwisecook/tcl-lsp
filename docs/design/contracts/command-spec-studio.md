@@ -1033,6 +1033,13 @@ explicit `DraftOpaque` placeholder tracked by `GAPS`; option-level `-evaluate`
 declines also retain a `GAPS` entry. See
 [value-evaluation.md](../compiler/value-evaluation.md) for the parity contract.
 
+The conditional source phase of the built-in paired-list loop is deliberately
+excluded from SpecTcl authoring and recorded as
+`conditional_source_paired_loop_handler` in `GAPS`. Its opt-in belongs to the
+audited C handler's Rust value-transfer implementation; a pack's iteration
+shape alone cannot establish that handler's effects. Generic effects remain
+unchanged and a pack's source-phase query declines.
+
 ## Publishing
 
 The page ships to GitHub Pages at `/spec-studio/` alongside the compiler

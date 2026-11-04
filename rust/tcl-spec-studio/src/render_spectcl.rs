@@ -178,6 +178,13 @@ pub struct Gap {
 /// from its source **only** on these keys, and reports any other difference as
 /// a failure.
 pub const GAPS: &[Gap] = &[
+    // Only the audited built-in handler may opt into this conditional source
+    // phase; a loadable declaration cannot establish the C implementation.
+    Gap {
+        key: "conditional_source_paired_loop_handler",
+        spelling: "conditional source paired-loop handler (built-in only)",
+        kind: GapKind::Excluded,
+    },
     Gap {
         key: "pack_source_sandbox_helper",
         spelling: "stock host provisioning capability (not source-authored)",
