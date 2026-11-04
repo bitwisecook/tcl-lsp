@@ -379,8 +379,9 @@ fn rejects_proc_rename_to_builtin() {
         &uri,
         "proc greet {name} { puts \"Hello $name\" }\ngreet World\n",
     );
-    let result = lsp.rename(&uri, 0, 6, "puts");
-    assert!(rename_edits(&result).is_empty());
+    let error = lsp.rename_error(&uri, 0, 6, "puts");
+    assert_eq!(error["code"], -32602, "{error}");
+    assert_eq!(error["data"]["code"], "original-command-collision", "{error}");
 }
 
 #[test]
