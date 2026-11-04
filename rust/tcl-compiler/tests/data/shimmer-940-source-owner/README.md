@@ -1,15 +1,21 @@
 # #940 source-owner regression plan
 
 These are fixed source inputs and expected facts for review of the pending
-source-owner change. They are not a validation result or installed CI tests.
-The baseline is `f12b8afb23d8659ed286fb091058d612ba7021ef`; no candidate was
-available when this plan was recorded on 4 November 2026.
+source-owner change. They are not installed CI tests. The initial plan used
+`f12b8afb23d8659ed286fb091058d612ba7021ef`; the observational baseline below
+uses `182ea778465ebe9752e63be808201ccc52e21632`. No candidate was available.
 
 `cases.json` records the exact authored sources, references to the already
 published external-report fixtures, and their expected warning and IR facts.
 `guards.json` records the ownership refusals that must accompany any restored
 analysis. All original sources use the existing Tcl lexer, child parser,
 registry and shared naming owners.
+
+`phi-provenance-review.md` records the read-only S102 provenance review and
+native oracle evidence. The matrix now includes six additional boundaries:
+dependent branchy and within-iteration positives, independent sequential and
+branchy reset negatives, sibling loops and aliased storage. The existing
+fresh-sequential S102 test expectation is contradicted by the native oracles.
 
 | Cases | Required result | Evidence needed before claiming success |
 | --- | --- | --- |
@@ -41,8 +47,39 @@ source compilation settings, `CompilationUnit`, the shared IR walker and SSA
 type facts. Select named procedure bodies by Module-issued `ProcedureId`, not a
 rendered qualified name. The candidate is frozen and hashed before and after
 the build/test run; all heavy builds use `/tmp/lsp-heavy-build.py` with this
-checkout's own target directory. No pre-candidate compiler build was started.
+checkout's own target directory.
 
-Gate status for this data-only checkpoint: JSON syntax and referenced fixtures
-were checked. Rust compilation, rust-check and prep-pr remain pending the main
-candidate snapshot; this checkpoint establishes no new passing product result.
+The authorised baseline probe compiled with `--no-run` through the shared build
+limiter, then ran the emitted binary directly after releasing that lock. All
+25,751 frozen files and HEAD matched before and after the run. Exact driver,
+inputs, commands, raw logs, binary hash, complete compressed source manifest
+and results are in `baseline-2026-11-04`.
+
+The 27-case probe completed successfully as an observation. It made no assertion
+that the known gaps are wanted behaviour. All six genuine S102 controls are
+quiet. Both computed-int/list controls have Known Int producers but remain
+quiet; the dict/list control warns at top level but stays quiet inside the
+procedure loop despite a Known Dict producer. #2501/#2502 originals remain
+quiet, as do their removed-binder controls. The #2286 original-program control
+still emits zero instead of two W210 warnings.
+
+A separate one-case input manifest uses the same binary and unchanged Rust
+source: `proc uncoveredOwner {} {puts $__owner_missing}; uncoveredOwner` emits
+W210 for `__owner_missing`. That control is also in the current 28-case matrix.
+The false-positive absences therefore coexist with a specific context/coverage
+gap; W210 is not globally disabled.
+
+Existing authority is nonzero in this baseline. The 172 retained original
+carriers include 70 compiler admissions and 37 completed Normal results; their
+script plans include 23 HostScript and 149 NoRetainedObligation observations.
+These are per-carrier counts, not distinct obligations. Ordinary Bytecode also
+retains existing admitted typed loops, while BytecodeTraced produces 78 generic
+Calls and no native compiler admissions. Future no-new-authority checks must
+compare the exact originally absent child sites and preserve existing provider
+plans, rather than assert global absence.
+
+Gate status for this data-only checkpoint: JSON syntax, fixture references,
+probe compilation, observational execution, source freeze and oracle checks
+passed. rust-check and prep-pr remain unexecuted here; the earlier gate failures
+remain recorded in `docs/LSP_RELEASE_BINDINGS.md`. This establishes no passing
+candidate result.
