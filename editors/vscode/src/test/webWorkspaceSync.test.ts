@@ -214,13 +214,15 @@ function primeFoldersOf(sync: WorkspaceStoreSync): PrimeFolders {
 
 function productionStoreWorker(server: Record<string, unknown>): Worker {
   const source = fs.readFileSync(
-    path.resolve(__dirname, "../../../../rust/tcl-lsp-server-wasm/worker.js"), "utf8",
+    path.resolve(__dirname, "../../../../rust/tcl-lsp-server-wasm/worker.js"),
+    "utf8",
   );
   const start = source.indexOf("function dispatch(data) {");
   const end = source.indexOf("\nself.onmessage =", start);
   assert.ok(start >= 0 && end > start, "the production worker dispatcher is unavailable");
   const dispatch = vm.runInNewContext(`${source.slice(start, end)}; dispatch`, {
-    server, Uint8Array,
+    server,
+    Uint8Array,
   }) as (message: unknown) => void;
   return { postMessage: dispatch } as unknown as Worker;
 }
@@ -324,9 +326,14 @@ suite("Web workspace sync — directory admission", () => {
     const uri = vscode.Uri.file(root);
     const receipts: string[] = [];
     const refused: string[] = [];
-    const transport = workerSourceStoreHost(productionStoreWorker({
-      vfs_upsert_bytes(original: string) { refused.push(original); return false; },
-    }));
+    const transport = workerSourceStoreHost(
+      productionStoreWorker({
+        vfs_upsert_bytes(original: string) {
+          refused.push(original);
+          return false;
+        },
+      }),
+    );
     const host: SourceStoreHost = {
       ...recordingHost([]),
       upsert: transport.upsert,
@@ -338,7 +345,10 @@ suite("Web workspace sync — directory admission", () => {
       receipts.length = 0;
       const file = path.join(root, "refused.tcl");
       fs.writeFileSync(file, "set held 1\n");
-      assert.strictEqual(await pushFileOf(sync)(vscode.Uri.file(file), FileChange.Created, DEFAULT_BUDGET, () => {}), false);
+      assert.strictEqual(
+        await pushFileOf(sync)(vscode.Uri.file(file), FileChange.Created, DEFAULT_BUDGET, () => {}),
+        false,
+      );
       assert.deepStrictEqual(refused, [vscode.Uri.file(file).toString()]);
       assert.ok(receipts.length > 0 && receipts.every((status) => status === "incomplete"));
     } finally {
@@ -350,27 +360,39 @@ suite("Web workspace sync — directory admission", () => {
     const root = tempDir();
     const uri = vscode.Uri.file(root);
     let accept!: (admitted: boolean) => void;
-    const pending = new Promise<boolean>((resolve) => { accept = resolve; });
+    const pending = new Promise<boolean>((resolve) => {
+      accept = resolve;
+    });
     const writes: string[] = [];
     const receipts: string[] = [];
     const host: SourceStoreHost = {
       ...recordingHost([]),
-      upsert: async (original) => { writes.push(original); return pending; },
+      upsert: async (original) => {
+        writes.push(original);
+        return pending;
+      },
       setSourceInventory: (_root, _selection, status) => receipts.push(status),
     };
     try {
       const sync = new WorkspaceStoreSync(host, [], () => {});
       await primeFoldersOf(sync)([{ uri, name: "empty", index: 0 }], DEFAULT_BUDGET, () => {});
       receipts.length = 0;
-      const a = path.join(root, "a.tcl"), b = path.join(root, "b.tcl");
-      fs.writeFileSync(a, "set a 1\n"); fs.writeFileSync(b, "set b 1\n");
+      const a = path.join(root, "a.tcl"),
+        b = path.join(root, "b.tcl");
+      fs.writeFileSync(a, "set a 1\n");
+      fs.writeFileSync(b, "set b 1\n");
       const budget = { ...DEFAULT_BUDGET, maxFiles: 1 };
       const first = pushFileOf(sync)(vscode.Uri.file(a), FileChange.Created, budget, () => {});
-      for (let i = 0; i < 200 && writes.length === 0; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+      for (let i = 0; i < 200 && writes.length === 0; i += 1)
+        await new Promise((resolve) => setTimeout(resolve, 5));
       assert.strictEqual(writes.length, 1);
       const second = pushFileOf(sync)(vscode.Uri.file(b), FileChange.Created, budget, () => {});
       await new Promise((resolve) => setTimeout(resolve, 20));
-      assert.strictEqual(writes.length, 1, "the second file cannot race an unacknowledged budget reservation");
+      assert.strictEqual(
+        writes.length,
+        1,
+        "the second file cannot race an unacknowledged budget reservation",
+      );
       assert.ok(receipts.every((status) => status === "incomplete"));
       accept(true);
       assert.strictEqual(await first, true);
@@ -386,7 +408,9 @@ suite("Web workspace sync — directory admission", () => {
     const root = tempDir();
     const uri = vscode.Uri.file(root);
     let accept!: (admitted: boolean) => void;
-    const pending = new Promise<boolean>((resolve) => { accept = resolve; });
+    const pending = new Promise<boolean>((resolve) => {
+      accept = resolve;
+    });
     const order: string[] = [];
     const receipts: string[] = [];
     const host: SourceStoreHost = {
@@ -404,13 +428,23 @@ suite("Web workspace sync — directory admission", () => {
       receipts.length = 0;
       const file = path.join(root, "changing.tcl");
       fs.writeFileSync(file, "set version 1\n");
-      const first = pushFileOf(sync)(vscode.Uri.file(file), FileChange.Changed, DEFAULT_BUDGET, () => {});
+      const first = pushFileOf(sync)(
+        vscode.Uri.file(file),
+        FileChange.Changed,
+        DEFAULT_BUDGET,
+        () => {},
+      );
       for (let i = 0; i < 200 && order.length === 0; i += 1) {
         await new Promise((resolve) => setTimeout(resolve, 5));
       }
       assert.strictEqual(order.length, 1);
       fs.writeFileSync(file, "set version 2\n");
-      const second = pushFileOf(sync)(vscode.Uri.file(file), FileChange.Changed, DEFAULT_BUDGET, () => {});
+      const second = pushFileOf(sync)(
+        vscode.Uri.file(file),
+        FileChange.Changed,
+        DEFAULT_BUDGET,
+        () => {},
+      );
       await new Promise((resolve) => setTimeout(resolve, 20));
       assert.strictEqual(order.length, 1);
       assert.ok(receipts.every((status) => status === "incomplete"));
@@ -436,7 +470,9 @@ suite("Web workspace sync — directory admission", () => {
         held.add(original);
         throw new Error("acknowledgement lost after worker commit");
       },
-      delete: (original) => { held.delete(original); },
+      delete: (original) => {
+        held.delete(original);
+      },
       setSourceInventory: (_root, _selection, status) => receipts.push(status),
     };
     try {
@@ -448,14 +484,27 @@ suite("Web workspace sync — directory admission", () => {
       // Startup and watchers share this admission boundary; exercise it without
       // the watcher's additional withdrawal hiding a missing startup cleanup.
       const admission = sync as unknown as {
-        upsertTracked(uri: vscode.Uri, text: string, bytes: Uint8Array,
-          byteLength: number, budget: WorkspaceSyncBudget,
-          current: () => boolean): Promise<string>;
+        upsertTracked(
+          uri: vscode.Uri,
+          text: string,
+          bytes: Uint8Array,
+          byteLength: number,
+          budget: WorkspaceSyncBudget,
+          current: () => boolean,
+        ): Promise<string>;
       };
       const bytes = new TextEncoder().encode("set removed 1\n");
-      assert.strictEqual(await admission.upsertTracked(
-        fileUri, "set removed 1\n", bytes, bytes.byteLength, DEFAULT_BUDGET, () => true,
-      ), "refused");
+      assert.strictEqual(
+        await admission.upsertTracked(
+          fileUri,
+          "set removed 1\n",
+          bytes,
+          bytes.byteLength,
+          DEFAULT_BUDGET,
+          () => true,
+        ),
+        "refused",
+      );
       assert.strictEqual(held.size, 0, "a committed but unacknowledged file must be withdrawn");
       assert.ok(receipts.every((status) => status === "incomplete"));
       fs.unlinkSync(file);
@@ -482,12 +531,17 @@ suite("Web workspace sync — directory admission", () => {
         held.set(original, text);
         return true;
       },
-      delete: (original) => { held.delete(original); },
+      delete: (original) => {
+        held.delete(original);
+      },
     };
     try {
       sync = new WorkspaceStoreSync(host, [], () => {});
       fs.writeFileSync(file, "set version 1\n");
-      assert.strictEqual(await pushFileOf(sync)(uri, FileChange.Created, DEFAULT_BUDGET, () => {}), true);
+      assert.strictEqual(
+        await pushFileOf(sync)(uri, FileChange.Created, DEFAULT_BUDGET, () => {}),
+        true,
+      );
       refuse = true;
       fs.writeFileSync(file, "set version 2\n");
       const refused = await pushFileOf(sync)(uri, FileChange.Changed, DEFAULT_BUDGET, (changes) => {
@@ -497,12 +551,23 @@ suite("Web workspace sync — directory admission", () => {
         // Queue at the shared admission boundary while the older live handler
         // is suspended, so a second outer withdrawal would remove this write.
         const admission = sync as unknown as {
-          upsertTracked(uri: vscode.Uri, text: string, bytes: Uint8Array,
-            byteLength: number, budget: WorkspaceSyncBudget,
-            current: () => boolean): Promise<string>;
+          upsertTracked(
+            uri: vscode.Uri,
+            text: string,
+            bytes: Uint8Array,
+            byteLength: number,
+            budget: WorkspaceSyncBudget,
+            current: () => boolean,
+          ): Promise<string>;
         };
-        successor = admission.upsertTracked(uri, "set version 3\n", bytes,
-          bytes.byteLength, DEFAULT_BUDGET, () => true);
+        successor = admission.upsertTracked(
+          uri,
+          "set version 3\n",
+          bytes,
+          bytes.byteLength,
+          DEFAULT_BUDGET,
+          () => true,
+        );
       });
       assert.strictEqual(refused, false);
       assert.ok(successor, "the withdrawal must notify once for the held file");
@@ -529,12 +594,16 @@ suite("Web workspace sync — directory admission", () => {
       const sync = new WorkspaceStoreSync(host, [], () => {});
       await primeFoldersOf(sync)([{ uri, name: "empty", index: 0 }], DEFAULT_BUDGET, () => {});
       fs.writeFileSync(file, "set held 1\n");
-      assert.strictEqual(await pushFileOf(sync)(vscode.Uri.file(file), FileChange.Created, DEFAULT_BUDGET, () => {}), true);
+      assert.strictEqual(
+        await pushFileOf(sync)(vscode.Uri.file(file), FileChange.Created, DEFAULT_BUDGET, () => {}),
+        true,
+      );
       receipts.length = 0;
       refuse = true;
       await assert.rejects(
-        pushFileOf(sync)(vscode.Uri.file(file), FileChange.Changed, DEFAULT_BUDGET,
-          () => { throw new Error("notification failed"); }),
+        pushFileOf(sync)(vscode.Uri.file(file), FileChange.Changed, DEFAULT_BUDGET, () => {
+          throw new Error("notification failed");
+        }),
         /notification failed/,
       );
       assert.ok(receipts.length > 0);
@@ -554,10 +623,15 @@ suite("Web workspace sync — directory admission", () => {
     let current = true;
     let failDelete = true;
     let accept!: (accepted: boolean) => void;
-    const pending = new Promise<boolean>((resolve) => { accept = resolve; });
+    const pending = new Promise<boolean>((resolve) => {
+      accept = resolve;
+    });
     const host: SourceStoreHost = {
       ...recordingHost([]),
-      upsert: async (original) => { held.add(original); return pending; },
+      upsert: async (original) => {
+        held.add(original);
+        return pending;
+      },
       delete: (original) => {
         if (failDelete) throw new Error("worker delete post failed");
         held.delete(original);
@@ -571,13 +645,24 @@ suite("Web workspace sync — directory admission", () => {
       receipts.length = 0;
       fs.writeFileSync(file, "set removed 1\n");
       const admission = sync as unknown as {
-        upsertTracked(uri: vscode.Uri, text: string, bytes: Uint8Array,
-          byteLength: number, budget: WorkspaceSyncBudget,
-          current: () => boolean): Promise<string>;
+        upsertTracked(
+          uri: vscode.Uri,
+          text: string,
+          bytes: Uint8Array,
+          byteLength: number,
+          budget: WorkspaceSyncBudget,
+          current: () => boolean,
+        ): Promise<string>;
       };
       const bytes = new TextEncoder().encode("set removed 1\n");
-      const writing = admission.upsertTracked(fileUri, "set removed 1\n", bytes,
-        bytes.byteLength, DEFAULT_BUDGET, () => current);
+      const writing = admission.upsertTracked(
+        fileUri,
+        "set removed 1\n",
+        bytes,
+        bytes.byteLength,
+        DEFAULT_BUDGET,
+        () => current,
+      );
       for (let i = 0; i < 200 && held.size === 0; i += 1) {
         await new Promise((resolve) => setTimeout(resolve, 5));
       }
@@ -593,10 +678,15 @@ suite("Web workspace sync — directory admission", () => {
       failDelete = false;
       await primeFoldersOf(sync)([folder], DEFAULT_BUDGET, () => {});
       assert.strictEqual(held.size, 1);
-      assert.ok(receipts.every((status) => status === "incomplete"),
-        "transport recovery and a rescan cannot renew authority over an old orphan");
-      const freshReceipts: Array<{ rootUri: string; selection: string;
-        status: "complete" | "incomplete" }> = [];
+      assert.ok(
+        receipts.every((status) => status === "incomplete"),
+        "transport recovery and a rescan cannot renew authority over an old orphan",
+      );
+      const freshReceipts: Array<{
+        rootUri: string;
+        selection: string;
+        status: "complete" | "incomplete";
+      }> = [];
       const fresh = new WorkspaceStoreSync(recordingHost([], [], freshReceipts), [], () => {});
       await primeFoldersOf(fresh)([folder], DEFAULT_BUDGET, () => {});
       assert.strictEqual(freshReceipts[freshReceipts.length - 1]?.status, "complete");

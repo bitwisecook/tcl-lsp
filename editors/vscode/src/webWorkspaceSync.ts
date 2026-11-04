@@ -332,8 +332,12 @@ export class WorkspaceStoreSync {
 
   /** Serialize admitted writes so concurrent pushes cannot overrun the budget. */
   private async upsertTracked(
-    uri: vscode.Uri, text: string, originalBytes: Uint8Array, byteLength: number,
-    budget: WorkspaceSyncBudget, current: () => boolean,
+    uri: vscode.Uri,
+    text: string,
+    originalBytes: Uint8Array,
+    byteLength: number,
+    budget: WorkspaceSyncBudget,
+    current: () => boolean,
     onWithdraw: (held: boolean) => void = () => {},
   ): Promise<"admitted" | "refused" | "budget" | "superseded"> {
     this.pendingAdmissions += 1;
@@ -369,7 +373,10 @@ export class WorkspaceStoreSync {
       this.stored.set(key, byteLength);
       return "admitted" as const;
     });
-    this.fileAdmissions = operation.then(() => {}, () => {});
+    this.fileAdmissions = operation.then(
+      () => {},
+      () => {},
+    );
     try {
       return await operation;
     } finally {
@@ -459,8 +466,12 @@ export class WorkspaceStoreSync {
       this.host.setSourceInventory(
         inventory.rootUri,
         inventory.selection,
-        inventory.complete && this.pendingAdmissions === 0 && this.pendingWithdrawals === 0 && !this.withdrawalFailed
-          ? "complete" : "incomplete",
+        inventory.complete &&
+          this.pendingAdmissions === 0 &&
+          this.pendingWithdrawals === 0 &&
+          !this.withdrawalFailed
+          ? "complete"
+          : "incomplete",
       );
     }
   }
@@ -692,8 +703,14 @@ export class WorkspaceStoreSync {
         this.markInventoryIncomplete(uri);
         continue;
       }
-      const admission = await this.upsertTracked(uri, text, bytes, bytes.byteLength, budget,
-        () => this.rootScans.get(currentRootUri!) === scanGeneration);
+      const admission = await this.upsertTracked(
+        uri,
+        text,
+        bytes,
+        bytes.byteLength,
+        budget,
+        () => this.rootScans.get(currentRootUri!) === scanGeneration,
+      );
       if (admission !== "admitted") {
         if (admission === "superseded") continue;
         if (admission === "budget") report.overBudget.push(uri);
@@ -708,8 +725,11 @@ export class WorkspaceStoreSync {
     for (const [rootUri, generation] of scanGenerations) {
       this.finishRootScan(rootUri, generation);
     }
-    report.complete = this.pendingAdmissions === 0 && this.pendingWithdrawals === 0 && !this.withdrawalFailed
-      && [...this.sourceInventories.values()].every((inventory) => inventory.complete);
+    report.complete =
+      this.pendingAdmissions === 0 &&
+      this.pendingWithdrawals === 0 &&
+      !this.withdrawalFailed &&
+      [...this.sourceInventories.values()].every((inventory) => inventory.complete);
     this.publishSourceInventories();
     this.reportBudget(report, uris.length, budget);
     return report;
@@ -1131,12 +1151,19 @@ export class WorkspaceStoreSync {
         return result;
       }
 
-      const admission = await this.upsertTracked(uri, text, bytes, bytes.byteLength, budget,
-        () => !this.livePushSuperseded(key, generation)
-          && (!scanOwner || this.rootScans.get(scanOwner.rootUri) === scanOwner.generation),
+      const admission = await this.upsertTracked(
+        uri,
+        text,
+        bytes,
+        bytes.byteLength,
+        budget,
+        () =>
+          !this.livePushSuperseded(key, generation) &&
+          (!scanOwner || this.rootScans.get(scanOwner.rootUri) === scanOwner.generation),
         (held) => {
           if (held) notify([{ uri: key, type: FileChange.Deleted }]);
-        });
+        },
+      );
       if (admission !== "admitted") {
         if (admission !== "superseded") {
           this.logLiveSkip(`[web] ${key} was not admitted: ${admission}`);
