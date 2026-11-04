@@ -282,7 +282,7 @@ impl<'a> OriginalInheritedDeclarationSelection<'a> {
         inherited
             .analysis
             .original_namespace_scope_at(site.offset)
-            .and_then(|scope| scope.context())
+            .and_then(tcl_compiler::signature_scan::scope::SignatureNamespaceScope::context)
             .ok_or(OriginalCommandRenameRefusal::UnknownDestination)?;
         Ok(identity)
     }
