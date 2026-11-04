@@ -334,6 +334,105 @@
       "ir": [
         "Framework dispatch/body entry requires its own selected provider/source/frame owner; no fix inferred from ordinary Foreach admission"
       ]
+    },
+    {
+      "id": "branchy-dependent-int-string",
+      "stage": "phi-provenance-required",
+      "source": "proc branchy {n} {set x 0; foreach item $n {if {$item % 2} {set x [expr {$x + 1}]} else {set x [string range $x 0 end]}}; return $x}\nbranchy {1 2 3 4}\n",
+      "expect_present": [
+        [
+          "S102",
+          "x"
+        ]
+      ],
+      "ir": [
+        "Actual in-loop Int/String-producing definitions consume prior x versions; backedge join type is not itself production evidence"
+      ]
+    },
+    {
+      "id": "intra-iteration-dependent-list-string",
+      "stage": "phi-provenance-required",
+      "source": "proc accumulate {items} {set acc \"\"; foreach item $items {lappend acc $item; set acc \"$acc,\"}; return $acc}\naccumulate {1 2 3}\n",
+      "expect_present": [
+        [
+          "S102",
+          "acc"
+        ]
+      ],
+      "ir": [
+        "List/string actual body definitions depend on the previous accumulator; Known header does not suppress within-iteration conversion"
+      ]
+    },
+    {
+      "id": "fresh-sequential-reset",
+      "stage": "phi-provenance-required",
+      "source": "proc resets {items} {foreach item $items {set x \"s\"; set x [list 1]}; return $x}\nresets {1 2 3}\n",
+      "expect_absent": [
+        [
+          "S102",
+          "x"
+        ]
+      ],
+      "ir": [
+        "Neither assignment consumes a previous x version; independent stable objects do not oscillate"
+      ],
+      "existing_test_expectation": "thunking_detected_for_two_type_loop_body currently expects a warning; native representation evidence contradicts that expectation"
+    },
+    {
+      "id": "fresh-branchy-reset",
+      "stage": "phi-provenance-required",
+      "source": "proc resets {items} {set x seed; foreach item $items {if {$item % 2} {set x \"value\"} else {set x [list 1 2]}}; return $x}\nresets {1 2 3}\n",
+      "expect_absent": [
+        [
+          "S102",
+          "x"
+        ]
+      ],
+      "ir": [
+        "Mutually exclusive independent value producers have no prior-x representation dependency"
+      ]
+    },
+    {
+      "id": "sibling-dependent-loops",
+      "stage": "phi-provenance-required",
+      "source": "proc siblings {items} {set x 0; foreach item $items {set x [expr {$x + 1}]}; foreach item $items {set x [string range $x 0 end]}; return $x}\nsiblings {1 2 3}\n",
+      "expect_absent": [
+        [
+          "S102",
+          "x"
+        ]
+      ],
+      "ir": [
+        "Each shared NaturalLoop owns one stable body representation; no union over sibling loop bodies"
+      ]
+    },
+    {
+      "id": "aliased-intra-iteration",
+      "stage": "phi-provenance-required",
+      "source": "proc aliased {items} {upvar 1 acc acc; foreach item $items {lappend acc $item; set acc \"$acc,\"}}\nset acc {}; aliased {1 2 3}\n",
+      "expect_absent": [
+        [
+          "S102",
+          "acc"
+        ]
+      ],
+      "ir": [
+        "Real runtime conversions do not grant a local unaliased SSA representation owner; shared externally_mutable_by guard stays terminal"
+      ]
+    },
+    {
+      "id": "W210-standalone-positive",
+      "stage": "warning-execution-control",
+      "source": "proc uncoveredOwner {} {puts $__owner_missing}\nuncoveredOwner\n",
+      "expect_present": [
+        [
+          "W210",
+          "__owner_missing"
+        ]
+      ],
+      "ir": [
+        "An actual source-owned local missing read emits W210 independently of denied loop/framework children"
+      ]
     }
   ],
   "existing_receipts": [

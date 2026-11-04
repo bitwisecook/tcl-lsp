@@ -72,6 +72,10 @@ recovery copies under `/tmp`. They were excluded from every new validation.
 The independent #940 review matrix is in
 [`shimmer-940-source-owner`](../rust/tcl-compiler/tests/data/shimmer-940-source-owner/README.md).
 It records exact source inputs, warning/IR expectations and source-purpose,
-provider-obligation and codegen negative controls. These are planned assertions,
-not new passing product evidence. No production fix or pre-candidate build is
-included in that data-only checkpoint.
+provider-obligation and codegen negative controls. Its observational baseline at
+`182ea7784` completed 27 cases with unchanged source hashes; a separate
+same-binary missing-read control emits W210. All six S102 controls remain quiet,
+as do the adjacent removed-binder and Tcltest genuine-read controls. The
+top-level dict/list S100 control works, while its procedure-loop counterpart
+does not. The exact receipts distinguish existing compiler/Normal authority
+and provider plans from absent child proofs. No production fix is included.
