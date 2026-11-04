@@ -35,6 +35,7 @@
  */
 
 import { registerSourceActionCommands } from "./codeActionSource";
+import { findGenerateDocstringAction } from "./codeActionKinds";
 import { insertPackageRequirement } from "./packageRequire";
 import * as vscode from "vscode";
 import {
@@ -1233,7 +1234,7 @@ async function generateDocstring(): Promise<void> {
     editor.document.uri,
     new Range(pos, pos),
   );
-  const docAction = actions?.find((a) => a.title.startsWith("Generate docstring"));
+  const docAction = findGenerateDocstringAction(actions);
   if (docAction?.command?.command === "tclLsp.applySourceCodeAction") {
     await commands.executeCommand(
       docAction.command.command,

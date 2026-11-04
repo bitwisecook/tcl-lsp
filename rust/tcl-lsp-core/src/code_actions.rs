@@ -104,8 +104,10 @@ pub enum ActionKind {
     RefactorRewrite,
     /// `refactor` — generic refactor (IP conversion).
     Refactor,
-    /// `source` — source action (generate docstring).
+    /// `source` — generic source action.
     Source,
+    /// `source.generateDocstring` — generate a procedure docstring.
+    GenerateDocstring,
 }
 
 impl ActionKind {
@@ -119,6 +121,7 @@ impl ActionKind {
             Self::RefactorRewrite => "refactor.rewrite",
             Self::Refactor => "refactor",
             Self::Source => "source",
+            Self::GenerateDocstring => "source.generateDocstring",
         }
     }
 }
@@ -1794,7 +1797,7 @@ fn docstring_actions(
                 range: edit.range,
                 new_text: format!("{}{doc}{}", edit.prefix, edit.suffix),
             }],
-            kind: ActionKind::Source,
+            kind: ActionKind::GenerateDocstring,
             command: None,
             data_group_definition: None,
             disabled: None,

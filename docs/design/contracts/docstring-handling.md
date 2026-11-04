@@ -78,6 +78,9 @@ A "Generate docstring for 'name'" source action is offered when the cursor
 is on a `proc` definition that has no docstring.  It inserts a doxygen-style
 stub with `@param` tags for each parameter.
 
+The action carries the LSP kind `source.generateDocstring`. Editors select it
+by that machine-readable kind; its title is display text and may be translated.
+
 The resolved `docstringStyle` setting gates both *whether* and
 *where* this action fires, in the LSP server
 (`rust/tcl-lsp-server`, `Backend::resolved_docstring_style` ->

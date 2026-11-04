@@ -456,14 +456,14 @@ fn generate_stub_basic_emits_param_line() {
 }
 
 #[test]
-fn generate_stub_action_is_source_kind() {
-    // The generate-docstring action is a `source` action (it is an
-    // editor-level producer, not a quick-fix).
+fn generate_stub_action_has_typed_kind() {
+    // The editor identifies this source action by its machine-readable kind.
     let src = "proc greet {name} { puts $name }\n";
     let analysis = analyse(src);
     let actions = code_actions(src, cursor(0, 0), Some(&analysis), &report_of(&analysis));
     let act = find(&actions, "Generate docstring for 'greet'").expect("generate action");
-    assert_eq!(act.kind, ActionKind::Source, "{act:?}");
+    assert_eq!(act.kind, ActionKind::GenerateDocstring, "{act:?}");
+    assert_eq!(act.kind.as_str(), "source.generateDocstring");
 }
 
 #[test]
