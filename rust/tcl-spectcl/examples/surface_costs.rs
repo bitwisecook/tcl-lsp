@@ -163,17 +163,29 @@ fn equivalence_costs() {
         };
         let native = tcl_lsp_core::environment_for_dialect(dialect)
             .default_context_registry()
-            .visible_command_names()
-            .len();
+            .visible_command_names();
         let pack = timed(&format!("SpecTcl {dialect}: evaluate pack"), || {
             tcl_spectcl::evaluate_pack(&source)
         });
-        if pack.commands.len() != native {
+        let loaded: std::collections::BTreeSet<&str> = pack
+            .commands
+            .iter()
+            .map(|command| command.spec.name)
+            .collect();
+        let missing: Vec<&str> = native
+            .iter()
+            .copied()
+            .filter(|name| !loaded.contains(name))
+            .collect();
+        if !missing.is_empty() {
             println!(
-                "  stale: {} pack commands against {native} native — run `cargo xtask \
-                 gen-equivalence-packs`",
-                pack.commands.len()
+                "  {} of {} native commands not in the pack: {missing:?}",
+                missing.len(),
+                native.len()
             );
+            for notice in pack.notices.iter().take(5) {
+                println!("  notice: {notice:?}");
+            }
         }
     }
 }

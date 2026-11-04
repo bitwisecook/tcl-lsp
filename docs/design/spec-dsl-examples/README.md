@@ -280,8 +280,13 @@ hook is more than one word and every other flag value is exactly one. Only
 the data form has a spelling; the contextual-callback variant names registry
 code and stays reference-only.
 
-`-arity` takes the static shapes only (`{Fixed N}`; `One` is the
-default). `OptionArity`'s third variant is a hook, and it gets its own
+`-arity` takes the static shapes (`{Fixed N}`; `One` is the default) and
+the two data forms of an optional value: `{OptionalOneOf V …}` takes the
+next word only when it is one of the literals (UPF `-transitive
+?TRUE|FALSE?`), and `OptionalNotOption` takes it only when it is there and
+does not begin with `-` (UPF `-feedthrough ?name?`). Prefer them to a hook
+body that says the same: they are answered without a VM. `OptionArity`'s
+remaining variant is a hook, and it gets its own
 flag, `-arity-hook {words ctx} { … }` (or `-arity-hook -native ID`),
 because a hook is *two* words — a parameter list and a body — where every
 other flag value is one, and because a row parser must not have to tell

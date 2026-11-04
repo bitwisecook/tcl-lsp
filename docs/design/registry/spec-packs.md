@@ -14,6 +14,9 @@ published as diagnostics on the pack file. All of it lives in
 `rust/tcl-spectcl`. The eight EDA loadables in `specs/` (`sdc_base`, `upf`,
 and the six vendor packs) are bundled `.tclspec` packs read by the same
 loader; `tcl_spectcl::bundled` is what puts them into a profile registry.
+In the language server and the CLI they load **manifest-only** until an
+open document's environment places one of their packages ambient
+(`tcl_spectcl::demand`, below).
 The Spec Studio is the DSL's IDE
 ([`contracts/command-spec-studio.md`](../contracts/command-spec-studio.md));
 the frozen syntax is
@@ -232,7 +235,7 @@ boundary — `catch_unwind` plus the fuel and memory budgets in-process (the
 WASM engine is additionally sandboxed by construction) — and a panic,
 budget blowout, or stack overflow in a hook is converted to abstention,
 never propagation. Isolation is **per pack**: each loaded pack gets its
-own sandboxed VM with no shared interpreter state, so one library's bad
+own sandboxed engine with no shared interpreter state, so one library's bad
 hook costs that library its hooks, nothing else. On the first crash the
 offending hook is **quarantined** for the session (the command falls back
 to its declarative facts), and a structured crash record is written: pack
@@ -292,6 +295,45 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
   with no per-call `FunctionAsm` clone, and an enforced command-limit
   budget at both dispatch funnels. The registry's shape-keyed caching
   clears budget regardless of VM speed.
+
+### Where bodies run: one hook service, and tables
+
+A process runs every hook body on one dedicated thread, the **hook
+service** (`tcl_spectcl::hooks::service`), which owns the only VM-backed
+host: built once per published plan, every pack's sandbox bootstrapped and
+every body bound before the first call. A worker thread installs a
+forwarding proxy, so no analysis thread ever pays a VM bootstrap, however
+often a thread pool turns its threads over; quarantine is process-wide.
+`pack_hooks::evaluator_generation` answers from the published plan without
+building anything.
+
+A role, prefix or timing resolver whose body reads its call only through
+`[llength $words]` — checked statically, then confirmed by probing each
+count with differing words, word kinds and dialects — is **tabulated**: its
+answer at every word count up to 32 is computed once and
+`pack_hooks::dispatch` answers it on any thread with no host. For the
+bundled packs those tables are computed at build time by `cargo xtask
+gen-bundled-manifests` and compiled into the server binary
+(`tcl_spectcl::bundled_manifest::BUNDLED_ROLE_TABLES`, keyed by a hash of
+the body), so every editor that ships the binary answers them without ever
+starting a VM (`hooks::hosts_built` stays zero).
+
+### Lazy bundled packs
+
+A bundled pack whose every command requires a closed-world vendor package
+answers only in an environment that places one of those packages ambient.
+In a process that opts in (`demand::enable` — the language server and the
+CLI), such a pack loads **manifest-only** — `EvalOptions::commands` off:
+its environments, extension routes, ambient rows, rosters and special
+variables, and no command — until `demand::note_dialect` sees an
+environment that needs it; the server then reloads on
+`ReloadTrigger::Demand` and re-analyses its open documents. Which packs are
+deferrable and which packages each needs is precompiled into the binary by
+`cargo xtask gen-bundled-manifests` and checked against each source's
+hash, so a replaced `specs/` loads eagerly. What is deferred is part of the
+pack-set key, and a set that installs no command still installs its
+overlay, so the analyser always finds the context its key names.
+`TCL_LSP_EAGER_SPEC_PACKS=1` turns deferral off.
 
 ## What exists today
 
