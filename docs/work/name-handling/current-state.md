@@ -8,7 +8,7 @@ Updated 4 November 2026, 21:30 UTC. Results apply only to recorded source, input
 
 Main is the shallow `/workspace/tcl-lsp-partial` checkout on `work`, origin `https://github.com/bitwisecook/tcl-lsp.git`. Root owns Main, scratch `/tmp/optimiser-settings-work`, shared target and builds. Five-minute development syncs may precede green tests: fetch, normally merge clean changes, push without force or WIP adoption; conflicts require review. Issue-sweep integration is not naming acceptance.
 
-Publication last succeeded at 2026-11-04T21:27:57.320748+00:00, head `5e10cfd099c9e76fae6b7e0b9cf95c1320cb31b2`.773910+00:00, head `b46d8e33553217a4515290d842e44ab17901297e`. Credentials and five-minute fetch/merge/push work; a fresh GitHub read also succeeds. Exact outcomes: `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release exists.
+Publication last succeeded at 2026-11-04T21:27:57.320748+00:00, head `5e10cfd099c9e76fae6b7e0b9cf95c1320cb31b2`. Credentials and five-minute fetch/merge/push work; a fresh GitHub read also succeeds. Exact outcomes: `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release exists.
 
 ## Current execution and failures
 
