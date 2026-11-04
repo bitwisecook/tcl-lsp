@@ -1717,6 +1717,27 @@ impl OriginalSourceViewSettlement {
             .all(|scope| scope.complete && !scope.conditional_obligations)
     }
 
+    fn ordinary_definition_scope_is_complete(
+        &self,
+        uri: &Uri,
+        projection: &OriginalSourceScopeProjection,
+    ) -> bool {
+        if projection.revision != self.revision || !projection.partial_definition_groups.is_empty()
+        {
+            return false;
+        }
+        let mut required = self
+            .scopes
+            .iter()
+            .filter(|scope| scope.required.contains(uri));
+        let Some(first) = required.next() else {
+            return false;
+        };
+        first.complete
+            && !first.conditional_obligations
+            && required.all(|scope| scope.complete && !scope.conditional_obligations)
+    }
+
     fn navigation_projection(
         &self,
         uri: &Uri,
@@ -3787,6 +3808,11 @@ impl Backend {
             return Ok(Some(std::ops::ControlFlow::Break(None)));
         };
         let aggregate_complete = settlement.aggregate_complete();
+        let ordinary_scope_complete = if references.is_none() {
+            settlement.ordinary_definition_scope_is_complete(uri, &ids)
+        } else {
+            aggregate_complete
+        };
         let partial_definition_groups = ids.partial_definition_groups.clone();
         let uri = uri.clone();
         let computed = self
@@ -3796,7 +3822,7 @@ impl Backend {
                     &uri,
                     position,
                     references,
-                    aggregate_complete,
+                    ordinary_scope_complete,
                     &partial_definition_groups,
                 );
                 let conditional = if ordinary.is_none()
@@ -4188,14 +4214,14 @@ impl Backend {
         uri: &Uri,
         position: tower_lsp_server::ls_types::Position,
         references: Option<bool>,
-        aggregate_complete: bool,
+        ordinary_scope_complete: bool,
         partial_definition_groups: &[Vec<OriginalSourceViewId>],
     ) -> Option<HostNavigationRoute> {
         let selected_views = views
             .iter()
             .filter(|view| &view.draft.physical.uri == uri)
             .collect::<Vec<_>>();
-        if aggregate_complete
+        if ordinary_scope_complete
             && !selected_views
                 .iter()
                 .any(|view| view.draft.is_interpreted())
@@ -5506,6 +5532,33 @@ mod closed_source_child_ingress_tests {
         (other, other_parent)
     }
 
+    fn assert_ordinary_scope(
+        settlement: &OriginalSourceViewSettlement,
+        selected: &Fixture,
+        unrelated: &Fixture,
+    ) {
+        let selected_uri = &selected.main;
+        let selected_definition = settlement.definition_projection(selected_uri).unwrap();
+        assert!(
+            settlement.ordinary_definition_scope_is_complete(selected_uri, &selected_definition)
+        );
+        assert!(
+            !settlement
+                .ordinary_definition_scope_is_complete(&unrelated.main, &selected_definition)
+        );
+        assert!(
+            !settlement
+                .ordinary_definition_scope_is_complete(&selected.child, &selected_definition)
+        );
+        let mut partial_definition = settlement.definition_projection(selected_uri).unwrap();
+        partial_definition
+            .partial_definition_groups
+            .push(Vec::new());
+        assert!(
+            !settlement.ordinary_definition_scope_is_complete(selected_uri, &partial_definition)
+        );
+    }
+
     #[tokio::test]
     async fn unrelated_persistent_publication_refusal_preserves_selected_scope() {
         let (fixture, backend) = fixture().await;
@@ -5564,6 +5617,7 @@ mod closed_source_child_ingress_tests {
             assert!(settlement.requires_recapture(&other.main));
             assert!(settlement.requires_recapture(&other.child));
             assert!(!settlement.aggregate_complete());
+            assert_ordinary_scope(&settlement, &fixture, &other);
             assert!(!backend.original_source_view_settlement_views_are_indexed(&settlement));
             assert!(settlement.projection(&fixture.main, true).is_none());
             assert!(settlement.definition_projection(&other.main).is_none());

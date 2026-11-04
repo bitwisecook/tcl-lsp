@@ -504,3 +504,10 @@ at most three times, only while the caller source and publication remain current
 and a genuine autoload request observes an owner, input or provider publication
 change. Each attempt reacquires its own analysis and repeats the existing lookup
 and source checks; a stable refusal or replaced caller does not acquire a retry.
+
+An ordinary definition can continue through its physical source owner when every
+settled scope requiring that URI is complete and has no conditional obligation.
+The selected projection must retain the current revision and contain no partial
+definition group. An incomplete unrelated root does not block that query.
+Interpreted sources retain their dedicated route, and reference inventories keep
+their aggregate completeness requirement.
