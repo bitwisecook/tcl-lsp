@@ -9,9 +9,9 @@ authored by bitwisecook. The nine issues #2218, #2254, #2255, #2334, #2351, #236
 were verified, commented and closed. All 20 other-reporter issues remain open;
 their current assessment is in [LSP_RELEASE_EXTERNAL.md](LSP_RELEASE_EXTERNAL.md).
 
-This sweep follows the user’s LSP/compiler release scope. VM, BIG-IP, f5tcl and unrelated tooling work remain outside it. Existing naming-migration acceptance work and its failing gates continue independently; this issue sweep does not certify those gates.
+This sweep follows the user’s LSP/compiler release scope. Unrelated VM, BIG-IP, f5tcl and ancillary feature development is deferred; actual LSP-linked Engine/VM execution and hook confinement remain necessary naming-migration scope. Existing naming-migration acceptance work and its failing gates continue independently; this issue sweep does not certify those gates.
 
-Development integration is authorised at least every 15 minutes regardless of test state. Each lane commits reviewed fixes and status evidence, pulls with rebase and pushes without force. Required release gates still need to pass on the final source.
+Root integrates reviewed changes every five minutes with normal fetch/merge/push and bounded race-safe retries, without force. Other issue-sweep lanes retain their authorised at-least-15-minute development cadence and pull with rebase before pushing reviewed fixes and status evidence. Development integration may proceed before green tests; required release gates still need to pass on the final source.
 
 Six isolated shallow checkouts use separate Cargo targets. Models: Terra High/Extra High, Sol High/Extra High and Luna High. Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 are built from the repository’s pinned references. Latest JimTcl was cloned at `82fb4d0caf90240d94352a31fcbd16adf52658a7` (reports 0.84). Reference provisioning alone certifies no product test.
 
@@ -28,6 +28,8 @@ All naming changes use the shared naming owners. Tcl parsing must use the existi
 | COORDINATOR | This document | #1655, #1710, #1712, #1714, #2129, #2183, #2255, #2301, #2426 |
 
 ## Current evidence and next actions
+
+Naming acceptance snapshot at14:02UTC: ServerV11 freshly builds and has26/26 completed mandatory controls passing on captured inputs, with32 selections prevalidated. Its sticky Main-currency refusal after bounds-check/Jim source changes prevents current-source acceptance; the probe cohort and final seals remain pending. Browser diagnostic [41842464454](https://github.com/bitwisecook/tcl-lsp/actions/runs/41842464454) at `9e986fc8dc9245cb06424b7a6c3ba56b53b9b887` is in progress. RMWv14 retains its30/31 diagnostic failure; reviewed actual Jim-wrapper repair72bbee3bd awaits RMWv15. Conditional-purpose Compiler/Core work remains private, uncompiled and pending review. ClippyV22 predates the latest source; full gates and release acceptance remain open. [Current naming state](work/name-handling/current-state.md) records scoped receipts and retained failures. Publisher last succeeded13:57:57 at `eb15be082`; this is integration evidence only.
 
 - The initial GitHub inventory contains 203 open issues. Assignment does not mean reproduced or fixed; each lane must record its verdict and exact checks.
 - The source is a filtered shallow clone. Historical experiment/audit trees are excluded from the working tree; source and regression fixtures remain available through Git when required.
