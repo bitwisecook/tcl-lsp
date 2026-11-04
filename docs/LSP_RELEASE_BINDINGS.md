@@ -17,12 +17,12 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
 | #2289 | Complete current linked file and called creator have no W140, with positive W140 controls across Tcl 8.4–9.1. | Current input verified |
-| #2296 | Existing computed-array-key test passes in `name_lookup_issue_witnesses.rs`. | Verified baseline |
+| #2296 | The exact computed-key input retains the original `$k` SSA read at version 1 in all six profiles and has no W220. The literal-key control also has no W220. | Source read verified; diagnostic control limited |
 | #2243 | Memoised/uncached seeded-global parity still requires a fresh database regression. | Pending |
-| #2247 | Qualified dictionary implementation emits neither W002 nor W211; W143 correctly advises the public spelling. | Verified baseline |
+| #2247 | Qualified/public dictionary forms emit neither W002 nor W211 in Tcl 8.6–9.1; W143 and unknown-head W123 controls pass. The independent unused-local W211 control is missed. | Availability verified; W211 control limited |
 | #2286 | Exact quoted/current linked inputs have no W210, but the original Tcltest control still emits 0 instead of 2 warnings in all five profiles; direct/alias controls also miss their warnings. | Reported false positives absent; admission gap remains |
 | #2290 | Latest public `tclmeasure.tcl` emits no W210; upstream source differs from the historical line references. | Current source verified |
-| #2297 | Caller-variable read through upvar produces no W220. | Verified baseline |
+| #2297 | Caller-variable read through upvar retains a procedure and original read, with no W220. An independent unused local reports W211 for Jim but stays quiet under all five C profiles. | Exact report quiet; C diagnostic control limited |
 | #2305, #2306 | Qualified-root writes and same-frame alias writes preserve branch output and produce no stale I230. | Verified baseline |
 | #2323 | Catch followed by its result guard still reports W210 for the successfully assigned file handle. | Reproduced residual |
 | #2324, #2325 | Computed typed receivers and expanded deferred callbacks still require focused verification. | Pending |
@@ -50,6 +50,12 @@ Native/Normal fact is part of the draft. Exact current failure and runtime
 receipts remain in `tests/data/w210-empty-loop-exact-source` and `evidence/tcl`.
 
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
+
+A separate [36-process binding control audit](../rust/tcl-compiler/tests/data/binding-diagnostic-controls-2026-11-04/README.md)
+rechecks #2296, #2297 and #2247 against the preserved verified production
+library. It distinguishes retained original reads and working availability
+checks from the C profiles' missing unused-local control. All three issues
+remain open; a quiet report alone is not treated as complete verification.
 
 The production analyser was linked read-only from the frozen normal compiler
 library at source `f5b2f7d05ea1a322ef8f3f018e1af04394b36477` (joint patch
