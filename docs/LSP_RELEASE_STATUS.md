@@ -25,7 +25,11 @@ All naming changes use the shared naming owners. Tcl parsing must use the existi
 - The initial GitHub inventory contains 203 open issues. Assignment does not mean reproduced or fixed; each lane must record its verdict and exact checks.
 - The source is a filtered shallow clone. Historical experiment/audit trees are excluded from the working tree; source and regression fixtures remain available through Git when required.
 - The first development sync completed at 09:13 UTC, incorporating `961f17a32` and pushing the current head. No product test result is inferred.
-- Coordinator #2255: current `variable_component` enables every array-index substitution independently of the enclosing mask and has `outer_substitution_mask_does_not_disable_array_index_commands` coverage. Focused execution remains pending.
+- Coordinator #2255: `variable_component` already enables every array-index substitution independently of the enclosing mask. Expanded its existing regression to include Tcl 8.4 and 8.5. All 586 lexer unit tests pass. A fixed native witness agrees on all five Tcl releases and Jim: command and escape substitutions inside the index remain enabled while disabled outside; disabling variables retains the whole literal operand.
+- Lexer Clippy is blocked by a pre-existing `assert_is_empty` finding in `source_map.rs:917`; no lint suppression was added. Full repository gates remain pending in the separate gate-fixing work.
+- Coordinator #2183: current lexer retains exact inner parse-error terms, and its nested-term/rebasing tests pass in the 586-test run. VM error-info delivery is outside this sweep.
+- Coordinator #2129: the registry already has a `SOURCE_ENCODING` admissibility axis and declines non-ASCII text where the target’s source reader is unknown. Full explicit encoding-profile/decode provenance support still requires assessment; conservative folding alone does not complete the issue.
+- Coordinator #2426: current diagnostics retain typed subjects, and Core includes changed-wording/quoting transport controls. Repository-wide envelope and drift-gate acceptance remain unverified.
 - Large design/audit issues #1655, #1710, #1712, #1714 and #2426 require explicit assessment; no blanket completion is claimed.
 - Next: run fresh focused regressions, fix residual defects, preserve positive and refusal cases, update lane evidence, and continue scheduled integration.
 
