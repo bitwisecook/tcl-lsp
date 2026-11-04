@@ -141,7 +141,7 @@ impl<'a> CallResolution<'a> {
 
 /// LSP `Range` analogue — line/character pairs in UTF-16 code
 /// units per the LSP spec.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LspRange {
     /// Start position (0-based inclusive).
     pub start_line: u32,

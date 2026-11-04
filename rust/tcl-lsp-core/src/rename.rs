@@ -36,7 +36,7 @@ use crate::hover::find_word_span_at_position;
 use crate::references::{MemberSel, resolve_member_span};
 
 /// One text edit in a rename — span plus replacement text.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TextEdit {
     /// Range to replace (byte spans translated to LSP
     /// line/character coordinates).

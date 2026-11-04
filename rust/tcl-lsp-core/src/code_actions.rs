@@ -92,7 +92,7 @@ use crate::diagnostic_policy::{Finding, Fix, Report};
 
 /// LSP code-action kind.  Maps to the dotted strings the editor / e2e
 /// `only` filter use (`quickfix`, `refactor.extract`, …).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActionKind {
     /// `quickfix` — a diagnostic fix.
     QuickFix,
@@ -124,7 +124,7 @@ impl ActionKind {
 }
 
 /// A command attached to a code action (e.g. the post-extract rename).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ActionCommand {
     /// Command identifier (e.g. `tclLsp.renameSymbolAtPosition`).
     pub command: String,
@@ -2397,18 +2397,21 @@ pub fn context_diagnostic_actions_in_analysis(
             source, analysis, registry, &commands, data,
         ));
     }
-    let mut seen = FxHashSet::default();
-    out.retain(|action| {
-        seen.insert((
-            action.title.clone(),
-            action
-                .edits
-                .iter()
-                .map(|edit| edit.new_text.clone())
-                .collect::<Vec<_>>(),
-        ))
-    });
+    deduplicate_context_actions(&mut out);
     out
+}
+
+fn deduplicate_context_actions(actions: &mut Vec<CodeAction>) {
+    let mut seen = FxHashSet::default();
+    actions.retain(|action| {
+        action.disabled.is_some()
+            || seen.insert((
+                action.kind,
+                action.edits.clone(),
+                action.command.clone(),
+                action.data_group_definition.clone(),
+            ))
+    });
 }
 
 fn source_edit(source: &str, span: tcl_lexer::Span, new_text: String) -> crate::rename::TextEdit {
@@ -2765,6 +2768,60 @@ mod tests {
     use crate::diagnostic_policy::{Directives, Policy, PolicyBuilder, PolicyLayer, apply};
     use tcl_compiler::analyser::{Analyser, AnalysisResult, CodeFix, Diagnostic};
     use tcl_lexer::Span;
+
+    #[test]
+    fn context_action_deduplication_keeps_distinct_operations() {
+        let edit = crate::rename::TextEdit {
+            range: LspRange {
+                start_line: 1,
+                start_character: 0,
+                end_line: 1,
+                end_character: 5,
+            },
+            new_text: " -nocommands".to_owned(),
+        };
+        let first = context_action("Harden subst".to_owned(), vec![edit.clone()]);
+        let mut second = first.clone();
+        second.edits[0].range.start_line = 2;
+        second.edits[0].range.end_line = 2;
+        let mut actions = vec![first.clone(), second.clone()];
+        deduplicate_context_actions(&mut actions);
+        assert_eq!(actions, [first.clone(), second.clone()]);
+
+        let mut relabelled = first.clone();
+        relabelled.title = "Updated presentation".to_owned();
+        let mut actions = vec![first.clone(), relabelled];
+        deduplicate_context_actions(&mut actions);
+        assert_eq!(actions, [first.clone()]);
+
+        let mut different_kind = first.clone();
+        different_kind.kind = ActionKind::RefactorRewrite;
+        let mut different_command = first.clone();
+        different_command.command = Some(ActionCommand {
+            command: "tclLsp.renameSymbolAtPosition".to_owned(),
+            args: vec![1, 0, 5],
+            string_args: Vec::new(),
+        });
+        let mut different_data = first.clone();
+        different_data.data_group_definition = Some("definition".to_owned());
+        let mut actions = vec![
+            first.clone(),
+            different_kind.clone(),
+            different_command.clone(),
+            different_data.clone(),
+        ];
+        deduplicate_context_actions(&mut actions);
+        assert_eq!(
+            actions,
+            [first, different_kind, different_command, different_data]
+        );
+
+        let mut unavailable = context_action("Unavailable".to_owned(), Vec::new());
+        unavailable.disabled = Some("source authority unavailable".to_owned());
+        let mut actions = vec![unavailable.clone(), unavailable.clone()];
+        deduplicate_context_actions(&mut actions);
+        assert_eq!(actions, [unavailable.clone(), unavailable]);
+    }
 
     #[test]
     fn original_source_action_metadata_uses_retained_availability_over_report_profile() {
