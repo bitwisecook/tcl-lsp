@@ -61733,6 +61733,56 @@ proc p {} {
         );
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn workspace_symbol_waits_past_previous_deadlines_and_scan_gate() {
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_str("file:///workspace").unwrap()];
+        let scan = backend.workspace_scan_gate.lock().await;
+        let mut waiting = Box::pin(backend.wait_for_workspace_scan());
+        assert!(
+            std::future::poll_fn(|cx| std::task::Poll::Ready(std::future::Future::poll(
+                waiting.as_mut(),
+                cx
+            )))
+            .await
+            .is_pending()
+        );
+        tokio::time::advance(std::time::Duration::from_secs(31)).await;
+        assert!(
+            std::future::poll_fn(|cx| std::task::Poll::Ready(std::future::Future::poll(
+                waiting.as_mut(),
+                cx
+            )))
+            .await
+            .is_pending()
+        );
+        tokio::time::advance(std::time::Duration::from_secs(11)).await;
+        assert!(
+            std::future::poll_fn(|cx| std::task::Poll::Ready(std::future::Future::poll(
+                waiting.as_mut(),
+                cx
+            )))
+            .await
+            .is_pending(),
+            "a delayed scan must not produce an empty answer"
+        );
+        backend.workspace_scan_ready.mark_complete();
+        assert!(
+            std::future::poll_fn(|cx| std::task::Poll::Ready(std::future::Future::poll(
+                waiting.as_mut(),
+                cx
+            )))
+            .await
+            .is_pending(),
+            "the in-flight scan gate must also be released"
+        );
+        drop(scan);
+        crate::rt::timeout(std::time::Duration::from_secs(5), waiting)
+            .await
+            .expect("the query must resume after the scan releases its gate")
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn workspace_symbol_readiness_waits_for_completion_and_releases_on_failure() {
         let backend = test_backend();
