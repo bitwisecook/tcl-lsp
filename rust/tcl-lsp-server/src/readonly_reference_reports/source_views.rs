@@ -6692,14 +6692,12 @@ mod closed_source_child_ingress_tests {
             !first[0]
                 .analysis
                 .original_procedure_declarations()
-                .iter()
                 .any(|row| &first[0].source[row.name().span().as_range()] == "mypkg_autoloaded")
         );
         assert!(
             second[0]
                 .analysis
                 .original_procedure_declarations()
-                .iter()
                 .any(|row| &second[0].source[row.name().span().as_range()] == "mypkg_autoloaded")
         );
         protocol.finish().await;
