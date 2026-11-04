@@ -1,0 +1,34 @@
+{
+  "commits": {
+    "lib_source": "ad4d43160916c343e8376763cfbefba9fc184ad5",
+    "math_checkpoint": "02a9c35c6",
+    "published_head": "34b4f160e0f326612c5e01600eb1da4050e4464f"
+  },
+  "files": {
+    "rust/tcl-syntax/src/expr/mathfunc.rs": {
+      "lib_source": "c7b8d65e2a0f5c9f26ef402e7c5c86a5b7204b5f562b4b0b4032d51e6875cf61",
+      "math_checkpoint": "c7b8d65e2a0f5c9f26ef402e7c5c86a5b7204b5f562b4b0b4032d51e6875cf61",
+      "published_head": "c7b8d65e2a0f5c9f26ef402e7c5c86a5b7204b5f562b4b0b4032d51e6875cf61"
+    },
+    "rust/tcl-compiler/src/type_infer.rs": {
+      "lib_source": "2572d7a04f17c84846421b634a7030c6da4cb35d8cc4a2aa15c7dba92950ad1a",
+      "math_checkpoint": "2572d7a04f17c84846421b634a7030c6da4cb35d8cc4a2aa15c7dba92950ad1a",
+      "published_head": "2572d7a04f17c84846421b634a7030c6da4cb35d8cc4a2aa15c7dba92950ad1a"
+    },
+    "rust/tcl-compiler/src/compilation_unit.rs": {
+      "lib_source": "5734cdcb48b4ad50b16fd53802c8249e975fe42166e834fade01a0cabb1afc4e",
+      "math_checkpoint": "5734cdcb48b4ad50b16fd53802c8249e975fe42166e834fade01a0cabb1afc4e",
+      "published_head": "5734cdcb48b4ad50b16fd53802c8249e975fe42166e834fade01a0cabb1afc4e"
+    },
+    "rust/tcl-registry/src/mathfunc.rs": {
+      "lib_source": "ef97836bd243cfc6b6aca0337210234111a6cada9a04ed0e7366464c5aa7204c",
+      "math_checkpoint": "ef97836bd243cfc6b6aca0337210234111a6cada9a04ed0e7366464c5aa7204c",
+      "published_head": "ef97836bd243cfc6b6aca0337210234111a6cada9a04ed0e7366464c5aa7204c"
+    },
+    "rust/tcl-compiler/tests/type_propagation.rs": {
+      "lib_source": "f58a2d0a037910330dc9acb0dcd6d057084b9e4148101b9ac9a22f21e2e4bdc0",
+      "math_checkpoint": "f58a2d0a037910330dc9acb0dcd6d057084b9e4148101b9ac9a22f21e2e4bdc0",
+      "published_head": "f58a2d0a037910330dc9acb0dcd6d057084b9e4148101b9ac9a22f21e2e4bdc0"
+    }
+  }
+}

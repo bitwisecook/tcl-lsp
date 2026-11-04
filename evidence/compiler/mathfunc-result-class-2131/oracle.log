@@ -1,0 +1,36 @@
+--- /workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.4 ---
+ceil(3.14) value=4.0 int=0 double=1 boolean=0
+int(3.14) value=3 int=1 double=1 boolean=0
+trunc(2.5) ERROR
+isnan(1.0) ERROR
+signbit(-1.0) ERROR
+--- /workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.5 ---
+ceil(3.14) value=4.0 int=0 double=1 boolean=0
+int(3.14) value=3 int=1 double=1 boolean=0
+trunc(2.5) ERROR
+isnan(1.0) ERROR
+signbit(-1.0) ERROR
+--- /workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh8.6 ---
+ceil(3.14) value=4.0 int=0 double=1 boolean=0
+int(3.14) value=3 int=1 double=1 boolean=0
+trunc(2.5) ERROR
+isnan(1.0) ERROR
+signbit(-1.0) ERROR
+--- /workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.0 ---
+ceil(3.14) value=4.0 int=0 double=1 boolean=0
+int(3.14) value=3 int=1 double=1 boolean=0
+trunc(2.5) ERROR
+isnan(1.0) value=0 int=1 double=1 boolean=1
+signbit(-1.0) ERROR
+--- /workspace/tcl-lsp/tmp/lsp-oracles/bin/tclsh9.1 ---
+ceil(3.14) value=4.0 int=0 double=1 boolean=0
+int(3.14) value=3 int=1 double=1 boolean=0
+trunc(2.5) value=2.0 int=0 double=1 boolean=0
+isnan(1.0) value=0 int=1 double=1 boolean=1
+signbit(-1.0) value=1 int=1 double=1 boolean=1
+--- /workspace/tcl-lsp/tmp/lsp-oracles/jimtcl/jimsh ---
+ceil(3.14) value=4.0 int=0 double=1 boolean=0
+int(3.14) value=3 int=1 double=1 boolean=0
+trunc(2.5) ERROR
+isnan(1.0) ERROR
+signbit(-1.0) ERROR

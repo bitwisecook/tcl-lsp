@@ -1,0 +1,5 @@
+c7b8d65e2a0f5c9f26ef402e7c5c86a5b7204b5f562b4b0b4032d51e6875cf61  rust/tcl-syntax/src/expr/mathfunc.rs
+2572d7a04f17c84846421b634a7030c6da4cb35d8cc4a2aa15c7dba92950ad1a  rust/tcl-compiler/src/type_infer.rs
+5734cdcb48b4ad50b16fd53802c8249e975fe42166e834fade01a0cabb1afc4e  rust/tcl-compiler/src/compilation_unit.rs
+ef97836bd243cfc6b6aca0337210234111a6cada9a04ed0e7366464c5aa7204c  rust/tcl-registry/src/mathfunc.rs
+f58a2d0a037910330dc9acb0dcd6d057084b9e4148101b9ac9a22f21e2e4bdc0  rust/tcl-compiler/tests/type_propagation.rs

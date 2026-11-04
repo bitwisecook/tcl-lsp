@@ -1,0 +1,14 @@
+
+running 1 test
+
+thread 'public_compilation_type_inference_uses_shared_math_result_classes' (363625) panicked at /tmp/lsp-2131-public-mathfunc.rs:15:28:
+no Tcl type for tcl8.4 ceil
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test public_compilation_type_inference_uses_shared_math_result_classes ... FAILED
+
+failures:
+
+failures:
+    public_compilation_type_inference_uses_shared_math_result_classes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
