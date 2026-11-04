@@ -1413,8 +1413,12 @@ mod tests {
         let mut vm = crate::native_fixture::interpreter_with_dictionary_library(profile);
         vm.push_call_frame(Some("outer".into()), Vec::new());
         let outer = vm.current_level();
-        vm.set_var("held", Value::string("old")).unwrap();
-        vm.set_var("dictionary", Value::string("k held")).unwrap();
+        assert_eq!(
+            vm.try_eval_source("set held old; set dictionary {k held}")
+                .unwrap()
+                .code,
+            Code::Ok,
+        );
         vm.push_call_frame(Some("inner".into()), Vec::new());
         vm.add_link("alias", outer, "held")
             .unwrap_or_else(|_| panic!("link"));
@@ -1422,11 +1426,21 @@ mod tests {
             .unwrap_or_else(|_| panic!("link"));
         vm.add_link("member_alias", outer, "dictionary(k)")
             .unwrap_or_else(|_| panic!("link"));
-        vm.set_var("local_dictionary", Value::string("k local"))
+        assert_eq!(
+            vm.try_eval_source(
+                "set local_dictionary {k local}; set d {}; set wrapper_body NOT_ENTERED"
+            )
+            .unwrap()
+            .code,
+            Code::Ok,
+        );
+        // A dictionary member must have its actual Jim source context before
+        // the wrapper's nullable existence getter can inspect it.
+        let members = vm
+            .try_eval_source("list [set alias] [set member_alias] [info exists member_alias]")
             .unwrap();
-        vm.set_var("d", Value::dict(Vec::new())).unwrap();
-        vm.set_var("wrapper_body", Value::string("NOT_ENTERED"))
-            .unwrap();
+        assert_eq!(members.code, Code::Ok);
+        assert_eq!(members.result.to_str().as_ref(), "old held 1");
         let inner = vm.current_level();
         (vm, outer, inner)
     }

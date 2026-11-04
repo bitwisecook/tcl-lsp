@@ -450,7 +450,10 @@ mod tests {
         let mut vm = crate::native_fixture::interpreter(profile);
         vm.push_call_frame(Some("outer".into()), Vec::new());
         let outer = vm.current_level();
-        vm.set_var("held", Value::string("OUTER")).unwrap();
+        assert_eq!(
+            vm.try_eval_source("set held OUTER").unwrap().code,
+            tcl_runtime_api::Code::Ok
+        );
         vm.push_call_frame(Some("inner".into()), Vec::new());
         vm.add_link("alias", outer, "held")
             .unwrap_or_else(|_| panic!("link"));
@@ -459,12 +462,11 @@ mod tests {
             "cached_jim_name",
             std::rc::Rc::new(RetainedName(original.clone())),
         );
-        assert_eq!(
-            vm.try_eval_source("info exists [cached_jim_name]")
-                .unwrap()
-                .code,
-            tcl_runtime_api::Code::Ok
-        );
+        // `info exists` owns a byte-name existence probe, not an original
+        // Jim variable cache. The actual original getter installs that cache.
+        let fetched = vm.try_eval_source("set [cached_jim_name]").unwrap();
+        assert_eq!(fetched.code, tcl_runtime_api::Code::Ok);
+        assert_eq!(fetched.result.to_str().as_ref(), "OUTER");
         let binding = vm
             .var_binding_from_bytes(b"alias", vm.current_level())
             .unwrap();
