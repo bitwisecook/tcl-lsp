@@ -104,7 +104,7 @@ The [independent original logical-site observations](numeric-original-logical-op
 
 ## Source inspection
 
-tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOptimize.c`, TclOptimizeBytecode, lines275–330. Whole source SHA-256 `058fea33a68fd490f4550fb4b4d53116ed134901b8cf715674b88d9a5c2d1c64`; snippet SHA-256 `c4e6f971b7b46ea972750451a00ae26ec41fa0c8785274da1ae3f58570b82373`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOptimize.c`, TclOptimizeBytecode, lines275–330. The source revision was not otherwise recorded.
 
 ```c
 		break;
@@ -165,7 +165,7 @@ tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclOptimize.c`, TclOpti
 /*
 ```
 
-tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c`, Tcl_CreateInterp, lines551–575. Whole source SHA-256 `19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198`; snippet SHA-256 `ff3fb243215a0865acfc474db2cbf9b0cf2caccbcdd5e0a785a7830fab42f394`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c`, Tcl_CreateInterp, lines551–575. The source revision was not otherwise recorded.
 
 ```c
 
@@ -195,7 +195,7 @@ tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c`, Tcl_Create
     iPtr->cmdFramePtr = NULL;
 ```
 
-tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.c`, TclSetByteCodeFromAny, lines843–863. Whole source SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; snippet SHA-256 `16be4e717e02ac593c245f03cbf3f67699e75edfe702081181ec316ec49ee1e1`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.c`, TclSetByteCodeFromAny, lines843–863. The source revision was not otherwise recorded.
 
 ```c
 	TclEmitOpcode(INST_DONE, &compEnv);
@@ -220,7 +220,7 @@ tcl8.6 8.6.18, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCompile.c`, TclSetBy
     }
 ```
 
-tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOptimize.c`, TclOptimizeBytecode, lines275–330. Whole source SHA-256 `3e0166030d973686e2c974ba88f7010437cf9e82b6b36e96e0839d27bce95424`; snippet SHA-256 `8fa38ec8ebff2d341a27ffa4c69b416e4f25f226b94f3bece09fe179259bd174`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOptimize.c`, TclOptimizeBytecode, lines275–330. The source revision was not otherwise recorded.
 
 ```c
 		break;
@@ -281,7 +281,7 @@ tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOptimize.c`, TclOptimi
  *
 ```
 
-tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c`, Tcl_CreateInterp, lines925–949. Whole source SHA-256 `6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67`; snippet SHA-256 `c1cfc45b4b2a0430c36166e28f2f982db7645dcd121df8c9828a65f32fc66ee1`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c`, Tcl_CreateInterp, lines925–949. The source revision was not otherwise recorded.
 
 ```c
     /* Special invalid value: Any attempt to free the legacy result
@@ -311,7 +311,7 @@ tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c`, Tcl_CreateIn
     iPtr->cmdFramePtr = NULL;
 ```
 
-tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.c`, TclSetByteCodeFromAny, lines858–878. Whole source SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; snippet SHA-256 `c6f975cf2e19121afc134b9e23b946a58f7cfaadc59d17356a340c5658177195`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.c`, TclSetByteCodeFromAny, lines858–878. The source revision was not otherwise recorded.
 
 ```c
 	TclEmitOpcode(INST_DONE, &compEnv);
@@ -336,7 +336,7 @@ tcl9.0 9.0.4, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCompile.c`, TclSetByte
     }
 ```
 
-tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOptimize.c`, TclOptimizeBytecode, lines288–343. Whole source SHA-256 `fd9b0b5f0d289d5e09780de2acf3259e0373cfb5ba243abff566ac3a2b9035e4`; snippet SHA-256 `1a009049af27edb4701b780af0790802554be396f07793512ea3ba242b01c593`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOptimize.c`, TclOptimizeBytecode, lines288–343. The source revision was not otherwise recorded.
 
 ```c
 		break;
@@ -397,7 +397,7 @@ tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOptimize.c`, TclOptimi
 }
 ```
 
-tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c`, Tcl_CreateInterp, lines860–884. Whole source SHA-256 `5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2`; snippet SHA-256 `c1cfc45b4b2a0430c36166e28f2f982db7645dcd121df8c9828a65f32fc66ee1`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c`, Tcl_CreateInterp, lines860–884. The source revision was not otherwise recorded.
 
 ```c
     /* Special invalid value: Any attempt to free the legacy result
@@ -427,7 +427,7 @@ tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c`, Tcl_CreateIn
     iPtr->cmdFramePtr = NULL;
 ```
 
-tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.c`, TclSetByteCodeFromAny, lines1183–1203. Whole source SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; snippet SHA-256 `b79125fd66bcf2ab18a763cc379f0ecce631f109ffcf88d7a1a615da5dd334fc`. Revision is the exact whole-file byte hash, with no upstream commit inferred.
+tcl9.1 9.1.0, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCompile.c`, TclSetByteCodeFromAny, lines1183–1203. The source revision was not otherwise recorded.
 
 ```c
 	TclEmitOpcode(		INST_DONE,			&compEnv);

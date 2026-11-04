@@ -22,7 +22,7 @@ Exact five original body constructors and external refs1/2 axes enter C Tcl_Eval
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h', 'sha256': '824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf'}, {'path': '/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h', 'sha256': 'f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
+Status: `observed`. Version: 8.4.20 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h'}, {'path': '/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
 
 ```tsv
 0	1	0	1	2	none	1	none	1	none	1	2
@@ -38,7 +38,7 @@ Public original object-vector proc definition, native body constructors and priv
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h', 'sha256': 'c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5'}, {'path': '/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h', 'sha256': '72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
+Status: `observed`. Version: 8.5.19 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h'}, {'path': '/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
 
 ```tsv
 0	1	0	1	2	none	1	none	1	none	1	2
@@ -54,7 +54,7 @@ Public original object-vector proc definition, native body constructors and priv
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h', 'sha256': 'aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245'}, {'path': '/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h', 'sha256': 'e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
+Status: `observed`. Version: 8.6.18 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h'}, {'path': '/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
 
 ```tsv
 0	1	0	1	2	none	1	none	1	none	1	2
@@ -70,7 +70,7 @@ Public original object-vector proc definition, native body constructors and priv
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h', 'sha256': 'eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a'}, {'path': '/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h', 'sha256': 'f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
+Status: `observed`. Version: 9.0.4 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h'}, {'path': '/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
 
 ```tsv
 0	1	0	1	2	none	1	none	1	none	1	2
@@ -86,7 +86,7 @@ Public original object-vector proc definition, native body constructors and priv
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h', 'sha256': '30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950'}, {'path': '/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h', 'sha256': 'fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
+Status: `observed`. Version: 9.1.0 (original capture association; full launched patchlevel unqueried). Build: headers=[{'path': '/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h'}, {'path': '/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
 
 ```tsv
 0	1	0	1	2	none	1	none	1	none	1	2
@@ -102,7 +102,7 @@ Public original object-vector proc definition, native body constructors and priv
 
 ### jim
 
-Status: `observed`. Version: Jim (original patchlevel/revision/configuration unqueried). Build: headers=[{'path': '/tmp/2286-oracles/jimtcl/jim.h', 'sha256': 'd9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
+Status: `observed`. Version: Jim (original patchlevel/revision/configuration unqueried). Build: headers=[{'path': '/tmp/2286-oracles/jimtcl/jim.h'}]; compile_exit=0; exit=0. Only this original capture supplies these build fields. Missing configuration/compiler/runtime version fields remain unrecorded.. Channel: Exact selected rows in the manifest12-column order:
 
 ```tsv
 0	1	0	1	2	none	1	none	1	none	1	2

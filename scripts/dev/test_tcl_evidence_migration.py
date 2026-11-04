@@ -34,6 +34,10 @@ class EvidenceMigrationTests(unittest.TestCase):
             "binary_sha256=" + "a" * 64 + "; compile_exit=0; Tcl build 8.6"
         )
         self.assertEqual(cleaned, "compile_exit=0; Tcl build 8.6")
+        headers = "headers=[{'path': 'tcl.h', 'sha256': '" + "b" * 64 + "'}]; exit=0"
+        self.assertEqual(
+            helpers["historical_build"](headers), "headers=[{'path': 'tcl.h'}]; exit=0"
+        )
 
     def test_retired_proof_index_does_not_write_legacy_records(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

@@ -72,9 +72,13 @@ def merge_classifications(root, supplied, gate):
 def historical_build(value):
     """Keep recorded build facts without printing legacy digest values."""
     pattern = r"(?i)\b(?:[a-z0-9_/-]+_)?sha-?256\s*(?:=|\s)\s*`?[0-9a-f]{64}`?"
-    if not re.search(pattern, value):
+    field = r"['\"]sha256['\"]\s*:\s*['\"][0-9a-f]{64}['\"]"
+    if not re.search(pattern, value) and not re.search(field, value):
         return value
     value = re.sub(pattern, "", value)
+    value = re.sub(r",\s*" + field, "", value)
+    value = re.sub(field + r"\s*,\s*", "", value)
+    value = re.sub(field, "", value)
     value = "; ".join(part.strip(" ,") for part in value.split(";") if part.strip(" ,"))
     value = re.sub(r"\s+,", ",", value)
     value = re.sub(r",\s*,", ",", value)
