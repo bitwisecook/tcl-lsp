@@ -271,6 +271,15 @@ unit decides — its header is not reached, its condition varies, a
 stub-declared loop command the CFG keeps as a call, a complexity-guarded
 body — keeps the verdict its text gives, reported after the pass.
 
+Loop-candidate collection requires the current source-selected registry schema
+or an explicit document-declared loop contract. The selected schema supplies
+`HAS_LOOP_BODY`, complete effective argument roles, accepted source arity and
+its iteration plan; a command spelling cannot recover a builtin loop. Original
+effective operands preserve qualified and alias selection. A declaration does
+not inherit an iteration plan from another command with the same spelling.
+These are diagnostic source facts and grant no Native handler, completion or
+executable value permission.
+
 What the text gives includes the loop's counter, as its iteration plan states
 it (`LoopCounter`): the condition compares one variable with a literal bound,
 and every pass adds one literal step — the counted plan's step script, or the

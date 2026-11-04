@@ -2399,15 +2399,27 @@ impl Analyser {
         let registry = super::bounds_checks::BoundsMetadataContext::Retained(&generation);
         let grammar = self.grammar();
         let surface = self.command_surface(generation.commands());
-        if let Some(candidate) = super::bounds_checks::loop_termination_candidate(
-            cmd_name,
-            args,
-            arg_tokens,
-            registry,
-            Some(&surface),
-            self.file_lexer_config(),
-            &grammar,
-        ) {
+        let candidate = if surface.declares(cmd_name) {
+            super::bounds_checks::loop_termination_candidate(
+                cmd_name,
+                args,
+                arg_tokens,
+                registry,
+                Some(&surface),
+                self.file_lexer_config(),
+                &grammar,
+            )
+        } else {
+            original.and_then(|original| {
+                super::bounds_checks::original_loop_termination_candidate(
+                    original,
+                    &self.result,
+                    &self.source,
+                )
+            })
+        };
+        if let Some(mut candidate) = candidate {
+            candidate.cmd_name = cmd_name.to_owned();
             self.loop_candidates.push(candidate);
         }
         let numbers = grammar.numbers;

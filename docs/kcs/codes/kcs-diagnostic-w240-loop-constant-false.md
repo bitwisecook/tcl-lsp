@@ -29,6 +29,10 @@ first time the loop is reached — a variable that holds `0`, the first test of 
 analyser knows (`set start 20; for {set i $start} {$i < 10} …`) — the loop is
 just as dead.
 
+Loop warnings use the selected command's loop contract. A user procedure named
+`while` or `for` does not inherit the builtin's loop semantics. A document stub
+can explicitly declare a custom command as a loop with `-loop`.
+
 ## Example that triggers it
 
 ```tcl

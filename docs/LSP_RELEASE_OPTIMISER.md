@@ -168,3 +168,29 @@ The strict computed-false control is now its own test,
 `issue_2384_computed_false_loop_is_reported`. Its assertion is unchanged;
 separating it lets all reported rotated-loop cases run even when that active
 control fails. The focused baseline now contains five tests.
+
+
+## Current #2384 verification checkpoint
+
+At clean `993a908ffd682982832621d734f61ffc7c1e8099`, the focused no-run build
+passed in 2m58s. The emitted binary then ran outside the wrapper with strict
+Tcl/Jim requirements and one test thread: **3 passed, 2 failed, 0 ignored**
+(56.16s). All 25 reported rotated-loop diagnostic checks passed, all 18 literal
+builtin/declared-loop W240 controls passed, and all 36 original/rewrite native
+execution comparisons passed. The separate computed-false entry warning remains
+absent. A concrete additional defect was reproduced: a user procedure named
+`while` prints `always` once but receives W240 alongside the correct W113 shadow
+warning. The log is `/tmp/lsp-2384-retained-baseline.log`.
+
+The current draft derives loop traits, complete role positions, source arity and
+iteration plans from the actual `OriginalDiagnosticInvocation` schema. It keeps
+explicit document loop contracts on their declaration path and prevents those
+contracts from borrowing a same-spelled builtin's counter plan. Qualified and
+alias controls have been added. The draft is not compiled or verified; the
+server's idle benchmark reservation is respected, with no further build queued.
+The computed-entry assertion remains strict and separate, so #2384 stays open.
+The exact draft is `/tmp/lsp-2384-selected-loop.patch`.
+
+The optional #2218 required-Jim test branch was type-checked by this successful
+no-run build. Its original three-test implementation proof remains the frozen
+`c47d83bda` run; no equivalent #2218 runtime suite was repeated.

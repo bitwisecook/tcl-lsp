@@ -167,6 +167,8 @@ fn is_loop_exit_command(name: &str, registry: BoundsMetadataContext<'_>) -> bool
 struct LoopShape {
     cond: usize,
     body: usize,
+    scripts: Vec<usize>,
+    plan: Option<tcl_registry::value_transfer::IterationPlan>,
 }
 
 /// The loop shape of `name` invoked with `args`, or `None` when it is not a
@@ -228,8 +230,16 @@ fn loop_shape(
 #[cfg(test)]
 fn core_loop_shape(name: &str) -> Option<LoopShape> {
     match name {
-        "while" => Some(LoopShape { cond: 0, body: 1 }),
-        "for" => Some(LoopShape { cond: 1, body: 3 }),
+        "while" => conditional_loop_shape([
+            (0, tcl_registry::ArgRole::Expr),
+            (1, tcl_registry::ArgRole::Body),
+        ]),
+        "for" => conditional_loop_shape([
+            (0, tcl_registry::ArgRole::Body),
+            (1, tcl_registry::ArgRole::Expr),
+            (2, tcl_registry::ArgRole::Body),
+            (3, tcl_registry::ArgRole::Body),
+        ]),
         _ => None,
     }
 }
@@ -254,7 +264,12 @@ fn conditional_loop_shape(
     let cond = cond?;
     bodies.sort_unstable();
     let body = bodies.iter().copied().rfind(|&i| i > cond)?;
-    Some(LoopShape { cond, body })
+    Some(LoopShape {
+        cond,
+        body,
+        scripts: bodies,
+        plan: None,
+    })
 }
 
 /// What a conditional loop's text says about its termination — the verdict
@@ -570,21 +585,107 @@ pub(crate) fn loop_termination_candidate(
     lexer_config: tcl_lexer::LexerConfig,
     grammar: &tcl_dialect::LexerGrammar,
 ) -> Option<LoopTerminationCandidate> {
-    let shape = loop_shape(cmd_name, args, registry, surface)?;
-
-    // An under-applied call is an arity diagnostic, not a termination one.
-    if args.len() <= shape.body || arg_tokens.len() <= shape.body {
-        return None;
-    }
+    let mut shape = loop_shape(cmd_name, args, registry, surface)?;
     let texts: Vec<_> = args.iter().map(String::as_str).collect();
-    let scripts = surface
+    shape.scripts = surface
         .filter(|surface| surface.declares(cmd_name))
         .map_or_else(
             || registry.argument_indices(cmd_name, &texts, tcl_registry::ArgRole::Body),
             |surface| surface.arg_indices_for_role(cmd_name, &texts, tcl_registry::ArgRole::Body),
         );
-    let may_exit = scripts
-        .into_iter()
+    // A document contract does not inherit another command's iteration plan.
+    if !surface.is_some_and(|surface| surface.declares(cmd_name)) {
+        shape.plan = registry.spec(cmd_name).and_then(|spec| {
+            crate::value_transfer::resolved_iteration_plan(
+                registry.commands(),
+                spec.descriptor_key().label(),
+                args,
+            )
+        });
+    }
+    loop_candidate_from_shape(
+        cmd_name,
+        args,
+        arg_tokens,
+        registry,
+        shape,
+        lexer_config,
+        grammar,
+    )
+}
+
+/// Loop advice follows the actual selected schema and original effective operands.
+pub(super) fn original_loop_termination_candidate(
+    original: &super::diagnostic_registry::OriginalDiagnosticInvocation,
+    analysis: &super::AnalysisResult,
+    source: &str,
+) -> Option<LoopTerminationCandidate> {
+    if !original.matches_analysis(analysis, source) {
+        return None;
+    }
+    let input = analysis.resolved_input.as_ref()?;
+    let (args, tokens, _) = original.source_arguments()?;
+    let shape = original
+        .with_schema(|schema| {
+            let (roles, complete) = schema.authored_source_argument_roles();
+            if !schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::HAS_LOOP_BODY)
+                || !complete
+                || schema
+                    .argument_count_for_arity()
+                    .is_none_or(|count| !schema.semantics.arity.accepts(count))
+            {
+                return None;
+            }
+            let roles = roles
+                .into_iter()
+                .map(|(index, role)| {
+                    Some((
+                        usize::from(index).checked_add(schema.semantics.argument_offset)?,
+                        role,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let mut shape = conditional_loop_shape(roles)?;
+            shape.plan = crate::value_transfer::selected_iteration_plan(
+                schema,
+                &args,
+                original.context().commands().profile(),
+            );
+            Some(shape)
+        })
+        .flatten()?;
+    let config = input.lexer_config();
+    loop_candidate_from_shape(
+        original.command(),
+        &args,
+        &tokens,
+        BoundsMetadataContext::Retained(original.context()),
+        shape,
+        config,
+        &config.grammar_over(input.analyser_profile().grammar),
+    )
+}
+
+fn loop_candidate_from_shape(
+    cmd_name: &str,
+    args: &[String],
+    arg_tokens: &[Token],
+    registry: BoundsMetadataContext<'_>,
+    shape: LoopShape,
+    lexer_config: tcl_lexer::LexerConfig,
+    grammar: &tcl_dialect::LexerGrammar,
+) -> Option<LoopTerminationCandidate> {
+    // An under-applied call is an arity diagnostic, not a termination one.
+    if args.len() <= shape.body || arg_tokens.len() <= shape.body {
+        return None;
+    }
+    let may_exit = shape
+        .scripts
+        .iter()
+        .copied()
         .chain(std::iter::once(shape.body))
         .any(|index| {
             let Some((text, token)) = args.get(index).zip(arg_tokens.get(index)) else {
@@ -600,7 +701,7 @@ pub(crate) fn loop_termination_candidate(
             )
             .is_none_or(|script| body_may_exit(&script, registry, lexer_config))
         });
-    let words = plan_words(cmd_name, args, registry);
+    let words = shape.plan.as_ref().and_then(|plan| plan_words(args, plan));
     let counter = words
         .as_ref()
         .and_then(|words| loop_counter(words, registry, lexer_config, grammar));
@@ -635,30 +736,24 @@ struct PlanWords<'a> {
     body: &'a str,
 }
 
-/// The words the iteration plan `cmd_name` declares over `args` names, when
-/// it declares a counted or a conditional one
-/// ([`crate::value_transfer::resolved_iteration_plan`]); the catalogue's
-/// registry answers for an analyse with none.
+/// Original operands at the positions the selected iteration plan states.
 fn plan_words<'a>(
-    cmd_name: &str,
     args: &'a [String],
-    registry: BoundsMetadataContext<'_>,
+    plan: &tcl_registry::value_transfer::IterationPlan,
 ) -> Option<PlanWords<'a>> {
     use tcl_registry::value_transfer::IterableKind;
-    let head = registry.spec(cmd_name)?.descriptor_key().label();
-    let plan = crate::value_transfer::resolved_iteration_plan(registry.commands(), head, args)?;
     let word = |id: tcl_registry::value_transfer::OperandId| args.get(id.0).map(String::as_str);
-    let body = word(plan.body?.body)?;
-    match plan.iterable {
+    let body = word(plan.body.as_ref()?.body)?;
+    match &plan.iterable {
         IterableKind::Counted {
             condition, next, ..
         } => Some(PlanWords {
-            condition: word(condition)?,
-            next: Some(word(next)?),
+            condition: word(*condition)?,
+            next: Some(word(*next)?),
             body,
         }),
         IterableKind::Condition(condition) => Some(PlanWords {
-            condition: word(condition)?,
+            condition: word(*condition)?,
             next: None,
             body,
         }),

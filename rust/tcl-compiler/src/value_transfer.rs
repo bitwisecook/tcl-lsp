@@ -7490,10 +7490,27 @@ pub(crate) fn resolved_iteration_plan(
             registry.own_surface_query(),
         )
         .resolved()?;
+    selected_iteration_plan(&resolved, args, registry.profile())
+}
+
+/// Project the already selected source descriptor without resolving its name again.
+pub(crate) fn selected_iteration_plan(
+    resolved: &ResolvedInvocation<'_, '_>,
+    args: &[String],
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<IterationPlan> {
+    let arguments = resolved.words.arguments();
+    if arguments.exact_argv_len() != Some(args.len()) {
+        return None;
+    }
+    let texts: Vec<_> = args.iter().map(String::as_str).collect();
+    let words = (0..args.len())
+        .map(|index| arguments.get(index))
+        .collect::<Option<Vec<_>>>()?;
     let semantics = resolved.semantics.value.semantics()?;
-    let context = AnalysisContext::detached(registry.profile());
+    let context = AnalysisContext::detached(profile);
     let inputs = StructureInputs::new(
-        view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        view_of(resolved, &texts, &words, InvocationLayout::Source),
         &context,
     );
     match semantics.structure(&inputs) {

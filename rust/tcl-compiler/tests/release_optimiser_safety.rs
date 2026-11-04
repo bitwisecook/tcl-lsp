@@ -766,6 +766,56 @@ fn issue_2384_shadowed_loop_heads_are_not_reported() {
 }
 
 #[test]
+fn issue_2384_qualified_and_alias_loop_heads() {
+    for (source, warns) in [
+        ("::while 0 {puts never}\n", true),
+        ("::for {} 0 {} {puts never}\n", true),
+        ("interp alias {} spin {} while\nspin 0 {puts never}\n", true),
+        ("interp alias {} spin {} while 0\nspin {puts never}\n", true),
+        (
+            "proc ::while {condition body} {puts always}\n::while 0 {puts never}\n",
+            false,
+        ),
+        (
+            "proc ::for {start test next body} {puts always}\n::for {} 0 {} {puts never}\n",
+            false,
+        ),
+        (
+            "proc route {condition body} {puts always}\nrename while core_while\ninterp alias {} while {} route\nwhile 0 {puts never}\n",
+            false,
+        ),
+    ] {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = analyse(source, dialect);
+            let warnings: Vec<_> = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| {
+                    matches!(
+                        diagnostic.code,
+                        tcl_core_types::DiagCode::W240
+                            | tcl_core_types::DiagCode::W241
+                            | tcl_core_types::DiagCode::W242
+                    )
+                })
+                .map(|diagnostic| diagnostic.code)
+                .collect();
+            let expected = if warns {
+                vec![tcl_core_types::DiagCode::W240]
+            } else {
+                Vec::new()
+            };
+            assert_eq!(
+                warnings,
+                expected,
+                "{dialect}: {source}: {:?}",
+                diagnostic_summaries(&result)
+            );
+        }
+    }
+}
+
+#[test]
 fn issue_2384_loop_execution() {
     for (body, condition, expected) in [
         ("set i 5", "$i < 3", "1 6"),
