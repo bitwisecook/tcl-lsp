@@ -3,9 +3,9 @@
 These controls retain 40 fixed Tcl sources in each of C Tcl 8.4.20, 8.5.19,
 8.6.18, 9.0.4 and 9.1.0, and JimTcl 0.84 (`0.84-9-g5bac7c9`, source commit
 `5bac7c99ad65864c87da513e22e2f01703fa4e03`). Each source has its original
-stdout, stderr, process status, duration and SHA-256 in `manifest.json`.
-`version-inventory.json` records the interpreter identities and binary hashes.
-File references are relative to this directory; recorded invocation paths
+stdout, stderr and process status. The scripts, semantic questions and results
+are also recorded in the [per-script evidence](../../../../../evidence/tcl/).
+File references here are relative to this directory; recorded invocation paths
 retain the original measurement coordinates.
 
 The controls exercise command and procedure publication, lookup and rename;

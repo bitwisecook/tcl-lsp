@@ -7,9 +7,9 @@ command head selects each generic command invocation. The original name object
 is also used for the post-operation existence check and read.
 
 Every program has separate stdout and stderr captures from C Tcl 8.4.20,
-8.5.19, 8.6.18, 9.0.4, 9.1.0, and Jim Tcl. `manifest.json` records the exact
-source, launcher, real executable, version control, output hashes and process
-exit status. Native absence and argument rejection remain captured outcomes:
+8.5.19, 8.6.18, 9.0.4, 9.1.0, and Jim Tcl. The captured scripts, semantic
+questions and results are also recorded in the [per-script evidence](../../../../../evidence/tcl/).
+Native absence and argument rejection remain captured outcomes:
 C Tcl 8.4 lacks `lassign`, and Jim rejects `string is -failindex`.
 
 All source files contain ASCII bytes and LF line endings. The decomposed name
