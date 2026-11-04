@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374 | The exact guarded read of `a(j)` emits W210 for Tcl 8.4–9.1; Jim-profile analysis misses it. A same-element read after setting `a(k)` separately warns on base `a`. | Partial across profiles; adjacent false positive |
-| #2441 | Fresh exact combined report warns for top-level `y` but misses procedure `x` under Tcl 8.4–9.1; Jim misses both. See the exact-source receipt. | Reproduced residual; exact input verified |
+| #2441 | Fresh exact combined report warns for top-level `y` but misses procedure `x` under Tcl 8.4–9.1; Jim misses both. A controlled existing consumer restores the exact/later read when opaque-name advice is omitted. A separate original Registry source-callee classifier is drafted; no production verification yet. | Reproduced residual; candidate uncompiled |
 | #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Closed after coordinator proof review |
 | #2379 | Exact size/names/get and may-set/exists-then-get inputs are quiet for Tcl 8.4–9.1; Jim substitutions can still warn. Tcl `statistics`/`startsearch` error controls currently receive no W210. | Partial; Tcl report rows clear, Jim/adjacent controls remain |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
@@ -32,6 +32,17 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #1778 | The reported distinct colon-edge commands preserve their original distinct output under C Tcl 8.6–9.1 optimisation. Additional lifetime and index consumers require verification. | Partial verification |
 | #1796 | ResolveContext selects exact frames, but UpvarInfo still collapses all beyond-caller distances. | Confirmed remaining foundation |
 | #2332 | Qualified and variable-linked substitution reads are impure with global effects; explicit set reads remain conservatively impure with unknown effects. | Verified baseline |
+
+At the 2026-11-04 19:05 checkpoint, the #2441 diagnostic-only classifier remains
+an uncompiled draft. It leaves the existing Native/body resolver unchanged and
+requires actual retained AuthoredSimulation input, original source/vector,
+closed conditional declaration lookup and an identical Registry target.
+Three unit controls and 75 public source/span rows are prepared, not counted
+as passing or installed in shared CI. The earlier entry/opaque-name split is
+preserved separately. No declaration-graph edit or new Native/Normal fact is
+part of this draft. The compiler source include preflight found all 221
+literal fixtures. Exact current failure and runtime receipts remain in
+`tests/data/w210-empty-loop-exact-source` and `evidence/tcl`.
 
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
 
