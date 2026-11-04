@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
-| #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 7 focused units, including 14 guard cases. Original uncalled-procedure safe guards and later spans are corrected; unsafe controls remain active. | Functional fix published; independent Native-query baseline under review |
+| #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Current joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Functional fix verified; coordinator closure review |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
@@ -276,3 +276,13 @@ query-fixture correction and the coordinator's typed IndexBounds identity
 comparison. The source-graph formatting correction is integrated separately.
 The functional guard receipt remains green; no new production result or
 closure is claimed while the #940 priority compiler job runs.
+
+The joint query/index verification is green: nine query-owner tests, five
+source-value/index tests, seven guard tests and production compiler Clippy. The
+old query failures were fixture-scope errors under the intended after-load
+model; both negative assertions remain unchanged and now use a genuine
+Conditional child. The earlier cache-type lint is fixed upstream. Exact current
+fixture/guard output and source custody are in
+[`verified-fixtures`](../rust/tcl-compiler/tests/data/w210-query-purpose-review/verified-fixtures/README.md).
+No production source-purpose change was needed. #2376 remains open for the
+coordinator's final receipt review; full workspace gates remain separate.
