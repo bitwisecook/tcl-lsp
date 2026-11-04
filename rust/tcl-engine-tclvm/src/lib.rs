@@ -3407,6 +3407,27 @@ mod tests {
         }
     }
 
+    fn script_error_message(error: &EngineError) -> Option<&[u8]> {
+        match error {
+            EngineError::Script { message, .. } => Some(message.as_bytes()),
+            EngineError::ScriptBytes { message, .. } => Some(message.as_slice()),
+            _ => None,
+        }
+    }
+
+    fn is_confined_store_error<T>(answer: &Result<T, EngineError>) -> bool {
+        const MESSAGE: &[u8] = b"stores are confined to the activation";
+        answer
+            .as_ref()
+            .err()
+            .and_then(script_error_message)
+            .is_some_and(|message| {
+                message
+                    .windows(MESSAGE.len())
+                    .any(|window| window == MESSAGE)
+            })
+    }
+
     /// `confine_stores` keeps every write in the invocation's own frame. Each
     /// body below writes somewhere else — a qualified global, an element, a
     /// loop, destructuring or capture target, a `dict` update, a namespace
@@ -3452,14 +3473,7 @@ mod tests {
             engine.confine_stores().expect("the VM confines its stores");
             let handle = engine.compile(unit(body)).expect("compiles");
             let answer = engine.invoke(&handle, &arguments);
-            assert!(
-                matches!(
-                    &answer,
-                    Err(EngineError::Script { message, .. })
-                        if message.contains("stores are confined to the activation")
-                ),
-                "{body}: {answer:?}"
-            );
+            assert!(is_confined_store_error(&answer), "{body}: {answer:?}");
             let probe = engine
                 .compile(unit(&format!("return [info exists {written}]")))
                 .expect("compiles");
@@ -3519,11 +3533,7 @@ mod tests {
                 let handle = engine.compile(unit(body)).expect("compiles");
                 let answer = engine.invoke(&handle, &arguments);
                 assert!(
-                    matches!(
-                        &answer,
-                        Err(EngineError::Script { message, .. })
-                            if message.contains("stores are confined to the activation")
-                    ),
+                    is_confined_store_error(&answer),
                     "{release:?} {body}: {answer:?}"
                 );
             }
@@ -3554,10 +3564,14 @@ mod tests {
             Some("a b")
         );
         let missing = engine.compile(unit("lappend ::missing")).expect("compiles");
-        assert!(matches!(
-            engine.invoke(&missing, &args),
-            Err(EngineError::Script { .. })
-        ));
+        let answer = engine.invoke(&missing, &args);
+        assert!(
+            answer
+                .as_ref()
+                .err()
+                .and_then(script_error_message)
+                .is_some()
+        );
         assert!(engine.vm_mut().get_var("::missing").is_none());
     }
 
@@ -3570,10 +3584,14 @@ mod tests {
         engine.confine_stores().expect("confine");
         let handle = engine.compile(unit("incr ::counter")).expect("compiles");
         let arguments = [Value::list([]), Value::dict_of::<&str>([])];
-        assert!(matches!(
-            engine.invoke(&handle, &arguments),
-            Err(EngineError::Script { .. })
-        ));
+        let answer = engine.invoke(&handle, &arguments);
+        assert!(
+            answer
+                .as_ref()
+                .err()
+                .and_then(script_error_message)
+                .is_some()
+        );
         assert_eq!(
             engine
                 .vm_mut()
@@ -3627,14 +3645,7 @@ mod tests {
             run(&mut engine, "set ::seed old; set ::arr(k) v").expect("an open VM writes globals");
             engine.confine_stores().expect("the VM confines its stores");
             let answer = run(&mut engine, body);
-            assert!(
-                matches!(
-                    &answer,
-                    Err(EngineError::Script { message, .. })
-                        if message.contains("stores are confined to the activation")
-                ),
-                "{body}: {answer:?}"
-            );
+            assert!(is_confined_store_error(&answer), "{body}: {answer:?}");
             assert_eq!(run(&mut engine, left), Ok("0 1 1".to_owned()), "{body}");
         }
         let mut engine = TclVmEngine::new();
@@ -3731,7 +3742,11 @@ mod tests {
             let handle = confined.compile(unit(body)).expect("compiles");
             let answer = confined.invoke(&handle, &arguments);
             assert!(
-                matches!(&answer, Err(EngineError::Script { .. })),
+                answer
+                    .as_ref()
+                    .err()
+                    .and_then(script_error_message)
+                    .is_some(),
                 "{body}: {answer:?}"
             );
         }

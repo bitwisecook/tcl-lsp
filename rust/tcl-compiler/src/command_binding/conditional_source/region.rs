@@ -18,6 +18,9 @@ use tcl_registry::model::ContextRegistry;
 
 type AdviceGraph = crate::command_binding::source_transition_advice::OriginalSourcePointAdviceGraph;
 
+mod closed_publication;
+pub use closed_publication::OriginalClosedSourceCutPublication;
+
 /// An actual region entry retains its immediate predecessor, never a fresh
 /// analysis of the prefix. Equality is the identity of this issued attachment.
 #[derive(Clone)]

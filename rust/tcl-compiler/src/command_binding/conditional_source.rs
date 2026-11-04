@@ -8,8 +8,9 @@ mod region;
 pub(crate) use region::OriginalSourceCutBodyEntryProjection;
 pub(super) use region::SourceConditionalRegionEntry;
 pub use region::{
-    OriginalSingleSourceCutSurvey, OriginalSourceConditionalOutcome,
-    OriginalSourceConditionalRegion, OriginalSourceConditionalRegionSet,
+    OriginalClosedSourceCutPublication, OriginalSingleSourceCutSurvey,
+    OriginalSourceConditionalOutcome, OriginalSourceConditionalRegion,
+    OriginalSourceConditionalRegionSet,
 };
 
 use super::{
