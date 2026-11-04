@@ -186,33 +186,36 @@ impl LspWorker {
     /// `uri` must be admitted by the MemoryStore's strict virtual file-URI
     /// policy. The original and service-canonical URI select one retained
     /// registration; invalid data is refused before any map or bytes change.
-    pub fn vfs_upsert(&self, uri: &str, text: &str) {
-        self.vfs_upsert_bytes(uri, text.as_bytes().to_vec());
+    pub fn vfs_upsert(&self, uri: &str, text: &str) -> bool {
+        self.vfs_upsert_bytes(uri, text.as_bytes().to_vec())
     }
 
     /// Register exact host-read source bytes for a closed file. The host has
     /// already admitted UTF-8 before it sends this wire message; the server
     /// retains these bytes without a second lossy or re-encoding step.
-    pub fn vfs_upsert_bytes(&self, uri: &str, bytes: Vec<u8>) {
-        match self.store.document_uri_path(uri) {
-            Ok(selected) => {
-                // This is the same URI normaliser the service applies to the
-                // client's requests, retained as an explicit alias of this
-                // actual registered virtual path, never decoded back into it.
-                let canonical = tcl_lsp_server::uri_norm::canonical_uri_string(uri);
-                if let Err(error) = self.store.try_upsert_uri_aliases(
-                    &[uri, canonical.as_ref()],
-                    selected.path().to_path_buf(),
-                    bytes,
-                ) {
-                    web_log(&format!(
-                        "tcl-lsp: refused virtual source URI {uri}: {error}"
-                    ));
-                }
+    pub fn vfs_upsert_bytes(&self, uri: &str, bytes: Vec<u8>) -> bool {
+        let selected = match self.store.document_uri_path(uri) {
+            Ok(selected) => selected,
+            Err(error) => {
+                web_log(&format!(
+                    "tcl-lsp: refused virtual source URI {uri}: {error}"
+                ));
+                return false;
             }
-            Err(error) => web_log(&format!(
-                "tcl-lsp: refused virtual source URI {uri}: {error}"
-            )),
+        };
+        let canonical = tcl_lsp_server::uri_norm::canonical_uri_string(uri);
+        match self.store.try_upsert_uri_aliases(
+            &[uri, canonical.as_ref()],
+            selected.path().to_path_buf(),
+            bytes,
+        ) {
+            Ok(()) => true,
+            Err(error) => {
+                web_log(&format!(
+                    "tcl-lsp: refused virtual source URI {uri}: {error}"
+                ));
+                false
+            }
         }
     }
 

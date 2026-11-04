@@ -34,10 +34,11 @@
  * `initialize` in full and the client discards the reply as "neither a response
  * nor a notification", so the handshake hangs with nothing in the console.
  *
- * Three message shapes are NOT protocol traffic and are handled here instead,
- * because they are objects rather than strings:
+ * Five store messages and one validation query are handled here instead of
+ * as LSP protocol traffic, because they are objects rather than strings:
  *
  *   { tclLsp: "upsert", uri, bytes }        register exact admitted source bytes
+ *   { tclLsp: "createDirectory", uri, replyPort } admit a virtual directory
  *   { tclLsp: "delete", uri }                forget one
  *   { tclLsp: "sourceInventory", rootUri, selection, status } census one root
  *   { tclLsp: "validateSpecPackName", name, replyPort } check a pack name
@@ -144,14 +145,19 @@ function dispatch(data) {
     return;
   }
   if (data && data.tclLsp === "upsert") {
-    if (data.bytes instanceof Uint8Array) {
-      server.vfs_upsert_bytes(data.uri, data.bytes);
-    } else if (typeof data.text === "string") {
-      // Compatibility for older hosts; new browser sync always sends bytes.
-      server.vfs_upsert(data.uri, data.text);
+    let accepted = false;
+    if (typeof data.uri === "string" && data.bytes instanceof Uint8Array) {
+      accepted = server.vfs_upsert_bytes(data.uri, data.bytes);
+    } else if (typeof data.uri === "string" && typeof data.text === "string") {
+      accepted = server.vfs_upsert(data.uri, data.text);
+    }
+    if (data.replyPort) {
+      data.replyPort.postMessage(accepted === true);
+      data.replyPort.close();
     }
     return;
   }
+
   if (
     data &&
     data.tclLsp === "sourceInventory" &&
@@ -164,6 +170,15 @@ function dispatch(data) {
   }
   if (data && data.tclLsp === "delete") {
     server.vfs_delete(data.uri);
+    return;
+  }
+  if (data && data.tclLsp === "createDirectory" && data.replyPort) {
+    const accepted =
+      typeof data.uri === "string" &&
+      typeof server.vfs_create_directory === "function" &&
+      server.vfs_create_directory(data.uri);
+    data.replyPort.postMessage(accepted);
+    data.replyPort.close();
     return;
   }
   if (data && data.tclLsp === "validateSpecPackName" && data.replyPort) {

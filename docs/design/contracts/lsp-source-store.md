@@ -191,13 +191,16 @@ removing the last file only removes parents that were implicit.
 
 ## The host contract
 
-`rust/tcl-lsp-server-wasm/worker.js` speaks raw LSP JSON-RPC, plus four object
-messages that are not protocol traffic:
+`rust/tcl-lsp-server-wasm/worker.js` speaks raw LSP JSON-RPC, plus five store object
+messages and a spec-pack-name validation query that are not LSP protocol traffic:
 
 ```js
 {
-  tclLsp: ("upsert", uri, bytes);
-} // exact admitted UTF-8 source bytes
+  tclLsp: ("upsert", uri, bytes, replyPort);
+} // exact UTF-8 source bytes; an optional replyPort reports admission
+{
+  tclLsp: ("createDirectory", uri, replyPort);
+} // checked virtual-directory admission; replies with a boolean
 {
   tclLsp: ("delete", uri);
 } // forget one
@@ -221,13 +224,30 @@ shadow an unrelated store path. The guard tests `has_root`, not `is_absolute` â€
 see the first wasm fault below for why the latter would admit exactly what it
 exists to refuse.
 
-Direct `LspWorker` hosts can declare an empty virtual workspace with
-`vfs_create_directory(uri)` before `initialize`. It uses the same strict
+The browser host verifies each root with `workspace.fs.stat` and requires its
+`FileType.Directory` flag before sending `createDirectory`. The worker delegates
+the original URI to `vfs_create_directory(uri)` and replies with its boolean
+verdict. Failed filesystem verification, worker admission or reply leaves that
+root's census incomplete. File writes likewise await the worker's checked
+admission verdict; refused writes do not count as stored files or complete a
+census. Pending admissions keep every affected store census incomplete, and
+serialized commits recheck the unchanged file/byte budgets. Stale committed
+writes are withdrawn before a successor or complete census is published.
+A withdrawal that cannot be posted leaves this controller incomplete for its
+lifetime, including after later successful scans or transport recovery. A fresh
+worker, store and controller are required to regain a complete census; a rescan
+cannot prove that the old worker has retired an unacknowledged file.
+An empty file search or a census receipt cannot stand
+in for directory admission. Rechecks of the root scan generation prevent a late
+answer from completing or failing a newer census.
+
+Direct `LspWorker` hosts can also call `vfs_create_directory(uri)` before
+`initialize`. It uses the same strict
 `SourceStore::document_uri_path` owner as file upserts and returns `false` for an
 invalid original URI or a namespace conflict. It adds no source bytes and
 issues no inventory receipt. File and spec-pack exports also preserve namespace
-conflicts through the fallible store operations. This directory operation is
-separate from the worker's four object-message forms above.
+conflicts through the fallible store operations. The `createDirectory` store
+message exposes this same operation without changing the URI policy.
 
 **Ordering is the host's job, and the protocol already says it:** send the
 closed-file upserts, any empty-root declarations and each root's census before
@@ -249,7 +269,7 @@ directory natively.
 store on the path that URI names, and retains those bytes without decoding and
 re-encoding them at the transport boundary. The browser host admits only valid
 UTF-8 source before upsert; malformed byte sequences are refused and leave the
-root census incomplete. A URI whose path cannot be recovered is ignored: there
+root census incomplete. A URI whose path cannot be recovered returns `false`: there
 is no store path to register. A host on any other scheme therefore gets a
 server that answers everything about the documents it opens and knows nothing
 about the files around them.

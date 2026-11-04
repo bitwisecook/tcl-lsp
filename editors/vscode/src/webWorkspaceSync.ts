@@ -55,7 +55,9 @@ import * as vscode from "vscode";
 
 /** What the host can do to the server's in-memory store. */
 export interface SourceStoreHost {
-  upsert(uri: string, text: string, originalBytes: Uint8Array): void;
+  /** Admit a provider-confirmed directory through the worker's URI/path owner. */
+  createDirectory(uri: string): Promise<boolean>;
+  upsert(uri: string, text: string, originalBytes: Uint8Array): Promise<boolean>;
   delete(uri: string): void;
   /** Retain a typed census for one workspace root after all prior byte messages. */
   setSourceInventory(rootUri: string, selection: string, status: "complete" | "incomplete"): void;
@@ -69,7 +71,7 @@ export interface SourceStoreHost {
 export function workerSourceStoreHost(worker: Worker): SourceStoreHost {
   return {
     upsert: (uri, _text, originalBytes) =>
-      worker.postMessage({ tclLsp: "upsert", uri, bytes: originalBytes }),
+      requestStoreAdmission(worker, { tclLsp: "upsert", uri, bytes: originalBytes }),
     delete: (uri) => worker.postMessage({ tclLsp: "delete", uri }),
     setSourceInventory: (rootUri, selection, status) =>
       worker.postMessage({
@@ -78,38 +80,46 @@ export function workerSourceStoreHost(worker: Worker): SourceStoreHost {
         selection,
         status,
       }),
+    createDirectory: (uri) => requestStoreAdmission(worker, { tclLsp: "createDirectory", uri }),
     isSafeSpecPackName: (name) =>
-      new Promise<boolean>((resolve, reject) => {
-        const channel = new MessageChannel();
-        const timeout = setTimeout(() => {
-          channel.port1.close();
-          reject(new Error("worker did not validate the spec-pack name"));
-        }, SPEC_PACK_NAME_VALIDATION_TIMEOUT_MS);
-        channel.port1.onmessage = (event: MessageEvent<unknown>) => {
-          clearTimeout(timeout);
-          channel.port1.close();
-          if (typeof event.data === "boolean") {
-            resolve(event.data);
-          } else {
-            reject(new Error("worker returned an invalid spec-pack name verdict"));
-          }
-        };
-        try {
-          worker.postMessage({ tclLsp: "validateSpecPackName", name, replyPort: channel.port2 }, [
-            channel.port2,
-          ]);
-        } catch (err) {
-          clearTimeout(timeout);
-          channel.port1.close();
-          channel.port2.close();
-          reject(err);
-        }
-      }),
+      requestStoreAdmission(worker, { tclLsp: "validateSpecPackName", name }),
     upsertSpecPack: (name, text) => worker.postMessage({ tclLsp: "upsertSpecPack", name, text }),
   };
 }
 
-const SPEC_PACK_NAME_VALIDATION_TIMEOUT_MS = 5_000;
+type StoreAdmissionRequest =
+  | { tclLsp: "upsert"; uri: string; bytes: Uint8Array }
+  | { tclLsp: "createDirectory"; uri: string }
+  | { tclLsp: "validateSpecPackName"; name: string };
+
+function requestStoreAdmission(worker: Worker, request: StoreAdmissionRequest): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    const channel = new MessageChannel();
+    const timeout = setTimeout(() => {
+      channel.port1.close();
+      reject(new Error(`worker did not answer ${request.tclLsp}`));
+    }, STORE_ADMISSION_TIMEOUT_MS);
+    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+      clearTimeout(timeout);
+      channel.port1.close();
+      if (typeof event.data === "boolean") {
+        resolve(event.data);
+      } else {
+        reject(new Error(`worker returned an invalid ${request.tclLsp} verdict`));
+      }
+    };
+    try {
+      worker.postMessage({ ...request, replyPort: channel.port2 }, [channel.port2]);
+    } catch (err) {
+      clearTimeout(timeout);
+      channel.port1.close();
+      channel.port2.close();
+      reject(err);
+    }
+  });
+}
+
+const STORE_ADMISSION_TIMEOUT_MS = 5_000;
 
 export interface WorkspaceSyncBudget {
   /** Most files to send. */
@@ -280,6 +290,10 @@ export class WorkspaceStoreSync {
    */
   private readonly stored = new Map<string, number>();
   private storedBytes = 0;
+  private fileAdmissions: Promise<void> = Promise.resolve();
+  private pendingAdmissions = 0;
+  private pendingWithdrawals = 0;
+  private withdrawalFailed = false;
 
   /** Live-path budget refusals already logged, so a generated tree cannot spam. */
   private liveSkipsLogged = 0;
@@ -316,17 +330,52 @@ export class WorkspaceStoreSync {
     private readonly log: (message: string) => void,
   ) {}
 
-  /** Register (or replace) one file in the store, keeping the running totals exact. */
-  private upsertTracked(
-    uri: vscode.Uri,
-    text: string,
-    originalBytes: Uint8Array,
-    byteLength: number,
-  ): void {
-    const key = uri.toString();
-    this.storedBytes += byteLength - (this.stored.get(key) ?? 0);
-    this.stored.set(key, byteLength);
-    this.host.upsert(key, text, originalBytes.slice());
+  /** Serialize admitted writes so concurrent pushes cannot overrun the budget. */
+  private async upsertTracked(
+    uri: vscode.Uri, text: string, originalBytes: Uint8Array, byteLength: number,
+    budget: WorkspaceSyncBudget, current: () => boolean,
+    onWithdraw: (held: boolean) => void = () => {},
+  ): Promise<"admitted" | "refused" | "budget" | "superseded"> {
+    this.pendingAdmissions += 1;
+    this.publishSourceInventories();
+    const operation = this.fileAdmissions.then(async () => {
+      if (!current()) return "superseded" as const;
+      if (!this.fits(uri, byteLength, budget)) {
+        this.markInventoryIncomplete(uri);
+        onWithdraw(this.deleteTracked(uri));
+        return "budget" as const;
+      }
+      let admitted = false;
+      try {
+        admitted = await this.host.upsert(uri.toString(), text, originalBytes.slice());
+      } catch (error) {
+        this.log(`[web] file admission failed for ${uri.toString()}: ${String(error)}`);
+      }
+      if (!current()) {
+        // No newer queued write has been posted yet. Withdraw this stale
+        // committed write before allowing its successor or a complete census.
+        this.deleteTracked(uri);
+        return "superseded" as const;
+      }
+      if (!admitted) {
+        // A failed acknowledgement may follow a committed worker write. This
+        // delete is posted before the next queued write, including on startup.
+        this.markInventoryIncomplete(uri);
+        onWithdraw(this.deleteTracked(uri));
+        return "refused" as const;
+      }
+      const key = uri.toString();
+      this.storedBytes += byteLength - (this.stored.get(key) ?? 0);
+      this.stored.set(key, byteLength);
+      return "admitted" as const;
+    });
+    this.fileAdmissions = operation.then(() => {}, () => {});
+    try {
+      return await operation;
+    } finally {
+      this.pendingAdmissions -= 1;
+      this.publishSourceInventories();
+    }
   }
 
   private selectionFor(root: vscode.Uri, budget: WorkspaceSyncBudget): string {
@@ -361,6 +410,38 @@ export class WorkspaceStoreSync {
     return generation;
   }
 
+  /** A filesystem directory result and worker admission precede census completion. */
+  private async admitRootDirectory(uri: vscode.Uri, generation: number): Promise<void> {
+    const key = uri.toString();
+    try {
+      const stat = await vscode.workspace.fs.stat(uri);
+      if (this.rootScans.get(key) !== generation) return;
+      if ((stat.type & vscode.FileType.Directory) === 0) {
+        throw new Error("workspace root is not a directory");
+      }
+      this.pendingAdmissions += 1;
+      this.publishSourceInventories();
+      let accepted: boolean;
+      try {
+        accepted = await this.host.createDirectory(key);
+      } finally {
+        this.pendingAdmissions -= 1;
+        this.publishSourceInventories();
+      }
+      if (this.rootScans.get(key) !== generation) return;
+      if (!accepted) throw new Error("worker refused the directory URI or namespace");
+    } catch (error) {
+      if (this.rootScans.get(key) !== generation) return;
+      const inventory = this.sourceInventories.get(key);
+      if (inventory) {
+        inventory.failed = true;
+        inventory.complete = false;
+        inventory.censusComplete = false;
+      }
+      this.log(`[web] could not admit workspace directory ${key}: ${String(error)}`);
+    }
+  }
+
   /** Close only the still-current scan for this root; stale scans cannot certify it. */
   private finishRootScan(rootUri: string, generation: number): void {
     if (generation < 0 || this.rootScans.get(rootUri) !== generation) {
@@ -378,7 +459,8 @@ export class WorkspaceStoreSync {
       this.host.setSourceInventory(
         inventory.rootUri,
         inventory.selection,
-        inventory.complete ? "complete" : "incomplete",
+        inventory.complete && this.pendingAdmissions === 0 && this.pendingWithdrawals === 0 && !this.withdrawalFailed
+          ? "complete" : "incomplete",
       );
     }
   }
@@ -404,17 +486,23 @@ export class WorkspaceStoreSync {
     this.publishSourceInventories();
   }
 
-  /** Withdraw one file from the store. Returns whether it held anything. */
+  /** Failed withdrawal leaves this controller incomplete for its lifetime. */
   private deleteTracked(uri: vscode.Uri): boolean {
     const key = uri.toString();
     const held = this.stored.get(key);
-    if (held === undefined) {
+    this.pendingWithdrawals += 1;
+    try {
+      this.publishSourceInventories();
       this.host.delete(key);
-      return false;
+    } catch (error) {
+      this.withdrawalFailed = true;
+      throw error;
+    } finally {
+      this.pendingWithdrawals -= 1;
     }
+    if (held === undefined) return false;
     this.storedBytes -= held;
     this.stored.delete(key);
-    this.host.delete(key);
     return true;
   }
 
@@ -522,6 +610,10 @@ export class WorkspaceStoreSync {
       scanGenerations.set(rootUri, this.beginRootScan(rootUri));
     }
     this.publishSourceInventories();
+    for (const folder of folders) {
+      await this.admitRootDirectory(folder.uri, scanGenerations.get(folder.uri.toString())!);
+    }
+    this.publishSourceInventories();
 
     const found = new Map<string, vscode.Uri>();
     for (const glob of this.globs) {
@@ -600,7 +692,15 @@ export class WorkspaceStoreSync {
         this.markInventoryIncomplete(uri);
         continue;
       }
-      this.upsertTracked(uri, text, bytes, bytes.byteLength);
+      const admission = await this.upsertTracked(uri, text, bytes, bytes.byteLength, budget,
+        () => this.rootScans.get(currentRootUri!) === scanGeneration);
+      if (admission !== "admitted") {
+        if (admission === "superseded") continue;
+        if (admission === "budget") report.overBudget.push(uri);
+        this.log(`[web] worker did not admit ${uri.toString()}: ${admission}`);
+        this.markInventoryIncomplete(uri);
+        continue;
+      }
       report.sent += 1;
       report.bytes += bytes.byteLength;
     }
@@ -608,7 +708,8 @@ export class WorkspaceStoreSync {
     for (const [rootUri, generation] of scanGenerations) {
       this.finishRootScan(rootUri, generation);
     }
-    report.complete = [...this.sourceInventories.values()].every((inventory) => inventory.complete);
+    report.complete = this.pendingAdmissions === 0 && this.pendingWithdrawals === 0 && !this.withdrawalFailed
+      && [...this.sourceInventories.values()].every((inventory) => inventory.complete);
     this.publishSourceInventories();
     this.reportBudget(report, uris.length, budget);
     return report;
@@ -874,6 +975,10 @@ export class WorkspaceStoreSync {
       scanGenerations.set(rootUri, this.beginRootScan(rootUri));
     }
     this.publishSourceInventories();
+    for (const folder of folders) {
+      await this.admitRootDirectory(folder.uri, scanGenerations.get(folder.uri.toString())!);
+    }
+    this.publishSourceInventories();
     const found = new Map<string, vscode.Uri>();
     for (const folder of folders) {
       let complete = true;
@@ -1026,7 +1131,18 @@ export class WorkspaceStoreSync {
         return result;
       }
 
-      this.upsertTracked(uri, text, bytes, bytes.byteLength);
+      const admission = await this.upsertTracked(uri, text, bytes, bytes.byteLength, budget,
+        () => !this.livePushSuperseded(key, generation)
+          && (!scanOwner || this.rootScans.get(scanOwner.rootUri) === scanOwner.generation),
+        (held) => {
+          if (held) notify([{ uri: key, type: FileChange.Deleted }]);
+        });
+      if (admission !== "admitted") {
+        if (admission !== "superseded") {
+          this.logLiveSkip(`[web] ${key} was not admitted: ${admission}`);
+        }
+        return false;
+      }
       this.publishSourceInventories();
       notify([{ uri: key, type: changeType }]);
       return true;
