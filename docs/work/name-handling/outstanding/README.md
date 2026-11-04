@@ -1,16 +1,16 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 12:38 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
+Updated 04 November 2026, 13:43 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
 
 | Work | Open acceptance |
 | --- | --- |
-| Core producer |Corev5/v6 reject initial package membership before build; incoming Compiler/Lexer50-file+2JSON sync reviewed. Repeat same15semantic+observation under fresh custody; CoreV3 captured-source passes do not waive its final rejection or actual native edits. |
-| Server/metadata |ServerV8 fresh101 ENOSPC in tcl-lsp-db,0/17 controls/0/5 probes, overlay restored; no SourceOrigin. Complete verified resource recovery and affected clean rebuild. Private combined-leaseV3 statically reviewed/unadopted/uncompiled;8 controls/actual diagnosis pending. |
-| Linked containment |RMWv11 valid-custody FAILED Engine4/6, hooks14/14, VM7/8. Adopted452ee6052 retains binding/random guards with genuine C8.4/F5/Jim setup; repeat linked controls plus3 unexecuted additions. |
-| Autoload |Earlier reuse11/11+installed15/15 pass narrowly; browser null/early-route branch unresolved. Matched startup/cold-host gates remain open. |
-| Lint/drift |ClippyV22 pass is recorded719d source before new Lexer/Compiler/452 inputs; final-current formatting/rust-check/prep-pr/drift unpassed. |
-| Proof |605 source-only20Python correction adopted/authenticated/verifier/Ruff; global2171 pre-correction count not recounted/subtracted.425 appliance joins unresolved. |
-| Hosts/performance/packages |Native45c cancelled11:54 with1710ok/521fail/3ignored/429missing terminal events, no aggregate/cause. Browser actual refusal unchanged; private metadata work produces no observed Origin yet. No final host/performance/archive acceptance. |
-| Integration/release |Publisher278694 live, last inspected success12:32:58 d6b2c830. Auth interruption37:56 followed by43/47 daemon successes before manual50 retry; earlier interruptions retained. No active build, no PR/merge/tag/release. |
+| Server/metadata |V10 freshbuild0 rejected before tests by changed Main proposal; strict failure preserved. Separate pinned27 diagnostics:16/17mandatory,3/5probes,5library repros all fail; Native owner mismatch proven, not Browser acceptance. Execute adopted2f49 symbol8controls/ab1b normalization regression and reviewed V11 plan26+6 under strict all-Main custody. |
+| Core producer |Frozen CoreV7 approved stub-cfg/W153 inputs, unrun. Older v5/v6 reject membership before build; captured-source CoreV3 passes never waive its final-custody failure or actual native edits. |
+| Linked containment |Captured RMWv14 diagnostic30/31 (Engine7/7,hooks14/14,VM9/10), Jim actual-wrapper prerequisite still fails; parent Main-currency rejection remains. Preserve v11 Engine4/6/hooks14/14/VM7/8 failures; validate452+3 additions.665 only quotes a numeric-string fixture operand. |
+| Autoload |Originalhelperid2 correct, symbol3/autoload4null, provider/index/recipe absent; bare real-URI positive/source-currency checks pass diagnostically. Private conditional-purpose API retains unknown/deferred debts, no ordinary lookup/Native/Normal/edit grant. Real-host/startup gates remain open. |
+| Lint/drift |ClippyV22 recorded719d pass predates latest stack; new unsuppressed lint/fmt/rust-check/prep-pr/drift pending. |
+| Proof |605 source-only20Python plus2Registry corrections are adopted/authenticated; global2171 old count not recounted/subtracted.425 appliance joins unresolved. |
+| Hosts/packages/performance |No final actual host/performance/archive acceptance. Packaging4no-build contracts12:58 pass narrowly. Old Native45c cancelled:521 individual failures/429missing terminals, no aggregate/cause. |
+| Integration/release |Publisher278694 success13:22:58 1535c88b with historical interruptions retained. V8 ENOSPC preserved; verified archive/retirement+atomic relocation recover space; RMW building. No PR/merge/tag/release. |
 
-Separate VM/BIG-IP features stay deferred; linked dependencies and reproducible oracle evidence remain critical.
+Separate VM/BIG-IP features stay deferred; linked dependencies and oracle provenance remain critical.

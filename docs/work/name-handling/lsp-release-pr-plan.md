@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 12:38 UTC. Not release-ready.** Valid-custody RMWv11 fails3cases: Engine4/6, hooks14/14, VM7/8; adopted452ee6052 and3 added controls are unexecuted. Corev5/v6 reject before build on initial membership. ServerV8 fresh101 fails ENOSPC before17controls/5observations, overlay restored; affected clean rebuild required after recovery. Private metadata combined-leaseV3 is not adopted/compiled and has no actual Origin observations. ClippyV22 pass predates incoming Lexer/Compiler+452 source. Native45c is cancelled with partial outcomes, not aggregate acceptance. Source-only605 correction does not recount global2171. [Current state](current-state.md) preserves source bounds and publication interruptions. No PR/release exists; older material below is historical.
+**ACTIVE — 04 November 2026, 13:43 UTC. Not release-ready.** ServerV10 builds0 then parent Main proposal currency fails before tests. Separate pinned27 diagnostics give16/17mandatory,3/5probes and5/5 failed current-library repros; Native owner mismatch is proven, not browser/current-Main acceptance. Adopted symbolV3/normalization controls await ServerV11's26+6 plan. RMWv14 captured diagnostic passes30/31; parent Main-currency failure remains, CoreV7 is frozen/unrun; no repaired cohort pass. Four12:58 no-build packaging contracts pass narrowly. New stack lint/full gates pending; global2171 unrecounted after source-only corrections. [Current state](current-state.md) records strict custody, old failures and publication/resource limits. No PR/release; older material below is historical.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -61,15 +61,15 @@ The user explicitly authorises reviewed development pushes before green gates;
 that exception grants no merge or release publication. Required PR-event and
 shipping checks still need to pass on the final candidate.
 
-1. Reconcile incoming package membership and rerun all15 Core semantic controls
-   plus observation with fresh dependency/scratch custody; v5/v6 built nothing.
-   Finish verified Server ENOSPC recovery, clean affected packages under AGENTS,
-   then retry17 controls/5 observations. Private metadata combined-leaseV3 needs
-   actual diagnosis and8 controls before adoption; no Origin data exists yet.
-2. Repeat linked RMW after adopted452ee6052 with3 additional controls, retaining
-   v11's three real failures and Engine4/6/hooks14/14/VM7/8 counts. Preserve
-   canonical binding, authored math-random and genuine C8.4/F5/Jim issuer inputs;
-   do not weaken confinement/preflight guards or promote cancelled CI to a pass.
+1. Review and execute ServerV11's26 mandatory controls/6 probes with strict
+   all-Main currency. Captured tests after Main-only refusal remain diagnostic
+   with overallFAIL. Validate2f49 owner and ab1b normalization repairs; diagnose
+   five real library failures without blanket false-premise or guard weakening.
+   Execute frozen CoreV7 with approved stub-cfg/W153 inputs and fresh custody.
+2. Repair the Jim wrapper/unset prerequisite and repeat31 controls against452 and fixture665, preserving
+   v11 Engine4/6/hooks14/14/VM7/8 failures and all canonical binding, authored
+   random, genuine C8.4/F5/Jim issuer guards. Native diagnostics and no-build
+   packaging contracts do not establish actual Browser/WASI/release acceptance.
    Separate VM/BIG-IP features remain deferred; linked regressions are critical.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected
