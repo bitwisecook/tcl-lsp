@@ -62,6 +62,17 @@ must be distinguished from the genuine original invocation before interpreting
 the new private owner assertions. No declaration graph or Native owner changes
 have been made.
 
+At the 20:02 checkpoint, the experimental source-callee classifier remains
+stashed and unverified. The IR contract says `EvaluatedArguments` evaluates
+words without invoking the labelled command; iteration-binding stages also
+perform no new handler dispatch. The next narrow repair will make the opaque
+callee-name consumer respect these existing stage semantics, preserving word
+effects and all real opaque calls. No Native or source-purpose fallback is
+being widened. Independent #940 validation is meanwhile linking the sealed
+phase-eight production libraries and comparing warning collection, full
+checks and admission/Normal/provider facts on each same held compilation unit;
+that run is pending, not a passing gate.
+
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
 
 A separate [36-process binding control audit](../rust/tcl-compiler/tests/data/binding-diagnostic-controls-2026-11-04/README.md)
