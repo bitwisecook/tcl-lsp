@@ -718,15 +718,16 @@ fn issue_2384_literal_false_loop_is_still_reported() {
 
 #[test]
 fn issue_2384_loop_execution() {
-    for (body, expected) in [
-        ("set i 5", "1 6"),
-        ("set i 100", "1 101"),
-        ("incr i 50", "1 51"),
-        ("set j [incr i 5]", "1 6"),
-        ("foreach i {100} {}", "1 101"),
+    for (body, condition, expected) in [
+        ("set i 5", "$i < 3", "1 6"),
+        ("set i 100", "$i < 3", "1 101"),
+        ("incr i 50", "$i < 3", "1 51"),
+        ("set j [incr i 5]", "$i < 3", "1 6"),
+        ("foreach i {100} {}", "$i < 3", "1 101"),
+        ("", "$i < 0", "0 0"),
     ] {
         let source = format!(
-            "set count 0\nfor {{set i 0}} {{$i < 3}} {{incr i}} {{incr count; {body}}}\nputs [list $count $i]\n"
+            "set count 0\nfor {{set i 0}} {{{condition}}} {{incr i}} {{incr count; {body}}}\nputs [list $count $i]\n"
         );
         let mut engines: Vec<_> = tcl_dialect::TclVersion::ALL
             .into_iter()
