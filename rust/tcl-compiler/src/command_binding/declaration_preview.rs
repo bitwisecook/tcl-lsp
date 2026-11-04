@@ -2282,24 +2282,55 @@ impl SourceCommandBindings {
         state: &super::ModuleCommandBindings,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<DeclaredProcedureBody> {
-        if target.registry_backed
+        let input = state.logical_source_name_advice_input()?;
+        if !input.has_logical_source_name_context()
+            || state.baseline.metadata_context.source_analysis_input() != Some(input)
+            || self.lexer_config != Some(input.lexer_config())
+            || state.baseline.native_entry.is_some()
+            || state.baseline.unknown_entry
+            || state.baseline.execution_name_policy.is_some()
+            || state.baseline.hosted_execution_context.is_some()
+            || state.has_opaque_domain()
+            || !state.command_observers.is_quiet()
+            || state.baseline.dialect
+                != Some(super::source_analysis_entry::source_input_dialect(input))
+            || state.baseline.registry_snapshot.as_ref()
+                != Some(&registry.snapshot().semantic_key())
+            || input
+                .context_registry()
+                .commands()
+                .snapshot()
+                .semantic_key()
+                != registry.snapshot().semantic_key()
+            || target.registry_backed
             || target.kind != super::BindingKind::Proc
             || !target.prepended.is_empty()
-            || target.implementation_allocation.is_some()
             || target.runtime_implementation_generation.is_some()
+            || !state.retained_target_is_current(target)
         {
             return None;
         }
-        let site = CommandAllocationSite {
-            source: Arc::clone(state.current_source_origin.as_ref()?),
-            offset: target.implementation_generation,
-        };
-        let body = self.original_declared_procedure_at(&site, registry)?;
+        let allocation = target.implementation_allocation.as_ref()?;
+        let identity = target.identity.as_ref()?;
+        let site = &allocation.site;
+        if allocation.incarnation != super::AllocationIncarnation::First
+            || !Arc::ptr_eq(&site.source, state.current_source_origin.as_ref()?)
+            || site.offset != target.implementation_generation
+            || allocation.command != target.command
+            || identity.runtime.is_some()
+            || identity.origin != target.command
+            || identity.declaration != site.offset
+            || identity.allocation.as_ref() != Some(allocation)
+        {
+            return None;
+        }
+        let body = self.original_declared_procedure_at(site, registry)?;
         if body.logical_name.is_none()
             || body.original_parameters.is_some()
-            || body.declaration != site
+            || &body.declaration != site
             || body.slot.authored_spelling()? != target.command
-            || body.source.origin != site.source
+            || body.namespace != allocation.namespace
+            || !Arc::ptr_eq(&body.source.origin, &site.source)
             || !matches!(
                 body.source.mapping,
                 super::ExecutedScriptMapping::Contiguous { .. }
@@ -5824,6 +5855,74 @@ mod original_argument_declaration_tests {
             input.borrowed_context_registry().commands(),
             super::super::SourceAnalysisOptions::for_logical_source(&input).unwrap(),
         )
+    }
+
+    #[test]
+    fn logical_called_procedure_requires_its_current_source_allocation() {
+        let source =
+            "namespace eval n {proc format {args} {return NS}; format %b 5}\nformat %d 5\n";
+        let bindings = logical(source);
+        let call = u32::try_from(source.find("format %b").unwrap()).unwrap();
+        let point = bindings
+            .points
+            .iter()
+            .find(|point| point.offset == call && point.dispatch)
+            .unwrap();
+        let binding = point.lookup_binding("format");
+        let target = binding.proved_target().unwrap().clone();
+        let registry = point
+            .state
+            .logical_source_name_advice_input()
+            .unwrap()
+            .borrowed_context_registry()
+            .commands();
+        assert!(
+            bindings
+                .logical_called_procedure_body(&target, &point.state, registry)
+                .is_some()
+        );
+        let mut changed = target.clone();
+        changed
+            .implementation_allocation
+            .as_mut()
+            .unwrap()
+            .incarnation = super::super::AllocationIncarnation::Second;
+        assert!(
+            bindings
+                .logical_called_procedure_body(&changed, &point.state, registry)
+                .is_none()
+        );
+        let mut changed = target.clone();
+        changed
+            .implementation_allocation
+            .as_mut()
+            .unwrap()
+            .namespace = super::super::SourceNamespaceKey::authored("::other");
+        assert!(
+            bindings
+                .logical_called_procedure_body(&changed, &point.state, registry)
+                .is_none()
+        );
+        let mut changed = target.clone();
+        changed.identity.as_mut().unwrap().allocation = None;
+        assert!(
+            bindings
+                .logical_called_procedure_body(&changed, &point.state, registry)
+                .is_none()
+        );
+        let mut changed = target.clone();
+        changed.implementation_allocation = None;
+        assert!(
+            bindings
+                .logical_called_procedure_body(&changed, &point.state, registry)
+                .is_none()
+        );
+        let foreign = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        assert!(
+            bindings
+                .logical_called_procedure_body(&target, &point.state, foreign)
+                .is_none()
+        );
     }
 
     #[test]
