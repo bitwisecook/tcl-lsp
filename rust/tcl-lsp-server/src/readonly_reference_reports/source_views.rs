@@ -3478,19 +3478,41 @@ impl Backend {
                 self.original_source_authoring_hover(uri, position).await?,
             ));
         };
-        let Some(projection) = settlement.projection(uri, false) else {
+        let (projection, partial) = if let Some(projection) = settlement.projection(uri, false) {
+            (projection, false)
+        } else if let Some(projection) = settlement.definition_projection(uri)
+            && !projection.partial_definition_groups.is_empty()
+        {
+            (projection, true)
+        } else {
             return Ok(std::ops::ControlFlow::Break(
                 self.original_source_authoring_hover(uri, position).await?,
             ));
         };
-        let uri = uri.clone();
+        let worker_uri = uri.clone();
+        let partial_groups = projection.partial_definition_groups.clone();
         let computed = self
             .compute_original_source_views(&projection, move |views| {
-                Some(Self::calculate_original_source_hover(views, &uri, position))
+                Some(if partial {
+                    Self::calculate_partial_original_procedure_hover(
+                        views,
+                        &worker_uri,
+                        position,
+                        &partial_groups,
+                    )
+                } else {
+                    Self::calculate_original_source_hover(views, &worker_uri, position)
+                })
             })
             .await?;
         let Some((owners, Some(output))) = computed else {
-            return Ok(std::ops::ControlFlow::Break(None));
+            return if partial {
+                Ok(std::ops::ControlFlow::Break(
+                    self.original_source_authoring_hover(uri, position).await?,
+                ))
+            } else {
+                Ok(std::ops::ControlFlow::Break(None))
+            };
         };
         let mut output = Some(output);
         let result = self
@@ -3603,6 +3625,76 @@ impl Backend {
             |_, ()| hover.take(),
         )
         .await
+    }
+
+    fn calculate_partial_original_procedure_hover(
+        views: &[Arc<PublishedOriginalSourceView>],
+        uri: &Uri,
+        position: tower_lsp_server::ls_types::Position,
+        groups: &[Vec<OriginalSourceViewId>],
+    ) -> Option<std::ops::ControlFlow<Option<tcl_lsp_core::hover::Hover>>> {
+        let source = &views
+            .iter()
+            .find(|view| &view.draft.physical.uri == uri)?
+            .draft
+            .physical
+            .source;
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let offset = index.offset_at_utf16(
+            position.line,
+            tcl_lexer::Utf16Col::new(position.character),
+            source,
+        );
+        let actual = index.position_at_utf16(offset, source);
+        if actual.line != position.line || actual.character.get() != position.character {
+            return None;
+        }
+        let (publications, ancestors) = Self::original_source_view_labels(views)?;
+        let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
+        let selected = tcl_lsp_core::original_source_views::cursor_publications(
+            uri.as_str(),
+            offset,
+            &inventory,
+        )?;
+        for group in groups {
+            let selected_in_group = views
+                .iter()
+                .zip(&inventory)
+                .filter(|(view, row)| {
+                    group.contains(&view.id) && selected.contains(row.publication)
+                })
+                .collect::<Vec<_>>();
+            if selected_in_group.is_empty()
+                || selected_in_group.iter().any(|(_, row)| {
+                    row.region.is_none()
+                        || tcl_lsp_core::original_source_views::region_owns_cursor(row, offset)
+                            != Some(true)
+                })
+            {
+                return None;
+            }
+        }
+        let mut rendered = Vec::new();
+        for publication in selected {
+            let declaration =
+                tcl_lsp_core::original_source_views::prepare(&publication, offset, &inventory)?;
+            let hover =
+                tcl_lsp_core::original_source_views::procedure_hover(&declaration, &inventory)?;
+            if !rendered.contains(&hover) {
+                rendered.push(hover);
+            }
+        }
+        let first = rendered.first()?.clone();
+        Some(std::ops::ControlFlow::Break(Some(
+            tcl_lsp_core::hover::Hover {
+                value: rendered
+                    .into_iter()
+                    .map(|hover| hover.value)
+                    .collect::<Vec<_>>()
+                    .join("\n\n---\n\n"),
+                kind: first.kind,
+            },
+        )))
     }
 
     fn calculate_original_source_hover(
@@ -4137,6 +4229,22 @@ mod completed_world_owner_controls {
                 .positive_reference_projection(&fixture.main)
                 .is_none()
         );
+        let partial_projection = settlement.definition_projection(&fixture.main).unwrap();
+        let rejected_prefix = backend
+            .with_settled_original_source_scope(&partial_projection, |views| {
+                Backend::calculate_partial_original_procedure_hover(
+                    views,
+                    &fixture.main,
+                    tower_lsp_server::ls_types::Position {
+                        line: 0,
+                        character: 0,
+                    },
+                    &partial_projection.partial_definition_groups,
+                )
+            })
+            .await
+            .unwrap();
+        assert!(rejected_prefix.is_none());
         let position = tower_lsp_server::ls_types::Position {
             line: 1,
             character: 15,
@@ -4152,6 +4260,15 @@ mod completed_world_owner_controls {
         assert_eq!(locations[0].uri, fixture.host);
         assert_eq!(locations[0].range.start.line, 0);
         assert_eq!(locations[0].range.start.character, 5);
+        let hover = backend
+            .original_source_view_hover_route(&fixture.main, position)
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(hover)) = hover else {
+            panic!("partial procedure hover unavailable")
+        };
+        assert!(hover.value.contains("proc ::helper {}"));
+        assert!(hover.value.contains("Conditional source declaration"));
         assert!(matches!(
             backend
                 .original_source_view_navigation_route(&fixture.main, position, Some(true))
@@ -4174,6 +4291,53 @@ mod completed_world_owner_controls {
     }
 
     #[tokio::test]
+    async fn unfinished_suffix_hover_rejoins_current_source_inputs() {
+        let (fixture, backend) = reference_fixture(
+            true,
+            "proc main {} {helper}\nmain\n",
+            "proc helper {} {return 8}\n",
+        )
+        .await;
+        let settlement = backend
+            .refresh_original_source_view_graph()
+            .await
+            .unwrap()
+            .unwrap();
+        let projection = settlement.definition_projection(&fixture.main).unwrap();
+        let uri = fixture.main.clone();
+        let groups = projection.partial_definition_groups.clone();
+        let (owners, output) = backend
+            .compute_original_source_views(&projection, move |views| {
+                Some(Backend::calculate_partial_original_procedure_hover(
+                    views,
+                    &uri,
+                    tower_lsp_server::ls_types::Position {
+                        line: 1,
+                        character: 15,
+                    },
+                    &groups,
+                ))
+            })
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            output,
+            Some(std::ops::ControlFlow::Break(Some(_)))
+        ));
+        backend.invalidate_diag_inputs();
+        assert!(
+            backend
+                .with_settled_original_source_scope(&projection, |views| {
+                    Backend::same_original_source_view_inventory(&owners, views).then_some(())
+                })
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
     async fn unfinished_suffix_definition_rejects_unknown_body_mutation() {
         let (fixture, backend) = reference_fixture(
             true,
@@ -4185,6 +4349,13 @@ mod completed_world_owner_controls {
             line: 1,
             character: 23,
         };
+        assert!(matches!(
+            backend
+                .original_source_view_hover_route(&fixture.main, position)
+                .await
+                .unwrap(),
+            std::ops::ControlFlow::Break(None)
+        ));
         assert!(matches!(
             backend
                 .original_source_view_navigation_route(&fixture.main, position, None)

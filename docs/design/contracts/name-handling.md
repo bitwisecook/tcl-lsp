@@ -202,6 +202,11 @@ and local class/member declaration cards keep their own current source metadata;
 region cards must belong to the issued region. An incomplete source graph can
 still provide explicitly qualified documentation from an independently current
 whole-original source owner, without procedure/alias lookup or runtime selection.
+A partial procedure hover requires the definition projection's issued cursor-owning
+region in every incomplete scope. Each selected interpretation must retain its
+actual declaration metadata; the final publication rejoins the same current
+physical ancestry and complete input. No partial schema fallback, reference
+coverage or completion authority follows.
 Positive original source cards or inherited interpretations select this route.
 Declining it supplies no absence or completion fact to independently guarded
 ordinary hover providers.
