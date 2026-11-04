@@ -314,5 +314,10 @@
     "path": "/workspace/tmp/autoload-route-diagnostic/run.stderr",
     "normal_source_restored": true,
     "cause": "Second public query was rejected by the source-view aggregate gate: an unrelated incomplete root blocked a complete selected definition scope before compute_definition."
-  }
+  },
+  "edited_rustfmt_check": {
+    "exit": 0,
+    "log": "/tmp/lsp-final-autoload-rustfmt.log"
+  },
+  "periodic_publisher_stopped": true
 }
