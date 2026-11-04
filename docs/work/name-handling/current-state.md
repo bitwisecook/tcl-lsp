@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 02:57 UTC. This is the active snapshot. Older results retain their original sources and receipts in git; they do not certify the current candidate.
+Updated 04 November 2026, 03:17 UTC. This is the active snapshot. Older results retain their original sources and receipts in git; they do not certify the current candidate.
 
 ## Scope and release verdict
 
@@ -113,3 +113,11 @@ Native4068 acceptance `/tmp/source-hover-acceptance-current/receipt.json`:15/15 
 Fresh startup `/workspace/tmp/package-autoload-startup-current-20261104/receipt.json`:baseline bbbb1 and candidate4068 both time out at60s before scan.ready, with identical configuration/env/fixtures and matched pre/post seals. Candidate avoids full analysis on4 Tcl profiles, but Tcl8.4 still spends6337ms and Tk8.4 spends26783ms in fallback; Tk8.4 ends49.75s, scan still unfinished60s. Navigation readiness is not accepted.
 
 Reviewed optional invalid-layout proof API is adopted as `9e95e5e41` with contract `436c0de21`, after independent static review. Its7 fixed controls remain unexecuted; default extraction and the existing8.4 fallback assertion are unchanged. It proves only unchanged-consumer non-contribution, not runtime errors or file absence; live source/input/provider leases remain separately required. It has not improved production startup.
+
+The opt-in proof API type wiring is corrected in `bf983a16f`/`057837b2c`; current extraction remains unchanged. Clippy v9 reaches Core tests, v10/v11 reach compiler integration tests. Their remaining empty-value assertion findings are corrected in `daab73ec1`, `957ca8cf5` and `bc8cdab15`, with the affected integration files formatted. These are lint/fixture changes, not a passing full gate; source/prior-generated checks matched each completed attempt.
+
+A controlled four-crate unit build is now running under `/workspace/tmp/lsp-merged-cohort/source-full-first-diagnostic-build/`. Exactly one scratch SourceViews file intentionally differs for cfg(test) first-response observation; both exact WASI fixture files and all other Main/scratch inputs are explicitly pinned. No Main correspondence or diagnostic execution is claimed yet. Its private diagnostic is never committed.
+
+The five-arm native discriminator confirms the exact child-open/preindexed versus lazy-closed difference but not an internal refusal cause. The private unit diagnostic will observe the first public response before any second reconciliation. Earlier dialect-downgrade speculation is not established.
+
+The03:05 GitHub push failed503; explicit retry succeeded03:07:28 and the regular publisher succeeded03:10:57 and03:15:57. These record actual checkpoints, including the interruption; no continuous five-minute success is claimed across the network failure.
