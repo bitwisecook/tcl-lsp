@@ -114,7 +114,7 @@ impl AnalysisCooperation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::FutureExt as _;
+    use futures_util::FutureExt as _;
     #[tokio::test]
     async fn progress_before_wait_is_retained_and_stop_dominates_later_wakes() {
         let owner = AnalysisCooperation::new(|| false);

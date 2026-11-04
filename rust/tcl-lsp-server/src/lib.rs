@@ -72690,7 +72690,7 @@ fn coalesce_conditional_variable_edits(
 #[cfg(test)]
 mod cooperative_fresh_analysis_tests {
     use super::*;
-    use futures::FutureExt as _;
+    use futures_util::FutureExt as _;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     #[tokio::test]
