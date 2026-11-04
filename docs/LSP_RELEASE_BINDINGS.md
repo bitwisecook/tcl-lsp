@@ -152,3 +152,11 @@ expectations are stashed during the benchmark reservation and this integration
 checkpoint. No candidate compilation or runtime has run, and `rust-check` and
 `prep-pr` remain pending for the eventual product change. The unresolved
 unknown-condition branch and exact later-read span still require verification.
+
+The baseline guard and later-read findings use physical W210 wording, rather
+than the conditional declared-frame warning. Any read-local predicate filter
+must precede both physical candidate collection and the def-use chain's
+per-variable minimum. The shared condition-transfer/existence-query owners are
+under review for that consumer; declaration/root-graph owners are unchanged.
+The canonical draft and its model-dispatch checks remain uncompiled. Unsupported
+completed-value cases must retain their existing result refusals.
