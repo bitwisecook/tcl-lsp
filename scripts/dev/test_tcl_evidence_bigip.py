@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import runpy
 import subprocess
 import tempfile
 import unittest
@@ -19,6 +20,14 @@ SCRIPTS = ROOT / "scripts/dev/bigip-probes/resolution-2286"
 
 
 class BigIPEvidenceTests(unittest.TestCase):
+    def test_corpus_questions_are_resolved_by_question_id(self) -> None:
+        helpers = runpy.run_path(str(ROOT / "scripts/dev/migrate-tcl-tmsh-evidence.py"))
+        question = helpers["question"](
+            {"case_id": "bare-local", "question_id": "corpus-f5-rule-path"}
+        )
+        self.assertIn("identical procedure tails", question)
+        self.assertIn("absolute", question)
+
     def test_appliance_cleanup_compares_current_configuration_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

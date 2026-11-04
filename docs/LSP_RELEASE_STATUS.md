@@ -68,4 +68,20 @@ The source-owner/shimmer gap remains unresolved for #940 and related reports;
 no speculative authority or parser workaround was committed.
 
 
-Naming status at 19:42 UTC: Compiler34 remains30/34; fresh post-correction library probe resolves local and global namespace calls, unit renewal pending. Core27 completes25/27 and separate same-ELF diagnostic7/12; point/O112/opaque/callback repairs are adopted, untested. Registry9 post-build diagnostic passes9/9 while parent prebuild custody remains false. Server V16 builds and first 15/31 mandatory controls pass, probes pending. Browser40/41 and WASI32/33 twice remain failures; WASI trace ends in synchronous analysis. GitHub auth failed again; last successful sync 19:37:59. Full gates/performance/packages remain open. [Current snapshot](work/name-handling/current-state.md) gives exact receipts and limits.
+Naming status at 19:42 UTC: Compiler34 remains30/34; fresh post-correction library probe resolves local and global namespace calls, unit renewal pending. Core27 completes25/27 and separate same-ELF diagnostic7/12; point/O112/opaque/callback repairs are adopted, untested. Registry9 post-build diagnostic passes9/9 while parent prebuild custody remains false. Server V16 builds and first 25/31 mandatory controls pass, probes pending. Browser40/41 and WASI32/33 twice remain failures; WASI trace ends in synchronous analysis. Current CLI GitHub auth fails, while the scheduled publisher fetched at 19:43 and found this status conflict; last completed push remains 19:37:59. Full gates/performance/packages remain open. [Current snapshot](work/name-handling/current-state.md) gives exact receipts and limits.
+
+Baseline compiler lint repair, 19:36 UTC: the two oversized Logical source
+walkers are split into their existing static body/target selection and typed
+effect/transition checks. Guards, state transitions and Native/Normal boundaries
+are preserved, including the concurrent delegated-script effect selection;
+no lint suppression is added. The reviewed patch SHA-256 is
+`19dc230cd86eb4164244ea44c55e57f73ebae76322189d60310987ed91281256`.
+Standalone rustfmt and diff checks pass. Compilation, production Clippy and
+runtime regression checks are pending the priority #940 joint build; this is
+not a claim that either repository gate is green.
+
+The first joint compiler build after this extraction exited 101 before tests
+or Clippy: the namespace helper declared `String` for the structured
+`NamespaceTransitionTarget`. The return signature is corrected to retain that
+shared type. The priority #940 joint build must rerun before any compile or
+lint success is claimed.
