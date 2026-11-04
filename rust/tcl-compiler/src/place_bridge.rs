@@ -1531,14 +1531,27 @@ pub fn write_observed_by_unknown_access(
             {
                 return true;
             }
-            if def_places_with_continuation(
+            let replacements = def_places_with_continuation(
                 statement,
                 points.before_statement(block, index),
                 points.after_statement(block, index),
                 registry,
-            )
-            .iter()
-            .any(|replacement| must_replace_contents(replacement, written))
+            );
+            // An element store observes whether the root is already scalar:
+            // removing that scalar store would remove the element-store error.
+            if written.kind == PlaceKind::Scalar
+                && replacements.iter().any(|replacement| {
+                    matches!(
+                        replacement.kind,
+                        PlaceKind::ArrayElem | PlaceKind::ArrayWhole
+                    ) && overlap(replacement, written)
+                })
+            {
+                return true;
+            }
+            if replacements
+                .iter()
+                .any(|replacement| must_replace_contents(replacement, written))
             {
                 pending.extend(
                     cfg.exception_edges
