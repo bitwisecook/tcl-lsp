@@ -1340,29 +1340,14 @@ mod sidecar_publication_tests {
 
     #[tokio::test]
     async fn suppressed_delivery_uses_its_original_configuration_epoch_without_a_registry_donor() {
-        use salsa::Setter as _;
         for excluded in [false, true] {
             let documents = Documents::new();
             let backend = crate::tests::test_backend();
             open_empty_diagnostic_fixture(&documents, &backend).await;
             let uri = &documents.uris[0];
-            {
-                let _inputs = backend.analyser_inputs_gate.write().await;
-                if excluded {
-                    *backend.diagnostics_exclude.lock().await = vec!["*.tcl".to_owned()];
-                } else {
-                    backend
-                        .feature_toggles
-                        .lock()
-                        .await
-                        .set
-                        .insert("diagnostics".to_owned(), false);
-                }
-                let mut db = backend.db.lock().await;
-                let config = *backend.db_config.lock().await;
-                config.set_spec_pack_key(&mut *db).to(u64::MAX);
-                backend.invalidate_diag_inputs();
-            }
+            assert_selected_registry(&backend, uri, false).await;
+            select_suppressed_missing_registry(&backend, uri, excluded).await;
+            assert_selected_registry(&backend, uri, true).await;
             let make_prior = || crate::PullDiagEntry {
                 currency: None,
                 result_id: "before-suppression".to_owned(),
@@ -1380,14 +1365,15 @@ mod sidecar_publication_tests {
             let inputs = backend
                 .diag_inputs(uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
                 .await;
-            assert!(
-                inputs.inputs_epoch.is_none(),
-                "the selected registry is genuinely unavailable"
-            );
+            assert_eq!(inputs.inputs_epoch, Some(inputs.configuration_epoch));
+            assert_eq!(inputs.configuration_epoch, backend.diag_inputs_epoch());
             assert_eq!(inputs.toggles.excluded, excluded);
             assert_eq!(inputs.toggles.diagnostics_enabled, excluded);
             let job = inputs.capture_job(uri).await.unwrap();
-            assert!(job.diagnostic_pass.is_none());
+            assert!(
+                job.diagnostic_pass.is_some(),
+                "current policy-clear receipt"
+            );
             let _settled = crate::rt::timeout(
                 std::time::Duration::from_secs(10),
                 crate::run_diagnostics_core(inputs, uri, job),
@@ -1435,6 +1421,54 @@ mod sidecar_publication_tests {
                 "old toggles cannot borrow the new configuration epoch"
             );
             assert_eq!(retained.diagnostics.len(), 1);
+            drop(cache);
+            let enabled = backend
+                .diag_inputs(uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+                .await;
+            assert!(enabled.inputs_epoch.is_none());
+            assert!(
+                enabled
+                    .capture_job(uri)
+                    .await
+                    .unwrap()
+                    .diagnostic_pass
+                    .is_none()
+            );
+            assert_selected_registry(&backend, uri, true).await;
         }
+    }
+
+    async fn assert_selected_registry(backend: &Backend, uri: &Uri, unavailable: bool) {
+        let config = backend.resolved_db_config(uri).await;
+        let file = *backend.db_files.lock().await.get(uri).unwrap();
+        let db = backend.db.lock().await;
+        let input =
+            crate::with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, config));
+        if unavailable {
+            let miss = input.expect_err("the actual selected overlay was not installed");
+            assert_eq!(miss.overlay, u64::MAX);
+            assert_eq!(miss.environment, "tcl8.6");
+        } else {
+            assert_eq!(input.unwrap().unit_profile().name, "tcl8.6");
+        }
+    }
+
+    async fn select_suppressed_missing_registry(backend: &Backend, uri: &Uri, excluded: bool) {
+        use salsa::Setter as _;
+        let _inputs = backend.analyser_inputs_gate.write().await;
+        if excluded {
+            *backend.diagnostics_exclude.lock().await = vec!["*.tcl".to_owned()];
+        } else {
+            backend
+                .feature_toggles
+                .lock()
+                .await
+                .set
+                .insert("diagnostics".to_owned(), false);
+        }
+        let config = backend.resolved_db_config(uri).await;
+        let mut db = backend.db.lock().await;
+        config.set_spec_pack_key(&mut *db).to(u64::MAX);
+        backend.invalidate_diag_inputs();
     }
 }
