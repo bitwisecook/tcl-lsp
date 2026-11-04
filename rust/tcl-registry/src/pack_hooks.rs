@@ -1718,13 +1718,54 @@ macro_rules! n17_live_trace {
     };
 }
 
+/// Answers computed ahead of time for hooks whose answer depends on the
+/// word count alone, indexed by that count ([`tabulate`]).
+static TABULATED: std::sync::RwLock<
+    Option<rustc_hash::FxHashMap<HookSlot, std::sync::Arc<[HookAnswer]>>>,
+> = std::sync::RwLock::new(None);
+static ANY_TABULATED: AtomicBool = AtomicBool::new(false);
+
+/// Record `answers[n]` as `slot`'s answer to every call with `n` words and no
+/// option or constraint context.
+///
+/// For a hook the publisher has shown reads its call only through the count
+/// of its words: [`dispatch`] then answers from the table on any thread,
+/// with no host. A slot names one hook for the life of the process, so a
+/// table never outlives what it was computed from.
+pub fn tabulate(slot: HookSlot, answers: Vec<HookAnswer>) {
+    TABULATED
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get_or_insert_with(rustc_hash::FxHashMap::default)
+        .insert(slot, std::sync::Arc::from(answers));
+    ANY_TABULATED.store(true, Ordering::Release);
+}
+
+fn tabulated(slot: HookSlot, call: &HookCall<'_>) -> Option<HookAnswer> {
+    if !ANY_TABULATED.load(Ordering::Acquire) || call.option.is_some() || call.constraints.is_some()
+    {
+        return None;
+    }
+    TABULATED
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()?
+        .get(&slot)?
+        .get(call.words.len())
+        .cloned()
+}
+
 /// Invoke a pack hook after synchronizing its actual published plan receiver.
-/// The current receiver's cache is used only when declared inputs permit it;
-/// unavailable hosts retain the family's silence.
+/// A tabulated answer needs no receiver. The current receiver's cache is used
+/// only when declared inputs permit it; unavailable hosts retain the family's
+/// silence.
 #[must_use]
 pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     if external_evaluators_blocked() {
         return HookAnswer::Abstain;
+    }
+    if let Some(answer) = tabulated(slot, call) {
+        return answer;
     }
     n17_live_trace!("dispatch-entry slot={slot:?}");
     if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {

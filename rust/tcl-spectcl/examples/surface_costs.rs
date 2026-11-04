@@ -114,6 +114,35 @@ fn resolve_costs(dialect: &str) {
     );
 }
 
+/// A shipped hook body through its installed spec: UPF's
+/// `define_power_model` resolver, which the hook service tabulates.
+fn hook_costs() {
+    let registry = tcl_spectcl::bundled::registry_for_dialect("xilinx-eda-tcl");
+    let Some(resolver) = registry
+        .get("define_power_model")
+        .and_then(|spec| spec.arg_role_resolver)
+    else {
+        println!("define_power_model has no resolver here");
+        return;
+    };
+    let words = ["model", "-for", "{m1}", "{body}"];
+    timed("UPF resolver: first call", || black_box(resolver(&words)));
+    let calls = 10_000;
+    let start = Instant::now();
+    for _ in 0..calls {
+        black_box(resolver(black_box(&words)));
+    }
+    println!(
+        "UPF resolver: warm call                     {:>10.1} ns",
+        per_call_ns(start.elapsed(), calls)
+    );
+    timed("UPF resolver: first call on a fresh thread", || {
+        std::thread::spawn(move || black_box(resolver(&words)))
+            .join()
+            .expect("resolver thread");
+    });
+}
+
 /// The native surfaces against their `SpecTcl` renderings
 /// (`equivalence/`, `cargo xtask gen-equivalence-packs`): the same commands,
 /// compiled in versus evaluated.
@@ -190,6 +219,7 @@ fn main() {
         "ensure_thread_host warm (main thread)",
         tcl_spectcl::hooks::ensure_thread_host,
     );
+    hook_costs();
     for dialect in ["tcl8.6", "jim"] {
         resolve_costs(dialect);
     }

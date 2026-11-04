@@ -35,7 +35,7 @@ use tcl_registry::arg_role::ArgRole;
 use tcl_registry::pack_hooks::{
     HookAnswer, HookCall, HookFamily, HookWord, OptionCallCtx, PackHookHost,
 };
-use tcl_spec_hooks::{HookOwner, HookProgram, tclvm_host};
+use tcl_spec_hooks::{HookProgram, tclvm_host};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")

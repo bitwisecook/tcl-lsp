@@ -64,6 +64,7 @@
 
 mod owned_application;
 mod owned_evaluator;
+mod service;
 pub use owned_application::{
     FoldAuthority, OwnedApplicationExecution, OwnedApplicationReceipt,
     execute_owned_application_source,
@@ -84,7 +85,7 @@ use tcl_registry::hover::{OptionArity, OptionSpec, OptionValue};
 use tcl_registry::pack_hooks::{self, HookFamily, HookSlot};
 use tcl_registry::spec::{CommandSpec, SubCommand};
 use tcl_registry::value_transfer::{DeclaredSemantics, SemanticsDeclaration};
-use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
+use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms};
 
 use crate::loader::{HookDecl, HookOwner as DeclOwner, HookSource, PackCommand};
 use crate::pack::PackSet;
@@ -645,6 +646,9 @@ pub fn publish(packs: &PackSet) {
     }
     let generation = (PUBLICATION.load(Ordering::Relaxed) >> 1).wrapping_add(1);
     let publication = (generation << 1) | u64::from(plan.is_empty());
+    // The one host that runs bodies is built now, on the hook service, not
+    // by whichever worker first needs it.
+    service::install(Arc::clone(&plan));
     *published = Some(plan);
     PUBLICATION.store(publication, Ordering::Release);
     // A new plan is new evaluators for every thread that serves it: a memo
@@ -681,10 +685,10 @@ fn pending_thread_host_at(publication: u64) -> pack_hooks::PendingHost {
 /// Give this thread a hook host for the published plan, if it does not have
 /// one already.
 ///
-/// Cheap enough for the top of a worker closure: one relaxed atomic load in a
-/// process with no pack hooks, one thread-local read once it has them. The
-/// build itself — one sandboxed VM per pack — happens on a thread's first call
-/// after a publish, and again after a pack edit changes the plan.
+/// Cheap at any point: one relaxed atomic load in a process with no pack
+/// hooks, one thread-local read once it has them, and a forwarding proxy to
+/// install after a publish — the sandboxed VMs live on the hook service
+/// ([`service`]), built once per published plan.
 pub fn ensure_thread_host() {
     ensure_thread_host_with(|| {});
 }
@@ -708,15 +712,10 @@ fn ensure_thread_host_with(before_snapshot: impl FnOnce()) {
     if plan.is_empty() {
         pack_hooks::clear_host();
     } else {
-        let host = Rc::new(tclvm_host());
-        for programs in plan.packs() {
-            // Crash containment is the host's default: budgets on, quarantine
-            // on first crash, abstention on anything unexpected.
-            let _installed = host.install_pack_hooks(programs.clone());
-        }
-        // Every worker serving this plan shares one evaluator generation,
-        // so their memoised answers are shared too.
-        pack_hooks::install_plan_host(host, generation);
+        // A worker forwards to the hook service, which owns the one host:
+        // nothing here bootstraps a VM. Every worker serving this plan shares
+        // one evaluator generation, so their memoised answers are shared too.
+        pack_hooks::install_plan_host(Rc::new(service::Proxy), generation);
     }
     INSTALLED.with(|installed| installed.set(generation));
 }
