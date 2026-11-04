@@ -677,7 +677,8 @@ fn workspace_symbol_waits_out_the_startup_scan() {
     let syms = result.as_array().cloned().unwrap_or_default();
     assert!(
         syms.iter().any(|s| name(s) == "scan_race_helper"),
-        "the on-disk fixture's proc must be found on the first query: {syms:?}"
+        "the on-disk fixture's proc must be found on the first query: {syms:?}; stderr: {}",
+        lsp.stderr_text()
     );
 
     std::fs::remove_dir_all(&root).ok();
