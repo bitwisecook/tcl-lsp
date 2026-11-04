@@ -50,17 +50,21 @@ use super::HookPlan;
 /// The largest word count a tabulated resolver is answered for.
 pub(crate) const TABULATED_WORDS: usize = 32;
 
+/// A constraint context, owned: its options, its positionals, and whether
+/// the invocation was read to its end.
+type OwnedConstraints = (
+    Vec<(&'static str, Option<String>)>,
+    Vec<Option<String>>,
+    bool,
+);
+
 /// A hook call with every borrowed field owned, to cross to the service.
 struct OwnedCall {
     words: Vec<(String, InvocationWordKind)>,
     version: Option<tcl_dialect::TclVersion>,
     in_event_body: bool,
     option: Option<(String, usize, usize)>,
-    constraints: Option<(
-        Vec<(&'static str, Option<String>)>,
-        Vec<Option<String>>,
-        bool,
-    )>,
+    constraints: Option<OwnedConstraints>,
     dialect: Option<&'static str>,
     targets: Vec<usize>,
     budget: ImplementationBudget,
@@ -152,10 +156,12 @@ impl OwnedCall {
 }
 
 enum Message {
-    Install(Arc<HookPlan>),
+    /// Serve a plan. `eager` builds its host now; a plan whose every body is
+    /// already tabulated builds it only if a call falls outside a table.
+    Install { plan: Arc<HookPlan>, eager: bool },
     Invoke {
         slot: HookSlot,
-        call: OwnedCall,
+        call: Box<OwnedCall>,
         reply: mpsc::SyncSender<HookAnswer>,
     },
 }
@@ -164,7 +170,7 @@ enum Message {
 /// to be restarted comes back serving the same plan.
 struct Service {
     sender: Option<mpsc::Sender<Message>>,
-    plan: Option<Arc<HookPlan>>,
+    plan: Option<(Arc<HookPlan>, bool)>,
 }
 
 static SERVICE: Mutex<Service> = Mutex::new(Service {
@@ -190,16 +196,18 @@ fn spawn() -> mpsc::Sender<Message> {
 /// Send `message`, starting (or restarting) the service as needed.
 fn send(message: Message) -> bool {
     let mut service = SERVICE.lock().unwrap_or_else(PoisonError::into_inner);
-    let sender = match &service.sender {
-        Some(sender) => sender.clone(),
-        None => {
-            let sender = spawn();
-            if let Some(plan) = &service.plan {
-                let _ = sender.send(Message::Install(Arc::clone(plan)));
-            }
-            service.sender = Some(sender.clone());
-            sender
+    let sender = if let Some(sender) = &service.sender {
+        sender.clone()
+    } else {
+        let sender = spawn();
+        if let Some((plan, eager)) = &service.plan {
+            let _ = sender.send(Message::Install {
+                plan: Arc::clone(plan),
+                eager: *eager,
+            });
         }
+        service.sender = Some(sender.clone());
+        sender
     };
     if let Err(mpsc::SendError(message)) = sender.send(message) {
         // The service died; the next send starts a fresh one on the same plan.
@@ -213,14 +221,22 @@ fn send(message: Message) -> bool {
 }
 
 /// Serve `plan` from now on: build its host on the service thread, bind
-/// every body, and tabulate what can be.
-pub(crate) fn install(plan: Arc<HookPlan>) {
+/// every body, and tabulate what can be. `precompiled` are the slots already
+/// answered from a shipped table; when they are every body the plan has, the
+/// host is built only if a call falls outside a table.
+pub(crate) fn install(plan: Arc<HookPlan>, precompiled: &BTreeSet<HookSlot>) {
     QUARANTINED
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clear();
-    SERVICE.lock().unwrap_or_else(PoisonError::into_inner).plan = Some(Arc::clone(&plan));
-    let _ = send(Message::Install(plan));
+    let eager = plan.packs().iter().any(|programs| {
+        programs
+            .programs
+            .iter()
+            .any(|program| program.slot.is_none_or(|slot| !precompiled.contains(&slot)))
+    });
+    SERVICE.lock().unwrap_or_else(PoisonError::into_inner).plan = Some((Arc::clone(&plan), eager));
+    let _ = send(Message::Install { plan, eager });
 }
 
 /// A worker thread's host: every call goes to the service.
@@ -231,7 +247,7 @@ impl PackHookHost for Proxy {
         let (reply, answer) = mpsc::sync_channel(1);
         let message = Message::Invoke {
             slot,
-            call: OwnedCall::of(call),
+            call: Box::new(OwnedCall::of(call)),
             reply,
         };
         if !send(message) {
@@ -248,23 +264,45 @@ impl PackHookHost for Proxy {
     }
 }
 
+/// How many hosts this process has built for the service or for
+/// precomputation — each one a VM bootstrap per pack.
+pub(crate) static HOSTS_BUILT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The host for `plan`: one sandboxed engine per pack, every body bound.
+pub(crate) fn build_host(plan: &HookPlan) -> Rc<dyn PackHookHost> {
+    HOSTS_BUILT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let built = tcl_spec_hooks::tclvm_host();
+    for programs in plan.packs() {
+        let _installed = built.install_pack_hooks(programs.clone());
+    }
+    Rc::new(built)
+}
+
 fn serve(inbox: &mpsc::Receiver<Message>) {
     let mut host: Option<Rc<dyn PackHookHost>> = None;
+    let mut deferred: Option<Arc<HookPlan>> = None;
     while let Ok(message) = inbox.recv() {
         match message {
-            Message::Install(plan) => {
-                host = (!plan.is_empty()).then(|| {
-                    let built = tcl_spec_hooks::tclvm_host();
-                    for programs in plan.packs() {
-                        let _installed = built.install_pack_hooks(programs.clone());
-                    }
-                    Rc::new(built) as Rc<dyn PackHookHost>
-                });
-                if let Some(host) = &host {
-                    tabulate(host.as_ref(), &plan);
+            Message::Install { plan, eager } => {
+                host = None;
+                deferred = None;
+                if plan.is_empty() {
+                    continue;
+                }
+                if eager {
+                    let built = build_host(&plan);
+                    tabulate(built.as_ref(), &plan);
+                    host = Some(built);
+                } else {
+                    deferred = Some(plan);
                 }
             }
             Message::Invoke { slot, call, reply } => {
+                if host.is_none()
+                    && let Some(plan) = deferred.take()
+                {
+                    host = Some(build_host(&plan));
+                }
                 let answer = match &host {
                     Some(host) => {
                         let answer = call.with(|call| host.invoke(slot, call));
@@ -317,68 +355,88 @@ pub(crate) fn reads_only_word_count(parameters: &[String], body: &str) -> bool {
     !mentions(words) && parameters.get(1).is_none_or(|ctx| !mentions(ctx))
 }
 
-/// Tabulate every count-only resolver of `plan` on `host`.
-///
-/// The static reading ([`reads_only_word_count`]) is confirmed by running each
-/// count three ways — empty literal words with no dialect, distinct literal
-/// words under Tcl 9.0, and computed words under iRules — and keeping the
-/// table only when they agree at every count.
+/// Tabulate every count-only resolver of `plan` on `host` ([`table_for`]).
 fn tabulate(host: &dyn PackHookHost, plan: &HookPlan) {
     for programs in plan.packs() {
         for program in &programs.programs {
-            let Some(slot) = program.slot else {
-                continue;
-            };
-            if !WORD_FAMILIES.contains(&program.family)
-                || !reads_only_word_count(&program.parameters, &program.body)
+            if let Some(slot) = program.slot
+                && is_tabulable(program)
+                && let Some(answers) = table_for(host, slot)
             {
-                continue;
-            }
-            let mut answers = Vec::with_capacity(TABULATED_WORDS + 1);
-            let consistent = (0..=TABULATED_WORDS).all(|count| {
-                let probe = |value: &dyn Fn(usize) -> String,
-                             kind: InvocationWordKind,
-                             dialect: Option<&'static str>| {
-                    let values: Vec<String> = (0..count).map(value).collect();
-                    let words: Vec<HookWord<'_>> = values
-                        .iter()
-                        .map(|value| HookWord { value, kind })
-                        .collect();
-                    host.invoke(
-                        slot,
-                        &HookCall {
-                            words: &words,
-                            version: None,
-                            in_event_body: false,
-                            option: None,
-                            constraints: None,
-                            dialect,
-                            targets: &[],
-                            budget: ImplementationBudget::default(),
-                            depends: &[],
-                        },
-                    )
-                };
-                let first = probe(&|_| String::new(), InvocationWordKind::Literal, None);
-                let second = probe(
-                    &|index| format!("-w{index}"),
-                    InvocationWordKind::Literal,
-                    Some("tcl9.0"),
-                );
-                let third = probe(
-                    &|_| String::new(),
-                    InvocationWordKind::Dynamic,
-                    Some("f5-irules"),
-                );
-                let agree = first == second && second == third;
-                answers.push(first);
-                agree
-            });
-            if consistent && host.is_available(slot) {
                 tcl_registry::pack_hooks::tabulate(slot, answers);
             }
         }
     }
+}
+
+/// The identity a precompiled table is keyed by: `xxh3` of the parameter
+/// list and the body. A body is a pure function in a deterministic sandbox,
+/// so its answers follow from its text alone.
+#[must_use]
+pub fn body_hash(program: &tcl_spec_hooks::HookProgram) -> u64 {
+    let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+    for parameter in &program.parameters {
+        hasher.update(parameter.as_bytes());
+        hasher.update(&[0]);
+    }
+    hasher.update(&[1]);
+    hasher.update(program.body.as_bytes());
+    hasher.digest()
+}
+
+/// Whether `program` is a family answered from its words alone and its body
+/// reads them only through their count.
+pub(crate) fn is_tabulable(program: &tcl_spec_hooks::HookProgram) -> bool {
+    WORD_FAMILIES.contains(&program.family)
+        && reads_only_word_count(&program.parameters, &program.body)
+}
+
+/// `slot`'s answer at every word count up to [`TABULATED_WORDS`], when three
+/// probes — empty literal words with no dialect, distinct literal words under
+/// Tcl 9.0, and computed words under iRules — agree at every count.
+pub(crate) fn table_for(host: &dyn PackHookHost, slot: HookSlot) -> Option<Vec<HookAnswer>> {
+    let mut answers = Vec::with_capacity(TABULATED_WORDS + 1);
+    for count in 0..=TABULATED_WORDS {
+        let probe = |value: &dyn Fn(usize) -> String,
+                     kind: InvocationWordKind,
+                     dialect: Option<&'static str>| {
+            let values: Vec<String> = (0..count).map(value).collect();
+            let words: Vec<HookWord<'_>> = values
+                .iter()
+                .map(|value| HookWord { value, kind })
+                .collect();
+            host.invoke(
+                slot,
+                &HookCall {
+                    words: &words,
+                    version: None,
+                    in_event_body: false,
+                    option: None,
+                    constraints: None,
+                    dialect,
+                    targets: &[],
+                    budget: ImplementationBudget::default(),
+                    depends: &[],
+                },
+            )
+        };
+        let first = probe(&|_| String::new(), InvocationWordKind::Literal, None);
+        let second = probe(
+            &|index| format!("-w{index}"),
+            InvocationWordKind::Literal,
+            Some("tcl9.0"),
+        );
+        let third = probe(
+            &|_| String::new(),
+            InvocationWordKind::Dynamic,
+            Some("f5-irules"),
+        );
+        if first != second || second != third {
+            return None;
+        }
+        answers.push(first);
+    }
+    host.is_available(slot).then_some(answers)
 }
 
 #[cfg(test)]

@@ -764,11 +764,19 @@ struct DeclaredSupport {
     unavailable: bool,
 }
 
+/// Whether an evaluation stages `command` declarations ([`EvalOptions::commands`]).
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum Commands {
+    #[default]
+    Staged,
+    Skipped,
+}
+
 /// Everything the evaluation stages before replay.
 #[derive(Default)]
 struct State {
-    /// [`EvalOptions::commands`] is off: `command` declarations stage nothing.
-    skip_commands: bool,
+    /// [`EvalOptions::commands`]: whether `command` declarations stage anything.
+    commands: Commands,
     pack_nodes: Vec<PackNode>,
     /// Open capture scopes, innermost last, each with its collected nodes.
     scopes: Vec<(ScopeKind, Vec<Node>)>,
@@ -1101,7 +1109,7 @@ fn command_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
             st.push_node(Node::Row(stmt));
             return Ok(None);
         }
-        if state.borrow().skip_commands {
+        if state.borrow().commands == Commands::Skipped {
             return Ok(None);
         }
         let name = args.first().cloned().unwrap_or_default();
@@ -1672,7 +1680,7 @@ fn drive_static(
                 stage_speclib(drive.reborrow(), state, &args, stmt.line)?;
             }
             "command" if at_pack => {
-                if state.borrow().skip_commands {
+                if state.borrow().commands == Commands::Skipped {
                     continue;
                 }
                 let name = stmt.word_text(1).to_owned();
@@ -1995,7 +2003,11 @@ fn new_state(
     let state = Rc::new(RefCell::new(State::default()));
     {
         let mut st = state.borrow_mut();
-        st.skip_commands = !commands;
+        st.commands = if commands {
+            Commands::Staged
+        } else {
+            Commands::Skipped
+        };
         st.verbatim = VerbatimIndex::of(source);
         st.include = include;
         st.include_stack = vec![content_hash(source)];

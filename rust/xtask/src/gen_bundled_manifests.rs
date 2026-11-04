@@ -42,6 +42,8 @@ const HEADER: &str = "//! The bundled packs a process may load manifest-only, an
 //! The packs under `specs/` are the source of truth; `--check` holds this
 //! file to them.
 
+use tcl_registry::arg_role::ArgRole;
+
 /// One deferrable bundled pack.
 pub struct BundledManifest {
     /// The pack's file name under `specs/`.
@@ -52,9 +54,25 @@ pub struct BundledManifest {
     pub packages: &'static [&'static str],
 }
 
+/// One bundled argument-role resolver whose answers depend on its word count
+/// alone, run once at build time so no process starts a VM for it.
+pub struct BundledRoleTable {
+    /// The resolver body's hash (`hooks::service::body_hash`).
+    pub body_hash: u64,
+    /// Its answer at each word count from zero, `None` where it abstains.
+    pub answers: &'static [Option<&'static [(u8, ArgRole)]>],
+}
+
 /// The deferrable bundled packs, by file name.
 pub const BUNDLED_MANIFESTS: &[BundledManifest] = &[
 ";
+
+/// A `u64` as a hex literal in groups of four, the spelling clippy reads.
+fn hex(value: u64) -> String {
+    let digits = format!("{value:016x}");
+    let groups: Vec<&str> = (0..4).map(|i| &digits[i * 4..i * 4 + 4]).collect();
+    format!("0x{}", groups.join("_"))
+}
 
 fn render() -> Result<String> {
     let dir = repo_root().join("specs");
@@ -88,10 +106,34 @@ fn render() -> Result<String> {
         let packages: Vec<String> = packages.iter().map(|p| format!("{p:?}")).collect();
         let _ = write!(
             out,
-            "    BundledManifest {{\n        file: {file:?},\n        source_hash: {:#018x},\n        \
+            "    BundledManifest {{\n        file: {file:?},\n        source_hash: {},\n        \
              packages: &[{}],\n    }},\n",
-            tcl_spectcl::demand::source_hash(&source),
+            hex(tcl_spectcl::demand::source_hash(&source)),
             packages.join(", "),
+        );
+    }
+    out.push_str("];\n\n/// The bundled packs' precompiled argument-role resolver tables.\npub const BUNDLED_ROLE_TABLES: &[BundledRoleTable] = &[\n");
+    let set = tcl_spectcl::bundled::load_from(&dir);
+    for (hash, answers) in tcl_spectcl::hooks::precompute_role_tables(&set) {
+        let rows: Vec<String> = answers
+            .iter()
+            .map(|answer| match answer {
+                None => "None".to_owned(),
+                Some(roles) => format!(
+                    "Some(&[{}])",
+                    roles
+                        .iter()
+                        .map(|(index, role)| format!("({index}, ArgRole::{role:?})"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            })
+            .collect();
+        let _ = write!(
+            out,
+            "    BundledRoleTable {{\n        body_hash: {},\n        answers: &[\n            {},\n        ],\n    }},\n",
+            hex(hash),
+            rows.join(",\n            "),
         );
     }
     out.push_str("];\n");

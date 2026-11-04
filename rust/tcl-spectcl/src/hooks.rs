@@ -646,9 +646,11 @@ pub fn publish(packs: &PackSet) {
     }
     let generation = (PUBLICATION.load(Ordering::Relaxed) >> 1).wrapping_add(1);
     let publication = (generation << 1) | u64::from(plan.is_empty());
-    // The one host that runs bodies is built now, on the hook service, not
-    // by whichever worker first needs it.
-    service::install(Arc::clone(&plan));
+    // Bodies whose answers ship precompiled are tabulated now; the one host
+    // that runs the rest is built on the hook service, not by whichever
+    // worker first needs it.
+    let precompiled = apply_precompiled_tables(&plan);
+    service::install(Arc::clone(&plan), &precompiled);
     *published = Some(plan);
     PUBLICATION.store(publication, Ordering::Release);
     // A new plan is new evaluators for every thread that serves it: a memo
@@ -661,6 +663,96 @@ pub fn publish(packs: &PackSet) {
     // cost one `OnceLock` read.
     pack_hooks::set_installer(ensure_thread_host);
     pack_hooks::set_pending_host(pending_thread_host);
+}
+
+/// Tabulate every argument-role resolver of `plan` whose answers were
+/// precompiled into the binary ([`crate::bundled_manifest::BUNDLED_ROLE_TABLES`]),
+/// returning their slots.
+fn apply_precompiled_tables(plan: &HookPlan) -> std::collections::BTreeSet<HookSlot> {
+    let mut applied = std::collections::BTreeSet::new();
+    for programs in plan.packs() {
+        for program in &programs.programs {
+            let Some(slot) = program.slot else {
+                continue;
+            };
+            if program.family != HookFamily::ArgRoleResolver || !service::is_tabulable(program) {
+                continue;
+            }
+            let hash = service::body_hash(program);
+            let Some(row) = crate::bundled_manifest::BUNDLED_ROLE_TABLES
+                .iter()
+                .find(|row| row.body_hash == hash)
+            else {
+                continue;
+            };
+            pack_hooks::tabulate(
+                slot,
+                row.answers
+                    .iter()
+                    .map(|answer| {
+                        answer.map_or(pack_hooks::HookAnswer::Abstain, |roles| {
+                            pack_hooks::HookAnswer::Roles(roles.to_vec())
+                        })
+                    })
+                    .collect(),
+            );
+            applied.insert(slot);
+        }
+    }
+    applied
+}
+
+/// How many hook hosts — a VM bootstrap per pack each — this process has
+/// built. A plan whose bodies all ship precompiled builds none.
+#[must_use]
+pub fn hosts_built() -> u64 {
+    service::HOSTS_BUILT.load(Ordering::Relaxed)
+}
+
+/// One precompiled argument-role resolver table: the body's
+/// [`service::body_hash`] and its answer at each word count, `None` where it
+/// abstains.
+pub type RoleTable = (u64, Vec<Option<Vec<(u8, tcl_registry::arg_role::ArgRole)>>>);
+
+/// Run every count-only argument-role resolver `packs` declares and return
+/// its answers by word count — what `cargo xtask gen-bundled-manifests`
+/// precompiles for the bundled packs, so no process has to start a VM for
+/// them.
+#[must_use]
+pub fn precompute_role_tables(packs: &PackSet) -> Vec<RoleTable> {
+    let plan = plan_for(packs);
+    if plan.is_empty() {
+        return Vec::new();
+    }
+    let host = service::build_host(&plan);
+    let mut tables = Vec::new();
+    for programs in plan.packs() {
+        for program in &programs.programs {
+            let Some(slot) = program.slot else {
+                continue;
+            };
+            if program.family != HookFamily::ArgRoleResolver || !service::is_tabulable(program) {
+                continue;
+            }
+            let Some(answers) = service::table_for(host.as_ref(), slot) else {
+                continue;
+            };
+            let answers: Option<Vec<_>> = answers
+                .into_iter()
+                .map(|answer| match answer {
+                    pack_hooks::HookAnswer::Abstain => Some(None),
+                    pack_hooks::HookAnswer::Roles(roles) => Some(Some(roles)),
+                    _ => None,
+                })
+                .collect();
+            if let Some(answers) = answers {
+                tables.push((service::body_hash(program), answers));
+            }
+        }
+    }
+    tables.sort_by_key(|(hash, _)| *hash);
+    tables.dedup_by_key(|(hash, _)| *hash);
+    tables
 }
 
 /// What [`ensure_thread_host`] would do on this thread, without building

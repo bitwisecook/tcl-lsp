@@ -48,6 +48,15 @@ pub enum SpecProvider {
 /// command introduced in 8.5 and never removed is `("8.5", None)`.
 pub type SpecWindow = (&'static str, Option<&'static str>);
 
+/// [`SpecSurface::covers`]' remembered answers: per window slice (address,
+/// length), each point asked with its answer.
+type CoversMemo = std::collections::HashMap<(usize, usize), Vec<(Box<str>, bool)>>;
+
+thread_local! {
+    static COVERS: std::cell::RefCell<CoversMemo> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
 /// One authored availability row: a provider, and when it offers the shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SpecSurface {
@@ -540,6 +549,11 @@ impl SpecSurface {
     /// bounds to [`crate::version::version_in_any_window`] rather than
     /// `format!`-ing a `"from-until"` requirement per window and re-parsing
     /// `point` behind each one (issue #2021).
+    ///
+    /// The answer is remembered per thread: a row's windows are a `'static`
+    /// slice, so its address names them for the life of the process, and a
+    /// context asks at only a handful of points, so after the first ask a row
+    /// costs a hash lookup rather than parsing and comparing every window.
     fn covers(&self, point: Option<&str>) -> bool {
         if self.windows.is_empty() {
             return true;
@@ -547,7 +561,17 @@ impl SpecSurface {
         let Some(point) = point else {
             return true;
         };
-        crate::version::version_in_any_window(point, self.windows)
+        let key = (self.windows.as_ptr().addr(), self.windows.len());
+        COVERS.with(|memo| {
+            let mut memo = memo.borrow_mut();
+            let answers = memo.entry(key).or_default();
+            if let Some(&(_, covered)) = answers.iter().find(|(asked, _)| &**asked == point) {
+                return covered;
+            }
+            let covered = crate::version::version_in_any_window(point, self.windows);
+            answers.push((point.into(), covered));
+            covered
+        })
     }
 
     /// Whether some release of the provider falls in a window of both this

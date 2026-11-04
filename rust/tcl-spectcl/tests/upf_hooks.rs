@@ -212,3 +212,24 @@ fn the_define_power_model_resolver_marks_the_trailing_body() {
     assert_eq!(invoke(&host, *slot, &["model"], None), HookAnswer::Abstain);
     assert_eq!(hooks.len(), 1, "the resolver is the pack's only body");
 }
+
+/// The shipped resolver's answers are precompiled into the binary
+/// (`cargo xtask gen-bundled-manifests`): published, it answers through its
+/// installed spec, and nothing starts a VM.
+#[test]
+fn the_shipped_resolver_answers_from_its_precompiled_table() {
+    let set = tcl_spectcl::bundled::load_from(&repo_root().join("specs"));
+    tcl_spectcl::hooks::publish(&set);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("xilinx-eda-tcl", &set);
+    let resolver = registry
+        .get("define_power_model")
+        .and_then(|spec| spec.arg_role_resolver)
+        .expect("define_power_model carries its resolver");
+    assert_eq!(resolver(&["model", "{set x 1}"]), vec![(1, ArgRole::Body)]);
+    assert_eq!(
+        resolver(&["model", "-for", "{m1 m2}", "{set x 1}"]),
+        vec![(3, ArgRole::Body)]
+    );
+    assert_eq!(resolver(&["model"]), Vec::new());
+    assert_eq!(tcl_spectcl::hooks::hosts_built(), 0, "no VM was started");
+}

@@ -5,6 +5,8 @@
 //! The packs under `specs/` are the source of truth; `--check` holds this
 //! file to them.
 
+use tcl_registry::arg_role::ArgRole;
+
 /// One deferrable bundled pack.
 pub struct BundledManifest {
     /// The pack's file name under `specs/`.
@@ -15,46 +17,97 @@ pub struct BundledManifest {
     pub packages: &'static [&'static str],
 }
 
+/// One bundled argument-role resolver whose answers depend on its word count
+/// alone, run once at build time so no process starts a VM for it.
+pub struct BundledRoleTable {
+    /// The resolver body's hash (`hooks::service::body_hash`).
+    pub body_hash: u64,
+    /// Its answer at each word count from zero, `None` where it abstains.
+    pub answers: &'static [Option<&'static [(u8, ArgRole)]>],
+}
+
 /// The deferrable bundled packs, by file name.
 pub const BUNDLED_MANIFESTS: &[BundledManifest] = &[
     BundledManifest {
         file: "eda_cadence.tclspec",
-        source_hash: 0x6f4b672c19c7c21c,
+        source_hash: 0x6f4b_672c_19c7_c21c,
         packages: &["cadence-common", "cadence-genus", "cadence-innovus", "cadence-xcelium"],
     },
     BundledManifest {
         file: "eda_mentor.tclspec",
-        source_hash: 0x1c49d77b1b476e98,
+        source_hash: 0x1c49_d77b_1b47_6e98,
         packages: &["calibre", "questa", "questa-formal"],
     },
     BundledManifest {
         file: "eda_microchip.tclspec",
-        source_hash: 0xf7d44b707bcdfc5c,
+        source_hash: 0xf7d4_4b70_7bcd_fc5c,
         packages: &["libero"],
     },
     BundledManifest {
         file: "eda_quartus.tclspec",
-        source_hash: 0x84581c28ec56a6ec,
+        source_hash: 0x8458_1c28_ec56_a6ec,
         packages: &["quartus-device", "quartus-flow", "quartus-misc", "quartus-project", "quartus-report", "quartus-sdc-ext", "quartus-sta"],
     },
     BundledManifest {
         file: "eda_synopsys.tclspec",
-        source_hash: 0xdd72586afaccb634,
+        source_hash: 0xdd72_586a_facc_b634,
         packages: &["synopsys", "synopsys-dc", "synopsys-fm", "synopsys-icc2", "synopsys-pt"],
     },
     BundledManifest {
         file: "eda_xilinx.tclspec",
-        source_hash: 0x7b62eecf2a3fb786,
+        source_hash: 0x7b62_eecf_2a3f_b786,
         packages: &["vivado"],
     },
     BundledManifest {
         file: "sdc_base.tclspec",
-        source_hash: 0x974c922af3dd3c99,
+        source_hash: 0x974c_922a_f3dd_3c99,
         packages: &["sdc"],
     },
     BundledManifest {
         file: "upf.tclspec",
-        source_hash: 0x792cb64391ef6833,
+        source_hash: 0x792c_b643_91ef_6833,
         packages: &["upf"],
+    },
+];
+
+/// The bundled packs' precompiled argument-role resolver tables.
+pub const BUNDLED_ROLE_TABLES: &[BundledRoleTable] = &[
+    BundledRoleTable {
+        body_hash: 0xead4_3338_8bcb_7dc0,
+        answers: &[
+            None,
+            None,
+            Some(&[(1, ArgRole::Body)]),
+            Some(&[(2, ArgRole::Body)]),
+            Some(&[(3, ArgRole::Body)]),
+            Some(&[(4, ArgRole::Body)]),
+            Some(&[(5, ArgRole::Body)]),
+            Some(&[(6, ArgRole::Body)]),
+            Some(&[(7, ArgRole::Body)]),
+            Some(&[(8, ArgRole::Body)]),
+            Some(&[(9, ArgRole::Body)]),
+            Some(&[(10, ArgRole::Body)]),
+            Some(&[(11, ArgRole::Body)]),
+            Some(&[(12, ArgRole::Body)]),
+            Some(&[(13, ArgRole::Body)]),
+            Some(&[(14, ArgRole::Body)]),
+            Some(&[(15, ArgRole::Body)]),
+            Some(&[(16, ArgRole::Body)]),
+            Some(&[(17, ArgRole::Body)]),
+            Some(&[(18, ArgRole::Body)]),
+            Some(&[(19, ArgRole::Body)]),
+            Some(&[(20, ArgRole::Body)]),
+            Some(&[(21, ArgRole::Body)]),
+            Some(&[(22, ArgRole::Body)]),
+            Some(&[(23, ArgRole::Body)]),
+            Some(&[(24, ArgRole::Body)]),
+            Some(&[(25, ArgRole::Body)]),
+            Some(&[(26, ArgRole::Body)]),
+            Some(&[(27, ArgRole::Body)]),
+            Some(&[(28, ArgRole::Body)]),
+            Some(&[(29, ArgRole::Body)]),
+            Some(&[(30, ArgRole::Body)]),
+            Some(&[(31, ArgRole::Body)]),
+        ],
     },
 ];
