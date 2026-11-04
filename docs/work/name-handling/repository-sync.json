@@ -1,9 +1,9 @@
 {
-  "checked_at": "2026-11-04T14:03:00.690972+00:00",
+  "checked_at": "2026-11-04T14:07:58.359312+00:00",
   "branch": "work",
-  "head_before_status_commit": "49f913fcdd890f8733e7d7644b7036c6bd7ce9fb",
-  "remote_head_at_fetch": "3e60c69c081d4f618bc591669c3696163106633f",
-  "sync": "merged concurrent remote changes without force push",
+  "head_before_status_commit": "c753d2bc6840a0878800c4263030aa88b4f30b94",
+  "remote_head_at_fetch": "c753d2bc6840a0878800c4263030aa88b4f30b94",
+  "sync": "fast-forwarded remote changes",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
