@@ -65,6 +65,15 @@ digest cannot replace unavailable originals during reproduction. These authored
 source snapshots grant no original-capture renewal, native execution or
 layout/ABI equivalence.
 
+The registry namespace-ownership source has a separate exact
+[two-claim source contract](derived-public-projections/registry-ownership-source-contract.json)
+and [authenticated derivation](derived-public-projections/registry-ownership-source-review.json).
+Its [source comparison tool](../../../../scripts/dev/check-registry-ownership-source-review.py)
+requires original Git source bytes and permits only the recorded test fixture
+collection change. All production owner bytes and fixed assertions remain
+identical. These authored implementation bindings supply no test execution or
+native-capture renewal.
+
 Reviewed question arrays and exact artifact classifications are merged
 separately, with every update checked before the census is written:
 

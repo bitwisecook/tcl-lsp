@@ -52763,7 +52763,7 @@
           "id": "receiver-selected-source598-745f40e488371f68",
           "role": "implementation",
           "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
-          "sha256": "ac64cdc140d737a2cdf2639f64305ecccfe9eb0a205f7bdf7969604203ec3da3",
+          "sha256": "b193bdb23698cb5408c2b0f5a45fc8d43b2bb0f1ccd8ac59cf91b0a671eed8a5",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -782683,7 +782683,7 @@
           "id": "receiver-selected-source598-7c61bded9baa6d7a",
           "role": "implementation",
           "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
-          "sha256": "ac64cdc140d737a2cdf2639f64305ecccfe9eb0a205f7bdf7969604203ec3da3",
+          "sha256": "b193bdb23698cb5408c2b0f5a45fc8d43b2bb0f1ccd8ac59cf91b0a671eed8a5",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         }
       ],
