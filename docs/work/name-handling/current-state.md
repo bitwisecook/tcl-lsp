@@ -1,10 +1,10 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 06:05 UTC. This is the active snapshot. Results apply only to their recorded source and inputs.
+Updated 04 November 2026, 06:20 UTC. This is the active snapshot. Results apply only to their recorded source and inputs.
 
 ## Scope and release verdict
 
-**The LSP is not release-ready.** Scope is the LSP and its dependencies migrated to Tcl name resolution. Separate VM, BIG-IP and ancillary feature development is deferred; actual VM/SpecTcl execution inside LSP hooks remains in scope. Source advice grants no Native execution, completed world or physical edit authority. No PR, merge to `rust`, tag or release has been created.
+**The LSP is not release-ready.** New publication lint refactor and bounded autoload segment index `cc5859402` are independently reviewed and committed but not yet compiled/executed; earlier7+35+5 passing cohorts cover their recorded pre-refactor source, not current whole Main. Scope is the LSP and its dependencies migrated to Tcl name resolution. Separate VM, BIG-IP and ancillary feature development is deferred; actual VM/SpecTcl execution inside LSP hooks remains in scope. Source advice grants no Native execution, completed world or physical edit authority. No PR, merge to `rust`, tag or release has been created.
 
 The checkout `/workspace/tcl-lsp-partial` is shallow, branch `work`, origin `https://github.com/bitwisecook/tcl-lsp.git`. The user authorises reviewed development pushes before green tests. The publisher fetches, verifies ancestry, safely fast-forwards remote changes, commits only its heartbeat and pushes reviewed HEAD every five minutes. It adds no product WIP and never force-pushes. Last inspected success: `2026-11-04T05:35:57.548705+00:00`, `6c927b676dd3df2ea9287feb46c73d0e711250e8`. [repository-sync.json](repository-sync.json) records actual checkpoints, not tests.
 
@@ -63,7 +63,9 @@ No final passing `make rust-check`, `make prep-pr`, global proof/drift, current 
 
 - `reuse-main-units/result.json.gz`: exit101, workspace ENOSPC/linker bus error; source/prior-generated seals match. No passing unit cohort. Verified preservation and affected-package clean recovery are recorded in `resource-recovery-compiler-core/receipt.json`.
 - `reuse-main-units-v2/result.json.gz`: Cargo0, custody exit99 because newly observed fixtures were not presealed. Diagnostic controls13/16; wrong second-root test premises subsequently corrected without production changes.
-- `reuse-main-units-v3/result.json.gz` and `reuse-main-units-v3/controls/result.json.gz`: fresh build passes with100 fixture inputs presealed, source/prior-generated seals match; controls15/16. Exact-input fixture correction is adopted, not rerun. Failed outcomes remain unchanged.
+- `reuse-main-units-v3/result.json.gz` and `reuse-main-units-v3/controls/result.json.gz`: fresh build passes with100 fixture inputs presealed, source/prior-generated seals match; controls15/16. Exact-input fixture correction is adopted, not rerun. Subsequent actual Main Compiler-only V2 build exits101 at linker bus error with workspace full; inputs remain matched, no executable/tests accepted. Failure `compiler-reuse-exact-input-current-v2/build.json.gz` (see retained directory), partial-output recovery `/tmp/compiler-link-resource-recovery-0616.json`. Affected Compiler/Core clean rebuild is being prepared with an explicit Compiler-only test-profile symbol strip to reduce linker space; controls stay unchanged. Failed outcomes remain unchanged.
 - `server-publication-main-units/result.json.gz`: actual Main/scratch-equal build exit101, three E0308 test guard-borrow errors; seals match, no tests executed. Minimal three-expression explicit-dereference correction is adopted; `server-publication-main-units-v2/result.json.gz` passes fresh compilation with source/prior-generated seals matched, and `controls/result.json.gz` passes7/7 exact controls, first public request first. No private observers in either cohort.
 
 Inactive Compiler/Core unit ELFs and libraries are preserved through verified compressed streams before retiring raw copies to recover build space. Preservation is not validation.
+
+The actual Core observer confirms the old strict startup caller loses external lookup authority after package require/unknown-call preludes; bare autoload/package, pure-prefix and package-provide cases select genuine target declarations. `/workspace/tmp/autoload-positive-null-current-0602/receipt.json` binds current production dependencies and actual fixture bytes. Original startup failure is retained; a separately planned cold public-host positive/negative matrix does not claim require-first navigation or runtime package activation.

@@ -1,10 +1,10 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 06:05 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for source-bound receipts.
+Updated 04 November 2026, 06:20 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for source-bound receipts.
 
 | Work | Open acceptance |
 | --- | --- |
-| Root integration | V3 Compiler/Core build passes, selected controls15/16; exact-input test correction unexecuted; final unsuppressed lint, CI/proof/drift, native/host/performance/package gates; regular truthful sync/push. |
+| Root integration | Historical V3 Compiler/Core build passes15/16; exact-input correction remains unexecuted after new Compiler-only V2 resource/link failure; affected clean retry with symbol strip is being prepared; final unsuppressed lint, CI/proof/drift, native/host/performance/package gates; regular truthful sync/push. |
 | Closed-file navigation | Fresh Main/scratch Server cohort7/7 passes, including actual first protocol definition+partial hover. Initial compile errors corrected; native15/15+mandatory20/20 pass; five-arm first-request diagnostic also succeeds; startup autoload/package acceptance fails, remaining hosts pending. Index/ancestor/source guards remain. |
 | Hover/rename/edit | Seven current selected Server controls pass; current native full-fixture/closed-method hover passes; broader edit/host acceptance pending. Public same-doc/collision controls pass; both natural source-linked multi-doc shapes refuse, inherited ordinary worlds deliberately absent. Host-only prototype cannot supply the missing producer; actual O127 pair unavailable in both domains. |
 | Autoload |15/15 activated fresh/full vectors pass before reuse; original controls5/7 failures retained, all10 selected Core controls pass in sealed V3. Same-survey receipt reuse adopted/reviewed; new controls/vectors/startup/memory acceptance pending. |
