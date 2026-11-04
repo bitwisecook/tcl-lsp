@@ -31,6 +31,19 @@ pub(super) enum IndexFilenameSurvey<'a> {
     Unavailable,
 }
 
+/// Opt-in original filename query, independently of future loader execution.
+#[derive(Debug)]
+pub enum OriginalIndexFilenameSurvey<'a> {
+    /// Filename retained by the existing original source consumer.
+    Filename(PathBuf),
+    /// The full consumer lacks a required original source schema.
+    NoContribution(Box<IndexFilenameNoContribution<'a>>),
+    /// The full consumer cannot select the authenticated source-file layout.
+    InvalidLayout(Box<OriginalIndexFilenameInvalidLayout<'a>>),
+    /// Required original source, schema, grammar or path ownership is missing.
+    Unavailable,
+}
+
 /// Missing original schema bound to one complete loader and real directory.
 #[derive(Debug)]
 pub struct IndexFilenameNoContribution<'a> {
@@ -66,7 +79,8 @@ pub struct OriginalIndexFilenameInvalidLayout<'a> {
 }
 
 impl OriginalIndexFilenameInvalidLayout<'_> {
-    /// Same complete original loader, directory, context and invalid grammar.
+    /// Same original loader, directory and grammar under the captured input.
+    /// Current document/provider custody remains the caller's responsibility.
     #[must_use]
     pub fn matches_current_query(&self, loader: &NativeWord, directory: &Path) -> bool {
         if self.loader != *loader
@@ -255,15 +269,18 @@ impl<'a> IndexLoader<'a> {
         &self,
         loader: &NativeWord,
         directory: &Path,
-    ) -> IndexFilenameSurvey<'a> {
-        let current = self.survey_filename(loader, directory);
-        if !matches!(current, IndexFilenameSurvey::Unavailable) {
-            return current;
+    ) -> OriginalIndexFilenameSurvey<'a> {
+        match self.survey_filename(loader, directory) {
+            IndexFilenameSurvey::Filename(file) => OriginalIndexFilenameSurvey::Filename(file),
+            IndexFilenameSurvey::NoContribution(certificate) => {
+                OriginalIndexFilenameSurvey::NoContribution(certificate)
+            }
+            IndexFilenameSurvey::Unavailable => self
+                .invalid_layout_abstention(loader, directory)
+                .map_or(OriginalIndexFilenameSurvey::Unavailable, |certificate| {
+                    OriginalIndexFilenameSurvey::InvalidLayout(Box::new(certificate))
+                }),
         }
-        let Some(certificate) = self.invalid_layout_abstention(loader, directory) else {
-            return IndexFilenameSurvey::Unavailable;
-        };
-        IndexFilenameSurvey::InvalidLayout(certificate)
     }
 
     fn invalid_layout_abstention(
@@ -297,7 +314,7 @@ impl<'a> IndexLoader<'a> {
         let layout = self.with_schema(
             projection.elements_if_projected(),
             WordOrigin::LoaderValue,
-            tcl_registry::ResolvedInvocation::authored_source_file_layout_abstention,
+            |selected| selected.authored_source_file_layout_abstention(),
         )??;
         Some(OriginalIndexFilenameInvalidLayout {
             projection,
