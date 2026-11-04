@@ -55,3 +55,5 @@ No final passing `make rust-check`, `make prep-pr`, global proof/drift, current 
 4. Keep reviewed status/code pushes and remote sync regular; do not publish PR/tag/release before required acceptance. Root owns Main/shared target, one heavy Cargo job; agents use narrow private copies only.
 
 [Outstanding work](outstanding/README.md) mirrors this snapshot.
+
+The Main-corresponding reuse Compiler/Core build exits101 after workspace ENOSPC: linker bus error at Compiler lib-test, source/prior-generated seals matched. No passing unit cohort is claimed, including the earlier-emitted Core ELF. Failed incomplete outputs are recorded/removed, exact successful cached artifacts are being stream-verified and compressed before an affected-package clean rebuild. Failure receipt `reuse-main-units/result.json.gz`, recovery `/tmp/lsp-link-resource-recovery-0455.json`. New tests remain unexecuted.
