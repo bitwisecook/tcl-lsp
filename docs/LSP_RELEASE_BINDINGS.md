@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
-| #2376 | C Tcl and Jim confirm the short-circuit expression is safe; fresh compiler warns on its skipped read. | Reproduced residual |
+| #2376 | The original audit warned on a safely skipped read. Current native controls cover both branch directions and mutation order; the fresh production baseline is awaiting the compiler slot. | Earlier residual; fresh baseline pending |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
@@ -105,3 +105,24 @@ current-Jim runs are in
 [`w210-unset-guards-attempt`](../rust/tcl-compiler/tests/data/w210-unset-guards-attempt/README.md).
 The implementation and failing test are safely stashed, with no physical/source
 gate change or failing CI test installed. #2371 remains unresolved.
+
+The #2376 source matrix is in
+[`w210-short-circuit.json`](../rust/tcl-compiler/tests/data/w210-short-circuit.json),
+with 138 fixed native observations in
+[`w210-short-circuit-oracles.json`](../rust/tcl-compiler/tests/data/w210-short-circuit-oracles.json).
+It includes `&&`/`||`, nested negation, the later genuine read's intended span,
+and command results frozen before later stores in their argv. Unsupported
+composite expression results cannot borrow a child's completed value. Native
+NaN behaviour is recorded per engine: truthy on Tcl 8.4/Jim, an error on Tcl
+8.5–9.1. The negative guards allow legitimate future precision instead of
+asserting that an unavailable result must stay unavailable.
+
+The existing binary walker computes short-circuit truth from its expression
+reader, which deliberately declines command nodes, even when the original
+left evaluation retained a completed command value. A possible repair would
+consume that actual value only for a direct command or logical negations of
+it, using the shared boolean-context and numeric-release owners. No such
+production edit has been made. The production baseline/regression driver is
+prepared but remains uncompiled while #940/provider work has exclusive compiler
+priority. This checkpoint publishes native evidence and planned acceptance;
+it is not a product-fix or green-gate claim.
