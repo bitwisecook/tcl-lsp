@@ -303,6 +303,27 @@ fn pack_environment_roles_survive_document_edits() {
             );
         }
         lsp.close_document(&uri);
+        lsp.open_document_lang(&uri, &source, "tcl", 3);
+        let reopened =
+            lsp.await_diagnostics_version(&uri, Some(3), std::time::Duration::from_secs(30));
+        assert!(
+            !reopened.iter().any(|diagnostic| {
+                diagnostic["code"] == "W123"
+                    && diagnostic["message"].as_str().is_some_and(|message| {
+                        message.contains("myblock") || message.contains("other")
+                    })
+            }),
+            "pack commands became unknown when {name} reopened: {reopened:#?}"
+        );
+        let tokens = decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri));
+        assert!(
+            tokens.iter().any(|token| token.line == line
+                && token.char == 8
+                && token.length == 3
+                && legend[usize::try_from(token.ttype).unwrap()] == "function"),
+            "nested set lost its function token when {name} reopened: {tokens:?}"
+        );
+        lsp.close_document(&uri);
     }
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -673,47 +694,55 @@ fn a_workspace_pack_subcommand_arity_error_is_published() {
          arg 0 -role Value -type Double\n      arg 1 -role Value -type Double\n      \
          arg 2 -role Value -type Double\n      synopsis {cad box x y z}\n    }\n  }\n}\n",
     );
-    let source = "package require cad 0.4\n\ncad box 10 20\ncad box 1 2 3\nstring length one two\n";
-    let doc = root.join("bad.tcl");
-    write(&doc, source);
-
     let mut lsp = Lsp::with_config_at_root(json!({}), &root);
-    let uri = file_uri(&doc);
     await_pack_named(&mut lsp, "cad");
-    let diagnostics = lsp.open_ready(&uri, source);
-    let arity: Vec<&Value> = diagnostics
-        .iter()
-        .filter(|d| {
-            d.get("message")
-                .and_then(Value::as_str)
-                .is_some_and(|m| m.contains("'cad box'"))
-        })
-        .collect();
-    assert_eq!(arity.len(), 1, "{diagnostics:#?}");
-    assert_eq!(arity[0]["range"]["start"]["line"], 2, "{arity:#?}");
-    assert_eq!(arity[0]["code"], "E002", "{arity:#?}");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic["code"] == "E003"
-                && diagnostic["range"]["start"]["line"] == 4
-                && diagnostic["message"]
-                    .as_str()
-                    .is_some_and(|message| message.contains("string length"))
-        }),
-        "built-in arity control must be published too: {diagnostics:#?}"
-    );
-
-    let repaired =
-        "package require cad 0.4\n\ncad box 10 20 30\ncad box 1 2 3\nstring length one\n";
-    lsp.replace_document(&uri, 2, repaired);
-    let repaired_diagnostics =
-        lsp.await_diagnostics_version(&uri, Some(2), std::time::Duration::from_secs(30));
-    assert!(
-        !repaired_diagnostics
+    for (name, directive) in [("default.tcl", ""), ("tcl9.tcl", "# tcl-dialect: tcl9.0\n")] {
+        let source = format!(
+            "{directive}package require cad 0.4\n\ncad box 10 20\ncad box 1 2 3\nstring length one two\n"
+        );
+        let doc = root.join(name);
+        write(&doc, &source);
+        let uri = file_uri(&doc);
+        let diagnostics = lsp.open_ready(&uri, &source);
+        if !directive.is_empty() {
+            assert_eq!(lsp.effective_config(&uri)["dialect"], "tcl9.0");
+        }
+        let offset = i64::from(!directive.is_empty());
+        let arity: Vec<&Value> = diagnostics
             .iter()
-            .any(|diagnostic| diagnostic["code"] == "E002" || diagnostic["code"] == "E003"),
-        "repair must clear both custom and built-in arity errors: {repaired_diagnostics:#?}"
-    );
+            .filter(|d| {
+                d.get("message")
+                    .and_then(Value::as_str)
+                    .is_some_and(|m| m.contains("'cad box'"))
+            })
+            .collect();
+        assert_eq!(arity.len(), 1, "{name}: {diagnostics:#?}");
+        assert_eq!(arity[0]["range"]["start"]["line"], 2 + offset, "{arity:#?}");
+        assert_eq!(arity[0]["code"], "E002", "{arity:#?}");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic["code"] == "E003"
+                    && diagnostic["range"]["start"]["line"] == 4 + offset
+                    && diagnostic["message"]
+                        .as_str()
+                        .is_some_and(|message| message.contains("string length"))
+            }),
+            "built-in arity control must be published for {name}: {diagnostics:#?}"
+        );
+        let repaired = format!(
+            "{directive}package require cad 0.4\n\ncad box 10 20 30\ncad box 1 2 3\nstring length one\n"
+        );
+        lsp.replace_document(&uri, 2, &repaired);
+        let repaired_diagnostics =
+            lsp.await_diagnostics_version(&uri, Some(2), std::time::Duration::from_secs(30));
+        assert!(
+            !repaired_diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic["code"] == "E002" || diagnostic["code"] == "E003" }),
+            "repair must clear both errors for {name}: {repaired_diagnostics:#?}"
+        );
+        lsp.close_document(&uri);
+    }
 
     let _ = std::fs::remove_dir_all(&root);
 }
