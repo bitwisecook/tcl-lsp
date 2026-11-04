@@ -1,14 +1,20 @@
 {
-  "checked_at": "2026-11-04T06:25:57.640025+00:00",
+  "checked_at": "2026-11-04T06:30:57.580223+00:00",
   "branch": "work",
-  "head_before_status_commit": "0eaab5a3358b0d3028a733241b29e03dfdf6662e",
-  "remote_head_at_fetch": "94b64ccee8ad49763e6f6f28745ed0d65fe0533b",
-  "sync": "local commits pending publication; remote ancestor verified",
+  "head_before_status_commit": "4daf0615bf04fee5260ccfa269b29fa5a096c28a",
+  "remote_head_at_fetch": "4daf0615bf04fee5260ccfa269b29fa5a096c28a",
+  "sync": "no new remote commits",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
   "manual_status_sha256": "ac0570faab7227d71731ca664de67ff8d9042d85accb3d9f96239b3dd5ee78c5",
-  "working_tree_at_check": [],
+  "working_tree_at_check": [
+    " M docs/design/analysis/name-resolution-proofs/README.md",
+    " M docs/design/analysis/name-resolution-proofs/corpus-inventory.json",
+    "?? docs/design/analysis/name-resolution-proofs/derived-public-projections/authored-fixture-source-contract.json",
+    "?? docs/design/analysis/name-resolution-proofs/derived-public-projections/authored-fixture-source-review.json",
+    "?? scripts/dev/check-authored-fixture-source-review.py"
+  ],
   "ci_note": "This heartbeat does not poll or certify CI. Exact workflow sources and outcomes are recorded in the timestamped manual snapshot.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
 }
