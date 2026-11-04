@@ -4,8 +4,8 @@ Updated 4 November 2026. Branch: `work`. The LSP is not yet release-ready.
 
 User priority update: the conditional-list S102 follow-up in #940 takes priority.
 The user permits evidence comments and closure only for verified fixed issues
-authored by bitwisecook. The nine issues #2218, #2254, #2255, #2334, #2351, #2365,
-#2434, #2436 and #2440
+authored by bitwisecook. The ten issues #2218, #2254, #2255, #2295, #2334, #2351,
+#2365, #2434, #2436 and #2440
 were verified, commented and closed. All 20 other-reporter issues remain open;
 their current assessment is in [LSP_RELEASE_EXTERNAL.md](LSP_RELEASE_EXTERNAL.md).
 
@@ -13,7 +13,7 @@ This sweep follows the user’s LSP/compiler release scope. Unrelated VM, BIG-IP
 
 Root integrates reviewed changes every five minutes with normal fetch/merge/push and bounded race-safe retries, without force. Other issue-sweep lanes retain their authorised at-least-15-minute development cadence and pull with rebase before pushing reviewed fixes and status evidence. Development integration may proceed before green tests; required release gates still need to pass on the final source.
 
-Six isolated shallow checkouts use separate Cargo targets. Models: Terra High/Extra High, Sol High/Extra High and Luna High. Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 are built from the repository’s pinned references. Latest JimTcl was cloned at `82fb4d0caf90240d94352a31fcbd16adf52658a7` (reports 0.84). Reference provisioning alone certifies no product test.
+Six isolated shallow checkouts use separate Cargo targets. Models: Terra High/Extra High, Sol High/Extra High and Luna High. Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 are built from the repository’s pinned references. Latest JimTcl was cloned at `82fb4d0caf90240d94352a31fcbd16adf52658a7` (reports `0.84-10-g82fb4d0`). Reference provisioning alone certifies no product test.
 
 All naming changes use the shared naming owners. Tcl parsing must use the existing child lexer/parser/segmenter. Original checkout code and pre-existing binaries are stale relative to `work`; only fresh source-bound results count.
 
@@ -43,6 +43,7 @@ Naming acceptance snapshot at14:11UTC: ServerV11 completes26/26 mandatory contro
 - Targeted production Clippy for `tcl-lexer` and `tcl-compiler` passes with `-D warnings` at `c80aa092d`; this also includes the pushed #2218 optimiser guard. Full workspace gates remain separate and pending.
 - #2218 was fixed in `c47d83bda`: retained O115 return/argument normalisation now obeys the shared module command-trust owner. Three focused tests pass, with eight positive and eight negative cases plus equivalent original/rewritten execution on all five Tcl releases and Jim `82fb4d0`. The [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2218#issuecomment-6630388414) was fetched back before closure.
 - #2365 was fixed in `89694c328` and `d58e2952e`: valid stub directives outside a block receive W153 while W123 remains on the unknown call. Clean analyser and Core policy tests, generated-catalogue drift checks and targeted compiler/Core Clippy pass. The new KCS page/index are included; its full index gate remains blocked by 390 unrelated sparse-checkout paths. The [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2365#issuecomment-6631444932) was fetched back before closure.
+- #2295 was closed after its [proof comment](https://github.com/bitwisecook/tcl-lsp/issues/2295#issuecomment-6634160183) was posted and fetched back. Four clean deterministic readiness controls pass, including a paused-clock wait beyond the former deadlines and admission/failure/shutdown checks; the real first-query regression passed on the earlier clean server in 39.57 seconds. The [receipt](LSP_RELEASE_WORKSPACE_READINESS_RECEIPT_2026-11-04.json) retains exact sources, hashes, logs and the separate unresolved source-view, lifecycle and pack failures.
 - Coordinator #2129: the registry already has a `SOURCE_ENCODING` admissibility axis and declines non-ASCII text where the target’s source reader is unknown. A fresh 11-case native check confirms the Tcl 8.4–8.6 system-encoding distinction, Tcl 9.0–9.1 UTF-8 source reading and current Jim UTF-8 reading; the [receipt](LSP_RELEASE_SOURCE_ENCODING_RECEIPT_2026-11-04.json) retains exact source bytes and launchers. The design example now matches the actual `source_utf8` field and explicitly identifies the missing encoding-profile/decode provenance path. This is scoped reference evidence; #2129 remains open.
 - Coordinator #2426: current diagnostics retain typed subjects, and Core includes changed-wording/quoting transport controls. Repository-wide envelope and drift-gate acceptance remain unverified.
 - Large design/audit issues #1655, #1710, #1712, #1714 and #2426 require explicit assessment; no blanket completion is claimed.

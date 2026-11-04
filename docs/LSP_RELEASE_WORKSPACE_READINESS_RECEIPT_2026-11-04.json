@@ -45,5 +45,11 @@
     "Full repository release gates remain pending."
   ],
   "raw_unit_log": "\nrunning 1 test\ntest tests::workspace_symbol_waits_past_previous_deadlines_and_scan_gate ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest tests::workspace_symbol_readiness_waits_for_completion_and_releases_on_failure ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.05s\n\n\nrunning 1 test\ntest tests::workspace_symbol_readiness_releases_on_shutdown_and_cancellation ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.05s\n\n\nrunning 1 test\ntest transport_liveness::tests::workspace_scan_waiters_do_not_starve_unrelated_requests_2295 ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest readonly_reference_reports::source_views::closed_source_child_ingress_tests::conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers ... \nthread 'readonly_reference_reports::source_views::closed_source_child_ingress_tests::conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers' (192215) panicked at rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs:6642:14:\ncalled `Option::unwrap()` on a `None` value\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nFAILED\n\nfailures:\n\nfailures:\n    readonly_reference_reports::source_views::closed_source_child_ingress_tests::conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.71s\n\n",
-  "raw_e2e_log": "\nrunning 1 test\ntest document_symbols::workspace_symbol_waits_out_the_startup_scan ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1654 filtered out; finished in 39.57s\n\n"
+  "raw_e2e_log": "\nrunning 1 test\ntest document_symbols::workspace_symbol_waits_out_the_startup_scan ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1654 filtered out; finished in 39.57s\n\n",
+  "proof_comment": {
+    "id": 6634160183,
+    "url": "https://github.com/bitwisecook/tcl-lsp/issues/2295#issuecomment-6634160183",
+    "exact_body_and_author_fetched_back_before_closure": true
+  },
+  "issue_state_after_verification": "closed (completed)"
 }
