@@ -23,7 +23,12 @@
         "path": "docs/design/compiler/sccp-core-analyses.md",
         "sha256": "b12439cd2f95b21d72371d775290e951ce2b36c0b0106fac9bf481870d2839c8"
       },
-      "observed_owner_contract": "The Read-before-set section explicitly excludes those idioms as existence proofs."
+      "observed_owner_contract": "The Read-before-set section explicitly excludes those idioms as existence proofs.",
+      "comment_id": 6636790281,
+      "comment_verified_on_github": true,
+      "state": "closed",
+      "state_reason": "completed",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2372#issuecomment-6636790281"
     },
     {
       "issue": 2446,
@@ -38,7 +43,12 @@
         "path": "rust/tcl-compiler/src/analyser/diagnostics/validity.rs",
         "sha256": "9bc240bf0923ec6cac8cb28b74b5d72ea0ae719486332eab0c8a88794ed36a32"
       },
-      "observed_owner_contract": "UserResolutionFacts::resolves_to_user recognises stub names; flush_arity_diagnostics skips stubbed user-call candidates."
+      "observed_owner_contract": "UserResolutionFacts::resolves_to_user recognises stub names; flush_arity_diagnostics skips stubbed user-call candidates.",
+      "comment_id": 6636792651,
+      "comment_verified_on_github": true,
+      "state": "closed",
+      "state_reason": "completed",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2446#issuecomment-6636792651"
     },
     {
       "issue": 2447,
@@ -53,7 +63,12 @@
         "path": "rust/tcl-lsp-server/src/lib.rs",
         "sha256": "37fb1380770f739cb0cfcab5c65e14e3c035bd84bd363a38743ac18f16b5a548"
       },
-      "observed_owner_contract": "register_file_watchers registers PROJECT_CONFIG_GLOB; did_change_watched_files invokes refresh_watched_configuration, which re-pulls settings and reschedules open and closed diagnostics. The watcher list has no global config path."
+      "observed_owner_contract": "register_file_watchers registers PROJECT_CONFIG_GLOB; did_change_watched_files invokes refresh_watched_configuration, which re-pulls settings and reschedules open and closed diagnostics. The watcher list has no global config path.",
+      "comment_id": 6636794767,
+      "comment_verified_on_github": true,
+      "state": "closed",
+      "state_reason": "completed",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2447#issuecomment-6636794767"
     },
     {
       "issue": 2448,
@@ -68,7 +83,12 @@
         "path": "rust/tcl-lsp-core/src/config_ini.rs",
         "sha256": "064607f3ef37d1beee314384502ef3a04090a2a518c748d46c806fde8dd80b59"
       },
-      "observed_owner_contract": "settings_from_ini reads known INI settings; merge_settings recursively applies high-priority values over low-priority values. No per-key ignore-list facility is claimed."
+      "observed_owner_contract": "settings_from_ini reads known INI settings; merge_settings recursively applies high-priority values over low-priority values. No per-key ignore-list facility is claimed.",
+      "comment_id": 6636796786,
+      "comment_verified_on_github": true,
+      "state": "closed",
+      "state_reason": "completed",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2448#issuecomment-6636796786"
     },
     {
       "issue": 2449,
@@ -93,7 +113,12 @@
           "path": "rust/tcl-spectcl/src/upgrade.rs",
           "sha256": "c9219f2542d3296c41313b6205f5f8b8d88fa3eef8de2af50ace3dd569748d41"
         }
-      ]
+      ],
+      "comment_id": 6636798978,
+      "comment_verified_on_github": true,
+      "state": "closed",
+      "state_reason": "completed",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2449#issuecomment-6636798978"
     }
   ]
 }
