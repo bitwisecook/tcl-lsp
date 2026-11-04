@@ -57,8 +57,8 @@ same way. The rationale and the survey behind it are in
 If you want a personal override of a setting your team has pinned in
 `.tcl-lsp.ini`, the project file is the wrong layer to fight. Edit
 `.tcl-lsp.ini` itself (and discuss the change with the team), or set
-the override in your editor and add the same key to the project file's
-local-only ignore list.
+the override in your editor. Project values normally take precedence over
+editor settings, so coordinate with the team if you need a different value.
 
 In addition to these three configuration layers, two **document-level
 directives** apply on top of the merged config for a single file:
