@@ -183,6 +183,15 @@ write's unresolved effects remain attached even with a literal payload; remainin
 earlier uncertainty refuses navigation. Non-ASCII source geometry does not discharge
 that debt.
 
+A standalone index filename survey can separately retain a conditional full-list
+operand projection and an Invalid authored source-file argument layout. Both
+receipts retain their exact original vector, input, source grammar and issuer;
+the filename result is bound to its actual loader and directory. This proves
+only that the unchanged filename consumer contributes no candidate. It does not
+prove a runtime error, file absence, completed evaluation or dispatch identity.
+The default index extraction retains its existing fallback until the separate
+survey is explicitly selected; host publication/input currency stays independent.
+
 Source-view hover rejoins the exact retained procedure declaration and every
 physical ancestor before rendering. Source schema, selected root-special-variable
 and local class/member declaration cards keep their own current source metadata;
