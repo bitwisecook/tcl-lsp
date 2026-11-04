@@ -167,13 +167,12 @@ directive, or a config file.
 
 - For inline and file-level directives: the squiggle or hint
   disappears as soon as you save. No server restart needed.
-- For project config changes: save the `.tcl-lsp.ini` file and run
-  **Tcl: Restart Language Server** (or the equivalent for your
-  editor) so the server reloads it. New documents opened after the
-  restart pick the rules up automatically.
-- For editor or global config changes: most editors re-send settings
-  to the server within a second; diagnostics refresh automatically.
-  When in doubt, see
+- For project config changes: save the `.tcl-lsp.ini` file. The server
+  watches it and refreshes diagnostics for open documents automatically.
+- For editor settings changes: most editors re-send settings to the
+  server within a second; diagnostics refresh automatically. The global
+  config file is not watched, so restart the language server after
+  changing it. When in doubt, see
   [kcs-qa-when-to-restart-server.md](kcs-qa-when-to-restart-server.md).
 - For the CLI and the MCP tools: run `tcl diag --show-suppressed` (or
   `tcl lint --show-suppressed`) to list every hidden finding as a
