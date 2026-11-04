@@ -1276,7 +1276,7 @@ mod tests {
             |_, candidates| candidates,
         );
         assert_eq!(text, source);
-        assert!(applied.is_empty());
+        assert_eq!(applied.len(), 0);
     }
 
     #[test]
