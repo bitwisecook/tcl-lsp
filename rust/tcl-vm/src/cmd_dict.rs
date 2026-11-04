@@ -1408,47 +1408,48 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 mod tests {
     use super::*;
 
+    fn jim_dictionary_scope_frames() -> (Vm, usize, usize) {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::interpreter_with_dictionary_library(profile);
+        vm.push_call_frame(Some("outer".into()), Vec::new());
+        let outer = vm.current_level();
+        vm.set_var("held", Value::string("old")).unwrap();
+        vm.set_var("dictionary", Value::string("k held")).unwrap();
+        vm.push_call_frame(Some("inner".into()), Vec::new());
+        vm.add_link("alias", outer, "held")
+            .unwrap_or_else(|_| panic!("link"));
+        vm.add_link("dictionary_alias", outer, "dictionary")
+            .unwrap_or_else(|_| panic!("link"));
+        vm.add_link("member_alias", outer, "dictionary(k)")
+            .unwrap_or_else(|_| panic!("link"));
+        vm.set_var("local_dictionary", Value::string("k local"))
+            .unwrap();
+        vm.set_var("d", Value::dict(Vec::new())).unwrap();
+        vm.set_var("wrapper_body", Value::string("NOT_ENTERED"))
+            .unwrap();
+        let inner = vm.current_level();
+        (vm, outer, inner)
+    }
+
     #[test]
     fn confined_jim_dictionary_missing_key_keeps_outer_alias_and_dictionary_member() {
         for confined in [false, true] {
-            let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-            let mut vm = crate::native_fixture::interpreter_with_dictionary_library(profile);
-            vm.push_call_frame(Some("outer".into()), Vec::new());
-            let outer = vm.current_level();
-            vm.set_var("held", Value::string("old")).unwrap();
-            vm.set_var("dictionary", Value::string("k held")).unwrap();
-            vm.push_call_frame(Some("inner".into()), Vec::new());
-            vm.add_link("alias", outer, "held")
-                .unwrap_or_else(|_| panic!("link"));
-            vm.add_link("dictionary_alias", outer, "dictionary")
-                .unwrap_or_else(|_| panic!("link"));
-            vm.set_var("local_dictionary", Value::string("k local"))
-                .unwrap();
-            vm.set_var("d", Value::dict(Vec::new())).unwrap();
-            vm.register("missing_key_update", cmd_dict_update);
-            vm.set_stores_confined(confined);
-            let inner = vm.current_level();
-            for target in ["alias", "dictionary_alias(k)"] {
-                // The entered original Jim script supplies the independently owned
-                // source context required by the production dictionary worker.
+            for (target, unset_target) in
+                [("alias", "alias"), ("member_alias", "dictionary_alias(k)")]
+            {
+                let (mut vm, outer, inner) = jim_dictionary_scope_frames();
+                vm.set_stores_confined(confined);
+                // Jim's real scripted wrapper retains a missing-key target.
+                // It never enters the C primitive's missing-key unset worker.
                 let result = vm
-                    .try_eval_source(&format!("missing_key_update d k {target} {{}}"))
+                    .try_eval_source(&format!(
+                        "dict update d k {target} {{set wrapper_body REACHED}}"
+                    ))
                     .unwrap();
-                assert_eq!(vm.current_level(), inner);
-                if confined {
-                    assert_eq!(result.code, Code::Error, "{target}");
-                    assert!(
-                        result
-                            .result
-                            .to_str()
-                            .contains("stores are confined to the activation")
-                    );
-                } else {
-                    assert_eq!(result.code, Code::Ok, "{target}: {result:?}");
-                }
-                assert!(vm.refused_completion().is_none());
-            }
-            if confined {
+                assert_eq!(
+                    vm.get_var("wrapper_body").unwrap().to_str().as_ref(),
+                    "REACHED"
+                );
                 assert_eq!(
                     vm.get_var_from(outer, "held").unwrap().to_str().as_ref(),
                     "old"
@@ -1460,28 +1461,74 @@ mod tests {
                         .as_ref(),
                     "k held"
                 );
-            } else {
-                assert!(vm.get_var_from(outer, "held").is_none());
+                if confined {
+                    assert_eq!(result.code, Code::Error, "{target}");
+                    assert!(
+                        result
+                            .result
+                            .to_str()
+                            .contains("stores are confined to the activation")
+                    );
+                    assert_eq!(vm.get_var("d").unwrap().to_str().as_ref(), "");
+                } else {
+                    assert_eq!(result.code, Code::Ok, "{target}: {result:?}");
+                    let expected = if target == "alias" { "k old" } else { "k held" };
+                    assert_eq!(vm.get_var("d").unwrap().to_str().as_ref(), expected);
+                }
+                assert_eq!(vm.current_level(), inner);
+                assert!(vm.refused_completion().is_none());
+
+                // Reach the original unset independently through entered
+                // Jim operands, including its dictionary-member alias spelling.
+                let result = vm
+                    .try_eval_source(&format!("unset -nocomplain {unset_target}"))
+                    .unwrap();
+                if confined {
+                    assert_eq!(result.code, Code::Error, "{target}");
+                    assert!(
+                        result
+                            .result
+                            .to_str()
+                            .contains("stores are confined to the activation")
+                    );
+                    assert_eq!(
+                        vm.get_var_from(outer, "held").unwrap().to_str().as_ref(),
+                        "old"
+                    );
+                    assert_eq!(
+                        vm.get_var_from(outer, "dictionary")
+                            .unwrap()
+                            .to_str()
+                            .as_ref(),
+                        "k held"
+                    );
+                } else {
+                    assert_eq!(result.code, Code::Ok, "{target}: {result:?}");
+                    if target == "alias" {
+                        assert!(vm.get_var_from(outer, "held").is_none());
+                    } else {
+                        assert_eq!(
+                            vm.get_var_from(outer, "dictionary")
+                                .unwrap()
+                                .to_str()
+                                .as_ref(),
+                            ""
+                        );
+                    }
+                }
+                for local in ["absent", "local_dictionary(k)", "local_dictionary(missing)"] {
+                    let result = vm
+                        .try_eval_source(&format!("unset -nocomplain {local}"))
+                        .unwrap();
+                    assert_eq!(result.code, Code::Ok, "{local}: {result:?}");
+                }
                 assert_eq!(
-                    vm.get_var_from(outer, "dictionary")
-                        .unwrap()
-                        .to_str()
-                        .as_ref(),
+                    vm.get_var("local_dictionary").unwrap().to_str().as_ref(),
                     ""
                 );
-            }
-            for target in ["absent", "local_dictionary(k)", "local_dictionary(missing)"] {
-                let result = vm
-                    .try_eval_source(&format!("missing_key_update d k {target} {{}}"))
-                    .unwrap();
-                assert_eq!(result.code, Code::Ok, "{target}: {result:?}");
                 assert_eq!(vm.current_level(), inner);
                 assert!(vm.refused_completion().is_none());
             }
-            assert_eq!(
-                vm.get_var("local_dictionary").unwrap().to_str().as_ref(),
-                ""
-            );
         }
     }
 

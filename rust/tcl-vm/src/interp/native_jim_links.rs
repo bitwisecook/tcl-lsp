@@ -271,6 +271,44 @@ impl Vm {
         target.name.check_native_header()?;
         Ok(Some((target.name.native_lifetime_lease(), level)))
     }
+    fn original_jim_unset_binding_is_confined(
+        &mut self,
+        original: &Value,
+        bytes: &[u8],
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
+    ) -> Result<bool, Completion<Value>> {
+        if Self::is_original_jim_dictionary_name(original, bytes) {
+            // The cached tuple's actual root object selects storage independently
+            // of the combined name's reporting bytes. Do not read its value.
+            let (root, _) = self
+                .original_jim_tuple_children_in_context(original, original_names)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            let root_bytes = original_names
+                .read(self, root.value())
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+            return self.original_jim_unset_binding_is_confined(
+                root.value(),
+                &root_bytes,
+                original_names,
+            );
+        }
+        let binding = self
+            .var_binding_from_bytes(bytes, self.current_level())
+            .ok_or_else(|| {
+                self.refuse_host_command("original Jim unset binding is unavailable".into())
+            })?;
+        if self.store_binding_confined(&binding, self.current_level()) {
+            return Ok(true);
+        }
+        self.install_original_jim_variable(original, bytes, original_names)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let cached = self
+            .current_jim_variable_cell(original)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+        Ok(self.store_binding_confined(&binding, self.current_level())
+            || cached != self.raw_variable_binding(&binding))
+    }
+
     pub(crate) fn unset_original_named_variable(
         &mut self,
         original: &Value,
@@ -287,14 +325,25 @@ impl Vm {
                 .read(self, original)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             if self.uses_native_jim_lookup() {
+                if self.limits.confined_stores
+                    && self.original_jim_unset_binding_is_confined(
+                        original,
+                        &bytes,
+                        &original_names,
+                    )?
+                {
+                    return Err(Self::confined_store_error(&bytes, true));
+                }
                 if Self::is_original_jim_dictionary_name(original, &bytes) {
                     return match self.unset_original_jim_dictionary_name(original) {
                         Err(_) if !complain && self.refused_completion().is_none() => Ok(()),
                         result => result,
                     };
                 }
-                self.install_original_jim_variable(original, &bytes, &original_names)
-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                if !self.limits.confined_stores {
+                    self.install_original_jim_variable(original, &bytes, &original_names)
+                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+                }
                 if let Some((target, level)) = self.original_jim_alias_target(original) {
                     let frame = self.select_execution_frame(level).map_err(super::err)?;
                     let result = self.unset_original_named_variable(target.value(), complain);
@@ -389,6 +438,78 @@ mod tests {
     use super::*;
     use tcl_core_types::ROOT_NS;
     use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+    #[test]
+    fn confined_original_jim_unset_joins_retained_cache_to_the_current_binding() {
+        struct RetainedName(Value);
+        impl crate::NativeCommand for RetainedName {
+            fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
+                super::super::ok(self.0.clone())
+            }
+        }
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = crate::native_fixture::interpreter(profile);
+        vm.push_call_frame(Some("outer".into()), Vec::new());
+        let outer = vm.current_level();
+        vm.set_var("held", Value::string("OUTER")).unwrap();
+        vm.push_call_frame(Some("inner".into()), Vec::new());
+        vm.add_link("alias", outer, "held")
+            .unwrap_or_else(|_| panic!("link"));
+        let original = Value::new_native_string_bytes(b"alias".as_slice());
+        vm.register_native_command(
+            "cached_jim_name",
+            std::rc::Rc::new(RetainedName(original.clone())),
+        );
+        assert_eq!(
+            vm.try_eval_source("info exists [cached_jim_name]")
+                .unwrap()
+                .code,
+            tcl_runtime_api::Code::Ok
+        );
+        let binding = vm
+            .var_binding_from_bytes(b"alias", vm.current_level())
+            .unwrap();
+        let old = vm.raw_variable_binding(&binding).unwrap();
+        assert_eq!(vm.current_jim_variable_cell(&original).unwrap(), Some(old));
+        // Retain the old arena cell/cache while removing its table binding.
+        // A missing current binding must not authorise the cached foreign link.
+        assert_eq!(
+            vm.var_table_mut(binding.owner)
+                .unwrap()
+                .remove(binding.name.as_bytes()),
+            Some(old)
+        );
+        assert_eq!(vm.current_jim_variable_cell(&original).unwrap(), Some(old));
+        vm.set_stores_confined(true);
+        let result = vm
+            .try_eval_source("unset -nocomplain [cached_jim_name]")
+            .unwrap();
+        assert_eq!(result.code, tcl_runtime_api::Code::Error);
+        assert!(
+            result
+                .result
+                .to_str()
+                .contains("stores are confined to the activation")
+        );
+        assert_eq!(
+            vm.get_var_from(outer, "held").unwrap().to_str().as_ref(),
+            "OUTER"
+        );
+        assert!(vm.refused_completion().is_none());
+        // Rebinding to a genuine local refreshes the original cache and remains
+        // a valid confined unset, rather than following the old retained link.
+        vm.set_var("alias", Value::string("LOCAL")).unwrap();
+        let result = vm
+            .try_eval_source("unset -nocomplain [cached_jim_name]")
+            .unwrap();
+        assert_eq!(result.code, tcl_runtime_api::Code::Ok);
+        assert!(vm.get_var("alias").is_none());
+        assert_eq!(
+            vm.get_var_from(outer, "held").unwrap().to_str().as_ref(),
+            "OUTER"
+        );
+        assert!(vm.refused_completion().is_none());
+    }
+
     fn decode(hex: &str) -> Vec<u8> {
         assert_eq!(hex.len() % 2, 0);
         hex.as_bytes()
