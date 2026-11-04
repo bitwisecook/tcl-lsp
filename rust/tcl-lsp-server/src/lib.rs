@@ -18084,6 +18084,21 @@ impl Backend {
         })
     }
 
+    fn original_autoload_head_eligible(
+        source: &str,
+        analysis: &AnalysisResult,
+        position: Position,
+    ) -> bool {
+        !analysis.allows_lexical_declaration_advice()
+            && core_definition::original_autoload_request_at(
+                source,
+                analysis,
+                position.line,
+                position.character,
+            )
+            .is_some()
+    }
+
     async fn definition_workspace_fallback(
         &self,
         uri: &Uri,
@@ -18169,7 +18184,7 @@ impl Backend {
         if !cross_var.is_empty() {
             return Ok(cross_var);
         }
-        if !on_command_head {
+        if !on_command_head && !Self::original_autoload_head_eligible(&doc.text, analysis, pos) {
             return Ok(Vec::new());
         }
         // Cross-document fallback: resolve a proc / class
@@ -61702,6 +61717,93 @@ proc p {} {
         );
     }
 
+    #[tokio::test]
+    async fn native_bare_autoload_head_keeps_its_own_readonly_eligibility_and_source_currency() {
+        for public in [true, false] {
+            let backend = test_backend();
+            let provider =
+                seed_autoload_library(&backend, &format!("bare-autoload-{public}")).await;
+            let provider_path = provider.to_file_path().unwrap().into_owned();
+            std::fs::write(&provider_path, "proc Rbc_ActiveLegend {} {}\n").unwrap();
+            let app: Uri = "file:///bare-autoload-caller.tcl".parse().unwrap();
+            let source = "Rbc_ActiveLegend\n";
+            register(&backend, &app, source).await;
+            let document = backend.read_document(&app).await.unwrap().unwrap();
+            let analysis = backend
+                .analysis_for(&app, document.text.clone(), document.dialect.clone())
+                .await
+                .unwrap();
+            let position = Position::new(0, 4);
+            assert!(
+                core_definition::original_autoload_request_at(source, &analysis, 0, 4).is_some()
+            );
+            assert!(
+                !backend
+                    .workspace_index
+                    .read()
+                    .await
+                    .contains_document(provider.as_str())
+            );
+            let locations = if public {
+                let response = backend
+                    .goto_definition(
+                        serde_json::from_value(serde_json::json!({
+                            "textDocument":{"uri":app.as_str()}, "position":{"line":0,"character":4}
+                        }))
+                        .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                match response {
+                    Some(GotoDefinitionResponse::Array(locations)) => locations,
+                    other => panic!("first bare public autoload response: {other:?}"),
+                }
+            } else {
+                // The exact autoload owner independently proves head eligibility;
+                // a declined generic geometry helper cannot erase that owner.
+                backend
+                    .definition_workspace_fallback(
+                        &app,
+                        &document,
+                        &analysis,
+                        position,
+                        (
+                            backend.diag_inputs_epoch(),
+                            backend.live_publication_uri_generation(&app),
+                        ),
+                        false,
+                    )
+                    .await
+                    .unwrap()
+            };
+            assert_eq!(locations.len(), 1);
+            assert_eq!(locations[0].uri, provider);
+            assert_eq!(locations[0].range.start.line, 0);
+            assert!(
+                core_definition::original_autoload_request_at(
+                    "Rbc_ActiveLegend \n",
+                    &analysis,
+                    0,
+                    4
+                )
+                .is_none()
+            );
+            let mut missing = analysis.as_ref().clone();
+            missing.resolved_input = None;
+            assert!(
+                core_definition::original_autoload_request_at(source, &missing, 0, 4).is_none()
+            );
+            std::fs::write(&provider_path, "proc replaced_header {} {}\n").unwrap();
+            assert!(
+                backend
+                    .compute_definition(&app, position)
+                    .await
+                    .unwrap()
+                    .is_empty(),
+                "a changed closed provider cannot reuse its former header"
+            );
+        }
+    }
     #[tokio::test]
     async fn library_publication_refuses_actual_configuration_and_factory_changes() {
         use salsa::Setter as _;
