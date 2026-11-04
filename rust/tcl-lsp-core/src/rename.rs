@@ -5998,11 +5998,6 @@ pub fn conditional_variable_rename_with_diagnosis(
     if crate::namespace_symbol::select_at_offset(source, analysis, cursor).is_break() {
         return Err(refuse("the selected occurrence is not a variable"));
     }
-    if let Some(refusal) = crate::rename_safety::literal_name_variable_rename_refusal(
-        source, line, character, analysis, &index,
-    ) {
-        return Err(refusal);
-    }
     let std::ops::ControlFlow::Break(Some(occurrence)) =
         crate::variable_symbol::select(source, analysis, line, character)
     else {

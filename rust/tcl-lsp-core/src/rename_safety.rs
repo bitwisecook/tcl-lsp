@@ -1106,13 +1106,13 @@ fn site_resolution_rules_out(
     })
 }
 
-/// Refuse a **variable** rename whose target's name can only be written
+/// Refuse an ordinary **variable** rename whose target's name can only be written
 /// quoted — `{$n}` / `${$n}`, `{a b}` / `${a b}`, `{[gen]}`.
 ///
 /// Such a variable is perfectly legal and is modelled as its own cell
 /// (tclsh 9.0.4 / 8.6.14: `set {$n} v; info exists {$n}` → 1
-/// while `info exists n` → 0).  What it is *not* is renameable by span
-/// substitution, which is all the variable-rename edit builder does:
+/// while `info exists n` → 0). Quoted spellings cannot be safely rewritten by
+/// an unproved content-span substitution:
 ///
 /// * the recorded spans cover a word's **content**, not its delimiters — the
 ///   `{$n}` definition span starts at the `{` and stops before the `}`, so
@@ -1125,6 +1125,8 @@ fn site_resolution_rules_out(
 /// refused with a typed reason.  A rename
 /// **to** such a name never gets this far: `is_safe_symbol_name` already
 /// rejects new names carrying `$` / whitespace / brackets.
+/// Separate conditional source alpha proposals authenticate whole containers
+/// and generated source; they do not use this ordinary-route refusal.
 #[must_use]
 pub fn literal_name_variable_rename_refusal(
     source: &str,
