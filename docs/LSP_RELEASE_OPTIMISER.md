@@ -7,6 +7,11 @@ The audit is scoped to LSP/compiler consumers; it does not claim the full issue
 is fixed. All seven exact compiler controls and production compiler Clippy
 passed; the remaining consumers and coverage gaps keep #2426 open.
 
+The next optimiser arbitration residual is tracked in
+[LSP_RELEASE_OPTIMISER_SELECTION_AUDIT.md](LSP_RELEASE_OPTIMISER_SELECTION_AUDIT.md).
+Its conservative tie-refusal candidate is local and unverified; fixed-workload
+impact counts are required before it can land.
+
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,
 8.6.18, 9.0.4 and 9.1.0 interpreters. Latest JimTcl is available for applicable
