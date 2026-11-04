@@ -162,3 +162,9 @@ invocation; the control tests that boundary rather than asserting a reproduced
 defect. All 24 native shadowed-head cases complete once and print `always`
 under the six exact interpreters (`/tmp/lsp-2384-shadowed-native.json`). The Rust
 control remains uncompiled, and no new production fix or closure is claimed.
+
+
+The strict computed-false control is now its own test,
+`issue_2384_computed_false_loop_is_reported`. Its assertion is unchanged;
+separating it lets all reported rotated-loop cases run even when that active
+control fails. The focused baseline now contains five tests.

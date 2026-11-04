@@ -683,7 +683,7 @@ fn issue_2341() {
 }
 
 #[test]
-fn issue_2384() {
+fn issue_2384_computed_false_loop_is_reported() {
     let control = analyse("for {set i 0} {$i < 0} {incr i} {puts never}\n", "tcl8.6");
     assert!(
         control
@@ -693,6 +693,10 @@ fn issue_2384() {
         "{:?}",
         diagnostic_summaries(&control)
     );
+}
+
+#[test]
+fn issue_2384() {
     for body in [
         "set i 5",
         "set i 100",
