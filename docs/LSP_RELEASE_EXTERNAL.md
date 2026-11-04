@@ -15,7 +15,7 @@ broader lifecycle paths. The LSP is not release-ready on this evidence alone.
 
 | Issue | Validation outcome | Evidence comment |
 | --- | --- | --- |
-| #940 | Partial: authenticated native S100 and fixed-count S102 paths pass; original conditional accumulators remain unverified. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912) |
+| #940 | Partial: authenticated native S100 and fixed-count S102 paths pass; original foreach and conditional accumulators remain unverified. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912) |
 | #2181 | Partial: routed-environment edit/reopen and focused role changes pass; UI and broader lifecycle paths remain unverified. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2181#issuecomment-6629241452) |
 | #2242 | Verified native LSP arity publication and repair under Tcl 8.6/9.0. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2242#issuecomment-6629219439) |
 | #2265 | Verified exact Core token extents and geometry control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2265#issuecomment-6629091417) |
@@ -45,3 +45,6 @@ the published recurrence foundation and [native S102 protocol receipt](LSP_RELEA
 The generic versioned noqa action remains available; no source-context compiler
 rewrite is granted by the conditional diagnostic. Its original accumulator
 examples remain coverage-inconclusive, and the issue stays open.
+
+The #940 proof comment was updated and read back exactly again at 21:30 UTC.
+It now links the [native foreach profile evidence](../evidence/tcl/lsp-940-foreach-numeric-representation.md): numeric inputs retain their representation on Tcl 9.0/9.1, so they cannot serve as universal foreach conversion controls. Its font-size silence is explicitly observational while reached consumer coverage remains unverified. All 19 external proof comments remain present; #2021 is excluded.
