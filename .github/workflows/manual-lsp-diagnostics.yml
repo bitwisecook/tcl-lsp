@@ -1,0 +1,245 @@
+name: Manual LSP host diagnostics
+
+# Informational only. This neither replaces nor changes CI or release gates.
+on:
+  # Bootstrap on work without default-branch workflow_dispatch registration.
+  # Ordinary Rust changes and status-only pushes do not select this workflow.
+  push:
+    branches: [work]
+    paths:
+      - .github/workflows/manual-lsp-diagnostics.yml
+      - scripts/dev/manual-lsp-rpc-capture.cjs
+      - scripts/dev/manual-native-lsp-responses.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never share the ordinary CI concurrency group or cancel an existing run.
+concurrency:
+  group: manual-lsp-host-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_BUILD_JOBS: "1"
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
+jobs:
+  branch-only:
+    name: Require a branch ref
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Reject tags
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [ "$REF_TYPE" != branch ]; then
+            echo '::error::Manual LSP diagnostics only accepts branch refs.'
+            exit 1
+          fi
+          echo 'Informational workflow only; ordinary CI and proof gates remain required.' >> "$GITHUB_STEP_SUMMARY"
+
+  native:
+    name: Native LSP unit and protocol tests
+    needs: branch-only
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - name: Free disk space
+        run: |
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          cache-key: manual-lsp-native
+      - name: Install exact Tcl 8.6 and 9.0 reference interpreters
+        env:
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/tcl-reference-bin
+        run: |
+          set -euo pipefail
+          make TCL_LSP_TCL_RELEASES='8.6 9.0' ensure-tcl-deps
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          tclsh86="$(tcl_reference_resolve_tclsh 8.6)"
+          tclsh90="$(tcl_reference_resolve_tclsh 9.0)"
+          printf 'TCL_LSP_TCLSH86=%s\n' "$tclsh86" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_TCLSH90=%s\n' "$tclsh90" >> "$GITHUB_ENV"
+          printf 'TCL_LSP_REQUIRE_TCLSH=8.6,9.0\n' >> "$GITHUB_ENV"
+      - name: Install pinned nextest
+        run: |
+          bash scripts/dev/nextest-tool/validate.sh --install
+          bash scripts/dev/nextest-tool/validate.sh --verify-install
+      - name: Select native LSP tests
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lsp-native-diagnostics"
+          cargo nextest list -p tcl-lsp-server --all-features --message-format json > "$RUNNER_TEMP/lsp-native-diagnostics/selected.json"
+      - name: Run native LSP tests
+        run: |
+          set -euo pipefail
+          python3 scripts/dev/nextest-terminal-capture.py \
+            --selected-json "$RUNNER_TEMP/lsp-native-diagnostics/selected.json" \
+            --output-dir "$RUNNER_TEMP/lsp-native-diagnostics/capture" -- \
+            cargo nextest run -p tcl-lsp-server --all-features --no-fail-fast \
+            --message-format libtest-json-plus --message-format-version 0.1 \
+            2>&1 | tee "$RUNNER_TEMP/lsp-native-diagnostics/test.log"
+      - name: Capture synthetic native replies after failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/lsp-native-diagnostics"
+          python3 scripts/dev/manual-native-lsp-responses.py "$RUNNER_TEMP/lsp-native-diagnostics/responses.jsonl" \
+            2>&1 | tee "$RUNNER_TEMP/lsp-native-diagnostics/reply-capture.log"
+      - name: Upload failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: manual-lsp-native-diagnostics
+          path: ${{ runner.temp }}/lsp-native-diagnostics
+          if-no-files-found: warn
+          retention-days: 3
+
+  browser:
+    name: Browser WASM LSP and web host
+    needs: branch-only
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - name: Free disk space
+        run: |
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          cache-key: manual-lsp-browser
+          cache-workspaces: rust/tcl-lsp-server-wasm
+      - name: Install wasm-bindgen CLI
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasm-bindgen-cli@0.2.129
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - name: Enable pinned npm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          npm install -g corepack@0.36.0
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          case "$active" in 12.*) ;; *) echo "::error::expected npm 12, got $active"; exit 1 ;; esac
+      - name: Install web test dependencies
+        run: |
+          cd editors/vscode
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Build browser LSP
+        id: browser-build
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lsp-browser-diagnostics"
+          make lsp-server-wasm 2>&1 | tee "$RUNNER_TEMP/lsp-browser-diagnostics/wasm-build.log"
+      - name: Exercise browser LSP
+        run: |
+          set -euo pipefail
+          node rust/tcl-lsp-server-wasm/test/e2e.mjs 2>&1 | tee "$RUNNER_TEMP/lsp-browser-diagnostics/wasm-test.log"
+      - name: Stage and exercise web extension host
+        if: ${{ !cancelled() && steps.browser-build.outcome == 'success' }}
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          cd editors/vscode
+          node scripts/copy-web-assets.cjs --require
+          npm run test:web 2>&1 | tee "$RUNNER_TEMP/lsp-browser-diagnostics/web-test.log"
+      - name: Capture synthetic browser replies after failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: --require=${{ github.workspace }}/scripts/dev/manual-lsp-rpc-capture.cjs
+          LSP_RPC_RESPONSE_LOG: ${{ runner.temp }}/lsp-browser-diagnostics/responses.jsonl
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lsp-browser-diagnostics"
+          node rust/tcl-lsp-server-wasm/test/e2e.mjs 2>&1 | tee "$RUNNER_TEMP/lsp-browser-diagnostics/reply-capture.log"
+      - name: Upload failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: manual-lsp-browser-diagnostics
+          path: ${{ runner.temp }}/lsp-browser-diagnostics
+          if-no-files-found: warn
+          retention-days: 3
+
+  wasi:
+    name: WASI LSP
+    needs: branch-only
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - name: Free disk space
+        run: |
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-wasip1
+          cache-key: manual-lsp-wasi
+          cache-workspaces: rust/tcl-lsp-server-wasi
+      - name: Install wasmtime
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasmtime@49.0.3
+      - name: Install binaryen
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends binaryen
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - name: Build and exercise WASI LSP
+        env:
+          CARGO_PROFILE_RELEASE_LTO: thin
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lsp-wasi-diagnostics"
+          make lsp-server-wasi-test 2>&1 | tee "$RUNNER_TEMP/lsp-wasi-diagnostics/wasi-test.log"
+      - name: Capture synthetic WASI replies after failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: --require=${{ github.workspace }}/scripts/dev/manual-lsp-rpc-capture.cjs
+          LSP_RPC_RESPONSE_LOG: ${{ runner.temp }}/lsp-wasi-diagnostics/responses.jsonl
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lsp-wasi-diagnostics"
+          node rust/tcl-lsp-server-wasi/test/e2e.mjs 2>&1 | tee "$RUNNER_TEMP/lsp-wasi-diagnostics/reply-capture.log"
+      - name: Upload failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: manual-lsp-wasi-diagnostics
+          path: ${{ runner.temp }}/lsp-wasi-diagnostics
+          if-no-files-found: warn
+          retention-days: 3
