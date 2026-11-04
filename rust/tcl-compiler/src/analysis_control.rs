@@ -7,16 +7,23 @@ use std::sync::Arc;
 /// Reached compiler work, not an execution or source-authority claim.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnalysisCheckpoint {
+    /// Before starting an owned analysis.
     Start,
+    /// Before constructing a command realm.
     Realm,
+    /// Before analysing an original command.
     Command,
+    /// Before analysing a body.
     Body,
+    /// Before another analysis iteration.
     Fixpoint,
+    /// Before collecting diagnostics.
     Diagnostics,
 }
 /// No complete result was produced; no partial result may be published.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnalysisInterrupted {
+    /// The checkpoint at which the host requested interruption.
     pub checkpoint: AnalysisCheckpoint,
 }
 /// A non-reentrant host scheduling probe. `true` requests interruption.
