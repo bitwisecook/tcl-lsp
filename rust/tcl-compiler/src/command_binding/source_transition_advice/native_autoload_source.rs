@@ -35,14 +35,28 @@ pub enum OriginalNativeDeferredAutoloadObligation {
     UnknownLookupCoordinates,
     /// A prior original schema retains an unaccepted source arity.
     UnacceptedSourceArity,
+    /// Earlier channel write is conditional on actual selection of that source operation.
+    PriorChannelWriteApplicability,
+    /// Earlier message/option interpretation or I/O failure may stop continuation.
+    PriorChannelWriteNormalContinuation,
+    /// Earlier channel transforms/reflection may run arbitrary callbacks and alter lookup.
+    UnresolvedChannelCallbacks,
+    /// No post-callback command world or lookup coordinates were observed.
+    PostChannelCallbackLookup,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct NativeAutoloadRegisteredPrefix {
+    facts: InvocationFacts,
+    observer: Option<tcl_registry::source_observer::ConditionalSourceObserverEnvelope>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum NativeAutoloadPrefix {
-    Registered(Box<InvocationFacts>),
+    Registered(Box<NativeAutoloadRegisteredPrefix>),
     SourceProcedure {
         declaration: Arc<super::source_procedure::OriginalSourceProcedureBody>,
-        body_facts: Vec<InvocationFacts>,
+        body_facts: Vec<NativeAutoloadRegisteredPrefix>,
     },
 }
 
@@ -184,7 +198,7 @@ impl AdviceInvocationContext<'_> {
         &self,
         graph: &AdviceGraph,
         written: &[SourceAdviceWord],
-    ) -> Option<InvocationFacts> {
+    ) -> Option<NativeAutoloadRegisteredPrefix> {
         let (command, prefix, lineage) = graph.resolve(written.first()?.input.as_ref()?)?;
         if !prefix.is_empty() || !lineage.is_empty() {
             return None;
@@ -203,8 +217,8 @@ impl AdviceInvocationContext<'_> {
             );
         let schema = resolution.resolved()?;
         let facts = schema.facts();
-        if facts.arity_accepts_frozen_arguments() != Some(true)
-            || facts.effects.callback().kinds.is_unknown()
+        let observer = schema.conditional_source_observer_envelope(self.dialect);
+        let callback_unavailable = facts.effects.callback().kinds.is_unknown()
             || facts
                 .effects
                 .callback()
@@ -214,7 +228,9 @@ impl AdviceInvocationContext<'_> {
                 .effects
                 .callback()
                 .kinds
-                .contains(CallbackKinds::COMMAND_PREFIX)
+                .contains(CallbackKinds::COMMAND_PREFIX);
+        if facts.arity_accepts_frozen_arguments() != Some(true)
+            || (callback_unavailable && observer.is_none())
             || facts
                 .traits
                 .intersects(tcl_registry::traits::FRAME_REACH_TRAITS)
@@ -228,7 +244,7 @@ impl AdviceInvocationContext<'_> {
         {
             return None;
         }
-        Some(facts)
+        Some(NativeAutoloadRegisteredPrefix { facts, observer })
     }
 
     pub(super) fn native_autoload_horizon(
@@ -278,7 +294,7 @@ impl AdviceInvocationContext<'_> {
             .collect::<Option<Vec<_>>>()?;
         let command_candidates = graph.head_lookup_candidates(name.bytes())?;
         let prefixes = NativeAutoloadHorizon::capture_prefixes(tape, graph, body)?;
-        let obligations = NativeAutoloadHorizon::capture_obligations(graph, &namespace);
+        let obligations = NativeAutoloadHorizon::capture_obligations(graph, &namespace, &prefixes);
         let result = NativeAutoloadHorizon {
             name,
             namespace,
@@ -322,6 +338,7 @@ impl NativeAutoloadHorizon {
     fn capture_obligations(
         graph: &AdviceGraph,
         namespace: &ByteNamespacePath,
+        prefixes: &[NativeAutoloadPrefix],
     ) -> Vec<OriginalNativeDeferredAutoloadObligation> {
         let mut obligations = vec![
             OriginalNativeDeferredAutoloadObligation::BodyEntry,
@@ -337,6 +354,19 @@ impl NativeAutoloadHorizon {
         }
         if !graph.arity_debts.is_empty() {
             obligations.push(OriginalNativeDeferredAutoloadObligation::UnacceptedSourceArity);
+        }
+        if prefixes.iter().any(|prefix| match prefix {
+            NativeAutoloadPrefix::Registered(prefix) => prefix.observer.is_some(),
+            NativeAutoloadPrefix::SourceProcedure { body_facts, .. } => {
+                body_facts.iter().any(|facts| facts.observer.is_some())
+            }
+        }) {
+            obligations.extend([
+                OriginalNativeDeferredAutoloadObligation::PriorChannelWriteApplicability,
+                OriginalNativeDeferredAutoloadObligation::PriorChannelWriteNormalContinuation,
+                OriginalNativeDeferredAutoloadObligation::UnresolvedChannelCallbacks,
+                OriginalNativeDeferredAutoloadObligation::PostChannelCallbackLookup,
+            ]);
         }
         obligations
     }
@@ -703,6 +733,93 @@ mod tests {
                 )
                 .is_none(),
                 "unavailable real prefix stays terminal: {body}"
+            );
+        }
+    }
+
+    #[test]
+    fn deferred_autoload_browser_prefix_keeps_unresolved_channel_callbacks_and_ordinary_unknowns() {
+        let analysis = suffix(BROWSER_SOURCE, BROWSER_CHILD, "tcl8.6");
+        let advice = source_native_deferred_autoload_advice_at(
+            BROWSER_SOURCE,
+            &analysis,
+            at(BROWSER_SOURCE, "mypkg_autoloaded"),
+        )
+        .expect("the unchanged Browser head has conditional external source metadata");
+        for debt in [
+            OriginalNativeDeferredAutoloadObligation::PriorChannelWriteApplicability,
+            OriginalNativeDeferredAutoloadObligation::PriorChannelWriteNormalContinuation,
+            OriginalNativeDeferredAutoloadObligation::UnresolvedChannelCallbacks,
+            OriginalNativeDeferredAutoloadObligation::PostChannelCallbackLookup,
+        ] {
+            assert!(advice.obligations().contains(&debt));
+        }
+        let observers = advice
+            .horizon
+            .prefixes
+            .iter()
+            .filter_map(|prefix| match prefix {
+                NativeAutoloadPrefix::Registered(prefix) => prefix
+                    .observer
+                    .as_ref()
+                    .map(|observer| (&prefix.facts, observer)),
+                NativeAutoloadPrefix::SourceProcedure { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(observers.len(), 0);
+        for (facts, observer) in observers {
+            assert!(facts.effects.callback().kinds.is_unknown());
+            assert!(facts.effects.requires_world_barrier());
+            assert_eq!(observer.ordinary_effects(), &facts.effects);
+            assert!(observer.source_effects().callback().kinds.is_unknown());
+            assert!(observer.obligations().contains(&tcl_registry::source_observer::ConditionalSourceObserverObligation::LookupWorldAfterCallbacks));
+        }
+        assert!(analysis.original_completed_command_world().is_none());
+        let head = u32::try_from(BROWSER_SOURCE.rfind("mypkg_autoloaded").unwrap()).unwrap();
+        assert!(
+            !analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", head)
+                .unobserved_native_dispatch()
+        );
+        let foreign = suffix(BROWSER_SOURCE, BROWSER_CHILD, "tcl8.6");
+        assert!(!advice.is_for_analysis(&foreign));
+        assert!(advice.caller_declaration(&foreign).is_none());
+        assert!(
+            source_native_deferred_autoload_advice_at(
+                &(BROWSER_SOURCE.to_owned() + "\n"),
+                &analysis,
+                at(BROWSER_SOURCE, "mypkg_autoloaded")
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn deferred_autoload_channel_envelope_keeps_unknown_script_dynamic_and_occupied_prefixes_terminal()
+     {
+        for body in [
+            "puts [mystery]; puts [mypkg_autoloaded]",
+            "eval $script; puts [mypkg_autoloaded]",
+            "$callback; puts [mypkg_autoloaded]",
+            "puts $channel DATA; puts [mypkg_autoloaded]",
+            "puts -nonewline DATA; puts [mypkg_autoloaded]",
+            "puts {*}$args; puts [mypkg_autoloaded]",
+            "rename greet_helper mypkg_autoloaded; puts [mypkg_autoloaded]",
+        ] {
+            let source = format!(
+                "source lib/helpers.tcl; proc run {{script callback channel args}} {{{body}}}"
+            );
+            let analysis = suffix(&source, BROWSER_CHILD, "tcl8.6");
+            assert!(
+                source_native_deferred_autoload_advice_at(
+                    &source,
+                    &analysis,
+                    at(&source, "mypkg_autoloaded")
+                )
+                .is_none(),
+                "unowned callback/input remains terminal: {body}"
             );
         }
     }

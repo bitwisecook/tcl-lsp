@@ -1287,6 +1287,14 @@ mod conditional_external_autoload_tests {
             use tcl_compiler::registry_invocation::source_structure::OriginalNativeDeferredAutoloadObligation as Debt;
             assert!(requests[0].obligations().contains(&Debt::BodyEntry));
             assert!(requests[0].obligations().contains(&Debt::ActualLookup));
+            for debt in [
+                Debt::PriorChannelWriteApplicability,
+                Debt::PriorChannelWriteNormalContinuation,
+                Debt::UnresolvedChannelCallbacks,
+                Debt::PostChannelCallbackLookup,
+            ] {
+                assert!(requests[0].obligations().contains(&debt));
+            }
             assert!(
                 requests[0]
                     .obligations()

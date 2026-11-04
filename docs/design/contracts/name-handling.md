@@ -1151,6 +1151,21 @@ borrow the name of a known command. Dynamic or expanded selected argv refuses.
 A nested operand walk for this purpose carries the parent's typed prefix inventory
 into its own ordered horizon. Exact original-word and body ownership checks and
 unanimous merge refusals remain; no ordinary advice or effect inventory is copied.
+A selected authored ChannelWrite operation with the complete single-message
+grammar may retain
+an earlier source prefix while channel transforms/reflection remain unresolved.
+Its message value may be unknown; only exact non-expanded cardinality and the
+selected non-executable data grammar are required. Full ordinary and source
+effects stay unknown, including possible Tcl and host callbacks. The source header
+retains operation applicability, normal-continuation/option-error uncertainty,
+unresolved channel callbacks and post-callback lookup applicability; it supplies no quiet effect, completed lookup,
+Native/Normal world or edit permission. Other handlers, explicit/dynamic channels,
+options, expansions and script-valued callbacks retain their existing refusals.
+A readonly definition location may identify this conditional SOURCE header while
+these conditions remain unresolved. Returning that location does not discharge
+them or prove the actual runtime binding. This association is not promoted into
+symbol publication, reference completeness, rename/edit, ordinary lookup,
+Native/Normal worlds or code-generation authority.
 This receipt inventory is collected only for its explicit deferred-autoload source
 query; ordinary phase/body and source-advice requests keep their existing purpose.
 The recipe keeps body-entry, actual-lookup, observer and deferred-reachability
