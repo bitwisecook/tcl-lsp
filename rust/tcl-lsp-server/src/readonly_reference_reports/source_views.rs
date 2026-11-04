@@ -3402,8 +3402,9 @@ impl Backend {
         position: tower_lsp_server::ls_types::Position,
         references: Option<bool>,
     ) -> DocumentSourceResult<Option<HostNavigationRoute>> {
-        let Some(settlement) = self.refresh_original_source_view_graph().await? else {
-            return Ok(Some(std::ops::ControlFlow::Break(None)));
+        // The caller owns the bounded retry budget; do not nest a second one.
+        let Some(settlement) = self.refresh_original_source_view_graph_once().await? else {
+            return Ok(None);
         };
         let Some(ids) = settlement.navigation_projection(uri, references) else {
             return Ok(Some(std::ops::ControlFlow::Break(None)));
@@ -3424,7 +3425,9 @@ impl Backend {
             })
             .await?;
         let Some((owners, output)) = computed else {
-            return Ok(Some(std::ops::ControlFlow::Break(None)));
+            // The initial owner lease can be refused just like the final
+            // currency join. Reconcile again within the caller's budget.
+            return Ok(None);
         };
         let Some(output) = output else {
             return Ok(Some(std::ops::ControlFlow::Break(None)));
@@ -4691,6 +4694,81 @@ mod closed_source_child_ingress_tests {
         let view = Arc::clone(views.next().unwrap());
         assert!(views.next().is_none());
         view
+    }
+
+    #[tokio::test]
+    async fn navigation_compute_first_lease_refuses_contention_and_rejoins_after_release() {
+        use futures_util::FutureExt as _;
+        let (fixture, backend) = fixture().await;
+        let settlement = backend
+            .refresh_original_source_view_graph()
+            .await
+            .unwrap()
+            .unwrap();
+        let projection = settlement
+            .navigation_projection(&fixture.main, None)
+            .unwrap();
+        let computed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        {
+            let held_table = backend.original_source_views.lock().unwrap();
+            let attempted = Arc::clone(&computed);
+            // The first try_lock refuses synchronously. Do not await while
+            // holding the standard mutex, or schedule a worker without a lease.
+            let refused = backend
+                .compute_original_source_views(&projection, move |_| {
+                    attempted.store(true, std::sync::atomic::Ordering::SeqCst);
+                    Some(())
+                })
+                .now_or_never()
+                .expect("table contention must refuse the first lease immediately")
+                .unwrap();
+            assert!(refused.is_none());
+            assert!(!computed.load(std::sync::atomic::Ordering::SeqCst));
+            drop(held_table);
+        }
+        let attempted = Arc::clone(&computed);
+        let leased = backend
+            .compute_original_source_views(&projection, move |_| {
+                attempted.store(true, std::sync::atomic::Ordering::SeqCst);
+                Some(())
+            })
+            .await
+            .unwrap();
+        assert!(leased.is_some());
+        assert!(computed.load(std::sync::atomic::Ordering::SeqCst));
+        // Actual navigation still needs its own new settlement and final lease.
+        let route = backend
+            .original_source_view_navigation_attempt(&fixture.main, Position::new(1, 24), None)
+            .await
+            .unwrap();
+        assert!(
+            matches!(route, Some(std::ops::ControlFlow::Break(Some(ref locations))) if locations.iter().any(|location| location.uri == fixture.child))
+        );
+        // Successful computation of an unavailable semantic answer is terminal;
+        // it must not be confused with an unavailable owner lease.
+        let semantic = backend
+            .original_source_view_navigation_attempt(&fixture.main, Position::new(0, 1), None)
+            .await
+            .unwrap();
+        assert!(matches!(semantic, Some(std::ops::ControlFlow::Break(None))));
+        // Establish currentness immediately before changing saved bytes, so
+        // the withdrawal below cannot pass on an already-retired projection.
+        assert!(
+            backend
+                .compute_original_source_views(&projection, |_| Some(()))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        // The previous lease cannot survive an unannounced physical change.
+        std::fs::write(fixture.root.join("child.tcl"), "proc replacement {} {}\n").unwrap();
+        assert!(
+            backend
+                .compute_original_source_views(&projection, |_| Some(()))
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]

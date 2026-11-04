@@ -63,3 +63,7 @@ Fresh pre-merge native `cc2f4ef884acb88ee243e0fd66ef70860b15b9ef7f4266aa878b3fa3
 The03:40 publication attempt failed503. Retry fetched new remote `1dc8e40b0` and refused divergent publication until coordinator review/merge; no force push. The resulting publication gap is real.
 
 Reviewed partial procedure hover is adopted, reusing definition projection/cursor ownership and actual declaration metadata with the final live inventory join. Positive, unowned-prefix, unknown-mutation and epoch-withdrawal tests are included but uncompiled/unexecuted. Ordinary/full hover routes are unchanged. This does not yet fix or certify the native closed-file failure.03:46:08 publication succeeded after reviewed remote merge; the earlier gap remains recorded.
+
+Reviewed navigation follow-up now uses one outer40-attempt budget (39 backoffs), retries both refresh refusal and absent initial owner lease, and keeps successfully computed semantic None terminal. Final currency checks are unchanged. New fixed control covers helper contention/recovery, semantic refusal and stale-child withdrawal; it does not force the outer retry branch, prove a wall-time deadline or supply execution results. Pending compilation/tests.
+
+Latest full CI API snapshot03:44:8success/20failure/2API-active/2skipped across32jobs. Shard1 nextest is confirmed cancelled after runner shutdown; shard5 has no log progress since01:51:55 but lacks terminal proof. E2E2 completed failure. No healthy job is cancelled; no replacement ordinary dispatch yet. Triage `/tmp/ci-current-41749944578/progress-0344.md`.
