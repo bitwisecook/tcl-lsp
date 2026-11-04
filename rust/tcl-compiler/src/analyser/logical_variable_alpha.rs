@@ -20,7 +20,9 @@
 use crate::analyser::AnalysisResult;
 use crate::registry_invocation::source_structure::{OriginalRegistrySource, source_registry_words};
 use crate::signature_scan::scope::SignatureSourceNameInput;
-use crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol;
+use crate::signature_scan::variable_symbol::{
+    SignatureSourceVariableSlot, SignatureSourceVariableSymbol,
+};
 use tcl_lexer::{ExecutablePart, SourceImage, Span};
 use tcl_registry::resolved_invocation::{SourceCallbackRetention, SourceExecutableValueCapability};
 
@@ -439,6 +441,7 @@ impl ConditionalSourcePlanCorrespondence {
 /// Inputs for checked authored source plan correspondence. Additional callers
 /// must independently prove occurrence bijection, edit ownership, alias,
 /// collision and formal topology.
+#[derive(Clone, Copy)]
 pub struct ConditionalSourcePlanRequest<'a> {
     /// Exact original source.
     pub before_source: &'a str,
@@ -470,7 +473,6 @@ pub fn conditional_source_plan_correspondence(
         after_symbol,
         edits,
     } = request;
-    use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
     let SignatureSourceVariableSlot::C {
         simple: before_name,
         ..

@@ -11,15 +11,15 @@ use tcl_lexer::SourceImage;
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum SourceHeader {
     Class {
-        declaration: SourceDeclarationMetadata<ClassDef>,
-        factory_provider: Option<crate::command_binding::OriginalSourceClassRelationProvider>,
+        declaration: Box<SourceDeclarationMetadata<ClassDef>>,
+        factory_provider: Option<Box<crate::command_binding::OriginalSourceClassRelationProvider>>,
         logical_slot: Option<tcl_core_types::ByteCommandSlot>,
-        logical: Option<crate::analyser::types::LogicalSourceClassDeclaration>,
+        logical: Option<Box<crate::analyser::types::LogicalSourceClassDeclaration>>,
     },
     Procedure {
-        declaration: SourceDeclarationMetadata<ProcDef>,
+        declaration: Box<SourceDeclarationMetadata<ProcDef>>,
         logical_slot: Option<tcl_core_types::ByteCommandSlot>,
-        logical: Option<crate::analyser::types::LogicalSourceProcedureDeclaration>,
+        logical: Option<Box<crate::analyser::types::LogicalSourceProcedureDeclaration>>,
     },
 }
 
@@ -63,7 +63,8 @@ impl OriginalProjectFactoryHeaders {
             }
             let logical = analysis
                 .logical_source_class_declaration(record.metadata())
-                .cloned();
+                .cloned()
+                .map(Box::new);
             let logical_slot = if input.has_logical_source_name_context() {
                 Some(logical.as_ref()?.source_candidate_coordinate()?.clone())
             } else {
@@ -76,8 +77,8 @@ impl OriginalProjectFactoryHeaders {
                 (descriptor.name == factory.root_metaclass).then_some(provider)
             });
             headers.push(SourceHeader::Class {
-                declaration: record.clone(),
-                factory_provider,
+                declaration: Box::new(record.clone()),
+                factory_provider: factory_provider.map(Box::new),
                 logical_slot,
                 logical,
             });
@@ -90,14 +91,15 @@ impl OriginalProjectFactoryHeaders {
             }
             let logical = analysis
                 .logical_source_procedure_declaration(record.metadata())
-                .cloned();
+                .cloned()
+                .map(Box::new);
             let logical_slot = if input.has_logical_source_name_context() {
                 Some(logical.as_ref()?.source_candidate_coordinate()?)
             } else {
                 None
             };
             headers.push(SourceHeader::Procedure {
-                declaration: record.clone(),
+                declaration: Box::new(record.clone()),
                 logical_slot,
                 logical,
             });
@@ -130,13 +132,13 @@ impl OriginalProjectFactoryHeaders {
                             .is_some()
                     }) && logical_slot.as_ref().is_none_or(|slot| {
                         logical
-                            .as_ref()
+                            .as_deref()
                             .and_then(|owner| owner.source_candidate_coordinate())
                             == Some(slot)
                     }) && declaration.name_input().source_image() == &self.image
                         && declaration.name_input().lexer_config() == self.input.lexer_config()
                         && logical
-                            .as_ref()
+                            .as_deref()
                             .is_none_or(|owner| owner.matches_source(&self.image, &self.input))
                 }
                 SourceHeader::Procedure {
@@ -146,14 +148,14 @@ impl OriginalProjectFactoryHeaders {
                 } => {
                     logical_slot.as_ref().is_none_or(|slot| {
                         logical
-                            .as_ref()
-                            .and_then(|owner| owner.source_candidate_coordinate())
+                            .as_deref()
+                            .and_then(crate::analyser::types::LogicalSourceProcedureDeclaration::source_candidate_coordinate)
                             .as_ref()
                             == Some(slot)
                     }) && declaration.name_input().source_image() == &self.image
                         && declaration.name_input().lexer_config() == self.input.lexer_config()
                         && logical
-                            .as_ref()
+                            .as_deref()
                             .is_none_or(|owner| owner.matches_source(&self.image, &self.input))
                 }
             })
