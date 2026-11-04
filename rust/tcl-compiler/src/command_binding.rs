@@ -10296,6 +10296,7 @@ impl SourceCommandBindings {
         target: &SourceCommandTarget,
         state: &ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
+        delegated_script: bool,
     ) -> Option<(
         InvocationFacts,
         tcl_registry::world_effect::EffectFootprint,
@@ -10322,7 +10323,11 @@ impl SourceCommandBindings {
             );
         let schema = resolution.resolved()?;
         let dialect = source_analysis_entry::source_input_dialect(input);
-        let (effects, transitions) = schema.authored_source_effects_and_state_transitions(dialect);
+        let (effects, transitions) = if delegated_script {
+            schema.authored_source_delegated_script_effects(dialect)?
+        } else {
+            schema.authored_source_effects_and_state_transitions(dialect)
+        };
         Some((
             schema.facts(),
             effects,
@@ -10459,8 +10464,13 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        let (facts, effects, transitions, completion) =
-            Self::logical_selected_source_facts(&values, return_target, &branch, body_context)?;
+        let (facts, effects, transitions, completion) = Self::logical_selected_source_facts(
+            &values,
+            return_target,
+            &branch,
+            body_context,
+            false,
+        )?;
         if facts.operation
             != tcl_registry::SemanticOperationId::StructuredLowering(LoweringHookId::Return)
             || facts.arity_accepts_frozen_arguments() != Some(true)
@@ -10547,7 +10557,7 @@ impl SourceCommandBindings {
             return None;
         }
         let (facts, effects, transitions, _) =
-            Self::logical_selected_source_facts(&values, target, state, *context)?;
+            Self::logical_selected_source_facts(&values, target, state, *context, true)?;
         let prepared = prepare_source_native_invocation(
             target,
             effective,

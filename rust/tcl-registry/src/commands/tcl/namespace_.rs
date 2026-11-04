@@ -560,6 +560,55 @@ const NAMESPACE_DELETE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 
+// The parent interpreter-state hint covers namespace creation and the
+// delegated script. Independently declared policy writes remain separate.
+const NAMESPACE_EVAL_SOURCE_LEGACY_COVERAGE: &[TransitionEffectCoverage] =
+    &[TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
+        domains: &[WorldStateDomain::InterpreterPolicy],
+    }];
+
+const NAMESPACE_PARENT_SIDE_EFFECTS: &[SideEffect] = &[
+    SideEffect {
+        target: SideEffectTarget::InterpState,
+        writes: true,
+        ..SideEffect::DEFAULT
+    },
+    SideEffect {
+        target: SideEffectTarget::NamespaceState,
+        writes: true,
+        ..SideEffect::DEFAULT
+    },
+];
+
+fn namespace_eval_source_effects(
+    _: InvocationArguments<'_>,
+) -> crate::world_effect::EffectFootprint {
+    crate::world_effect::EffectFootprint::default()
+}
+
+fn namespace_eval_source_coverage(
+    arguments: InvocationArguments<'_>,
+) -> Option<crate::source_operation::SourceResultTransitionCoverage> {
+    if arguments.exact_argv_len()? != 3
+        || arguments.literal_at(1).is_none()
+        || arguments.literal_at(2).is_none()
+    {
+        return None;
+    }
+    let transitions = NAMESPACE_EVAL_TRANSITIONS.resolve(arguments);
+    if transitions.facts().len() != 1 {
+        return None;
+    }
+    Some(
+        crate::source_operation::SourceResultTransitionCoverage::new(
+            transitions,
+            NAMESPACE_EVAL_SOURCE_LEGACY_COVERAGE,
+            NAMESPACE_PARENT_SIDE_EFFECTS,
+        ),
+    )
+}
+
 const NAMESPACE_EVAL_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     composition: WorldEffectComposition::Extend,
     static_footprint: StaticEffectFootprint {
@@ -573,7 +622,12 @@ const NAMESPACE_EVAL_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
         },
     },
     resolver: None,
-    source_resolver: None,
+    source_resolver: Some(
+        crate::world_effect::SourceWorldEffectResolver::ResultTransitions {
+            effects: namespace_eval_source_effects,
+            coverage: namespace_eval_source_coverage,
+        },
+    ),
     dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
 };
 
@@ -1608,19 +1662,7 @@ pub fn spec() -> CommandSpec {
             | Traits::DYNAMIC_EVAL_BODY,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
-        side_effects: &[
-            SideEffect {
-                target: SideEffectTarget::InterpState,
-                writes: true,
-                ..SideEffect::DEFAULT
-            },
-            // NAMESPACE_STATE.
-            SideEffect {
-                target: SideEffectTarget::NamespaceState,
-                writes: true,
-                ..SideEffect::DEFAULT
-            },
-        ],
+        side_effects: NAMESPACE_PARENT_SIDE_EFFECTS,
         hover: Some(HoverSnippet {
             summary: "Create and manipulate contexts for commands and variables.",
             synopsis: &["namespace subcommand ?arg ...?"],
@@ -1650,6 +1692,113 @@ mod tests {
     };
     use tcl_dialect::model::surface_admits;
     use tcl_dialect::model::{Family, SurfaceQuery};
+
+    #[test]
+    fn source_namespace_eval_covers_only_its_declared_legacy_bridge() {
+        use crate::world_effect::{
+            EffectAccessMode, StaticEffectAccess, StaticInterpreterScope, StaticNamespaceScope,
+            StaticSubjectScope,
+        };
+        let dialect =
+            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let registry = crate::CommandRegistry::build_default();
+        let arguments = ["eval", "n", "proc format {args} {return NS}"];
+        let selected = registry.resolve_structured_invocation(
+            crate::InvocationWords::literals("namespace", &arguments).with_dialect(dialect),
+            None,
+        );
+        let schema = selected.resolved().unwrap();
+        let (raw, _) = schema.authored_source_effects_and_state_transitions(dialect);
+        assert!(raw.accesses().iter().any(|access| access.domain
+            == WorldStateDomain::InterpreterPolicy
+            && access.mode == EffectAccessMode::Write));
+        let (residual, transitions) = schema
+            .authored_source_delegated_script_effects(dialect)
+            .unwrap();
+        assert!(residual.accesses().iter().all(|access| access.domain
+            != WorldStateDomain::InterpreterPolicy
+            || access.mode == EffectAccessMode::Read));
+        assert_eq!(residual.callback().kinds, CallbackKinds::SCRIPT);
+        assert!(
+            matches!(transitions.facts(), [fact] if matches!(&fact.transition, StateTransition::Namespace(NamespaceTransition::Ensure { .. })))
+        );
+        // Native/common facts continue to retain the original policy bridge.
+        assert!(
+            schema
+                .facts()
+                .effects
+                .accesses()
+                .iter()
+                .any(
+                    |access| access.domain == WorldStateDomain::InterpreterPolicy
+                        && access.mode == EffectAccessMode::Write
+                )
+        );
+        for malformed in [&["eval", "n"][..], &["eval", "n", "body", "extra"][..]] {
+            let selected = registry.resolve_structured_invocation(
+                crate::InvocationWords::literals("namespace", malformed).with_dialect(dialect),
+                None,
+            );
+            if let Some(schema) = selected.resolved() {
+                assert!(
+                    schema
+                        .authored_source_delegated_script_effects(dialect)
+                        .is_none()
+                );
+            }
+        }
+        let dynamic = [
+            crate::InvocationWord::Literal("eval"),
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("body"),
+        ];
+        let selected = registry.resolve_structured_invocation(
+            crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("namespace"),
+                &dynamic,
+            )
+            .with_dialect(dialect),
+            None,
+        );
+        if let Some(schema) = selected.resolved() {
+            assert!(
+                schema
+                    .authored_source_delegated_script_effects(dialect)
+                    .is_none()
+            );
+        }
+        const POLICY_WRITE: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+            WorldStateDomain::InterpreterPolicy,
+            EffectAccessMode::Write,
+            StaticInterpreterScope::Current,
+            StaticNamespaceScope::Current,
+            StaticSubjectScope::Wildcard,
+        )];
+        let mut altered = crate::CommandRegistry::build_default();
+        altered.insert(crate::CommandSpec {
+            world_effects: Some(WorldEffectDescriptor {
+                composition: WorldEffectComposition::Extend,
+                static_footprint: StaticEffectFootprint {
+                    accesses: POLICY_WRITE,
+                    callback: CallbackEffect::NONE,
+                },
+                resolver: None,
+                source_resolver: None,
+                dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+            }),
+            ..spec()
+        });
+        let selected = altered.resolve_structured_invocation(
+            crate::InvocationWords::literals("namespace", &arguments).with_dialect(dialect),
+            None,
+        );
+        let schema = selected.resolved().unwrap();
+        assert!(
+            schema
+                .authored_source_delegated_script_effects(dialect)
+                .is_none()
+        );
+    }
 
     #[test]
     fn which_roles_use_the_selected_option_order_and_reserved_final_name() {

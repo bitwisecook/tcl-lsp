@@ -2881,6 +2881,64 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         (effects, transitions)
     }
 
+    /// Resolve source effects for a registry-declared delegated script while
+    /// retaining the callback and every independently declared effect. The
+    /// coverage accounts only for the registered legacy bridge; no body entry,
+    /// Native handler, or completion follows from this source projection.
+    #[must_use]
+    pub fn authored_source_delegated_script_effects(
+        &self,
+        source_dialect: crate::InvocationDialect,
+    ) -> Option<(EffectFootprint, StateTransitions)> {
+        use crate::world_effect::SourceWorldEffectResolver;
+        let arguments = self.words.arguments().with_dialect(source_dialect);
+        if self
+            .words
+            .arguments()
+            .dialect()
+            .is_some_and(|actual| actual != source_dialect)
+            || self.nul_free_literal_words(arguments).is_none()
+            || !self
+                .semantics
+                .arity
+                .accepts(self.argument_count_for_arity()?)
+            || !matches!(
+                crate::script_body_flow::script_body_flow_for_invocation(&self.facts(), arguments),
+                crate::script_body_flow::ScriptBodyFlow::ConcatenatedScript { .. }
+            )
+        {
+            return None;
+        }
+        let descriptor = sole_world_effect_descriptor(&self.semantics.world_effects)?;
+        let SourceWorldEffectResolver::ResultTransitions { coverage, .. } =
+            descriptor.source_resolver?
+        else {
+            return None;
+        };
+        let selected = coverage(arguments)?;
+        let transitions = self
+            .semantics
+            .state_transitions
+            .resolve_authored_source_completion(arguments);
+        if transitions.facts().is_empty()
+            || transitions != selected.transitions
+            || self.semantics.side_effects != selected.legacy_effects
+        {
+            return None;
+        }
+        let mut effects = self
+            .semantics
+            .world_effects
+            .resolve_authored_source(arguments);
+        effects.extend(
+            self.legacy_effect_footprint(
+                transitions.touches_command_bindings(),
+                &selected.coverage,
+            ),
+        );
+        Some((effects, transitions))
+    }
+
     /// A conditional linear source continuation from an explicitly registered
     /// operation contract. No handler, observer, Normal or committed result is
     /// supplied. Full raw effects and result applicability remain on the card.
