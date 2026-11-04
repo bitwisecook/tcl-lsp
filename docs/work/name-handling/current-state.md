@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 4 November 2026, 19:07 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
+Updated 4 November 2026, 19:12 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
 
 ## Scope, ownership and release verdict
 
@@ -17,6 +17,8 @@ Normal-source Compiler34 v2 completes after a successful fresh build: **30/34 co
 Core27 completes **25/27** after a successful fresh build in 4 minutes 30 seconds. Both autoload-header controls, provider/effect refusals, three regex-hover controls, variable definition and four directory controls pass. Two tests fail at an obsolete assertion that Logical namespace ingress has no source point. A separate actual public probe confirms genuine parent/child ownership, Logical input, no completed world and no conditional continuation for namespace and root controls. The reviewed fixture correction retains Native/edit refusals and now requires those facts; corrected unit controls remain unexecuted. All captured custody checks pass; later Main drift makes current-Main acceptance false. `/tmp/logical-coverage-core27-public-v1/receipt.json`; `core-current-normal-27/result.json.gz`.
 
 A public probe against Core27's actual Compiler library confirms the source-policy correction now retains the namespace body and resolves its local `format` to `::n::format`. The later global lookup remains unknown. The reviewed correction now authenticates the exact current Logical source allocation rather than rejecting every allocation; its positive and negative unit controls remain uncompiled/unexecuted. `/tmp/logical-namespace-core27-public-v1/receipt.json`.
+
+An additional diagnostic against the same actual Core27 ELF runs 12 existing controls outside the original cohort: **7/12 pass**. Three optimizer branch-advice/action cases return no candidates, one consumed/callback reference control counts two instead of three, and one opaque-name rename case refuses with IncompleteCoverage. Root is investigating these separately; they are not reruns of Server endpoints. Scratch has advanced, so this diagnostic renews no prebuild/current-Main custody. `core27-additional-diagnostic-v1/result.json`.
 
 Receipt paths below are relative to `/workspace/tmp/lsp-merged-cohort/` unless absolute. Captured pins do not seal topology or undiscovered runtime/toolchain inputs.
 
@@ -41,7 +43,7 @@ Budgets stay unchanged: loop 50 needs 305 commands against cap 200; default 250 
 
 ## Hosts and packaging
 
-Latest host run [41888267930](https://github.com/bitwisecook/tcl-lsp/actions/runs/41888267930), exact `de5f708a5ebb8c35c62c36c747ea94cf86660898`, includes channel advice and trace API corrections. Browser builds and passes 40/41 twice; autoload definition id 4 remains null. Its staged VS Code web smoke checks pass narrowly. Native remains active; WASI build/exercise fails, with capture active and logs unavailable in the inspected snapshot, so its cause and lifecycle result are not established. `/tmp/spectcl-lsp-stack-ci-41888267930/browser.decoded.log`; `/tmp/native-ci-41888267930-triage/`.
+Latest host run [41888267930](https://github.com/bitwisecook/tcl-lsp/actions/runs/41888267930), exact `de5f708a5ebb8c35c62c36c747ea94cf86660898`, includes channel advice and trace API corrections. Browser builds and passes 40/41 twice; autoload definition id 4 remains null. Its staged VS Code web smoke checks pass narrowly. Native remains active. WASI now confirms successful compilation and 32/33 checks in both original and capture runs; the unchanged busy-exit/EOF check times out12/12 in each. Artifact13354998303 contains the real lifecycle trace, now under diagnosis; no fix or cause is established yet. `/tmp/spectcl-lsp-stack-ci-41888267930/browser.decoded.log`; `/tmp/native-ci-41888267930-triage/`.
 
 Earlier run [41877790468](https://github.com/bitwisecook/tcl-lsp/actions/runs/41877790468), exact `5c0ba57f8075a153750bfc4ee038c5676d4ac491`, has Browser 40/41 twice and a WASI compile failure on deprecated trace atomic API before runtime; no module/lifecycle observation was produced. Missing module/receipt handling now explicitly refuses stale runtime artifacts. `/tmp/lsp-ci-5c0b-job-126741986{682,734}.raw.json`. Prior b0ff run fails all three builds on the integrated Explorer Arc mismatch; no host pass is inferred from the source repair.
 
@@ -69,7 +71,7 @@ Earlier native passes are source-bound; strict startup still fails (null autoloa
 
 Reviewed SpecTcl corrections are adopted but untested: provider/no-provider pack snapshots use distinct cache domains, manifest matching hashes exact source bytes, and hook generation/plan publication is coherent. Standalone LSP eager loading is restored so its first request cannot consume a manifest-only registry; CLI demand and other performance improvements remain. `docs/LSP_RELEASE_PACKS.md` records this release choice.
 
-`make check-tcl-evidence` passes: 1,409 Tcl evidence files and 17 checker tests on current source; `/tmp/lsp-check-tcl-evidence-current-1854.log`. Legacy proof material is historical. Its 2,171-error audit (781 implementation joins, 425 appliance joins, 965 census mismatches) is not a current gate count. Source-only repairs renew no execution/provider/census authority or reduced total. `/workspace/tmp/proof-current-gate-20261104-0750/gate-receipt.json`. No digest renewal or exemption grants acceptance.
+`make check-tcl-evidence` passes: 1,516 Tcl evidence files and 17 checker tests in the latest completed check; `/tmp/lsp-check-tcl-evidence-current-1909.log`. Legacy proof material is historical. Its 2,171-error audit (781 implementation joins, 425 appliance joins, 965 census mismatches) is not a current gate count. Source-only repairs renew no execution/provider/census authority or reduced total. `/workspace/tmp/proof-current-gate-20261104-0750/gate-receipt.json`. No digest renewal or exemption grants acceptance.
 
 Clippy V22 passes eight packages/all targets with `-D warnings` on earlier inputs (`source-cohort-clippy-v22-result.json` under the receipt root); later stack changes require fresh lint. Final `make rust-check`, `make prep-pr`, formatting/generated drift, full native/browser/WASI/editor, packages and performance/cancellation/memory gates remain open. Required section F and zero pass-to-fail against the selected `origin/rust` baseline remain open; [release plan](lsp-release-pr-plan.md) retains the extraction, fixture-reduction and final-SHA requirements. Evidence stays on `work`; the shipping candidate keeps only consumed fixtures and durable contracts.
 
