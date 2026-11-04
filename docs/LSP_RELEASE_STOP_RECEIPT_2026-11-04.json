@@ -23,5 +23,11 @@
   },
   "full_gates": "Not passed on the final combined development source.",
   "integration_target": "refs/heads/rust",
-  "integration_method": "Normal merge preserving both work and existing rust commits; no force push."
+  "integration_method": "Normal merge preserving both work and existing rust commits; no force push.",
+  "integration_parents": {
+    "work": "52df6509c3bb28d2ee8b15d292bd3584101c1494",
+    "rust": "3475cff4df4d88c73e0a287e7aeeb43e63fcf2d3"
+  },
+  "merge_validation_receipt": "evidence/integration/rust-2026-11-04/receipt.json",
+  "all_incoming_dependency_pins_preserved": true
 }

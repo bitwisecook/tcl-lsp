@@ -24,3 +24,5 @@ builds were started after the stop instruction. Full `rust-check`/`prep-pr` and
 the final combined source have not passed. The integration also preserves the
 existing `rust` dependency, CI and JetBrains changes; merge validation is
 recorded separately from prior product test results.
+
+The [merge receipt](../evidence/integration/rust-2026-11-04/README.md) records both parent commits, conflict decisions and eight successful lock reconciliations. Every incoming dependency pin is preserved. The verified #2131 source pins are unchanged. These checks do not certify the merged source or unfinished drafts as release-ready.

@@ -1,0 +1,8 @@
+    Updating crates.io index
+     Locking 6 packages to highest Rust 1.97 compatible versions
+      Adding borrow-or-share v0.2.4
+      Adding bytecount v0.6.9
+      Adding fluent-uri v0.4.1
+      Adding ref-cast v1.0.27
+      Adding ref-cast-impl v1.0.27
+      Adding tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/tmp/lsp-release-work/rust/tcl-host-c-abi)

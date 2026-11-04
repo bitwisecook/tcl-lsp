@@ -1,0 +1,5 @@
+    Updating crates.io index
+     Locking 2 packages to highest compatible versions
+      Adding jsonc-parser v0.34.0
+      Adding tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/tmp/lsp-release-work/rust/tcl-host-c-abi)
+note: pass `--verbose` to see 8 unchanged dependencies behind latest

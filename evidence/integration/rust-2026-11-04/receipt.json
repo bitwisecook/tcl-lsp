@@ -1,0 +1,146 @@
+{
+  "recorded_at": "2026-11-04T22:19:19.812942+00:00",
+  "work_parent": "52df6509c3bb28d2ee8b15d292bd3584101c1494",
+  "rust_parent": "3475cff4df4d88c73e0a287e7aeeb43e63fcf2d3",
+  "shared_base": "ed694de47cbbeff0bb9f5cd5888cc336e1e8a463",
+  "source_conflict_resolutions": {
+    ".github/workflows/ci.yml": {
+      "choice": "Preserve work replacement logic; retain automatically merged rust updates outside conflict hunks.",
+      "hunks": 4
+    },
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/SpecStudioToolWindowFactory.kt": {
+      "choice": "Preserve work replacement logic; retain automatically merged rust updates outside conflict hunks.",
+      "hunks": 2
+    },
+    "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/actions/TclLspActionBase.kt": {
+      "choice": "Preserve work replacement logic; retain automatically merged rust updates outside conflict hunks.",
+      "hunks": 1
+    }
+  },
+  "lock_resolution": [
+    {
+      "lock": "Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 4.023451605004084,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-0.log",
+      "lock_sha256": "b2f4648851d9af55404e5f1ac40a85b4fefebb4de5b5230e7f82f9a2406d571c",
+      "all_incoming_pins_preserved": true
+    },
+    {
+      "lock": "rust/bigip-query-wasm/Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "rust/bigip-query-wasm/Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 1.793477521998284,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-1.log",
+      "lock_sha256": "e5f95d4a39ce9b242035771488d2a2153b2797e99f47d648f016b2fbb3181456",
+      "all_incoming_pins_preserved": true
+    },
+    {
+      "lock": "rust/bigip-report-gen/python/Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "rust/bigip-report-gen/python/Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 1.8016264869947918,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-2.log",
+      "lock_sha256": "a9e2d0ff9a489106e8460b45f7f0902be6c56280f7f2b08e18343c7dd4498434",
+      "all_incoming_pins_preserved": true
+    },
+    {
+      "lock": "rust/bigip-report-gen/wasm/Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "rust/bigip-report-gen/wasm/Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 1.7256522070019855,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-3.log",
+      "lock_sha256": "514e1169f137de539c0436c8387f3c73a74a1fcb7bccb9ba0b0e33e60a7c471a",
+      "all_incoming_pins_preserved": true
+    },
+    {
+      "lock": "rust/tcl-explorer-wasm/Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "rust/tcl-explorer-wasm/Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 1.468679465004243,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-4.log",
+      "lock_sha256": "162ab38be697a5479eece42a11811f44e2eb4a25e222183f8b31124dd65d6d2b",
+      "all_incoming_pins_preserved": true
+    },
+    {
+      "lock": "rust/tcl-lsp-server-wasi/Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "rust/tcl-lsp-server-wasi/Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 1.9946287750062766,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-5.log",
+      "lock_sha256": "c0810a0b6aaeb4cb4561905a7f5bfc170dd2e7efe5ab8c15f6d56b192fabc5a2",
+      "all_incoming_pins_preserved": true
+    },
+    {
+      "lock": "rust/tcl-lsp-server-wasm/Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "rust/tcl-lsp-server-wasm/Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 1.9287098799977684,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-6.log",
+      "lock_sha256": "09fc1bf3f22f4d8c5475393db86892a2e618687f8dcb718397b4c16a66726808",
+      "all_incoming_pins_preserved": true
+    },
+    {
+      "lock": "rust/tcl-spec-studio-wasm/Cargo.lock",
+      "command": [
+        "cargo",
+        "update",
+        "--workspace",
+        "--manifest-path",
+        "rust/tcl-spec-studio-wasm/Cargo.toml"
+      ],
+      "exit": 0,
+      "seconds": 1.5293537960023968,
+      "log": "evidence/integration/rust-2026-11-04/lsp-rust-final-lock-7.log",
+      "lock_sha256": "c3f03ef4a8f4623e4d27b0b69564fc907546f40bc9217b4d682c51ced811d603",
+      "all_incoming_pins_preserved": true
+    }
+  ],
+  "all_incoming_dependency_pins_preserved": true,
+  "math_issue_source_pins_unchanged": true,
+  "validation_scope": "Cargo lock resolution, TOML parsing, source-pin checks and git diff checks only. No build or full release gate after stop.",
+  "offline_attempts": "Discarded because offline cache selection downgraded pins; all accepted locks were restarted from rust and resolved online."
+}

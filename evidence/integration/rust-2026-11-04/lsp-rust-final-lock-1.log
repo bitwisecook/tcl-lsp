@@ -1,0 +1,7 @@
+    Updating crates.io index
+     Locking 5 packages to highest Rust 1.96 compatible versions
+      Adding borrow-or-share v0.2.4
+      Adding bytecount v0.6.9
+      Adding fluent-uri v0.4.1
+      Adding ref-cast v1.0.27
+      Adding ref-cast-impl v1.0.27
