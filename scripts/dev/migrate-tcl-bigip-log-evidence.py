@@ -12,7 +12,7 @@ import runpy
 from collections import defaultdict
 from pathlib import Path
 
-from tcl_evidence_format import markdown_block, validate_document
+from tcl_evidence_format import markdown_block, script_from_markdown, validate_document
 
 ROOT = Path(__file__).resolve().parents[2]
 question = runpy.run_path(str(ROOT / "scripts/dev/migrate-tcl-tmsh-evidence.py"))[
@@ -36,6 +36,15 @@ def record_key(record: dict) -> tuple[str, ...]:
         str(provider.get("tmm_unit") or "none"),
         str(record.get("invocation_id") or "once"),
     )
+
+
+def source_attribution(paths: set[str | None], selected: str) -> str:
+    """Distinguish another script's invocation from an ambiguous attribution."""
+    if None in paths:
+        return "ambiguous"
+    if paths and selected not in paths:
+        return "other"
+    return "selected" if paths == {selected} else "ambiguous"
 
 
 def main() -> None:
@@ -100,7 +109,12 @@ def main() -> None:
                     continue
                 matches = by_key.get(key, [])
                 paths = {(row.get("actual_input") or {}).get("path") for row in matches}
-                if paths != {path_name}:
+                # A shared log may contain an explicitly identified invocation
+                # belonging solely to another retained script.
+                attribution = source_attribution(paths, path_name)
+                if attribution == "other":
+                    continue
+                if attribution == "ambiguous":
                     incomplete = True
                     continue
                 selected = [row for row in relevant if record_key(row) == key]
@@ -114,6 +128,12 @@ def main() -> None:
             groups[script].append((script_path, matched))
     output = args.output
     output.mkdir(parents=True, exist_ok=True)
+    existing = {}
+    for path in output.glob("bigip-log-*.md"):
+        script = script_from_markdown(path.read_text())
+        if script in existing:
+            raise ValueError(f"duplicate existing script: {path}")
+        existing[script] = path
     written = 0
     for script, captures in groups.items():
         # Each environment result contains only rows explicitly matched to its
@@ -210,7 +230,10 @@ def main() -> None:
         errors = validate_document(document)
         if errors:
             raise ValueError(f"{first}: {errors}")
-        path = output / f"bigip-log-{first.parent.parent.name}-{first.parent.name}.md"
+        path = (
+            existing.get(script)
+            or output / f"bigip-log-{first.parent.parent.name}-{first.parent.name}.md"
+        )
         if path.exists() and path.read_text() != document:
             raise ValueError(f"refusing to overwrite {path}")
         path.write_text(document)
