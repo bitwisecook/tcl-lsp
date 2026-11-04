@@ -71,7 +71,15 @@ effects and all real opaque calls. No Native or source-purpose fallback is
 being widened. Independent #940 validation is meanwhile linking the sealed
 phase-eight production libraries and comparing warning collection, full
 checks and admission/Normal/provider facts on each same held compilation unit;
-that run is pending, not a passing gate.
+that run subsequently passes 65 rows, with its separate permanent receipt in
+`tests/data/shimmer-940-source-owner/phase8-same-cu-2026-11-04`.
+
+Fresh [nested word-effect native evidence](../evidence/tcl/w210-empty-foreach-nested-word-write-2026-11-04.md)
+records all six interpreters returning `7` from a substitution-initialised
+variable after an empty foreach, following an independently caught load error.
+It constrains the pending typed-stage repair to preserve argument evaluation
+and real unknown callees. The new 100-row compiler regression matrix and two
+actual-CFG controls are unbuilt; no #2441 fix is claimed yet.
 
 ## Fresh exact-input W210 diagnostic receipt (2026-11-04)
 
