@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 15:37 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
+Updated 04 November 2026, 15:34 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
 
 ## Scope and release verdict
 

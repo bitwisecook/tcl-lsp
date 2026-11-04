@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 15:37 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
+Updated 04 November 2026, 15:34 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
 
 | Work | Open acceptance |
 | --- | --- |
