@@ -65,7 +65,7 @@ Only the listed fixed scripts and recorded provider builds; ASCII source charact
 
 ## Historical references
 
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
+- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, interpreter versions and process results.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl`: Exact original quiet-missing-error-code script, including producer and reporter order.
 - `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-missing-error-code.stdout`: tcl8.4 quiet-missing-error-code original stdout

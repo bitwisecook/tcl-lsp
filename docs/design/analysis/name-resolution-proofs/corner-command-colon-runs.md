@@ -39,7 +39,7 @@ The captured C calls use ::n::leaf, while Jim retains the extra colon in the rep
 ## Historical references
 
 - `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=command-colon-runs.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity and retained selected binary SHA256.
+- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
 - `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for command-colon-runs; exact observer wrappers are separate provider inputs.
 - `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.tcl`. Exact 8.4.20 input for command-colon-runs; source channel is the retained CLI script file.
 - `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-colon-runs.stdout`. Exact 8.4.20 stdout for command-colon-runs; source channel is the retained CLI script file.
@@ -76,4 +76,4 @@ No interpreter-source excerpt or executed Rust test is attached to this question
 python3 scripts/dev/replay-native-naming-corners.py --case command-colon-runs --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
 ```
 
-The replayer validates retained source and stream hashes, requires the exact recorded executable SHA256, and separately checks its identity script. Supply each tested provider explicitly and matching native startup libraries. The original library tree hashes were not captured; fresh startup configuration is recorded and exact result comparison remains required. Replay results are a new receipt; none is claimed executed by this proof page.
+The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-command-colon-runs.md). A replay is a separate execution and must record its own results.
