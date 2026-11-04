@@ -485,3 +485,17 @@ six engines in the [permanent raw receipt](../rust/tcl-compiler/tests/data/w210-
 The exact scripts and streams are in the two linked `evidence/tcl` records.
 Jim malformed-list behaviour and unavailable observer interfaces remain
 explicit. No #2441 closure or general conditional-body authority is claimed.
+
+## Paused Jim implementation checkpoint (2026-11-04 22:05 UTC)
+
+At the user's request to stop after the next completed issue and push all
+current work, the isolated three-file Jim source-phase draft is included as an
+**UNBUILT development checkpoint**. Its exact patch SHA-256 is
+`1ff1dd50908f572fdc69c03cc5d9d5d4f279fd00d0de92b485c21a1fc70f9823`;
+[the handoff](../rust/tcl-compiler/tests/data/w210-empty-loop-exact-source/reviewed-stage-snapshot/jim-empty-phase-native/README.md)
+retains its source base, raw native controls and remaining obligations. No
+build, test, Clippy, rust-check or prep-pr result is claimed for this draft.
+The current compiled libraries still represent the separately verified
+`ad4d43160` plus the published `02a9c35c6` C5 stage change. The new draft has no
+regression tests yet. All older parked/rejected stashes remain preserved and
+have not been restored. #2441 remains open for its two Jim boundaries.
