@@ -17,7 +17,8 @@ permissions:
 
 # Never share the ordinary CI concurrency group or cancel an existing run.
 concurrency:
-  group: manual-lsp-host-diagnostics-${{ github.ref }}
+  # A slow Native run must not delay host diagnostics for a newer source.
+  group: manual-lsp-host-diagnostics-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 env:
