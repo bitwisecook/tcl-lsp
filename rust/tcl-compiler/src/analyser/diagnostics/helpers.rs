@@ -307,6 +307,48 @@ pub(super) fn collect_existence_guards(
     guards
 }
 
+/// An original read inside a condition can be guarded by an earlier operand,
+/// before the CFG branch reaches either successor block.
+pub(super) fn original_condition_read_is_guarded(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: BlockId,
+    span: tcl_lexer::Span,
+    cell: &crate::var_resolve::VariableCellKey,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    let Some(crate::cfg::Terminator::Branch {
+        condition,
+        condition_base: Some(base),
+        ..
+    }) = fu
+        .cfg
+        .blocks
+        .get(&block)
+        .and_then(|block| block.terminator.as_ref())
+    else {
+        return false;
+    };
+    let tokens =
+        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, usize::MAX).source_tokens();
+    let reading = crate::tcl_expr_eval::ConditionReading {
+        registry,
+        config: fu.source_lexer_config(),
+        policy: crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
+        trusted: &|_| false,
+        existence: crate::existence_query::QueryReading::for_cfg(
+            &fu.cfg,
+            registry,
+            fu.source_lexer_config(),
+            tokens,
+            Some(*base),
+        )
+        .for_diagnostics(),
+    };
+    crate::tcl_expr_eval::condition_read_guards(condition, *base, reading)
+        .iter()
+        .any(|(read, guarded)| fu.abs_span(*read) == span && guarded == cell)
+}
+
 /// Names a branch condition's own `[…]` substitutions write: the `<cond>`
 /// kill-set the CFG records ahead of the branch. C Tcl evaluates the
 /// condition, and so every write it makes, before either arm runs.

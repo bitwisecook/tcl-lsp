@@ -15,7 +15,10 @@
       "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912",
       "comment_id": 6629102912,
       "verified_on_github": true,
-      "outcome": "Inconclusive: the S102 positive control is also missed."
+      "outcome": "Partial: authenticated top-level S100 publication and quiet controls pass; reopened conditional S102 report remains unresolved.",
+      "follow_up_verified_on_github": true,
+      "follow_up_receipt": "docs/LSP_RELEASE_S100_PROTOCOL_RECEIPT.json",
+      "follow_up_receipt_commit": "4202c8f90"
     },
     {
       "issue": 2181,
@@ -103,7 +106,7 @@
       "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2500#issuecomment-6629106024",
       "comment_id": 6629106024,
       "verified_on_github": true,
-      "outcome": "Inconclusive: genuine shimmer controls also emit no warning; full example supported only on Tcl 8.5–9.1."
+      "outcome": "Inconclusive: genuine shimmer controls also emit no warning; full example supported only on Tcl 8.5\u20139.1."
     },
     {
       "issue": 2501,
@@ -161,5 +164,6 @@
       "verified_on_github": true,
       "outcome": "Verified W100/O111/scan recommendation and safe action behavior; seven tests pass."
     }
-  ]
+  ],
+  "last_follow_up_at": "2026-11-04 16:59 UTC"
 }

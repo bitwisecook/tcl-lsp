@@ -69,22 +69,18 @@ pub struct RetainedSourceModuleBindings {
     realms: ModuleRealmMemo,
 }
 
+type ModuleRealmMemoEntry = (
+    RegistrySemanticKey,
+    Option<crate::analyser::ResolvedAnalysisInput>,
+    Arc<crate::realm::CommandBindingRealm>,
+);
+
 /// The document realm over `positioned`, built once per command store and
 /// metadata input instead of once per query: a fresh realm starts with empty
 /// advice caches, so rebuilding it re-prepared the whole-program advice tape
 /// for every command. Derived state only; not part of the identity.
 #[derive(Clone, Default)]
-pub(crate) struct ModuleRealmMemo(
-    Arc<
-        std::sync::Mutex<
-            Vec<(
-                RegistrySemanticKey,
-                Option<crate::analyser::ResolvedAnalysisInput>,
-                Arc<crate::realm::CommandBindingRealm>,
-            )>,
-        >,
-    >,
-);
+pub(crate) struct ModuleRealmMemo(Arc<std::sync::Mutex<Vec<ModuleRealmMemoEntry>>>);
 
 impl std::fmt::Debug for ModuleRealmMemo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

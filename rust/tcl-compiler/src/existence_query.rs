@@ -39,6 +39,7 @@ pub(crate) struct QueryReading<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
     standalone: bool,
+    diagnostic: bool,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'a>>,
     parent: Option<&'a crate::ir::CommandTokens>,
     expression_base: Option<u32>,
@@ -67,6 +68,7 @@ impl<'a> QueryReading<'a> {
             registry,
             config,
             standalone: owner.is_standalone(),
+            diagnostic: false,
             metadata,
             parent,
             expression_base,
@@ -74,9 +76,24 @@ impl<'a> QueryReading<'a> {
     }
 
     pub(crate) fn in_expr(self, node: &ExprNode) -> Option<ExistenceQuery> {
+        self.in_expr_with_context(node).map(|(query, _)| query)
+    }
+
+    pub(crate) fn for_diagnostics(mut self) -> Self {
+        self.diagnostic = true;
+        self
+    }
+
+    pub(crate) fn in_expr_with_context(
+        self,
+        node: &ExprNode,
+    ) -> Option<(
+        ExistenceQuery,
+        Option<std::sync::Arc<crate::var_resolve::ResolveContext>>,
+    )> {
         if self.standalone {
             return match node {
-                ExprNode::Command { text, .. } => self.in_text(text),
+                ExprNode::Command { text, .. } => self.in_text(text).map(|query| (query, None)),
                 _ => None,
             };
         }
@@ -91,7 +108,12 @@ impl<'a> QueryReading<'a> {
         {
             return None;
         }
-        let (query, _) = in_expr_at_with_metadata_context(
+        let read = if self.diagnostic {
+            in_expr_for_diagnostics_at_with_metadata_context
+        } else {
+            in_expr_at_with_metadata_context
+        };
+        let (query, context) = read(
             node,
             self.expression_base?,
             parent,
@@ -99,7 +121,68 @@ impl<'a> QueryReading<'a> {
             self.config,
             self.metadata,
         )?;
-        Some(query)
+        Some((query, Some(context)))
+    }
+
+    pub(crate) fn original_unobserved_variable(self, node: &ExprNode) -> bool {
+        if !self.diagnostic {
+            return true;
+        }
+        let Some(span) = self
+            .expression_base
+            .and_then(|base| node.variable_source_span(base, self.config))
+        else {
+            return false;
+        };
+        self.parent.is_some_and(|parent| {
+            let mut found = false;
+            for access in &parent.variable_accesses {
+                if access.source.span != span {
+                    continue;
+                }
+                found = true;
+                if access.context_alternatives().is_empty()
+                    || access.context_residual()
+                        != crate::command_binding::SourceVariableReadResidual::Closed
+                    || access.context_alternatives().iter().any(|context| {
+                        let place = access.place_in_context(context, self.registry);
+                        place.dynamic
+                            || place.observed
+                            || context.implicit_read_changes_value(&place, self.registry)
+                    })
+                {
+                    return false;
+                }
+            }
+            found
+        })
+    }
+
+    pub(crate) fn query_changes_no_place(self, node: &ExprNode) -> bool {
+        self.in_expr_with_context(node)
+            .is_some_and(|(query, context)| {
+                if query.var.contains('[') {
+                    return false;
+                }
+                if !self.diagnostic {
+                    return true;
+                }
+                context.is_some_and(|context| {
+                    let place = crate::var_resolve::resolve_literal_place(
+                        &query.var,
+                        &context,
+                        false,
+                        self.registry,
+                    );
+                    !place.dynamic
+                        && !place.observed
+                        && !context.implicit_read_changes_value(&place, self.registry)
+                })
+            })
+    }
+
+    pub(crate) fn text_changes_no_place(self, text: &str) -> bool {
+        !text.contains('[') && (!self.diagnostic || !text.contains('$'))
     }
 
     /// The unchanged nested command under its own original lookup horizon.

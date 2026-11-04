@@ -2586,6 +2586,17 @@ Taint never reads values and is untouched. Tests:
 narrowing, and the nested-`if` program decides through `tcl diag` and
 `tcl opt`.
 
+A lazy condition also has internal evaluation edges. For W210, the same
+condition-tree transfer supplies existence facts to the exact original reads
+in the right operand of `&&` (left true) and `||` (left false), including
+negation and conditional branches. Original query metadata resolves the fact
+to a structured cell; the original read must select that same cell. These
+read-local guards do not create SSA versions or source completion, physical
+object, Native entry or compiler-admission proofs. An intervening command,
+math call, unresolved operand, observed read or implicit changing read drops
+inherited guards. Each original occurrence is filtered before a def-use
+chain chooses its first warning, so a later unguarded read keeps its own span.
+
 Original Native calls use `NativeSummaryContext` independently of the
 Logical source-summary context. Both the strict selected invocation and its
 `NormalTransferInvocation` must come from the current retained interpreter,

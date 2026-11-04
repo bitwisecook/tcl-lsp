@@ -58,16 +58,13 @@ fn skipped_reads_stay_quiet_and_later_genuine_reads_keep_their_span() {
         let source = case["source"].as_str().unwrap();
         let variable = case["variable"].as_str().unwrap();
         let expected = case["expected_w210"].as_bool().unwrap();
-        let quoted = format!("'{variable}'");
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(source, dialect);
             let findings: Vec<_> = analysis
                 .diagnostics
                 .iter()
-                .filter(|finding| {
-                    finding.code == DiagCode::W210 && finding.message.contains(&quoted)
-                })
+                .filter(|finding| finding.code == DiagCode::W210)
                 .collect();
             println!(
                 "SHORT_CIRCUIT {}",
