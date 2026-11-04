@@ -1,0 +1,53 @@
+{
+  "source_head": "f5b2f7d05ea1a322ef8f3f018e1af04394b36477",
+  "current_work_head_at_capture": "bf9ec63be936a3c4eb2eb990194d3937914c8553",
+  "joint_patch_sha256": "da4e3730ceb54fb84cebe0801e4f7e9699041e881ce623050d5831030b4b1",
+  "compiler_rlib": {
+    "path": "/workspace/tcl-lsp/tmp/lsp-bindings/target/debug/libtcl_compiler.rlib",
+    "sha256": "5d1be13ab0851b1f85a83172acaa6d1ac0465a1bd51d8db594d670546c32759c"
+  },
+  "probe": {
+    "source": "probe.rs.txt",
+    "source_sha256": "7e2060f1c79addc7662ff1df4416297b7c2d8b176648a9434a20fa2820b2bbef",
+    "binary_sha256": "165671b8fa32825071601cc5606273ffd2e4f2fd3a8529b8e5f5a9cff160fb8a",
+    "output": "probe.jsonl",
+    "output_sha256": "192be090b365cc1743f49728c2d99be161d56a87776df1efd11e5910ae1b2dd7",
+    "rows": 102,
+    "profiles": [
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "jim"
+    ],
+    "all_resolved_input": true,
+    "analysis_context_errors": 0
+  },
+  "native_evidence": "../../../../../../../evidence/tcl/w210-array-and-empty-foreach-runtime-controls-2026-11-04.md",
+  "scope": "Standalone analyser diagnostics via ResolvedAnalysisInput; not a tclsh or LSP protocol run. Issues remain open.",
+  "jim_2376_controls": {
+    "source": "jim-2376-probe.rs.txt",
+    "source_sha256": "87d4dc4bf5687c9d16d16ef9db03c8c9c5f1157819686f0176d9935122e1f586",
+    "binary_sha256": "b14f57bbee83718e87bc4314de7aa83e839da87e2b06c214c0b98bf040b60862",
+    "output": "jim-2376-probe.jsonl",
+    "output_sha256": "4f773f4c62171a9c96b9afe8218b9b73eeb37dc452ec43acd8bd94a9c9eabe61",
+    "rows": 3,
+    "resolved_input": true,
+    "analysis_context_errors": 0,
+    "cases": {
+      "safe-and-missing": "no W210",
+      "unsafe-or-missing": "W210 at bytes 54..56 ($x)",
+      "later-genuine-read-after-safe-and": "W210 at bytes 79..81 ($x)"
+    }
+  },
+  "native_script_sha256": "f00c518f905ad91718b05bf52f359bb13df2d5c0c5314818861220b37efa79db",
+  "native_evidence_sha256": "73dcd3887451ffe2741a7de8b5fa6f1466431f82347788e018e01539cf44e4c5",
+  "current_work_head_reviewed": "587ba05cff2a3b166689b6f8d463357ec9379acc",
+  "w210_source_files": {
+    "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": "7806be9e5e332cac16433cd52cb6ab33a6038303f2230891f41b18d2a34226f7",
+    "rust/tcl-compiler/tests/core_analyses.rs": "7efe172236ec55b2bf1df070a3bbf62043ee3575c3dbe320f5f1cb1fdba71bbc",
+    "rust/tcl-registry/src/commands/tcl/array_.rs": "bacf0a8318a1e6d011016ed8054ccdf044fd7d3542cdd6a5618fc9cce1eb973c"
+  },
+  "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+}
