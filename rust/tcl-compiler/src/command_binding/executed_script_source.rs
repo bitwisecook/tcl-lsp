@@ -77,6 +77,14 @@ impl ExecutedScriptSource {
                 mapping: ExecutedScriptMapping::Contiguous { base },
             };
         }
+        if let Some(script) = source_text(&parent.source)
+            .and_then(|source| folded_braced_body(source, word, value, config))
+            .and_then(|(interior, base)| {
+                Self::contiguous(Arc::clone(&parent.source), interior, base)
+            })
+        {
+            return script;
+        }
         Self::materialised(parent, vec![argument], value)
     }
 
@@ -104,6 +112,21 @@ impl ExecutedScriptSource {
             && span.as_range().len() == value.len()
             && let Some(script) =
                 Self::contiguous_image(Arc::clone(&parent.source), text.clone(), span.start())
+        {
+            return script;
+        }
+        if word.image() == parent.source.source_image()
+            && word.group().kind == tcl_lexer::WordKind::Braced
+            && let Ok(content) = word.content_span()
+            && let Some(interior) = word
+                .image()
+                .bytes()
+                .get(content.as_range())
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            && let Ok(value) = std::str::from_utf8(value)
+            && folds_to(interior, value, word.config())
+            && let Some(script) =
+                Self::contiguous(Arc::clone(&parent.source), interior, content.start())
         {
             return script;
         }
@@ -220,6 +243,33 @@ fn native_image(source: &str) -> tcl_lexer::SourceImage {
 
 pub(super) fn source_text(origin: &SourceOriginId) -> Option<&str> {
     origin.try_text().ok()
+}
+
+/// A braced body whose value differs from its bytes only by the brace
+/// backslash-newline fold. Parsing the authored bytes substitutes each
+/// continuation exactly as the fold does, so they yield the same commands and
+/// words and keep their document coordinates. The exception is a `${…}` name,
+/// which the parser takes verbatim; a body holding one stays materialised.
+fn folds_to(interior: &str, value: &str, config: LexerConfig) -> bool {
+    interior != value
+        && config.brace_backslash_newline.folds()
+        && !interior.contains("${")
+        && WordValueRules::from_config(&config).collapse_braced_word(interior) == value
+}
+
+fn folded_braced_body<'s>(
+    source: &'s str,
+    word: &WordExpr,
+    value: &str,
+    config: LexerConfig,
+) -> Option<(&'s str, u32)> {
+    if word.source().provenance != Provenance::Source {
+        return None;
+    }
+    let span = word.original_written_span(source)?;
+    let raw = source.get(span.as_range())?;
+    let interior = tcl_syntax::word_rules::whole_braced_word(raw)?;
+    folds_to(interior, value, config).then(|| Some((interior, span.start().checked_add(1)?)))?
 }
 
 fn literal_body_base(source: &str, word: &WordExpr, value: &str) -> Option<u32> {
@@ -529,7 +579,16 @@ mod tests {
     B}";
         let c = LexerConfig::default();
         let (parent, word) = operand(source, c);
-        let script = ExecutedScriptSource::from_word(parent, 0, &word, "puts A B", c);
+        // The fold only rewrites a separator, so the authored bytes keep
+        // their coordinates (#2505).
+        let script = ExecutedScriptSource::from_word(parent.clone(), 0, &word, "puts A B", c);
+        assert_eq!(
+            script.mapping,
+            ExecutedScriptMapping::Contiguous { base: 7 }
+        );
+        assert_eq!(script.text.bytes(), b"puts A\\\n    B");
+        // Any other decoded difference still materialises.
+        let script = ExecutedScriptSource::from_word(parent, 0, &word, "puts A  C", c);
         assert_eq!(script.mapping, ExecutedScriptMapping::Materialised);
         let jim = LexerConfig::for_profile(Some(
             tcl_registry::model::ingress::static_context_for("jim")

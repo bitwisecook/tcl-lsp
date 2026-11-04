@@ -4722,9 +4722,17 @@ mod tests {
             let original_operand =
                 binding.declaration_variable_operand_advice(registry, &tokens, &tokens.words()[1]);
             match brace {
+                // A fold only rewrites a separator, so the body keeps its
+                // authored coordinates and its Native operand reads the folded
+                // name (#2505).
                 tcl_dialect::BraceBackslashNewline::Folds => {
-                    assert!(original_layout.is_none());
-                    assert!(original_operand.is_none());
+                    assert!(original_layout.is_some());
+                    assert_eq!(
+                        original_operand
+                            .as_ref()
+                            .map(super::DeclarationVariableOperandAdvice::name),
+                        Some("local name")
+                    );
                 }
                 tcl_dialect::BraceBackslashNewline::Literal => {
                     assert!(original_layout.is_some());
@@ -4794,7 +4802,8 @@ mod tests {
     #[test]
     fn declaration_mapped_source_operands_keep_full_vector_owner_and_conflict_refusals() {
         let name = concat!("local", "\\", "\n", "name");
-        let source = format!("proc mapped {{}} {{incr {{{name}}}}}");
+        // The `${…}` comment keeps the folded body a mapped source.
+        let source = format!("proc mapped {{}} {{incr {{{name}}};#${{kept}}}}");
         let body = format!("incr {{{name}}}");
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
@@ -5021,7 +5030,8 @@ mod tests {
                 "other".to_owned()
             };
             let body = format!("trace add variable {target} write callback; incr {{{name}}}");
-            let source = format!("proc trace_mapped {{}} {{{body}}}");
+            // The `${…}` comment keeps the folded body a mapped source.
+            let source = format!("proc trace_mapped {{}} {{{body};#${{kept}}}}");
             let command = format!("incr {{{name}}}");
             for brace in [
                 tcl_dialect::BraceBackslashNewline::Folds,
@@ -5082,7 +5092,8 @@ mod tests {
     fn mapped_source_continuation_keeps_original_prefix_and_observer_debt() {
         let name = concat!("local", "\\", "\n", "name");
         let body = format!("trace add variable other write callback; incr {{{name}}}");
-        let source = format!("proc source_prefix {{}} {{{body}}}");
+        // The `${…}` comment keeps the folded body a mapped source.
+        let source = format!("proc source_prefix {{}} {{{body};#${{kept}}}}");
         let command = format!("incr {{{name}}}");
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);

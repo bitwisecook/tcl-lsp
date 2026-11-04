@@ -626,30 +626,13 @@ mod tests {
                 original_geometry_fixture("if {$condition} {puts \\\n A}", environment);
             let parent = &continuation.tokens[0];
             let body = body_at(parent, 2, continuation.input.lexer_config());
-            if config.brace_backslash_newline == tcl_dialect::BraceBackslashNewline::Folds {
-                assert_eq!(body.text.bytes(), b"puts  A");
-                assert_eq!(
-                    body.mapping,
-                    super::super::ExecutedScriptMapping::Materialised
-                );
-                assert_eq!(body.base(), 0);
-                assert_ne!(
-                    &body.origin,
-                    &parent
-                        .source_binding
-                        .as_ref()
-                        .unwrap()
-                        .invocation_site()
-                        .unwrap()
-                        .source
-                );
-            } else {
-                assert_eq!(body.text.bytes(), b"puts \\\n A");
-                assert!(matches!(
-                    body.mapping,
-                    super::super::ExecutedScriptMapping::Contiguous { .. }
-                ));
-            }
+            // A fold only rewrites a separator, so the authored bytes keep their
+            // contiguous coordinates under every brace policy (#2505).
+            assert_eq!(body.text.bytes(), b"puts \\\n A");
+            assert!(matches!(
+                body.mapping,
+                super::super::ExecutedScriptMapping::Contiguous { .. }
+            ));
             for dynamic in ["if {$condition} \"$body\"", "if {$condition} $body"] {
                 let fixture = original_geometry_fixture(dynamic, environment);
                 let parent = &fixture.tokens[0];
