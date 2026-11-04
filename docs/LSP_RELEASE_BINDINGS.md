@@ -9,7 +9,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | --- | --- | --- |
 | #2501, #2502 | Exact current report inputs have no W210 under supported profiles; removing their binders in local controls still misses genuine reads. See the external validation receipt. | Scoped non-reproduction; control limits |
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
-| #2371 | The exact guarded-unset report and direct/alias/element controls fail natively; a diagnostic-only attempted-read version fix is drafted but not yet compiled. | Reproduced residual; candidate unverified |
+| #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
 | #2376 | C Tcl and Jim confirm the short-circuit expression is safe; fresh compiler warns on its skipped read. | Reproduced residual |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
@@ -94,8 +94,14 @@ execution separately. These are native semantics, not a passing product fix.
 The pre-change production baseline misses all four guarded deletion reports.
 It also warns on a distinct safe conditional-producer/existence-guard example;
 that existing false positive is recorded under `known_gaps`, outside this
-direct-unset fix's regression acceptance. The narrow candidate uses the shared
+direct-unset fix's regression acceptance. The narrow candidate used the shared
 attempted-read cell/version to recognise an existing SSA destruction, without
-inventing a readable value or completed Normal result. Its queued build is
-paused for #940 priority; the implementation and regression test remain safely
-separate from this native-data/status checkpoint.
+inventing a readable value or completed Normal result. It compiled but failed
+the first original-program Tcl 8.4 assertion: no W210 appeared, and the remaining
+44 case/profile assertions were not reached. The bounded source trace records
+`dynamic_writes=true` and `physical_missing=0`, before that candidate check can
+help. Exact hashes, failed output, archived patch/test and nine refreshed
+current-Jim runs are in
+[`w210-unset-guards-attempt`](../rust/tcl-compiler/tests/data/w210-unset-guards-attempt/README.md).
+The implementation and failing test are safely stashed, with no physical/source
+gate change or failing CI test installed. #2371 remains unresolved.
