@@ -1635,17 +1635,16 @@ mod tests {
                     )
                     .is_none()
             );
-            let mut stronger = tokens.clone();
-            stronger
-                .source_binding
-                .as_mut()
-                .unwrap()
-                .may_use_live_dispatch = true;
+            let mut uncertain = tokens.clone();
+            assert!(!uncertain.source_binding.as_ref().unwrap().may_be_absent);
+            uncertain.source_binding.as_mut().unwrap().may_be_absent = true;
+            assert!(uncertain.source_binding.as_ref() != Some(&before));
             assert!(
                 layout
-                    .source_command_reference(fixture.source, &fixture.suffix, &stronger)
+                    .source_command_reference(fixture.source, &fixture.suffix, &uncertain)
                     .is_none()
             );
+            assert!(uncertain.source_binding.as_ref().unwrap().may_be_absent);
         });
         let foreign = Fixture::new(fixture.source, fixture.child_source);
         fixture.with_suffix_body_layout(|layout, _| {
