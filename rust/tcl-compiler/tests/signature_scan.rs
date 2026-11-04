@@ -583,10 +583,11 @@ fn registry_definer_set_equals_former_hardcoded_list() {
                 spec.definition_body.is_some_and(|g| match g.family {
                     DefinerFamily::TclOo => spec.traits.contains(Traits::IS_OO_METACLASS),
                     DefinerFamily::Snit | DefinerFamily::Itcl | DefinerFamily::JimClass => true,
+                    // Clay retains source inventory without factory typing.
                     // SpecTcl bodies declare commands and SslicTcl bodies
                     // declare TLS facts; neither creates classes, so the
                     // scanner deliberately claims none of them.
-                    DefinerFamily::SpecTcl | DefinerFamily::SslicTcl => false,
+                    DefinerFamily::Clay | DefinerFamily::SpecTcl | DefinerFamily::SslicTcl => false,
                 })
             })
         })

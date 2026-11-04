@@ -419,6 +419,7 @@ impl Analyser {
             DefinerFamily::TclOo => self.handle_oo_class_source(call),
             DefinerFamily::Snit => self.handle_snit_type_source(call),
             DefinerFamily::Itcl => self.handle_itcl_class_source(call),
+            DefinerFamily::Clay => self.handle_source_inventory_definer(call),
             DefinerFamily::JimClass => self.handle_jim_class_source(call),
             DefinerFamily::SpecTcl | DefinerFamily::SslicTcl => return None,
         })

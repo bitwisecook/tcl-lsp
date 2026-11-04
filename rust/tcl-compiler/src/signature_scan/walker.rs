@@ -644,7 +644,10 @@ fn dispatch_definer(
             // `.tclspec` body describes commands and a `.sslictcl` body
             // describes TLS facts, neither creating anything. None records a
             // definition here; the ordinary scan continues past them.
-            DefinerFamily::TclOo | DefinerFamily::SpecTcl | DefinerFamily::SslicTcl => false,
+            DefinerFamily::TclOo
+            | DefinerFamily::Clay
+            | DefinerFamily::SpecTcl
+            | DefinerFamily::SslicTcl => false,
             // snit types/widgets create instances via `Name create obj` /
             // `Name %AUTO%` / a widget's `Name .path`, so record them as
             // classes to type those constructors' receivers (same shape as

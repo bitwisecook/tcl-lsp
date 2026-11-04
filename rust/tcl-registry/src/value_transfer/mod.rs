@@ -43,6 +43,8 @@ pub mod builtins;
 pub mod cell_update;
 pub mod cell_write;
 pub mod completion;
+pub mod conditional_list_append;
+pub mod conditional_list_index;
 pub mod const_ops;
 pub mod context;
 pub mod declaration;
@@ -77,6 +79,10 @@ pub use answers::{
     TaintTransfer, TemplateWordPlan, TransferAnswer, TypeFacts, ValueShape, VariableRead,
     validate_outcome,
 };
+pub use conditional_list_append::{
+    ConditionalSourceListAppend, ConditionalSourceListAppendDirectPhase,
+};
+pub use conditional_list_index::ConditionalSourceLiteralListIndex;
 pub use const_ops::{ConstOps, ConstValue, Needs, Representation, TargetSemantics, WorkUnits};
 pub use context::{AnalysisContext, BindingEvidence, BindingIdentity, Budget, EvaluatorGeneration};
 pub use declaration::{

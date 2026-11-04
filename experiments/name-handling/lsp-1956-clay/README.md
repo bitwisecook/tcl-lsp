@@ -5,6 +5,12 @@ although native Tcl loads its server class and `connect` method. This is an
 audit and an uncompiled source-inventory draft; no verified repair or passing
 regression is claimed yet. #2243 remains a separate, parked coverage blocker.
 
+The reviewed v2 source and tests are now included as an **UNBUILT/UNVERIFIED**
+development checkpoint under the user's final push instruction. The
+[permanent handoff](reviewed-draft-v2/README.md) preserves the exact patch,
+base, and all 18 source hashes. Its nine semantic controls and code generation
+remain unrun. Older stashes were not restored.
+
 The [audit receipt](audit-receipt.json) pins the files. `clay/clay.tcl` has
 SHA-256 `150b48a3ddf4916cca5e182ce05274773ddcc3bc296c9b1e6f8c4d9afd1c49b0`;
 `httpd/httpd.tcl` has

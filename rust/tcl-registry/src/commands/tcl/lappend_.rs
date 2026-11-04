@@ -77,12 +77,7 @@ pub fn spec() -> CommandSpec {
         }),
         runtime_backing: RuntimeBacking::shipped("lappend"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::NOT_PROC_FACTORY
-            | Traits::BYTE_COMPILED
-            | Traits::READS_BEFORE_WRITE
-            | Traits::FIRST_ARG_VARNAME
-            | Traits::UNCONDITIONAL_VARIABLE_WRITE,
+        traits: crate::value_transfer::conditional_list_append::CONDITIONAL_LIST_APPEND_TRAITS,
         arity: Arity::at_least(1),
         command_forms: COMMAND_FORMS,
         completion: Some(crate::CompletionDescriptor::exact(&[
@@ -107,12 +102,8 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
-        side_effects: &[SideEffect {
-            target: SideEffectTarget::Variable,
-            reads: true,
-            writes: true,
-            ..SideEffect::DEFAULT
-        }],
+        side_effects:
+            crate::value_transfer::conditional_list_append::CONDITIONAL_LIST_APPEND_LEGACY_EFFECTS,
         hover: Some(HoverSnippet {
             summary: "Append list elements to a variable, creating it if it does not already exist.",
             synopsis: &["lappend varName ?value value value ...?"],

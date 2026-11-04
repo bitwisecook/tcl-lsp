@@ -5185,6 +5185,7 @@ fn definition_body_block(stmts: &[Stmt], log: &mut Log) -> DefinitionBodyGrammar
                     DefinerFamily::TclOo,
                     DefinerFamily::Snit,
                     DefinerFamily::Itcl,
+                    DefinerFamily::Clay,
                     DefinerFamily::JimClass,
                     DefinerFamily::SpecTcl,
                     DefinerFamily::SslicTcl,
@@ -5889,6 +5890,7 @@ pub const SHIPPED_DEFINITION_BODIES: &[(&str, &DefinitionBodyGrammar)] = &[
     ("snit", &tcl_registry::definer::SNIT_GRAMMAR),
     ("snit-widget", &tcl_registry::definer::SNIT_WIDGET_GRAMMAR),
     ("itcl", &tcl_registry::definer::ITCL_GRAMMAR),
+    ("clay", &tcl_registry::definer::CLAY_GRAMMAR),
 ];
 
 /// The shipped definer grammar `name` names.

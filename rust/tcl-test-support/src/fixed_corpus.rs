@@ -53,6 +53,14 @@ pub const TCLLIB_2_0_IMAP4: FixedCorpusFixture = FixedCorpusFixture {
     sha256: fixed_sha256(include_str!("../data/tcllib-2.0-imap4.sha256")),
 };
 
+/// The original HTTPD class declarations supplied by the Clay package.
+pub const TCLLIB_2_0_HTTPD: FixedCorpusFixture = FixedCorpusFixture {
+    release: "Tcllib 2.0 (tcllib-2-0)",
+    origin: "https://github.com/tcltk/tcllib/blob/tcllib-2-0/modules/httpd/httpd.tcl",
+    relative_path: "modules/httpd/httpd.tcl",
+    sha256: fixed_sha256(include_str!("../data/tcllib-2.0-httpd.sha256")),
+};
+
 // The bootstrap verifier and this typed fixture share one expected byte digest.
 const fn fixed_sha256(text: &str) -> [u8; 32] {
     let bytes = text.as_bytes();

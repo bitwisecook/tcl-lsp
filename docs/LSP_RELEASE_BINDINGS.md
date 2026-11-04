@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374 | The exact guarded read of `a(j)` emits W210 for Tcl 8.4–9.1; Jim-profile analysis misses it. A same-element read after setting `a(k)` separately warns on base `a`. | Partial across profiles; adjacent false positive |
-| #2441 | Current `ad4d43160` plus the IR-stage repair passes Clippy, both integration targets, all 100 Tcl 8.4–9.1 functional rows, the distinct-sentinel CFG control and existing 185 source/admission rows. Jim's combined procedure loop retains no target; its standalone controls warn. | C5 stage fix verified; Jim binding gap remains open |
+| #2441 | Current `ad4d43160` plus the IR-stage repair passes Clippy, both integration targets, all 100 Tcl 8.4–9.1 functional rows, the distinct-sentinel CFG control and existing 185 source/admission rows. Jim's combined procedure loop retains no target; its standalone controls warn. The current Jim draft is UNBUILT (`cf77ac5566`). | [C5 proof / open Jim work](https://github.com/bitwisecook/tcl-lsp/issues/2441#issuecomment-6643275900) |
 | #2376 | Read-local fix `07a1bd0ac` passes 185 integration rows and 14 guard cases. Joint verification passes 9 query-owner and 7 guard tests plus production Clippy; baseline failures were wrongly scoped after-load fixtures and are corrected without changing assertions. | Closed after coordinator proof review |
 | #2379 | Exact size/names/get and may-set/exists-then-get inputs are quiet for Tcl 8.4–9.1; Jim substitutions can still warn. Tcl `statistics`/`startsearch` error controls currently receive no W210. | Partial; Tcl report rows clear, Jim/adjacent controls remain |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
@@ -486,7 +486,7 @@ The exact scripts and streams are in the two linked `evidence/tcl` records.
 Jim malformed-list behaviour and unavailable observer interfaces remain
 explicit. No #2441 closure or general conditional-body authority is claimed.
 
-## Paused Jim implementation checkpoint (2026-11-04 22:05 UTC)
+## Paused Jim implementation checkpoint (2026-11-04 22:03 UTC)
 
 At the user's request to stop after the next completed issue and push all
 current work, the isolated three-file Jim source-phase draft is included as an
@@ -499,3 +499,12 @@ The current compiled libraries still represent the separately verified
 `ad4d43160` plus the published `02a9c35c6` C5 stage change. The new draft has no
 regression tests yet. All older parked/rejected stashes remain preserved and
 have not been restored. #2441 remains open for its two Jim boundaries.
+
+The authorised [#2441 progress comment](https://github.com/bitwisecook/tcl-lsp/issues/2441#issuecomment-6643275900)
+was read back byte-for-byte and the issue remains OPEN. It links the exact C5
+source/artifact receipt, successful native controls and the unbuilt Jim
+checkpoint `cf77ac5566`. All current work is committed for the coordinator's
+final integration to `rust`; no new implementation, compilation or issue
+closure is pending in this lane. Parent coordination owns the remaining
+#2131 completion and final branch publication. Existing target libraries stay
+unchanged until the last authorised read-only consumer releases them.

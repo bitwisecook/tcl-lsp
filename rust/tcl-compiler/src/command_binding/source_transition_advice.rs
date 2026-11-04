@@ -385,6 +385,7 @@ impl OriginalSourceCommandTransition {
     pub fn original_words(&self) -> &[NativeWord] {
         &self.original
     }
+
     /// Genuine source inputs matched to the selected transition subjects.
     #[must_use]
     pub fn inputs(&self) -> &[(TransitionSubject, SourceAdviceNameInput)] {
@@ -575,6 +576,10 @@ impl OriginalSourceCommandTransitionAdvice {
     #[must_use]
     pub fn original_words(&self) -> &[NativeWord] {
         &self.original
+    }
+    /// Whether two advice values retain the same issued original vector.
+    pub(super) fn shares_original_record(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.original, &other.original)
     }
     /// Genuine current written command head, independent of its target schema.
     #[must_use]

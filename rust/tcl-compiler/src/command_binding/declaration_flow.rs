@@ -321,6 +321,14 @@ pub(crate) struct DeclarationFlowReport {
     #[cfg(test)]
     conditional_loop_sites: BTreeSet<u32>,
     #[cfg(test)]
+    conditional_list_append_sites: BTreeSet<u32>,
+    #[cfg(test)]
+    conditional_literal_index_sites: BTreeSet<u32>,
+    #[cfg(test)]
+    conditional_list_events: Vec<representation::ListEventState>,
+    #[cfg(test)]
+    conditional_substitution_entries: BTreeSet<u32>,
+    #[cfg(test)]
     conditional_body_contexts: Vec<Arc<ConditionalRepresentationBodyContext>>,
     #[cfg(test)]
     conditional_loop_exits: Vec<(u32, usize, usize, usize, usize)>,
@@ -1020,7 +1028,29 @@ struct ConditionalRepresentationBodyContext {
     policy: tcl_syntax::naming::NamePolicyProtocol,
     binder: tcl_registry::iteration_entry::ConditionalSourceSingleLoopBinding,
     count: tcl_registry::iteration_entry::ConditionalSourceFiniteIteration,
+    substitution: Option<ConditionalRepresentationSubstitution>,
 }
+
+#[derive(Clone)]
+struct ConditionalRepresentationSubstitution {
+    parent: Arc<ConditionalRepresentationBodyContext>,
+    parent_site: CommandAllocationSite,
+    parent_words: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    operand: usize,
+    original: crate::registry_invocation::source_structure::OriginalSingleSourceCommandSubstitution,
+}
+
+impl PartialEq for ConditionalRepresentationSubstitution {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.parent, &other.parent)
+            && Arc::ptr_eq(&self.parent_site.source, &other.parent_site.source)
+            && self.parent_site.offset == other.parent_site.offset
+            && self.parent_words == other.parent_words
+            && self.operand == other.operand
+            && self.original == other.original
+    }
+}
+impl Eq for ConditionalRepresentationSubstitution {}
 
 impl PartialEq for ConditionalRepresentationBodyContext {
     fn eq(&self, other: &Self) -> bool {
@@ -1034,6 +1064,7 @@ impl PartialEq for ConditionalRepresentationBodyContext {
             && self.policy == other.policy
             && self.binder == other.binder
             && self.count == other.count
+            && self.substitution == other.substitution
     }
 }
 impl Eq for ConditionalRepresentationBodyContext {}
@@ -1057,17 +1088,21 @@ struct ConditionalRepresentationNaming {
     body_context: Option<Arc<ConditionalRepresentationBodyContext>>,
 }
 
+type ConditionalRepresentationTarget = (
+    tcl_registry::value_transfer::TargetId,
+    crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+);
+
 struct ConditionalRepresentationPlan {
     source: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
     body_context: Option<Arc<ConditionalRepresentationBodyContext>>,
     captures: VecDeque<representation::CaptureSource>,
     relation: Option<tcl_registry::value_transfer::ConditionalSourceRepresentation>,
     prior_target: Option<representation::PriorTargetUpdate>,
-    target: Option<(
-        tcl_registry::value_transfer::TargetId,
-        crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
-    )>,
+    target: Option<ConditionalRepresentationTarget>,
     coercion: Option<tcl_registry::representation::ConditionalSourceListIndexCoercion>,
+    list_append: Option<tcl_registry::value_transfer::ConditionalSourceListAppend>,
+    list_index: Option<tcl_registry::value_transfer::ConditionalSourceLiteralListIndex>,
 }
 
 struct ConditionalRepresentationLoopPlan {
@@ -1340,6 +1375,7 @@ impl Builder<'_> {
             || !seed.matches_registry(self.registry)
             || !held.binder.direct_phase_preserves_lookup()
             || held.count.iterations() < 2
+            || !Self::conditional_substitution_matches(held, tokens, site, self.config)
         {
             return None;
         }
@@ -1373,6 +1409,82 @@ impl Builder<'_> {
             self.conditional_representation_immediate_parent(held, advice, context)
         })?;
         Some(Arc::clone(held))
+    }
+
+    fn conditional_substitution_matches(
+        held: &ConditionalRepresentationBodyContext,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        let Some(substitution) = &held.substitution else {
+            return true;
+        };
+        let original = &substitution.original;
+        let mut expected_parent = held.clone();
+        expected_parent.substitution = None;
+        substitution.parent.as_ref() == &expected_parent
+            && Arc::ptr_eq(&substitution.parent.site.source, &held.site.source)
+            && Arc::ptr_eq(&substitution.parent_site.source, &site.source)
+            && substitution.parent.substitution.is_none()
+            && Self::conditional_substitution_parent_matches(
+                &substitution.parent,
+                &substitution.parent_site,
+                &substitution.parent_words,
+                config,
+            )
+            && tokens.synthetic.is_none()
+            && tokens.original_words_match_argv_text()
+            && substitution
+                .parent_words
+                .head_source()
+                .and_then(|head| head.word())
+                .is_some_and(|head| {
+                    head.span().start() == substitution.parent_site.offset
+                        && head.image() == site.source.source_image()
+                        && head.config() == config
+                })
+            && substitution
+                .parent_words
+                .original_argument_word(substitution.operand)
+                == Some(original.original_operand())
+            && original.command().span.start() == site.offset
+            && crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                tokens.words(),
+                site.offset,
+                config,
+            )
+            .as_deref()
+                == Some(original.command().words.as_slice())
+    }
+
+    fn conditional_substitution_parent_matches(
+        held: &ConditionalRepresentationBodyContext,
+        site: &CommandAllocationSite,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        use crate::registry_invocation::source_structure::OriginalRegistrySource;
+        let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
+            return false;
+        };
+        let original = advice.original_words();
+        Arc::ptr_eq(&held.owner.source, &site.source)
+            && Arc::ptr_eq(&advice.site().source, &site.source)
+            && advice.site().offset == site.offset
+            && advice.logical_source_input().is_none()
+            && advice.matches_source(site.source.source_image(), config)
+            && advice.matches_context(held.input.borrowed_context_registry())
+            && words.matches_source(site.source.source_image(), config)
+            && crate::registry_invocation::source_cut_declaration_origins(words)
+            && original.len() == words.arguments().len() + 1
+            && original.first() == words.head_source().and_then(|head| head.word())
+            && original
+                .iter()
+                .skip(1)
+                .enumerate()
+                .all(|(index, word)| words.original_argument_word(index) == Some(word))
     }
 
     fn conditional_representation_immediate_parent(
@@ -1440,10 +1552,6 @@ impl Builder<'_> {
         site: &CommandAllocationSite,
         selected: &crate::registry_invocation::DeclarationInvocationFlow,
     ) -> Option<ConditionalRepresentationPlan> {
-        use crate::signature_scan::variable_symbol::{
-            OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
-            SignatureSourceVariableSymbol,
-        };
         use tcl_registry::value_transfer::{AnalysisContext, InvocationLayout};
         if !Self::representation_is_applicable(tokens, selected) {
             return None;
@@ -1466,23 +1574,10 @@ impl Builder<'_> {
         let context = seed.source_context(self.registry)?;
         let source = Arc::new(words.clone());
         let captures = Self::representation_captures(tokens, words, &namespace, policy)?;
-        let argument_words: Vec<_> = words
-            .arguments()
-            .iter()
-            .map(|word| {
-                crate::registry_invocation::source_structure::source_schema_word(
-                    word.as_registry_word(),
-                )
-            })
-            .collect();
-        let texts: Vec<_> = tokens
-            .argv_texts
-            .iter()
-            .skip(1)
-            .map(String::as_str)
-            .collect();
-        let (relation, prior_target, target, coercion) =
-            words.with_source_schema(&context, |schema| {
+        let argument_words = Self::representation_schema_words(words);
+        let texts = Self::representation_argument_texts(tokens);
+        let (relation, prior_target, target, coercion, list_append, list_index) = words
+            .with_source_schema(&context, |schema| {
                 let view = crate::value_transfer::view_of(
                     schema,
                     &texts,
@@ -1495,50 +1590,155 @@ impl Builder<'_> {
                     schema.semantics.value.semantics().and_then(|semantics| {
                         semantics.conditional_source_representation(&structure)
                     });
+                let list_append = schema.conditional_source_nonempty_list_append(&structure);
+                if relation.is_some() && list_append.is_some() {
+                    return None;
+                }
+                if (selected.effects.unknown_reads || !selected.effects.lookup_stable)
+                    && !Self::representation_append_direct_phase(
+                        schema,
+                        selected,
+                        words,
+                        list_append,
+                    )
+                {
+                    return None;
+                }
                 let prior_target = Self::conditional_prior_target(
                     schema.semantics.value.semantics(),
                     &structure,
                     relation,
                     words,
                 );
-                let target_id = Self::conditional_representation_target(relation);
-                let target = if let Some(target) = target_id {
-                    let name = words.original_argument_value_input(target.0.0)?;
-                    if name.policy() != policy
-                        || tcl_syntax::naming::split_element_ref_bytes(name.bytes()).is_some()
-                    {
-                        return None;
-                    }
-                    let form = schema.authored_source_variable_receiver_operand_form(target.0.0)?;
-                    let symbol = SignatureSourceVariableSymbol::from_original_input(
-                        name,
-                        &namespace,
-                        OriginalVariableSymbolPurpose::NamespaceStorage,
-                        OriginalVariableSymbolReceiver::Operand(form),
-                    )?;
-                    Some((target, symbol))
-                } else {
-                    None
-                };
-                let coercion = schema
-                    .semantics
-                    .representation_effect
-                    .conditional_source_list_index_coercion(
-                        schema.words.arguments(),
-                        schema.semantics.argument_offset,
-                    )
-                    .filter(|coercion| coercion.is_single_literal_zero());
-                Some((relation, prior_target, target, coercion))
+                let target = Self::representation_schema_target(
+                    schema,
+                    words,
+                    &namespace,
+                    policy,
+                    relation,
+                    list_append,
+                )
+                .ok()?;
+                let (coercion, list_index) = Self::representation_source_index(schema, &structure);
+                Some((
+                    relation,
+                    prior_target,
+                    target,
+                    coercion,
+                    list_append,
+                    list_index,
+                ))
             })??;
-        (relation.is_some() || coercion.is_some()).then_some(ConditionalRepresentationPlan {
-            source,
-            body_context,
-            captures,
-            relation,
-            prior_target,
-            target,
-            coercion,
-        })
+        (relation.is_some() || coercion.is_some() || list_append.is_some()).then_some(
+            ConditionalRepresentationPlan {
+                source,
+                body_context,
+                captures,
+                relation,
+                prior_target,
+                target,
+                coercion,
+                list_append,
+                list_index,
+            },
+        )
+    }
+
+    fn representation_schema_words(
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> Vec<tcl_registry::InvocationWord<'_>> {
+        words
+            .arguments()
+            .iter()
+            .map(|word| {
+                crate::registry_invocation::source_structure::source_schema_word(
+                    word.as_registry_word(),
+                )
+            })
+            .collect()
+    }
+
+    fn representation_argument_texts(tokens: &CommandTokens) -> Vec<&str> {
+        tokens
+            .argv_texts
+            .iter()
+            .skip(1)
+            .map(String::as_str)
+            .collect()
+    }
+
+    fn representation_schema_target(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        relation: Option<tcl_registry::value_transfer::ConditionalSourceRepresentation>,
+        append: Option<tcl_registry::value_transfer::ConditionalSourceListAppend>,
+    ) -> Result<Option<ConditionalRepresentationTarget>, ()> {
+        let target = Self::conditional_representation_target(relation).or_else(|| {
+            append.map(tcl_registry::value_transfer::ConditionalSourceListAppend::target)
+        });
+        match target {
+            Some(target) => {
+                Self::representation_source_target(schema, words, namespace, policy, target)
+                    .map(Some)
+                    .ok_or(())
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn representation_source_target(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        target: tcl_registry::value_transfer::TargetId,
+    ) -> Option<ConditionalRepresentationTarget> {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+            SignatureSourceVariableSymbol,
+        };
+        let name = words.original_argument_value_input(target.0.0)?;
+        if name.policy() != policy
+            || tcl_syntax::naming::split_element_ref_bytes(name.bytes()).is_some()
+        {
+            return None;
+        }
+        let form = schema.authored_source_variable_receiver_operand_form(target.0.0)?;
+        let symbol = SignatureSourceVariableSymbol::from_original_input(
+            name,
+            namespace,
+            OriginalVariableSymbolPurpose::NamespaceStorage,
+            OriginalVariableSymbolReceiver::Operand(form),
+        )?;
+        Some((target, symbol))
+    }
+
+    fn representation_source_index(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        inputs: &dyn tcl_registry::value_transfer::AnalysisInputs,
+    ) -> (
+        Option<tcl_registry::representation::ConditionalSourceListIndexCoercion>,
+        Option<tcl_registry::value_transfer::ConditionalSourceLiteralListIndex>,
+    ) {
+        let index = schema.conditional_source_single_literal_list_index(inputs);
+        let coercion = schema
+            .semantics
+            .representation_effect
+            .conditional_source_list_index_coercion(
+                schema.words.arguments(),
+                schema.semantics.argument_offset,
+            )
+            .filter(|coercion| {
+                index
+                    .as_ref()
+                    .is_some_and(|index| index.container_operand().0 == coercion.argument())
+            });
+        let index = index.filter(|index| {
+            coercion.is_some_and(|coercion| index.container_operand().0 == coercion.argument())
+        });
+        (coercion, index)
     }
 
     fn representation_words_match_tokens(
@@ -1770,6 +1970,7 @@ impl Builder<'_> {
             policy,
             binder,
             count,
+            substitution: None,
         }))
     }
 
@@ -1778,8 +1979,6 @@ impl Builder<'_> {
         selected: &crate::registry_invocation::DeclarationInvocationFlow,
     ) -> bool {
         !selected.effects.unknown_writes
-            && !selected.effects.unknown_reads
-            && selected.effects.lookup_stable
             && selected.aliases.is_empty()
             && selected.caller_frame_aliases.is_empty()
             && selected.removes.is_empty()
@@ -1787,6 +1986,37 @@ impl Builder<'_> {
             && matches!(selected.flow, ScriptBodyFlow::None)
             && tokens.synthetic.is_none()
             && tokens.original_words_match_argv_text()
+    }
+
+    fn representation_append_direct_phase(
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        append: Option<tcl_registry::value_transfer::ConditionalSourceListAppend>,
+    ) -> bool {
+        let Some(append) = append else { return false };
+        let phase = append.conditional_direct_phase();
+        let values = phase.evaluated_value_operands();
+        let target = phase.current_target();
+        let Some(name) = words.original_argument_value_input(target.0.0) else {
+            return false;
+        };
+        let Ok(name) = std::str::from_utf8(name.bytes()) else {
+            return false;
+        };
+        let facts = schema.facts();
+        phase.conditionally_preserves_lookup()
+            && target == append.target()
+            && target.0.0 < values.start
+            && values.end == words.arguments().len()
+            && values.len() == append.appended_operand_count()
+            && !selected.effects.frame_reachable()
+            && selected.reads.len() == 1
+            && selected.reads[0] == name
+            && selected.writes.len() == 1
+            && selected.writes[0] == name
+            && selected.name_queries.is_empty()
+            && crate::registry_invocation::source_advice_has_no_declared_lookup_mutation(&facts)
     }
 
     fn representation_captures(
@@ -1832,6 +2062,9 @@ impl Builder<'_> {
                 }
             } else if expression.sole_command_substitution().is_some() {
                 representation::CaptureSource::LastResult
+            } else if matches!(expression, WordExpr::Template { rejected: None, .. }) {
+                let bytes = tcl_syntax::word_rules::original_static_word_source_bytes(word)?;
+                representation::CaptureSource::Literal { bytes }
             } else if matches!(
                 expression,
                 WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
@@ -1846,6 +2079,92 @@ impl Builder<'_> {
             captures.push_back(capture);
         }
         Some(captures)
+    }
+
+    fn conditional_substitution_context(
+        &self,
+        plan: &ConditionalRepresentationPlan,
+        site: &CommandAllocationSite,
+        tokens: &CommandTokens,
+        operand: usize,
+        source: &ExecutedScriptSource,
+    ) -> Option<Arc<ConditionalRepresentationBodyContext>> {
+        use crate::registry_invocation::source_structure::original_single_source_command_substitution;
+        use tcl_lexer::word_parts::ExecutablePart;
+        let parent = plan.body_context.as_ref()?;
+        if parent.substitution.is_some()
+            || !self
+                .current_representation_body
+                .as_ref()
+                .is_some_and(|held| Arc::ptr_eq(held, parent))
+            || !Arc::ptr_eq(&parent.site.source, &site.source)
+            || !Arc::ptr_eq(&source.origin, &site.source)
+            || !Self::conditional_substitution_parent_matches(
+                parent,
+                site,
+                &plan.source,
+                self.config,
+            )
+            || tokens
+                .words()
+                .get(operand + 1)?
+                .sole_command_substitution()
+                .is_none()
+        {
+            return None;
+        }
+        let word = plan.source.original_argument_word(operand)?;
+        if word.group().expand
+            || word.config() != self.config
+            || word.image() != site.source.source_image()
+            || !plan
+                .source
+                .matches_source(site.source.source_image(), self.config)
+        {
+            return None;
+        }
+        let parent_words = crate::registry_invocation::original_native_compiler_words(
+            site.source.source_image(),
+            tokens.words(),
+            site.offset,
+            self.config,
+        )?;
+        if parent_words.first() != plan.source.head_source().and_then(|head| head.word())
+            || parent_words.len() != plan.source.arguments().len() + 1
+            || parent_words
+                .iter()
+                .skip(1)
+                .enumerate()
+                .any(|(index, candidate)| {
+                    plan.source.original_argument_word(index) != Some(candidate)
+                })
+            || parent_words.get(operand + 1) != Some(word)
+        {
+            return None;
+        }
+        let original = original_single_source_command_substitution(word)?;
+        let arena = word.executable_parts();
+        let [part] = arena.list(arena.root()) else {
+            return None;
+        };
+        let ExecutablePart::Command { body } = &part.part else {
+            return None;
+        };
+        if source.mapping != (ExecutedScriptMapping::Contiguous { base: body.start() })
+            || u32::try_from(source.text.len()).ok()? != body.end().checked_sub(body.start())?
+            || site.source.source_image().bytes().get(body.as_range()) != Some(source.text.bytes())
+        {
+            return None;
+        }
+        let mut context = parent.as_ref().clone();
+        context.substitution = Some(ConditionalRepresentationSubstitution {
+            parent: Arc::clone(parent),
+            parent_site: site.clone(),
+            parent_words: Arc::clone(&plan.source),
+            operand,
+            original,
+        });
+        Some(Arc::new(context))
     }
 
     fn completion_frame(&self) -> tcl_registry::VariableAliasFrame {
@@ -1883,11 +2202,23 @@ impl Builder<'_> {
         self.current_representation_body
             .clone_from(&job.representation_body);
         if let Some(context) = &job.representation_body {
+            if let Some(substitution) = &context.substitution {
+                self.nodes[job.entry].representation_events.push(
+                    representation::Event::RequireBodyContext {
+                        context: Arc::clone(&substitution.parent),
+                    },
+                );
+            }
             self.nodes[job.entry]
                 .representation_events
                 .push(representation::Event::BodyContext {
                     context: Arc::clone(context),
                 });
+            if context.substitution.is_some() {
+                self.nodes[job.entry]
+                    .representation_events
+                    .push(representation::Event::ClearResult);
+            }
         }
         self.original_script(
             &job.source.text,
@@ -2743,11 +3074,39 @@ impl Builder<'_> {
             }
         }
         let dispatch = self.placeholder();
+        let operands =
+            self.representation_operand_events(tokens, site, representation_plan.as_mut());
+        let next = self.events_before(operands, dispatch, exits);
+        self.nodes[id].successors = vec![next];
+        let Some((selected, lifecycle)) = selected else {
+            self.unknown(dispatch, exits.normal);
+            return;
+        };
+        let after = self.selected_effect_nodes(id, dispatch, site, &selected, exits.normal);
+        self.representation_completion(
+            representation_plan,
+            loop_control,
+            tokens,
+            site,
+            after,
+            dispatch,
+        );
+        let successors =
+            self.command_flow(site, &selected, lifecycle.as_ref(), after, exits, loop_plan);
+        self.nodes[dispatch].successors = successors;
+    }
+
+    fn representation_operand_events(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        mut representation_plan: Option<&mut ConditionalRepresentationPlan>,
+    ) -> Vec<Event> {
         let mut operands = Vec::new();
         for (index, word) in tokens.words().iter().enumerate() {
             let first_event = operands.len();
             self.word_events(word, site, &mut operands);
-            if let Some(plan) = &mut representation_plan
+            if let Some(plan) = representation_plan.as_deref_mut()
                 && index > 0
             {
                 let Some(from) = plan.captures.pop_front() else {
@@ -2756,6 +3115,26 @@ impl Builder<'_> {
                     )));
                     continue;
                 };
+                if matches!(&from, representation::CaptureSource::LastResult) {
+                    let context = match &operands[first_event..] {
+                        [Event::Script(source)] => self.conditional_substitution_context(
+                            plan,
+                            site,
+                            tokens,
+                            index - 1,
+                            source,
+                        ),
+                        _ => None,
+                    };
+                    if let Some(context) = context {
+                        let Event::Script(source) =
+                            std::mem::replace(&mut operands[first_event], Event::Unknown)
+                        else {
+                            unreachable!("checked single script event")
+                        };
+                        operands[first_event] = Event::ConditionalScript(source, context);
+                    }
+                }
                 if matches!(&from, representation::CaptureSource::Variable { .. }) {
                     for event in &mut operands[first_event..] {
                         if matches!(event, Event::ReadUnavailable) {
@@ -2775,24 +3154,7 @@ impl Builder<'_> {
                 )));
             }
         }
-        let next = self.events_before(operands, dispatch, exits);
-        self.nodes[id].successors = vec![next];
-        let Some((selected, lifecycle)) = selected else {
-            self.unknown(dispatch, exits.normal);
-            return;
-        };
-        let after = self.selected_effect_nodes(id, dispatch, site, &selected, exits.normal);
-        self.representation_completion(
-            representation_plan,
-            loop_control,
-            tokens,
-            site,
-            after,
-            dispatch,
-        );
-        let successors =
-            self.command_flow(site, &selected, lifecycle.as_ref(), after, exits, loop_plan);
-        self.nodes[dispatch].successors = successors;
+        operands
     }
 
     fn selected_effect_nodes(
@@ -2866,6 +3228,22 @@ impl Builder<'_> {
                             target: plan.target,
                             source: Arc::clone(&plan.source),
                         });
+                } else if let Some(relation) = plan.list_append {
+                    if let Some(target) = plan.target {
+                        self.nodes[after].representation_events.push(
+                            representation::Event::ListAppend {
+                                site: site.offset,
+                                span,
+                                relation,
+                                target,
+                                source: Arc::clone(&plan.source),
+                            },
+                        );
+                    } else {
+                        self.nodes[dispatch]
+                            .representation_events
+                            .push(representation::Event::Barrier);
+                    }
                 }
                 if let Some(coercion) = plan.coercion {
                     self.nodes[after].representation_events.push(
@@ -2873,6 +3251,7 @@ impl Builder<'_> {
                             site: site.offset,
                             span,
                             coercion,
+                            literal: plan.list_index,
                             source: plan.source,
                         },
                     );
@@ -3335,6 +3714,18 @@ impl Builder<'_> {
                     self.jobs.push(Job {
                         source,
                         representation_body: None,
+                        purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        entry: id,
+                        exits: Exits {
+                            normal: next,
+                            ..exits
+                        },
+                    });
+                }
+                Event::ConditionalScript(source, context) => {
+                    self.jobs.push(Job {
+                        source,
+                        representation_body: Some(context),
                         purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                         entry: id,
                         exits: Exits {
@@ -3887,8 +4278,91 @@ impl Builder<'_> {
             output.push(Event::Unknown);
         }
     }
+    #[cfg(test)]
+    fn conditional_list_sites(&self) -> (BTreeSet<u32>, BTreeSet<u32>) {
+        let mut appends = BTreeSet::new();
+        let mut indices = BTreeSet::new();
+        for event in self
+            .nodes
+            .iter()
+            .flat_map(|node| &node.representation_events)
+        {
+            match event {
+                representation::Event::ListAppend { site, .. } => {
+                    appends.insert(*site);
+                }
+                representation::Event::ListIndex {
+                    site,
+                    literal: Some(_),
+                    ..
+                } => {
+                    indices.insert(*site);
+                }
+                _ => {}
+            }
+        }
+        (appends, indices)
+    }
+
+    #[cfg(test)]
+    fn conditional_substitution_entries(&self) -> BTreeSet<u32> {
+        self.nodes
+            .iter()
+            .flat_map(|node| node.representation_events.windows(3))
+            .filter_map(|events| match events {
+                [
+                    representation::Event::RequireBodyContext { context: required },
+                    representation::Event::BodyContext { context: entered },
+                    representation::Event::ClearResult,
+                ] => {
+                    let substitution = entered.substitution.as_ref()?;
+                    Arc::ptr_eq(required, &substitution.parent)
+                        .then_some(substitution.original.command().span.start())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    fn conditional_body_contexts(&self) -> Vec<Arc<ConditionalRepresentationBodyContext>> {
+        self.nodes
+            .iter()
+            .flat_map(|node| &node.representation_events)
+            .filter_map(|event| match event {
+                representation::Event::BodyContext { context } => Some(Arc::clone(context)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    fn conditional_loop_exits(&self) -> Vec<(u32, usize, usize, usize, usize)> {
+        self.representation_loops
+            .iter()
+            .map(|region| {
+                (
+                    region.site,
+                    region.normal_exit,
+                    region.error_exit,
+                    region.returned_exit,
+                    region.other_exit,
+                )
+            })
+            .collect()
+    }
+
     fn evaluate(self, entry: usize) -> DeclarationFlowReport {
         let source = Arc::clone(self.entry.origin());
+        #[cfg(test)]
+        let conditional_list_events = if self.purpose == DeclarationFlowPurpose::Representation {
+            representation::inspect_list_events(&self, entry)
+        } else {
+            Vec::new()
+        };
+        #[cfg(test)]
+        let (conditional_list_append_sites, conditional_literal_index_sites) =
+            self.conditional_list_sites();
         let representation_occurrences = if self.purpose == DeclarationFlowPurpose::Representation {
             representation::project(&self, entry)
         } else {
@@ -3913,29 +4387,17 @@ impl Builder<'_> {
                 .map(|region| region.site)
                 .collect(),
             #[cfg(test)]
-            conditional_body_contexts: self
-                .nodes
-                .iter()
-                .flat_map(|node| node.representation_events.iter())
-                .filter_map(|event| match event {
-                    representation::Event::BodyContext { context } => Some(Arc::clone(context)),
-                    _ => None,
-                })
-                .collect(),
+            conditional_list_append_sites,
             #[cfg(test)]
-            conditional_loop_exits: self
-                .representation_loops
-                .iter()
-                .map(|region| {
-                    (
-                        region.site,
-                        region.normal_exit,
-                        region.error_exit,
-                        region.returned_exit,
-                        region.other_exit,
-                    )
-                })
-                .collect(),
+            conditional_literal_index_sites,
+            #[cfg(test)]
+            conditional_list_events,
+            #[cfg(test)]
+            conditional_substitution_entries: self.conditional_substitution_entries(),
+            #[cfg(test)]
+            conditional_body_contexts: self.conditional_body_contexts(),
+            #[cfg(test)]
+            conditional_loop_exits: self.conditional_loop_exits(),
             unavailable_before: BTreeSet::new(),
             unavailable: false,
             unknown_reads: false,
@@ -4434,6 +4896,10 @@ enum Event {
     AuthoredRead(String, tcl_lexer::Span),
     Read(String, tcl_lexer::Span),
     Script(ExecutedScriptSource),
+    ConditionalScript(
+        ExecutedScriptSource,
+        Arc<ConditionalRepresentationBodyContext>,
+    ),
     Representation(Box<representation::Event>),
     ConditionalReadUnavailable,
     ReadUnavailable,
@@ -4463,6 +4929,26 @@ mod tests {
     use crate::interprocedural::test_body_identity::fixture_id_if_present;
 
     use super::*;
+
+    fn conditional_representation_report(source: &str) -> Arc<DeclarationFlowReport> {
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let realm = analysis.retained_command_realm().unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+        realm
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut tokens);
+        tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .declaration_representation_flow_report(&tokens, input, registry, Some(realm))
+            .expect("authentic root representation report")
+    }
 
     #[test]
     fn conditional_root_naming_is_scoped_to_the_original_command() {
@@ -4668,6 +5154,352 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn conditional_loop_indexes_and_appends_retain_source_events() {
+        let source = "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; lappend ys $y; lappend pts $pt}";
+        let report = conditional_representation_report(source);
+        let offset = |text: &str| u32::try_from(source.find(text).unwrap()).unwrap();
+        let nested_context = report
+            .conditional_body_contexts
+            .iter()
+            .find(|context| {
+                context.substitution.as_ref().is_some_and(|substitution| {
+                    substitution.original.command().span.start() == offset("lindex")
+                })
+            })
+            .expect("the nested index retains its original substitution context");
+        let substitution = nested_context.substitution.as_ref().unwrap();
+        assert_eq!(substitution.parent.site.offset, offset("foreach"));
+        assert_eq!(substitution.parent_site.offset, offset("set y ["));
+        assert!(
+            report
+                .conditional_substitution_entries
+                .contains(&offset("lindex"))
+        );
+        representation::assert_body_context_state_laws(nested_context, &nested_context.words);
+        assert!(report.conditional_loop_sites.contains(&offset("foreach")));
+        assert!(
+            report
+                .conditional_literal_index_sites
+                .contains(&offset("lindex"))
+        );
+        assert!(
+            report
+                .conditional_list_append_sites
+                .contains(&offset("lappend ys"))
+        );
+        assert!(
+            report
+                .conditional_list_append_sites
+                .contains(&offset("lappend pts"))
+        );
+        let index = report
+            .conditional_list_events
+            .iter()
+            .find(|event| {
+                event.site == offset("lindex") && event.kind == representation::ListEventKind::Index
+            })
+            .expect("actual index state");
+        assert!(!index.blocked_before && !index.blocked_after, "{index:?}");
+        assert!(index.result_representation.is_none() && !index.result_is_integer);
+        for text in ["lappend ys", "lappend pts"] {
+            let event = report
+                .conditional_list_events
+                .iter()
+                .find(|event| {
+                    event.site == offset(text)
+                        && event.kind == representation::ListEventKind::Append
+                })
+                .unwrap_or_else(|| panic!("missing {text}: {:?}", report.conditional_list_events));
+            assert!(!event.blocked_before && !event.blocked_after, "{event:?}");
+            assert_eq!(
+                event.stored_representation,
+                Some(tcl_registry::TclType::List)
+            );
+            assert_eq!(
+                event.result_representation,
+                Some(tcl_registry::TclType::List)
+            );
+            assert!(!event.result_is_integer);
+        }
+    }
+
+    #[test]
+    fn conditional_substitution_context_requires_exact_single_child() {
+        let source = "set marker 0; foreach pt {{1 2} {3 4}} {set y [  lindex $pt 1  ]; set z [lindex $pt 1]}";
+        let report = conditional_representation_report(source);
+        let first_offset = u32::try_from(source.find("lindex").unwrap()).unwrap();
+        let context = report
+            .conditional_body_contexts
+            .iter()
+            .find(|context| {
+                context.substitution.as_ref().is_some_and(|substitution| {
+                    substitution.original.command().span.start() == first_offset
+                })
+            })
+            .expect("the original first substitution context");
+        let config = context.input.lexer_config();
+        let image = tcl_lexer::SourceImage::document(source);
+        let make_child = |offset| {
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                "lindex $pt 1",
+                offset,
+                config,
+            )
+            .remove(0);
+            (
+                CommandTokens::from_segmented(&image.source_map(), config, &segment),
+                CommandAllocationSite {
+                    source: Arc::clone(&context.site.source),
+                    offset,
+                },
+            )
+        };
+        let (child, site) = make_child(first_offset);
+        assert!(Builder::conditional_substitution_matches(
+            context, &child, &site, config
+        ));
+        let sibling_offset = u32::try_from(source.rfind("lindex").unwrap()).unwrap();
+        let (sibling, sibling_site) = make_child(sibling_offset);
+        assert!(!Builder::conditional_substitution_matches(
+            context,
+            &sibling,
+            &sibling_site,
+            config
+        ));
+        let mut changed = child.clone();
+        changed.argv_texts[1] = "foreign".to_owned();
+        assert!(!Builder::conditional_substitution_matches(
+            context, &changed, &site, config
+        ));
+        let mut wrong_parent = context.as_ref().clone();
+        wrong_parent
+            .substitution
+            .as_mut()
+            .unwrap()
+            .parent_site
+            .offset += 1;
+        assert!(!Builder::conditional_substitution_matches(
+            &wrong_parent,
+            &child,
+            &site,
+            config
+        ));
+        let mut wrong_operand = context.as_ref().clone();
+        wrong_operand.substitution.as_mut().unwrap().operand += 1;
+        assert!(!Builder::conditional_substitution_matches(
+            &wrong_operand,
+            &child,
+            &site,
+            config
+        ));
+        let sibling_context = report
+            .conditional_body_contexts
+            .iter()
+            .find(|candidate| {
+                candidate.substitution.as_ref().is_some_and(|substitution| {
+                    substitution.original.command().span.start() == sibling_offset
+                })
+            })
+            .expect("independently issued sibling substitution");
+        let mut sibling_words = context.as_ref().clone();
+        sibling_words.substitution.as_mut().unwrap().parent_words =
+            Arc::clone(&sibling_context.substitution.as_ref().unwrap().parent_words);
+        assert!(!Builder::conditional_substitution_matches(
+            &sibling_words,
+            &child,
+            &site,
+            config
+        ));
+        let foreign_report = conditional_representation_report(source);
+        let foreign_context = foreign_report
+            .conditional_body_contexts
+            .iter()
+            .find(|candidate| {
+                candidate.substitution.as_ref().is_some_and(|substitution| {
+                    substitution.original.command().span.start() == first_offset
+                })
+            })
+            .expect("independently issued equal-text substitution");
+        assert!(!Arc::ptr_eq(&foreign_context.owner, &context.owner));
+        let mut foreign_words = context.as_ref().clone();
+        foreign_words.substitution.as_mut().unwrap().parent_words =
+            Arc::clone(&foreign_context.substitution.as_ref().unwrap().parent_words);
+        assert!(!Builder::conditional_substitution_matches(
+            &foreign_words,
+            &child,
+            &site,
+            config
+        ));
+        let foreign_site = CommandAllocationSite {
+            source: Arc::new(site.source.as_ref().clone()),
+            offset: site.offset,
+        };
+        assert!(!Arc::ptr_eq(&foreign_site.source, &site.source));
+        assert!(!Builder::conditional_substitution_matches(
+            context,
+            &child,
+            &foreign_site,
+            config
+        ));
+        let mut foreign_config = config;
+        foreign_config.expand_syntax = !foreign_config.expand_syntax;
+        assert!(!Builder::conditional_substitution_matches(
+            context,
+            &child,
+            &site,
+            foreign_config
+        ));
+        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let mut foreign_input = context.as_ref().clone();
+        foreign_input.input = foreign.resolved_input.unwrap();
+        assert!(!Builder::conditional_substitution_matches(
+            &foreign_input,
+            &child,
+            &site,
+            config
+        ));
+        let mut foreign_policy = context.as_ref().clone();
+        foreign_policy.policy =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V9_0);
+        assert!(!Builder::conditional_substitution_matches(
+            &foreign_policy,
+            &child,
+            &site,
+            config
+        ));
+    }
+
+    #[test]
+    fn conditional_substitution_refuses_compound_and_multiple_commands() {
+        for source in [
+            "set marker 0; foreach pt {{1 2} {3 4}} {set y pre[lindex $pt 1]}",
+            "set marker 0; foreach pt {{1 2} {3 4}} {set y [lindex $pt 1; lindex $pt 0]}",
+            "set marker 0; foreach pt {{1 2} {3 4}} {set y {*}[lindex $pt 1]}",
+            "set marker 0; foreach pt {{1 2} {3 4}} {set y $a([lindex $pt 1])}",
+        ] {
+            let report = conditional_representation_report(source);
+            assert!(
+                report
+                    .conditional_body_contexts
+                    .iter()
+                    .all(|context| context.substitution.is_none()),
+                "unsupported operand must not acquire a child context: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_substitution_does_not_reenter_after_unknown_operation() {
+        let source =
+            "set marker 0; foreach pt {{1 2} {3 4}} {unknown_command; set y [lindex $pt 1]}";
+        let report = conditional_representation_report(source);
+        let offset = u32::try_from(source.find("lindex").unwrap()).unwrap();
+        assert!(
+            report.conditional_list_events.iter().all(|event| {
+                event.site != offset || event.blocked_before || event.blocked_after
+            }),
+            "unknown operation must prevent a later unblocked index event"
+        );
+    }
+
+    #[test]
+    fn conditional_append_reads_the_target_after_nested_operands() {
+        use representation::ListEventKind;
+        for (source, expected_input, blocked) in [
+            (
+                "set out \"{\"; lappend out [set out {}]",
+                b"".as_slice(),
+                false,
+            ),
+            (
+                "set out {}; lappend out [set out \"{\"]",
+                b"{".as_slice(),
+                true,
+            ),
+        ] {
+            let report = conditional_representation_report(source);
+            let offset = u32::try_from(source.find("lappend").unwrap()).unwrap();
+            let event = report
+                .conditional_list_events
+                .iter()
+                .find(|event| event.site == offset && event.kind == ListEventKind::Append)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing append event for {source}: {:?}",
+                        report.conditional_list_events
+                    )
+                });
+            assert!(!event.blocked_before, "{source}: {event:?}");
+            assert_eq!(
+                event.input_literal.as_deref(),
+                Some(expected_input),
+                "{source}: {event:?}"
+            );
+            assert!(
+                event
+                    .operand_literals
+                    .iter()
+                    .any(|(operand, bytes)| { *operand == 1 && bytes == expected_input }),
+                "{source}: {event:?}"
+            );
+            assert_eq!(event.blocked_after, blocked, "{source}: {event:?}");
+            if !blocked {
+                assert_eq!(
+                    event.stored_representation,
+                    Some(tcl_registry::TclType::List)
+                );
+                assert_eq!(
+                    event.result_representation,
+                    Some(tcl_registry::TclType::List)
+                );
+                assert!(event.result_literal.is_none());
+                assert!(!event.result_is_integer);
+            }
+        }
+    }
+
+    #[test]
+    fn conditional_literal_index_keeps_unknown_results_distinct() {
+        use representation::ListEventKind;
+        for (source, input, result) in [
+            (
+                "set values {a b}; set x [lindex $values 1]",
+                Some(b"a b".as_slice()),
+                Some(b"b".as_slice()),
+            ),
+            (
+                "set s abc; set values [string length $s]; set x [lindex $values 1]",
+                None,
+                None,
+            ),
+        ] {
+            let report = conditional_representation_report(source);
+            let offset = u32::try_from(source.find("lindex").unwrap()).unwrap();
+            let event = report
+                .conditional_list_events
+                .iter()
+                .find(|event| event.site == offset && event.kind == ListEventKind::Index)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing index event for {source}: {:?}",
+                        report.conditional_list_events
+                    )
+                });
+            assert!(
+                !event.blocked_before && !event.blocked_after,
+                "{source}: {event:?}"
+            );
+            assert_eq!(event.input_literal.as_deref(), input, "{source}: {event:?}");
+            assert_eq!(
+                event.result_literal.as_deref(),
+                result,
+                "{source}: {event:?}"
+            );
+            assert!(event.result_representation.is_none() && !event.result_is_integer);
+        }
     }
 
     #[test]

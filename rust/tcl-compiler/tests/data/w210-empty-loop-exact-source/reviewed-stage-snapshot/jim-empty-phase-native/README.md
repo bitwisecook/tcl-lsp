@@ -42,3 +42,24 @@ receipt. This boundary needs review and focused positive/refusal tests. The
 exact original report also ends in a top-level failing read, so restoring an
 empty-loop world alone may still leave its independent conditional Jim body
 shape gap. Keep #2441 open until both exact reads and active controls pass.
+
+## Current-library Jim source-owner probe
+
+The retained public probe runs six fixed programs under Tcl 8.6 and Jim
+against the same sealed current libraries used by the C5 proof. Its receipt
+records the 145 dependencies unchanged. Raw stdout and the separately enabled
+existing variable-transfer trace are retained; these are compiler development
+observations, not Tcl execution evidence.
+
+Jim's normal-root procedure warns, with a reached closed target and typed loop
+stages. Explicit-error, missing-root-read and deferred-factory variants retain
+conditional closed targets but ordinary loop calls. Empty-root-loop variants
+instead lose the procedure loop target entirely. The generic top-level empty
+foreach enters with non-dynamic state and object preparation makes it dynamic.
+The original combined report still needs both Jim warning spans restored; no
+quiet result is recorded as wanted behaviour.
+
+The authorised progress comment was posted and read back unchanged at
+https://github.com/bitwisecook/tcl-lsp/issues/2441#issuecomment-6643275900.
+The readback receipt confirms issue state OPEN and separates the verified C5
+product commit from the unbuilt Jim development checkpoint.
