@@ -1220,9 +1220,19 @@ fn source_role_hover(
         std::ops::ControlFlow::Break(None) => {
             // A unique written declaration supplies syntax, not a resolved method.
             return std::ops::ControlFlow::Break(
-                counted_initial_method_hover(source, analysis, cursor_offset).or_else(|| {
-                    original_registry::conditional_hover(source, analysis, cursor_offset)
-                }),
+                counted_initial_method_hover(source, analysis, cursor_offset)
+                    .or_else(|| {
+                        original_registry::conditional_hover(source, analysis, cursor_offset)
+                    })
+                    .or_else(|| {
+                        registry_pattern_format_hover(
+                            source,
+                            line,
+                            character,
+                            analysis,
+                            ctx.registry?,
+                        )
+                    }),
             );
         }
         std::ops::ControlFlow::Continue(()) => {}
@@ -6152,6 +6162,56 @@ mod tests {
         // Cursor inside the pattern literal.
         let h = hover(src, 0, 10, &analysis, None).expect("hover");
         assert!(h.value.contains("Regex pattern"), "{}", h.value);
+    }
+
+    #[test]
+    fn conditional_pattern_hover_keeps_source_and_method_owners() {
+        for subject in ["$line", "line"] {
+            let source = format!("regexp {{^foo.*$}} {subject}\n");
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(&source, "tcl8.6");
+            let selected = hover(&source, 0, 10, &analysis, None).expect("original regex pattern");
+            assert!(
+                selected.value.contains("Regex pattern"),
+                "{}",
+                selected.value
+            );
+            let changed = source.replace("^foo", "^bar");
+            assert!(
+                hover(&changed, 0, 10, &analysis, None).is_none(),
+                "foreign source"
+            );
+        }
+        for source in [
+            "proc regexp {args} { return 0 }\nregexp {^foo.*$} $line\n",
+            "rename regexp {}\noo::class create regexp {}\nregexp {^foo.*$} $line\n",
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let line = u32::try_from(source.lines().count() - 1).unwrap();
+            assert!(
+                hover(source, line, 10, &analysis, None)
+                    .is_none_or(|h| !h.value.contains("Regex pattern")),
+                "shadowed command: {source}"
+            );
+        }
+        let source = "oo::class create C {}\nC {^foo.*$} $line\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            hover(source, 1, 5, &analysis, None).is_none_or(|h| !h.value.contains("Regex pattern")),
+            "OO selector is not a regexp source pattern"
+        );
+        let unresolved = "oo::class create C {method m {} {}}\nset obj unknown\n$obj m\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(unresolved, "tcl8.6");
+        assert!(
+            matches!(
+                crate::method_symbol::local_candidate(unresolved, &analysis, 2, 5),
+                std::ops::ControlFlow::Break(None)
+            ),
+            "real unknown object selector retains its method refusal"
+        );
+        assert!(
+            hover(unresolved, 2, 5, &analysis, None).is_none(),
+            "an unresolved OO selector has no source pattern fallback"
+        );
     }
 
     #[test]
