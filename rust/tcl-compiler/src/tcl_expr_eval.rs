@@ -3191,6 +3191,8 @@ pub(crate) struct PlaceFact {
     /// The fact in the domain's view: an exact value or a finite set of
     /// them for the value domain, a domain fact for every other.
     pub(crate) fact: FactView,
+    /// Original query cell, when retained scoped metadata supplies it.
+    pub(crate) original_cell: Option<crate::var_resolve::VariableCellKey>,
 }
 
 impl PlaceFact {
@@ -3200,6 +3202,7 @@ impl PlaceFact {
             place: place.to_owned(),
             domain: FactDomain::ExactValue,
             fact: FactView::Exact(ExactValue::from_literal(value), None),
+            original_cell: None,
         }
     }
 
@@ -3209,6 +3212,7 @@ impl PlaceFact {
             place: place.to_owned(),
             domain,
             fact: FactView::Domain(fact),
+            original_cell: None,
         }
     }
 
@@ -3319,12 +3323,105 @@ pub(crate) fn condition_edge_facts(node: &ExprNode, reading: ConditionReading<'_
             EdgeFacts::when_false(on_false)
         }
         ExprNode::Binary { op, left, right } => comparison_facts(*op, left, right, reading),
-        ExprNode::Command { .. } => reading.existence.in_expr(node).map_or_else(
+        ExprNode::Command { .. } => reading.existence.in_expr_with_context(node).map_or_else(
             || EdgeFacts::when_true(string_is_fact(node, reading).into_iter().collect()),
-            |query| query_facts(&query.var, query.kind),
+            |(query, context)| {
+                let mut facts = query_facts(&query.var, query.kind);
+                if let Some(context) = context {
+                    for fact in facts.on_true.iter_mut().chain(&mut facts.on_false) {
+                        let place = crate::var_resolve::resolve_literal_place(
+                            &fact.place,
+                            &context,
+                            false,
+                            reading.registry,
+                        );
+                        if !place.dynamic
+                            && !place.observed
+                            && !context.implicit_read_changes_value(&place, reading.registry)
+                        {
+                            fact.original_cell = crate::var_resolve::canonical_place_key(&place);
+                        }
+                    }
+                }
+                facts
+            },
         ),
         _ => EdgeFacts::default(),
     }
+}
+
+/// Original cells known bound at an exact read inside a lazy condition.
+/// Prefix effects retire earlier predicates; the existing edge transfer owns
+/// which facts the newly evaluated predicate contributes.
+pub(crate) fn condition_read_guards(
+    node: &ExprNode,
+    expression_base: u32,
+    reading: ConditionReading<'_>,
+) -> Vec<(tcl_lexer::Span, crate::var_resolve::VariableCellKey)> {
+    let mut guards = Vec::new();
+    let mut pending = vec![(node, Vec::new())];
+    while let Some((node, incoming)) = pending.pop() {
+        match node {
+            ExprNode::Binary { op, left, right } => {
+                let mut continuing = if changes_no_place(left, reading) {
+                    incoming.clone()
+                } else {
+                    Vec::new()
+                };
+                let facts = condition_edge_facts(left, reading);
+                let selected = match op {
+                    BinOp::And | BinOp::WordAnd => facts.on_true,
+                    BinOp::Or | BinOp::WordOr => facts.on_false,
+                    _ => Vec::new(),
+                };
+                continuing.extend(bound_original_cells(selected));
+                pending.push((right, continuing));
+                pending.push((left, incoming));
+            }
+            ExprNode::Unary { operand, .. } => pending.push((operand, incoming)),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                let continuing = if changes_no_place(condition, reading) {
+                    incoming.clone()
+                } else {
+                    Vec::new()
+                };
+                let facts = condition_edge_facts(condition, reading);
+                let mut on_true = continuing.clone();
+                on_true.extend(bound_original_cells(facts.on_true));
+                let mut on_false = continuing;
+                on_false.extend(bound_original_cells(facts.on_false));
+                pending.push((false_branch, on_false));
+                pending.push((true_branch, on_true));
+                pending.push((condition, incoming));
+            }
+            ExprNode::Var { .. } if changes_no_place(node, reading) => {
+                if let Some(span) = node.variable_source_span(expression_base, reading.config) {
+                    guards.extend(incoming.into_iter().map(|cell| (span, cell)));
+                }
+            }
+            // Nested scripts/words and dispatched math functions need their
+            // own original read and evaluation-order owners.
+            _ => {}
+        }
+    }
+    guards
+}
+
+fn bound_original_cells(
+    facts: Vec<PlaceFact>,
+) -> impl Iterator<Item = crate::var_resolve::VariableCellKey> {
+    facts.into_iter().filter_map(|fact| {
+        matches!(
+            fact.fact,
+            FactView::Domain(DomainFact::Existence(Existence::Bound(_)))
+        )
+        .then_some(fact.original_cell)
+        .flatten()
+    })
 }
 
 /// Whether evaluating `node` changes no place: every command it substitutes
@@ -3333,10 +3430,7 @@ pub(crate) fn condition_edge_facts(node: &ExprNode, reading: ConditionReading<'_
 /// and an unparsed operand may be anything, so neither is.
 fn changes_no_place(node: &ExprNode, reading: ConditionReading<'_>) -> bool {
     match node {
-        ExprNode::Command { .. } => reading
-            .existence
-            .in_expr(node)
-            .is_some_and(|query| !query.var.contains('[')),
+        ExprNode::Command { .. } => reading.existence.query_changes_no_place(node),
         ExprNode::Binary { left, right, .. } => {
             changes_no_place(left, reading) && changes_no_place(right, reading)
         }
@@ -3349,9 +3443,12 @@ fn changes_no_place(node: &ExprNode, reading: ConditionReading<'_>) -> bool {
             .iter()
             .all(|operand| changes_no_place(operand, reading)),
         ExprNode::Literal { .. } => true,
-        ExprNode::Var { text, .. }
-        | ExprNode::String { text, .. }
-        | ExprNode::CompiledWord { text, .. } => !text.contains('['),
+        ExprNode::Var { text, .. } => {
+            !text.contains('[') && reading.existence.original_unobserved_variable(node)
+        }
+        ExprNode::String { text, .. } | ExprNode::CompiledWord { text, .. } => {
+            reading.existence.text_changes_no_place(text)
+        }
         ExprNode::Call { .. } | ExprNode::Raw { .. } => false,
     }
 }
@@ -3558,6 +3655,7 @@ fn membership_facts(place: &str, list: &str, policy: FoldPolicy) -> Vec<PlaceFac
                     .collect(),
                 None,
             ),
+            original_cell: None,
         }],
     }
 }

@@ -2445,6 +2445,17 @@ is renamed or deleted in this file."
                         continue;
                     }
                     let read_cell = super::helpers::original_read_cell(access, &registry);
+                    if read_cell.as_ref().is_some_and(|cell| {
+                        super::helpers::original_condition_read_is_guarded(
+                            fu,
+                            block,
+                            fu.abs_span(access.source.span),
+                            cell,
+                            &registry,
+                        )
+                    }) {
+                        continue;
+                    }
                     let read_reference =
                         view.read_reference(&access.source, &access.original_spelling);
                     let killed = Self::original_read_reference_was_killed(fu, ctx, read_reference);
@@ -2829,7 +2840,46 @@ is renamed or deleted in this file."
             }
             // Anchor at the `$var` read token; fall back to the command
             // span when the read is nested inside a quoted/compound word.
-            let read_span = self.narrow_to_read_var(span, var).unwrap_or(span);
+            let read_span = if use_index == usize::MAX
+                && matches!(
+                    block.terminator.as_ref(),
+                    Some(crate::cfg::Terminator::Branch { .. })
+                ) {
+                let original: Vec<_> = source_view
+                    .source_tokens()
+                    .into_iter()
+                    .flat_map(|tokens| &tokens.variable_accesses)
+                    .filter(|access| {
+                        source_view
+                            .read_reference(&access.source, &access.original_spelling)
+                            .is_some_and(|read| fu.ssa.cell_key(read.symbol) == Some(cell_name))
+                    })
+                    .collect();
+                let surviving = original
+                    .iter()
+                    .filter_map(|access| {
+                        let read = fu.abs_span(access.source.span);
+                        let guarded =
+                            super::helpers::original_read_cell(access, &self.profile_registry())
+                                .is_some_and(|cell| {
+                                    super::helpers::original_condition_read_is_guarded(
+                                        fu,
+                                        use_id,
+                                        read,
+                                        &cell,
+                                        &self.profile_registry(),
+                                    )
+                                });
+                        (!guarded).then_some(read)
+                    })
+                    .min_by_key(|span| span.start());
+                if !original.is_empty() && surviving.is_none() {
+                    continue;
+                }
+                surviving.unwrap_or_else(|| self.narrow_to_read_var(span, var).unwrap_or(span))
+            } else {
+                self.narrow_to_read_var(span, var).unwrap_or(span)
+            };
             // Only this exact use's own activation can have the alternate
             // static lookup. Explicit foreign/up-frame reads and missing point
             // contexts survive; later surviving uses still enter the minimum.

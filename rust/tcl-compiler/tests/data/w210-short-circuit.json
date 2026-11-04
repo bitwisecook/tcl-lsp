@@ -96,6 +96,94 @@
       "expected_w210": true,
       "native_status": 1,
       "expected_read": "only"
+    },
+    {
+      "id": "uncalled-safe-and",
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}",
+      "variable": "x",
+      "expected_w210": false,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native controls; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-safe-negated-or",
+      "source": "proc p {c} {if {$c} {set x 1}; if {![info exists x] || $x > 0} {puts yes}}",
+      "variable": "x",
+      "expected_w210": false,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native controls; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-safe-double-not",
+      "source": "proc p {c} {if {$c} {set x 1}; if {!![info exists x] && $x > 0} {puts yes}}",
+      "variable": "x",
+      "expected_w210": false,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native controls; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-unsafe-or",
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] || $x == 0} {puts yes}}",
+      "variable": "x",
+      "expected_w210": true,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native controls; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-unsafe-negated-and",
+      "source": "proc p {c} {if {$c} {set x 1}; if {![info exists x] && $x == 0} {puts yes}}",
+      "variable": "x",
+      "expected_w210": true,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native controls; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-later-genuine-read",
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}; puts $x}",
+      "variable": "x",
+      "expected_w210": true,
+      "expected_read": "last",
+      "native_scope": "The same proc body is covered by the called Native controls; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-standalone-missing",
+      "source": "proc p {} {puts $__standalone_missing}",
+      "variable": "__standalone_missing",
+      "expected_w210": true,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native controls; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-query-does-not-guard-another-cell",
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}",
+      "variable": "__unrelated",
+      "expected_w210": true,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native control; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-query-does-not-guard-another-element",
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}",
+      "variable": "a(missing)",
+      "expected_w210": true,
+      "expected_read": "only",
+      "native_scope": "The same proc body is covered by the called Native control; this source deliberately has no top-level caller."
+    },
+    {
+      "id": "uncalled-safe-same-element-maybound",
+      "source": "proc p {c} {if {$c} {set a(safe) 1}; if {[info exists a(safe)] && $a(safe) > 0} {puts yes}}",
+      "variable": "a(safe)",
+      "expected_w210": false,
+      "expected_read": "only",
+      "native_scope": "MayBound element; either the query skips the read or the same element has been set."
+    },
+    {
+      "id": "uncalled-safe-same-element-absent",
+      "source": "proc p {} {if {[info exists a(safe)] && $a(safe) > 0} {puts yes}}",
+      "variable": "a(safe)",
+      "expected_w210": false,
+      "expected_read": "only",
+      "native_scope": "The query is false, so there is no original RHS read to guard."
     }
   ],
   "mutations": [

@@ -195,6 +195,134 @@ fn completed_source_values_keep_expression_and_admission_owners() {
 }
 
 #[test]
+fn condition_read_guards_expire_at_intervening_source_effects() {
+    let cases = [
+        ("[info exists x] && $x > 0", "$x", "", true),
+        ("![info exists x] || $x > 0", "$x", "", true),
+        ("!![info exists x] && $x > 0", "$x", "", true),
+        ("[info exists x] || $x > 0", "$x", "", false),
+        ("![info exists x] && $x > 0", "$x", "", false),
+        ("[info exists x] && ([set x 0] && $x > 0)", "$x", "", false),
+        (
+            "[info exists x] && ([unset x; set ready 1] && $x > 0)",
+            "$x",
+            "",
+            false,
+        ),
+        ("[info exists x] && ([opaque] && $x > 0)", "$x", "", false),
+        (
+            "[info exists x] && ([upvar 0 other x; set ready 1] && $x > 0)",
+            "$x",
+            "",
+            false,
+        ),
+        ("[info exists ::x] && $x > 0", "$x", "", false),
+        (
+            "[info exists a(safe)] && $a(safe) > 0",
+            "$a(safe)",
+            "",
+            true,
+        ),
+        (
+            "[info exists a(safe)] && $a(missing) > 0",
+            "$a(missing)",
+            "",
+            false,
+        ),
+        ("[info exists x] && ($other && $x > 0)", "$x", "", true),
+        (
+            "[info exists x] && ($other && $x > 0)",
+            "$x",
+            "trace add variable other read ::trace_read;",
+            false,
+        ),
+    ];
+    for (condition, read, prefix, expected) in cases {
+        let source = format!(
+            "proc trace_read args {{}}; proc p {{c other}} {{if {{$c}} {{set x 1; set a(safe) 1}}; {prefix} if {{{condition}}} {{puts yes}}}}"
+        );
+        assert_eq!(
+            condition_has_original_read_guard(&source, read),
+            expected,
+            "{condition}"
+        );
+    }
+}
+
+fn condition_has_original_read_guard(source: &str, read: &str) -> bool {
+    use crate::analyser::Analyser;
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    let mut analyser = Analyser::new();
+    let _ = analyser.analyse(source, "tcl9.0");
+    let input = analyser.resolved_analysis_input();
+    let settings = analyser.source_compilation_settings();
+    let registry = input.borrowed_context_registry().commands();
+    let unit = CompilationUnit::build_with_analysis_input_and_source_settings(
+        source,
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        None,
+        &input,
+        &settings,
+    );
+    let target = u32::try_from(source.rfind(read).unwrap()).unwrap();
+    for function in unit.analysable_body_function_units() {
+        for (&block, data) in &function.cfg.blocks {
+            let Some(crate::cfg::Terminator::Branch {
+                condition,
+                condition_base: Some(base),
+                ..
+            }) = &data.terminator
+            else {
+                continue;
+            };
+            let view = crate::ssa::SsaSourceView::at_statement(&function.ssa, block, usize::MAX);
+            let tokens = view.source_tokens();
+            let reading = crate::tcl_expr_eval::ConditionReading {
+                registry,
+                config: input.lexer_config(),
+                policy: crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
+                trusted: &|_| false,
+                existence: crate::existence_query::QueryReading::for_cfg(
+                    &function.cfg,
+                    registry,
+                    input.lexer_config(),
+                    tokens,
+                    Some(*base),
+                )
+                .for_diagnostics(),
+            };
+            if crate::tcl_expr_eval::condition_read_guards(condition, *base, reading)
+                .iter()
+                .any(|(span, cell)| {
+                    function.abs_span(*span).start() == target
+                        && tokens.is_some_and(|tokens| {
+                            tokens.variable_accesses.iter().any(|access| {
+                                access.source.span == *span
+                                    && !access.context_alternatives().is_empty()
+                                    && access.context_alternatives().iter().all(|context| {
+                                        let place = access.place_in_context(context, registry);
+                                        crate::var_resolve::canonical_place_key(&place).as_ref()
+                                            == Some(cell)
+                                    })
+                            })
+                        })
+                })
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[test]
 fn conditional_expression_template_retains_grammar_without_actual_entry() {
     let source = "proc f {} {expr {7 << 1}}";
     let (bindings, tokens) = original(source, "expr {7 << 1}", source.find("expr").unwrap());

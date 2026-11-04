@@ -240,3 +240,13 @@ on all six engines; see
 Only the positive harness changes; the production guard code is byte-identical
 to the 175-assertion passing snapshot. The corrected 185-row/14-case run and
 production Clippy are pending allocation.
+
+Final read-local verification passes 7/7 focused units (fourteen guard cases)
+and all 185 integration rows, with 41,817 unchanged file hashes. The permanent
+receipt is
+[`w210-short-circuit-read-local-final`](../rust/tcl-compiler/tests/data/w210-short-circuit-read-local-final/README.md).
+The additional query-owner suite is 6/8; both strict-query must-None failures
+reproduce in the preserved pre-read-local canonical binary. Production Clippy
+is blocked by the unrelated retained-source cache type. Full gates remain
+pending. The verified guard fix is published under the authorised checkpoint
+exception; #2376 remains open while the coordinator reviews the baseline causes.
