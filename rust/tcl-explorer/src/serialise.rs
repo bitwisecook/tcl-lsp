@@ -91,7 +91,7 @@ pub(crate) struct RetainedExplorerSource<'a> {
     input: &'a tcl_compiler::analyser::ResolvedAnalysisInput,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     config: LexerConfig,
-    realm: tcl_compiler::realm::CommandBindingRealm,
+    realm: std::sync::Arc<tcl_compiler::realm::CommandBindingRealm>,
 }
 
 impl<'a> RetainedExplorerSource<'a> {
@@ -3269,7 +3269,7 @@ pub fn serialise_event_order_for_result(result: &ExplorerResult, line_index: &Li
             retained.registry,
             retained.config,
             tcl_lexer::SourceSegmentationPurpose::WholeInput,
-            &retained.realm,
+            retained.realm.as_ref(),
         );
     serialise_event_handlers(&result.source, line_index, handlers)
 }
