@@ -201,13 +201,15 @@ pub fn definition_with(
     analysis: &AnalysisResult,
     program: Option<ProgramExports<'_>>,
 ) -> Vec<LspRange> {
-    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+    let Some(position) = CurrentSourcePosition::capture_variable(source, analysis, line, character)
+    else {
         return Vec::new();
     };
     let view = CallResolution {
         registry: None,
         program,
     };
+    let (line, character) = position.line_character();
     let line_index = LineIndex::new(source);
 
     let decl_byte_offset = position.offset();
@@ -2074,7 +2076,8 @@ pub fn original_variable_cursor_retained(
     line: u32,
     character: u32,
 ) -> bool {
-    let Some(position) = CurrentSourcePosition::capture(source, analysis, line, character) else {
+    let Some(position) = CurrentSourcePosition::capture_variable(source, analysis, line, character)
+    else {
         return true;
     };
     let offset = position.offset();
@@ -2104,7 +2107,8 @@ pub fn original_variable_occurrence_at<'a>(
     line: u32,
     character: u32,
 ) -> Option<&'a tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
-    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    let offset =
+        CurrentSourcePosition::capture_variable(source, analysis, line, character)?.offset();
     analysis.original_variable_symbol_in_source(
         &tcl_lexer::SourceImage::document(source),
         analysis.body_lexer_config?,

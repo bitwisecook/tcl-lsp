@@ -922,6 +922,21 @@ pub(crate) struct OriginalSourceCursorWord {
 }
 
 impl OriginalSourceCursorWord {
+    /// Cursor affinity uses only this complete word's original geometry. The
+    /// variable remains its own source producer, not the value of the word.
+    pub(crate) fn ends_with_variable(
+        &self,
+        root: &tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot,
+        end: u32,
+    ) -> bool {
+        self.word.image() == root.source_image()
+            && self.word.config() == root.lexer_config()
+            && !self.word.group().expand
+            && self.word.span().start() <= root.part_span().start()
+            && self.word.span().end() == end
+            && root.part_span().end() == end
+    }
+
     /// Static Unicode value of the whole original word, never a computed tail
     /// or source-coordinate inverse of that value.
     pub(crate) fn static_unicode_value(&self) -> Option<String> {

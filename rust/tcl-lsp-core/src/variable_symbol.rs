@@ -75,6 +75,12 @@ pub fn select<'a>(
     line: u32,
     character: u32,
 ) -> ControlFlow<Option<&'a SignatureSourceVariableOccurrence>> {
+    let Some(position) = crate::original_context::CurrentSourcePosition::capture_variable(
+        source, analysis, line, character,
+    ) else {
+        return ControlFlow::Break(None);
+    };
+    let (line, character) = position.line_character();
     if (!analysis.original_variable_symbols.is_empty()
         || !analysis.original_variable_symbol_conflicts.is_empty())
         && analysis.body_lexer_config.is_none_or(|config| {
@@ -89,12 +95,7 @@ pub fn select<'a>(
     {
         return ControlFlow::Break(Some(occurrence));
     }
-    let offset = crate::definition::byte_offset_at(
-        &tcl_lexer::LineIndex::new(source),
-        source,
-        line,
-        character,
-    );
+    let offset = position.offset();
     if analysis.body_lexer_config.is_some_and(|config| {
         analysis
             .original_variable_root_in_source(
@@ -249,6 +250,12 @@ pub(crate) fn select_navigation<'a>(
     character: u32,
     resolution: crate::definition::CallResolution<'_>,
 ) -> ControlFlow<Option<NavigationVariable<'a>>> {
+    let Some(position) = crate::original_context::CurrentSourcePosition::capture_variable(
+        source, analysis, line, character,
+    ) else {
+        return ControlFlow::Break(None);
+    };
+    let (line, character) = position.line_character();
     // naming.minifier.logical-formal-binding-alpha
     // docs/design/analysis/name-resolution-proofs/logical-formal-binding-alpha.md
     // The sealed factory positively selects the full Logical source owner;
@@ -263,12 +270,7 @@ pub(crate) fn select_navigation<'a>(
     if !analysis.matches_original_source_image(&tcl_lexer::SourceImage::document(source), config) {
         return ControlFlow::Break(None);
     }
-    let offset = crate::definition::byte_offset_at(
-        &tcl_lexer::LineIndex::new(source),
-        source,
-        line,
-        character,
-    );
+    let offset = position.offset();
     if let Some(template) = alias_template_at_offset(source, analysis, config, offset) {
         return ControlFlow::Break(Some(NavigationVariable::Alias(Box::new(template))));
     }

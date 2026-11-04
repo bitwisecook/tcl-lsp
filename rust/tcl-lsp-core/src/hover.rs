@@ -228,13 +228,12 @@ pub fn hover_in_program(
 ) -> Option<Hover> {
     // naming.core.original-registry-source-hover
     // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
-    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
-    let offset = crate::definition::byte_offset_at(
-        &tcl_lexer::LineIndex::new(source),
-        source,
-        line,
-        character,
-    );
+    let position = crate::original_context::CurrentSourcePosition::capture_variable(
+        source, analysis, line, character,
+    )?;
+    let (line, character) = position.line_character();
+    let current = position.context();
+    let offset = position.offset();
     if crate::definition::program_forced_import_abstains(analysis, program, offset) {
         return None;
     }
@@ -299,8 +298,10 @@ pub fn source_documentation_hover(
         .analysis_context_unavailable
         .is_none()
         .then_some(())?;
-    let position =
-        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?;
+    let position = crate::original_context::CurrentSourcePosition::capture_variable(
+        source, analysis, line, character,
+    )?;
+    let (line, character) = position.line_character();
     let cursor = position.offset();
     let resolution = crate::definition::CallResolution::document_only()
         .with_registry(position.context().registry());
