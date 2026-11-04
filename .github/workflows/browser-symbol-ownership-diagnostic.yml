@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/browser-symbol-ownership"
-          printf 'Instrumented diagnostic only; not release acceptance.\nref=%s\nsha=%s\ntrace_compile_flag=TCL_LSP_TRACE_WORKSPACE_SYMBOLS=1\n' \
+          printf 'Instrumented diagnostic only; not release acceptance.\nref=%s\nsha=%s\ntrace_compile_flag=TCL_LSP_TRACE_WORKSPACE_SYMBOLS=1\npack_notice_compile_flag=TCL_LSP_TRACE_PACK_NOTICES=1\n' \
             "$SOURCE_REF" "$SOURCE_SHA" > "$RUNNER_TEMP/browser-symbol-ownership/context.log"
           cat "$RUNNER_TEMP/browser-symbol-ownership/context.log"
           echo 'Instrumented ownership diagnostic only; ordinary CI and release gates remain required.' >> "$GITHUB_STEP_SUMMARY"
@@ -74,6 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'option_env!("TCL_LSP_TRACE_WORKSPACE_SYMBOLS")' rust/tcl-lsp-server/src/lib.rs
+          grep -F 'option_env!("TCL_LSP_TRACE_PACK_NOTICES")' rust/tcl-lsp-server/src/lib.rs
           {
             git rev-parse HEAD
             rustc --version
@@ -91,7 +92,7 @@ jobs:
       - name: Build instrumented browser LSP
         run: |
           set -euo pipefail
-          TCL_LSP_TRACE_WORKSPACE_SYMBOLS=1 make lsp-server-wasm \
+          TCL_LSP_TRACE_WORKSPACE_SYMBOLS=1 TCL_LSP_TRACE_PACK_NOTICES=1 make lsp-server-wasm \
             2>&1 | tee "$RUNNER_TEMP/browser-symbol-ownership/wasm-build.log"
       - name: Exercise the existing public browser protocol
         env:

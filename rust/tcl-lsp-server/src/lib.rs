@@ -29894,6 +29894,59 @@ impl Backend {
     /// notices); an open one is rescheduled instead, so the set that lands
     /// carries the analyser's findings *and* the loader's rather than
     /// whichever producer ran last.
+    /// Opt-in captured notice evidence before URI/source publication filters.
+    /// This reports no URI admission, live source currency or release verdict.
+    async fn trace_raw_pack_notices(
+        &self,
+        packs: &tcl_spectcl::PackSet,
+        collisions: &[tcl_spectcl::PackNotice],
+        seq: u64,
+    ) {
+        if !matches!(option_env!("TCL_LSP_TRACE_PACK_NOTICES"), Some("1")) {
+            return;
+        }
+        let bounded = |text: &str| {
+            let mut characters = text.chars();
+            let prefix = characters.by_ref().take(512).collect::<String>();
+            (prefix, characters.next().is_some())
+        };
+        // Ten total rows per reload also bounds every individual mount. The
+        // original PackNotice and exact PackSet file membership own context;
+        // no diagnostic URI or reconstructed command name supplies identity.
+        let notices = packs
+            .notices
+            .iter()
+            .map(|notice| ("load_notice", notice))
+            .chain(collisions.iter().map(|notice| ("collision", notice)));
+        for (index, (kind, notice)) in notices.take(10).enumerate() {
+            let (path, path_truncated) = bounded(&format!("{:?}", notice.path));
+            let (context, context_truncated) = bounded(&notice.context);
+            let (message, message_truncated) = bounded(&notice.message);
+            let pack_names = packs
+                .packs
+                .iter()
+                .filter(|pack| pack.files.contains(&notice.path))
+                .take(10)
+                .map(|pack| bounded(&pack.name).0)
+                .collect::<Vec<_>>();
+            let row = serde_json::json!({
+                "reload_sequence": seq.to_string(), "pack_set_key": packs.key.to_string(),
+                "kind": kind, "notice_index": index, "notice_limit": 10,
+                "load_notice_count": packs.notices.len(), "collision_count": collisions.len(),
+                "notice_list_truncated": packs.notices.len().saturating_add(collisions.len()) > 10,
+                "pack_names": pack_names, "path_debug": path, "path_truncated": path_truncated,
+                "line": notice.line, "severity": format!("{:?}", notice.severity),
+                "context": context, "context_truncated": context_truncated,
+                "message": message, "message_truncated": message_truncated,
+            });
+            // JSON serialization escapes NUL and control characters. Each
+            // descriptive string is at most 512 Unicode scalar values.
+            self.client
+                .log_message(MessageType::INFO, format!("[pack-notice-trace] {row}"))
+                .await;
+        }
+    }
+
     async fn publish_spec_pack_notices(
         &self,
         packs: &Arc<tcl_spectcl::PackSet>,
@@ -29903,6 +29956,7 @@ impl Backend {
         studio_snapshot: &studio_source::StudioSourceSnapshot,
         overlays: &[(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
     ) -> DocumentSourceResult<()> {
+        self.trace_raw_pack_notices(packs, collisions, seq).await;
         let mut by_uri: HashMap<Uri, Vec<PackNoticeEntry>> = HashMap::new();
         for notice in packs.notices.iter().chain(collisions) {
             let Some(prepared) = self

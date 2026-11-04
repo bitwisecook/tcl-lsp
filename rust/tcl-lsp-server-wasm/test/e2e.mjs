@@ -527,6 +527,18 @@ async function primedShippedPacksSession(wasmBindgen) {
         packLine ?? "no SpecTcl log line",
     );
 
+    if (noticeCount !== 0) {
+        // Keep the original priming evidence even if a later naming assertion
+        // throws before main's deferred session-log dump can run.
+        console.log(`primed-packs immediate diagnostic: ${JSON.stringify({
+            summary: packLine ?? null,
+            mount: wasmBindgen.LspWorker.spec_pack_mount(),
+            mountedPacks: names,
+            diagnostics: [...session.diagnostics].map(([uri, diagnostics]) => ({ uri, diagnostics })),
+        })}`);
+        for (const line of session.logs) console.log(`   primed > ${line}`);
+    }
+
     const shutdown = await session.request("shutdown", null);
     check("the primed-packs session shuts down", shutdown.error === undefined);
     return session.logs;
