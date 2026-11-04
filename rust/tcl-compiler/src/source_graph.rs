@@ -947,7 +947,8 @@ mod logical_declaration_body_tests {
     use crate::analyser::{Analyser, ResolvedAnalysisInput};
     use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
 
-    const SOURCE: &str = "proc absent::f {n} {for {set i 0} {$i < $n} {incr i} {set copy $i}; return $n}";
+    const SOURCE: &str =
+        "proc absent::f {n} {for {set i 0} {$i < $n} {incr i} {set copy $i}; return $n}";
 
     fn fixture() -> (ResolvedAnalysisInput, AnalysisResult, CompilationUnit) {
         let profile = tcl_dialect::DialectProfile::plain_tcl();

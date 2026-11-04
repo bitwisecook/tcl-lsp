@@ -110,12 +110,16 @@ def main() -> None:
                 result = [
                     f"# BIG-IP stock Tcl: {identity}\n\n",
                     f"## Question\n\n{QUESTIONS[identity]}\n\n",
-                    ("This case informs name resolution and diagnostics in the LSP, compiler and VM; "
-                    "it does not establish behavior in other environments.\n\n"),
+                    (
+                        "This case informs name resolution and diagnostics in the LSP, compiler and VM; "
+                        "it does not establish behavior in other environments.\n\n"
+                    ),
                     f"## Assumptions\n\nRecorded case scope: {scope}\n\n",
                     note,
-                    ("Other assumptions were not separately recorded. Connection identifiers were "
-                    "redacted in the retained invocation.\n\n"),
+                    (
+                        "Other assumptions were not separately recorded. Connection identifiers were "
+                        "redacted in the retained invocation.\n\n"
+                    ),
                     "## Script\n\n",
                     markdown_block(script),
                     "\n## Results\n\n",
@@ -140,9 +144,11 @@ def main() -> None:
                         result.append(f"- {field}: empty.\n")
                 result.extend(
                     [
-                        ("\nThe exit status and streams are from the SSH invocation; standard error "
-                        "can include SSH transport messages as well as remote errors. The entries "
-                        "below decode complete NHO result payloads from standard output.\n"),
+                        (
+                            "\nThe exit status and streams are from the SSH invocation; standard error "
+                            "can include SSH transport messages as well as remote errors. The entries "
+                            "below decode complete NHO result payloads from standard output.\n"
+                        ),
                         decoded_rows(stdout, identity, context),
                     ]
                 )

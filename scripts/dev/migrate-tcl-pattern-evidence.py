@@ -27,11 +27,21 @@ def decoded_fields(data: bytes) -> str:
         if not match:
             continue
         value = b"" if match[2] == b"{}" else bytes.fromhex(match[2].decode("ascii"))
-        parts.extend([f"\n- {match[1].decode('ascii')}:\n\n", markdown_block(value, "text-visible")])
+        parts.extend(
+            [
+                f"\n- {match[1].decode('ascii')}:\n\n",
+                markdown_block(value, "text-visible"),
+            ]
+        )
     return "".join(parts)
 
 
-def write_capture(identity: str, script: bytes, captures: list[tuple[str, dict, bytes, bytes]], suffix: str) -> None:
+def write_capture(
+    identity: str,
+    script: bytes,
+    captures: list[tuple[str, dict, bytes, bytes]],
+    suffix: str,
+) -> None:
     helper = (
         "The Jim wrapper also sources the test helper named in the script; "
         "the result depends on that helper. "
@@ -41,11 +51,15 @@ def write_capture(identity: str, script: bytes, captures: list[tuple[str, dict, 
     parts = [
         f"# Tcl naming pattern: {identity}\n\n",
         f"## Question\n\n{QUESTIONS[identity]}\n\n",
-        ("This distinction informs command and variable resolution in the LSP, "
-        "compiler and VM. The observations cover only this case and the stated environments.\n\n"),
+        (
+            "This distinction informs command and variable resolution in the LSP, "
+            "compiler and VM. The observations cover only this case and the stated environments.\n\n"
+        ),
         "## Assumptions\n\nThe executed wrapper separates setup from the final operation. "
         "A setup failure leaves that operation unreached. Each capture uses a fresh "
-        "process with the recorded interpreter; LC_ALL was C. " + helper + "Other assumptions were "
+        "process with the recorded interpreter; LC_ALL was C. "
+        + helper
+        + "Other assumptions were "
         "not separately recorded.\n\n## Script\n\n",
         markdown_block(script),
         "\n## Results\n",
@@ -63,7 +77,9 @@ def write_capture(identity: str, script: bytes, captures: list[tuple[str, dict, 
         )
         for title, data in (("Standard output", stdout), ("Standard error", stderr)):
             if data:
-                parts.extend([f"- {title}:\n\n", markdown_block(data, "text-visible"), "\n"])
+                parts.extend(
+                    [f"- {title}:\n\n", markdown_block(data, "text-visible"), "\n"]
+                )
             else:
                 parts.append(f"- {title}: empty.\n")
         code = record.get("lookup_code", record.get("question_code"))
@@ -71,7 +87,12 @@ def write_capture(identity: str, script: bytes, captures: list[tuple[str, dict, 
             parts.append("\nThe intended final operation was not reached.\n")
         fields = decoded_fields(stdout)
         if fields:
-            parts.extend(["\nThe following entries decode the FIELD payloads in standard output.\n", fields])
+            parts.extend(
+                [
+                    "\nThe following entries decode the FIELD payloads in standard output.\n",
+                    fields,
+                ]
+            )
     document = "".join(parts).rstrip() + "\n"
     errors = validate_document(document)
     if errors:
@@ -85,11 +106,18 @@ def write_capture(identity: str, script: bytes, captures: list[tuple[str, dict, 
 def main() -> None:
     versions = ("8.4.20", "8.5.19", "8.6.18", "9.0.4", "9.1.0")
     directory = BASE / "results"
-    identities = sorted(path.name for path in (directory / f"tcl{versions[0]}").iterdir() if path.is_dir())
+    identities = sorted(
+        path.name
+        for path in (directory / f"tcl{versions[0]}").iterdir()
+        if path.is_dir()
+    )
     for identity in identities:
         if identity not in QUESTIONS:
             raise ValueError(f"unknown question: {identity}")
-        scripts = [(directory / f"tcl{version}" / identity / "input.tcl").read_bytes() for version in versions]
+        scripts = [
+            (directory / f"tcl{version}" / identity / "input.tcl").read_bytes()
+            for version in versions
+        ]
         if any(script != scripts[0] for script in scripts[1:]):
             raise ValueError(f"different scripts recorded for {identity}")
         captures = []
@@ -98,7 +126,14 @@ def main() -> None:
             record = json.loads((capture / "record.json").read_bytes())
             if record.get("case_id") != identity or record.get("patchlevel") != version:
                 raise ValueError(f"mismatched Tcl record for {identity}/{version}")
-            captures.append((f"Tcl {version}", record, (capture / "stdout.txt").read_bytes(), (capture / "stderr.txt").read_bytes()))
+            captures.append(
+                (
+                    f"Tcl {version}",
+                    record,
+                    (capture / "stdout.txt").read_bytes(),
+                    (capture / "stderr.txt").read_bytes(),
+                )
+            )
         write_capture(identity, scripts[0], captures, "tcl")
         capture = BASE / "jim-results-5bac7c9/corpus" / identity
         record = json.loads((capture / "record.json").read_bytes())
@@ -107,7 +142,14 @@ def main() -> None:
         write_capture(
             identity,
             (capture / "input.tcl").read_bytes(),
-            [("Jim 0.84-9-g5bac7c9", record, (capture / "stdout.txt").read_bytes(), (capture / "stderr.txt").read_bytes())],
+            [
+                (
+                    "Jim 0.84-9-g5bac7c9",
+                    record,
+                    (capture / "stdout.txt").read_bytes(),
+                    (capture / "stderr.txt").read_bytes(),
+                )
+            ],
             "jim",
         )
     print(f"Recovered {len(identities) * 2} scripts across stock Tcl and Jim")
