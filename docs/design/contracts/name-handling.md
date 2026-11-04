@@ -4289,6 +4289,17 @@ foreign analysis, dynamic arguments and ambiguous allocations refuse. Core
 still checks the selected declaration, static arguments, destination and every
 body/physical edit independently before consuming this source-only reference.
 
+A separate captured cut-body result-coverage receipt selects the same actual
+Registry target from its quiet row and checks the registered completion
+resolvers, complete Result roles, direct static argv and result-only effects.
+It never changes the inherited source-purpose refusal or supplies AuthoredSimulation,
+an ordinary lookup, Native entry, entered frame or Normal completion. A retained
+ordinary binding must match the original record and agree on the same actual
+Builtin identity; a geometry-only binding must match its exact cut template.
+Options, substitutions, expansion, replaced or ambiguous handlers, foreign
+owners and observer debt cannot supply this receipt. Every other body command
+retains its independent coverage obligations.
+
 ### Authored result-completion source coverage
 
 An exact current AuthoredSimulation invocation can retain source coverage for

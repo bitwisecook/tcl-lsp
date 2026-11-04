@@ -1224,6 +1224,77 @@ fn registered_source_completion_resolvers(
         })
 }
 
+fn registered_result_completion_schema_is_supported(
+    selected: &ResolvedStatementInvocation,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> bool {
+    use tcl_registry::world_effect::{CallbackKinds, Reentrancy, WorldStateDomain};
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config());
+    // Proof comes only from registered source resolvers, never a
+    // Native resolver fallback or the metadata family's Native label.
+    if !registered_source_completion_resolvers(schema) {
+        return false;
+    }
+    let facts = schema.facts();
+    let (roles, complete) = schema.authored_source_argument_roles();
+    let (effects, transitions) = schema.authored_source_effects_and_state_transitions(dialect);
+
+    facts.descriptor_key() == selected.facts.descriptor_key()
+        && schema.semantics.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Return,
+            )
+        && schema.semantics.argument_offset == 0
+        && facts.native_result
+            == Some(tcl_registry::native_result::NativeResultContract::ReturnResult)
+        && complete
+        && match schema.words.arguments().exact_argv_len() {
+            Some(0) => roles.is_empty(),
+            Some(1) => roles.as_slice() == [(0, tcl_registry::ArgRole::Result)],
+            _ => false,
+        }
+        && schema
+            .words
+            .arguments()
+            .exact_argv_len()
+            .is_some_and(|count| count <= 1)
+        && facts.arity_accepts_frozen_arguments() == Some(true)
+        && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+        && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
+        && schema.semantics.body_execution.is_none()
+        && schema.semantics.frame_effect.is_none()
+        && !facts.traits.intersects(
+            tcl_registry::FRAME_REACH_TRAITS
+                | tcl_registry::Traits::INTROSPECTS_BY_NAME
+                | tcl_registry::Traits::TARGETS_VARIABLE_BY_NAME
+                | tcl_registry::Traits::REFLECTS_COMMAND_NAMES
+                | tcl_registry::Traits::CREATES_SCOPE_ALIAS
+                | tcl_registry::Traits::CREATES_DYNAMIC_BARRIER
+                | tcl_registry::Traits::DEFERS_BODY
+                | tcl_registry::Traits::PERFORMS_SUBSTITUTION,
+        )
+        && schema.semantics.world_effects.is_declared()
+        && schema.semantics.state_transitions.is_declared()
+        && effects.callback().kinds == CallbackKinds::NONE
+        && effects.callback().reentrancy == Reentrancy::Never
+        && effects.accesses().iter().all(|access| {
+            matches!(
+                access.domain,
+                WorldStateDomain::InterpreterResult
+                    | WorldStateDomain::CompletionState
+                    | WorldStateDomain::LegacyExternal(
+                        tcl_registry::side_effects::SideEffectTarget::EventControl
+                    )
+            )
+        })
+        && transitions.facts().is_empty()
+        && transitions.command_resolution_impact() == tcl_registry::CommandResolutionImpact::None
+}
+
 fn authored_result_completion_effects_are_supported(
     selected: &ResolvedStatementInvocation,
     input: &crate::analyser::ResolvedAnalysisInput,
@@ -1231,76 +1302,11 @@ fn authored_result_completion_effects_are_supported(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
 ) -> bool {
-    use tcl_registry::world_effect::{CallbackKinds, Reentrancy, WorldStateDomain};
-    let shape = RegistryInvocationShape::from_facts(&selected.facts, selected.effective.clone());
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
-    dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
-    dialect.word_values =
-        tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config());
-    shape
+    RegistryInvocationShape::from_facts(&selected.facts, selected.effective.clone())
         .with_source_schema(registry, context, tokens, |schema| {
-            // Proof comes only from registered source resolvers, never a
-            // Native resolver fallback or the metadata family's Native label.
-            if !registered_source_completion_resolvers(schema) {
-                return Some(false);
-            }
-            let facts = schema.facts();
-            let (roles, complete) = schema.authored_source_argument_roles();
-            let (effects, transitions) =
-                schema.authored_source_effects_and_state_transitions(dialect);
-            Some(
-                facts.descriptor_key() == selected.facts.descriptor_key()
-                    && schema.semantics.operation
-                        == tcl_registry::SemanticOperationId::StructuredLowering(
-                            tcl_registry::hooks::LoweringHookId::Return,
-                        )
-                    && schema.semantics.argument_offset == 0
-                    && facts.native_result
-                        == Some(tcl_registry::native_result::NativeResultContract::ReturnResult)
-                    && complete
-                    && match schema.words.arguments().exact_argv_len() {
-                        Some(0) => roles.is_empty(),
-                        Some(1) => roles.as_slice() == [(0, tcl_registry::ArgRole::Result)],
-                        _ => false,
-                    }
-                    && schema
-                        .words
-                        .arguments()
-                        .exact_argv_len()
-                        .is_some_and(|count| count <= 1)
-                    && facts.arity_accepts_frozen_arguments() == Some(true)
-                    && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
-                    && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current
-                    && schema.semantics.body_execution.is_none()
-                    && schema.semantics.frame_effect.is_none()
-                    && !facts.traits.intersects(
-                        tcl_registry::FRAME_REACH_TRAITS
-                            | tcl_registry::Traits::INTROSPECTS_BY_NAME
-                            | tcl_registry::Traits::TARGETS_VARIABLE_BY_NAME
-                            | tcl_registry::Traits::REFLECTS_COMMAND_NAMES
-                            | tcl_registry::Traits::CREATES_SCOPE_ALIAS
-                            | tcl_registry::Traits::CREATES_DYNAMIC_BARRIER
-                            | tcl_registry::Traits::DEFERS_BODY
-                            | tcl_registry::Traits::PERFORMS_SUBSTITUTION,
-                    )
-                    && schema.semantics.world_effects.is_declared()
-                    && schema.semantics.state_transitions.is_declared()
-                    && effects.callback().kinds == CallbackKinds::NONE
-                    && effects.callback().reentrancy == Reentrancy::Never
-                    && effects.accesses().iter().all(|access| {
-                        matches!(
-                            access.domain,
-                            WorldStateDomain::InterpreterResult
-                                | WorldStateDomain::CompletionState
-                                | WorldStateDomain::LegacyExternal(
-                                    tcl_registry::side_effects::SideEffectTarget::EventControl
-                                )
-                        )
-                    })
-                    && transitions.facts().is_empty()
-                    && transitions.command_resolution_impact()
-                        == tcl_registry::CommandResolutionImpact::None,
-            )
+            Some(registered_result_completion_schema_is_supported(
+                selected, input, schema,
+            ))
         })
         .is_some_and(|closed| closed)
 }
@@ -1394,7 +1400,10 @@ pub fn original_authored_result_completion_for_source_coverage<'a>(
 }
 
 mod source_cut_body_layout;
-pub use source_cut_body_layout::{OriginalSourceCutBodyLayout, OriginalSourceCutBodyReference};
+pub use source_cut_body_layout::{
+    OriginalSourceCutBodyLayout, OriginalSourceCutBodyReference,
+    OriginalSourceCutBodyResultCoverage,
+};
 
 /// Deferred declaration geometry under one exact completed source cut.
 /// The original child or suffix owns its Registry source schema; this grants

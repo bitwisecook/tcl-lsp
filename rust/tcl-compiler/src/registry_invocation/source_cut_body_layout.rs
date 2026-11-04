@@ -69,6 +69,62 @@ impl<'a> OriginalSourceCutBodyLayout<'a> {
         })
     }
 
+    /// Result-argument coverage selected by this same captured cut-body row.
+    /// This source-only purpose grants no inherited invocation or Normal fact.
+    #[must_use]
+    pub fn result_completion_coverage<'b>(
+        &'b self,
+        source: &str,
+        analysis: &AnalysisResult,
+        tokens: &CommandTokens,
+    ) -> Option<OriginalSourceCutBodyResultCoverage<'b, 'a>> {
+        let input = analysis.resolved_input.as_ref()?;
+        let rows = self.current_rows(source, analysis)?;
+        let registry = analysis.resolved_registry()?;
+        let realm = analysis.retained_command_realm()?;
+        let image = realm.original_source_image()?;
+        let offset = tokens.words().first()?.source().span.start();
+        let recorded =
+            realm.retained_original_tokens_for_command(image, input.lexer_config(), offset, tokens);
+        let lookups = rows.registry_lookups(
+            tokens,
+            input,
+            recorded
+                .as_ref()
+                .and_then(|tokens| tokens.source_binding.as_ref()),
+        )?;
+        let mut agreed = None;
+        for lookup in lookups {
+            let context = lookup
+                .original_declaration_metadata_context(registry, tokens)
+                .ok()??;
+            if context.source_analysis_input() != Some(input) {
+                return None;
+            }
+            let selected =
+                super::resolve_original_declared_layout(registry, context, tokens, &lookup)?;
+            super::original_structured_operands_are_supported(registry, &selected, None, tokens)?;
+            if !selected
+                .with_metadata_schema(registry, context, lookup.realm(), |schema| {
+                    Some(super::registered_result_completion_schema_is_supported(
+                        &selected, input, schema,
+                    ))
+                })
+                .is_some_and(|supported| supported)
+                || agreed
+                    .as_ref()
+                    .is_some_and(|previous| previous != &selected)
+            {
+                return None;
+            }
+            agreed = Some(selected);
+        }
+        Some(OriginalSourceCutBodyResultCoverage {
+            layout: self,
+            selected: agreed?,
+        })
+    }
+
     fn current_rows(
         &self,
         source: &str,
@@ -123,5 +179,26 @@ impl OriginalSourceCutBodyReference<'_, '_> {
     #[must_use]
     pub const fn source_reference(&self) -> &SourceCommandReference {
         &self.reference
+    }
+}
+
+/// Selected Registry result syntax from an exact captured source-cut body row.
+/// Completion remains abrupt source metadata, never executed Normal or Native.
+pub struct OriginalSourceCutBodyResultCoverage<'layout, 'analysis> {
+    layout: &'layout OriginalSourceCutBodyLayout<'analysis>,
+    selected: super::ResolvedStatementInvocation,
+}
+
+impl OriginalSourceCutBodyResultCoverage<'_, '_> {
+    /// Exact declaration analysis; source equality alone cannot attach it.
+    #[must_use]
+    pub fn is_for_analysis(&self, analysis: &AnalysisResult) -> bool {
+        self.layout.declaration.is_for_analysis(analysis)
+    }
+
+    /// Registry-selected operation and roles, retaining independent link checks.
+    #[must_use]
+    pub const fn invocation(&self) -> &super::ResolvedStatementInvocation {
+        &self.selected
     }
 }

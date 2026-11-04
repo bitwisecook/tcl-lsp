@@ -748,6 +748,15 @@ fn collect_command_regions<'a>(
     if quiet_store_coverage(walk, document, command, offset)? {
         return Ok(());
     }
+    if let Some(coverage) = task.body_layout.as_ref().and_then(|layout| {
+        layout.result_completion_coverage(document.source, document.analysis, subject.tokens)
+    }) {
+        if !coverage.is_for_analysis(document.analysis) {
+            return Err(OriginalCommandRenameRefusal::StaleSource);
+        }
+        reject_selected_command_link_coverage(coverage.invocation(), offset)?;
+        return Ok(());
+    }
     if authored_result_completion_coverage(
         walk,
         document,
@@ -869,20 +878,43 @@ mod tests {
                 &tcl_compiler::ir::CommandTokens,
             ),
         ) {
+            self.with_body_layout(None, check);
+        }
+
+        fn with_body_layout(
+            &self,
+            child_command: Option<usize>,
+            check: impl FnOnce(
+                &tcl_compiler::registry_invocation::OriginalSourceCutBodyLayout<'_>,
+                &tcl_compiler::ir::CommandTokens,
+            ),
+        ) {
             let survey = self
                 .outcome
                 .single_source_cut_survey(&self.prefix, &[&self.child, &self.suffix])
                 .unwrap();
+            let (source, analysis) = if child_command.is_some() {
+                (self.child_source, &self.child)
+            } else {
+                (self.source, &self.suffix)
+            };
+            let walk = crate::refactor::FrameWalk::new(source, analysis).unwrap();
+            let commands = if child_command.is_some() {
+                walk.segment_document(source)
+            } else {
+                Vec::new()
+            };
+            let command =
+                child_command.map_or(&survey.suffix_commands()[0], |index| &commands[index]);
             let declaration = tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
-                self.source, &self.suffix, &survey.suffix_commands()[0], &survey,
-            ).expect("actual issued suffix declaration");
+                source, analysis, command, &survey,
+            ).expect("actual cut-owned declaration");
             let span = declaration.body().content_span();
             let layout = declaration.into_body_layout(&survey).unwrap();
-            let walk = crate::refactor::FrameWalk::new(self.source, &self.suffix).unwrap();
-            let commands = walk.segment_nested(&self.source[span.as_range()], span.start());
-            let mut tokens = walk.tokens(self.source, &commands[0]);
+            let commands = walk.segment_nested(&source[span.as_range()], span.start());
+            let mut tokens = walk.tokens(source, &commands[0]);
             layout
-                .stamp_original_tokens(self.source, &self.suffix, &mut tokens)
+                .stamp_original_tokens(source, analysis, &mut tokens)
                 .unwrap();
             check(&layout, &tokens);
         }
@@ -1590,6 +1622,68 @@ mod tests {
                 )
                 .is_err(),
                 "reference-origin selection cannot retarget an inherited declaration"
+            );
+        });
+    }
+
+    #[test]
+    fn cut_body_result_coverage_keeps_inherited_purpose_and_selects_registered_result() {
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {return ROOT}",
+            "proc helper {} {return VALUE}",
+        );
+        fixture.with_body_layout(Some(0), |layout, tokens| {
+            let before = tokens.source_binding.clone();
+            assert!(tcl_compiler::registry_invocation::original_authored_result_completion_for_source_coverage(
+                fixture.child_source, &fixture.child, tokens,
+            ).is_none());
+            let coverage = layout.result_completion_coverage(fixture.child_source, &fixture.child, tokens)
+                .expect("same captured child row and actual registered result contract");
+            assert!(coverage.is_for_analysis(&fixture.child));
+            assert_eq!(coverage.invocation().written_argument_roles(), [(0, tcl_registry::ArgRole::Result)]);
+            assert_eq!(coverage.invocation().facts.native_result,
+                Some(tcl_registry::native_result::NativeResultContract::ReturnResult));
+            assert!(tokens.source_binding == before);
+            assert!(!tokens.source_binding.as_ref().unwrap().unobserved_native_dispatch());
+            assert!(fixture.child.original_completed_command_world().is_none());
+            assert!(tcl_compiler::registry_invocation::original_authored_result_completion_for_source_coverage(
+                fixture.child_source, &fixture.child, tokens,
+            ).is_none());
+            let foreign = fixture.child.clone();
+            assert!(layout.result_completion_coverage(fixture.child_source, &foreign, tokens).is_none());
+            assert!(layout.result_completion_coverage(&format!("{}\n", fixture.child_source), &fixture.child, tokens).is_none());
+        });
+    }
+
+    #[test]
+    fn cut_body_result_coverage_refuses_options_dynamic_argv_and_replaced_handlers() {
+        for body in [
+            "return -code error E",
+            "return -level 2 X",
+            "return $unknown",
+            "return [set x VALUE]",
+            "return {*}$args",
+        ] {
+            let child = Box::leak(format!("proc helper {{}} {{{body}}}").into_boxed_str());
+            let fixture = Fixture::new("source child.tcl; proc run {} {return ROOT}", child);
+            fixture.with_body_layout(Some(0), |layout, tokens| {
+                assert!(
+                    layout
+                        .result_completion_coverage(fixture.child_source, &fixture.child, tokens)
+                        .is_none(),
+                    "{body}"
+                );
+            });
+        }
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {return ROOT}",
+            "proc return args {error custom}; proc helper {} {return VALUE}",
+        );
+        fixture.with_body_layout(Some(1), |layout, tokens| {
+            assert!(
+                layout
+                    .result_completion_coverage(fixture.child_source, &fixture.child, tokens)
+                    .is_none()
             );
         });
     }
