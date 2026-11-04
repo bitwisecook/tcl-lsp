@@ -183,6 +183,16 @@ write's unresolved effects remain attached even with a literal payload; remainin
 earlier uncertainty refuses navigation. Non-ASCII source geometry does not discharge
 that debt.
 
+Source-view hover rejoins the exact retained procedure declaration and every
+physical ancestor before rendering. Source schema, selected root-special-variable
+and local class/member declaration cards keep their own current source metadata;
+region cards must belong to the issued region. An incomplete source graph can
+still provide explicitly qualified documentation from an independently current
+whole-original source owner, without procedure/alias lookup or runtime selection.
+Positive original source cards or inherited interpretations select this route.
+Declining it supplies no absence or completion fact to independently guarded
+ordinary hover providers.
+
 Logical semantic class-body context reads the name operand from the actual
 selected definition grammar's `command_installation` descriptor. A generic
 `Name` argument role is not required to rediscover that independently authored
