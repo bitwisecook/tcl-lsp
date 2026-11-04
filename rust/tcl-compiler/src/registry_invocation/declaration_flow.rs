@@ -413,7 +413,7 @@ pub(crate) fn declaration_dictionary_scope_advice(
 }
 
 fn declared_lookup_stable(facts: &tcl_registry::InvocationFacts) -> bool {
-    use tcl_registry::world_effect::{CallbackKinds, EffectAccessMode, WorldStateDomain};
+    use tcl_registry::world_effect::CallbackKinds;
     #[cfg(debug_assertions)]
     let trace = |reason: &str| {
         if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
@@ -441,6 +441,21 @@ fn declared_lookup_stable(facts: &tcl_registry::InvocationFacts) -> bool {
         trace("callback-host");
         return false;
     }
+    source_advice_has_no_declared_lookup_mutation_with(facts, trace)
+}
+
+/// Source-schema mutation footprint only; callbacks keep independent obligations.
+pub(crate) fn source_advice_has_no_declared_lookup_mutation(
+    facts: &tcl_registry::InvocationFacts,
+) -> bool {
+    source_advice_has_no_declared_lookup_mutation_with(facts, |_| {})
+}
+
+fn source_advice_has_no_declared_lookup_mutation_with(
+    facts: &tcl_registry::InvocationFacts,
+    trace: impl Fn(&str),
+) -> bool {
+    use tcl_registry::world_effect::{EffectAccessMode, WorldStateDomain};
     if facts
         .state_transitions
         .declared()

@@ -514,6 +514,7 @@ impl AdviceInvocationContext<'_> {
         let Some(offset) = native.first().map(|word| word.span().start()) else {
             return;
         };
+        self.retain_native_autoload_source(tape, graph, native, written);
         let receipt = super::native_declared_body::OriginalNativeSourceMayCommand {
             original: Arc::from(native),
             head: head.clone(),

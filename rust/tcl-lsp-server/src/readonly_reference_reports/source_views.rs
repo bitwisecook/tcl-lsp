@@ -3329,6 +3329,17 @@ impl Backend {
         &self,
         ids: &[OriginalSourceViewId],
         revision: Option<u64>,
+        render: impl FnMut(&[Arc<PublishedOriginalSourceView>]) -> Option<T>,
+    ) -> DocumentSourceResult<Option<T>> {
+        self.with_selected_original_source_views_and_provider_headers(ids, revision, &[], render)
+            .await
+    }
+
+    async fn with_selected_original_source_views_and_provider_headers<T>(
+        &self,
+        ids: &[OriginalSourceViewId],
+        revision: Option<u64>,
+        providers: &[ConditionalAutoloadProvider],
         mut render: impl FnMut(&[Arc<PublishedOriginalSourceView>]) -> Option<T>,
     ) -> DocumentSourceResult<Option<T>> {
         let views = {
@@ -3352,23 +3363,50 @@ impl Backend {
         };
         let epoch = first.draft.producer.seed.analyser_inputs_epoch;
         let factory = first.draft.producer.seed.class_factory_generation;
-        let publications = views
+        let mut publications = views
             .iter()
             .map(|view| &view.draft.physical.publication)
             .collect::<Vec<_>>();
-        let Some(saved) = self.readonly_saved_sources(&publications).await? else {
-            return Ok(None);
-        };
-        let saved = saved
-            .iter()
-            .map(|source| (source.admission.as_ref(), source.bytes.as_slice()))
-            .collect::<Vec<_>>();
-        let admissions = views
+        publications.extend(
+            providers
+                .iter()
+                .map(|provider| &provider.source.publication),
+        );
+        let mut admissions = views
             .iter()
             .map(|view| view.draft.physical.admission.as_ref())
             .collect::<Vec<_>>();
+        admissions.extend(
+            providers
+                .iter()
+                .map(|provider| provider.source.admission.as_ref()),
+        );
+        let saved = if providers.is_empty() {
+            // Preserve the established ordinary navigation/reference/edit lease.
+            // Its separate currency audit is outside this conditional purpose.
+            let Some(saved) = self.readonly_saved_sources(&publications).await? else {
+                return Ok(None);
+            };
+            saved
+                .into_iter()
+                .map(|source| (source.admission, Arc::<[u8]>::from(source.bytes)))
+                .collect()
+        } else {
+            let Some(saved) = Self::conditional_autoload_saved_sources(&publications, &admissions)
+            else {
+                return Ok(None);
+            };
+            saved
+        };
+        let saved = saved
+            .iter()
+            .map(|(admission, bytes)| (admission.as_ref(), bytes.as_ref()))
+            .collect::<Vec<_>>();
         self.with_current_readonly_source_state(epoch, factory, &admissions, Some(&saved),
-            |state| views.iter().all(|view| view.draft.matches_physical_state(state, epoch, factory)).then_some(()),
+            |state| (views.iter().all(|view| view.draft.matches_physical_state(state, epoch, factory))
+                && providers.iter().all(|provider| provider.source.matches_current_snapshot(
+                    state.uri_generations, state.open, state.db, state.files, state.published,
+                ) && original_readonly_analysis_matches_input(&provider.source.source, &provider.analysis, &provider.source.input))).then_some(()),
             |_, ()| {
                 let _publication = self.rehoming_gate.try_lock().ok()?;
                 let table = self.original_source_views.try_lock().ok()?;
@@ -3753,22 +3791,60 @@ impl Backend {
         let uri = uri.clone();
         let computed = self
             .compute_original_source_views(&ids, move |views| {
-                Some(Self::calculate_original_source_navigation(
+                let ordinary = Self::calculate_original_source_navigation(
                     views,
                     &uri,
                     position,
                     references,
                     aggregate_complete,
                     &partial_definition_groups,
-                ))
+                );
+                let conditional = if ordinary.is_none()
+                    && references.is_none()
+                    && aggregate_complete
+                {
+                    let (publications, ancestors) = Self::original_source_view_labels(views)?;
+                    let inventory =
+                        Self::original_source_view_inventory(views, &publications, &ancestors);
+                    let source = views.iter().find(|view| view.draft.physical.uri == uri)?;
+                    let source = &source.draft.physical.source;
+                    let lines = tcl_lexer::LineIndex::new_lsp(source);
+                    let offset = lines.offset_at_utf16(
+                        position.line,
+                        tcl_lexer::Utf16Col::new(position.character),
+                        source,
+                    );
+                    let exact = lines.position_at_utf16(offset, source);
+                    if exact.line != position.line || exact.character.get() != position.character {
+                        return Some((ordinary, None));
+                    }
+                    tcl_lsp_core::original_source_views::conditional_external_autoload_requests(
+                        uri.as_str(),
+                        offset,
+                        &inventory,
+                    )
+                } else {
+                    None
+                };
+                Some((ordinary, conditional))
             })
             .await?;
-        let Some((owners, output)) = computed else {
-            // The initial owner lease can be refused just like the final
-            // currency join. Reconcile again within the caller's budget.
+        let Some((owners, (ordinary, conditional))) = computed else {
+            // Retain the existing bounded retry behavior for an initial lease.
             return Ok(None);
         };
-        let Some(output) = output else {
+        let output = if let Some(output) = ordinary {
+            output
+        } else if let Some(requests) = conditional {
+            let Some(locations) = self
+                .conditional_source_view_autoload_locations(&ids, &owners, &requests)
+                .await?
+            else {
+                return Ok(Some(std::ops::ControlFlow::Break(None)));
+            };
+            // The provider and view leases have already been joined together.
+            return Ok(Some(std::ops::ControlFlow::Break(Some(locations))));
+        } else {
             return Ok(Some(std::ops::ControlFlow::Break(None)));
         };
         let mut output = Some(output);
@@ -4261,6 +4337,186 @@ impl Backend {
                     .iter()
                     .any(|new| old.id == new.id && old.draft.same_live_producer(&new.draft))
             })
+    }
+}
+
+/// Independent current provider header for conditional deferred-body advice.
+/// It is not installed in a source view or promoted to a runtime binding.
+struct ConditionalAutoloadProvider {
+    source: ReadonlySourceDocument,
+    analysis: Arc<tcl_compiler::analyser::AnalysisResult>,
+}
+
+impl Backend {
+    fn conditional_autoload_saved_sources(
+        publications: &[&super::super::LibraryPublicationSource],
+        admissions: &[&super::super::DocumentPathAdmission],
+    ) -> Option<Vec<(Arc<super::super::DocumentPathAdmission>, Arc<[u8]>)>> {
+        (publications.len() == admissions.len()).then_some(())?;
+        let mut saved = Vec::new();
+        for (publication, expected) in publications.iter().zip(admissions) {
+            if publication.open_revision.is_some() {
+                continue;
+            }
+            // Only this publication's original bytes can lease its producer.
+            // Equal normalized text from a later read cannot renew the receipt.
+            let admission = publication.document.path_admission.as_ref()?;
+            let bytes = publication.document.saved_source_bytes.as_ref()?;
+            if admission.as_ref() != *expected || admission.uri() != &publication.uri {
+                return None;
+            }
+            saved.push((Arc::clone(admission), Arc::clone(bytes)));
+        }
+        Some(saved)
+    }
+
+    async fn capture_conditional_autoload_providers(
+        &self,
+        files: Vec<std::path::PathBuf>,
+    ) -> DocumentSourceResult<Option<Vec<ConditionalAutoloadProvider>>> {
+        // Materialise all actual provider inputs before capturing their common
+        // final readonly revision. No index/header publication is fabricated.
+        let mut analysed = Vec::new();
+        for file in files {
+            let Some(uri) = crate::canonical_file_uri(&file) else {
+                return Ok(None);
+            };
+            let Some(document) = self.read_document(&uri).await? else {
+                return Ok(None);
+            };
+            let analysis = self
+                .analysis_for(&uri, Arc::clone(&document.text), document.dialect)
+                .await?;
+            analysed.push((uri, document.text, analysis));
+        }
+        let mut providers = Vec::new();
+        for (uri, source, analysis) in analysed {
+            let Some(captured) = self
+                .capture_readonly_source_document(uri.as_str(), source)
+                .await?
+            else {
+                return Ok(None);
+            };
+            if !original_readonly_analysis_matches_input(
+                &captured.source,
+                &analysis,
+                &captured.input,
+            ) {
+                return Ok(None);
+            }
+            providers.push(ConditionalAutoloadProvider {
+                source: captured,
+                analysis,
+            });
+        }
+        Ok(Some(providers))
+    }
+
+    fn conditional_autoload_provider_headers<'a>(
+        providers: &'a [ConditionalAutoloadProvider],
+        files: &[Uri],
+    ) -> Vec<tcl_lsp_core::original_declaration::OriginalDeclarationDocument<'a>> {
+        providers
+            .iter()
+            .filter(|provider| files.contains(&provider.source.uri))
+            .map(
+                |provider| tcl_lsp_core::original_declaration::OriginalDeclarationDocument {
+                    uri: provider.source.uri.as_str(),
+                    source: &provider.source.source,
+                    analysis: &provider.analysis,
+                },
+            )
+            .collect()
+    }
+
+    /// Read only real configured index candidates after exact view capture.
+    /// Query and provider owners survive every await and rejoin atomically.
+    async fn conditional_source_view_autoload_locations(
+        &self,
+        projection: &OriginalSourceScopeProjection,
+        owners: &[Arc<PublishedOriginalSourceView>],
+        requests: &[tcl_lsp_core::original_source_views::ConditionalExternalAutoloadRequest],
+    ) -> DocumentSourceResult<Option<Vec<tower_lsp_server::ls_types::Location>>> {
+        if requests.is_empty() {
+            return Ok(None);
+        }
+        // Join actual configured-index discovery, as the ordinary library
+        // request does, before retaining its resolver generation.
+        drop(self.workspace_scan_gate.lock().await);
+        let (files, request_files, revision) = {
+            let resolver = self.package_resolver.read().await;
+            let mut files = Vec::new();
+            let mut request_files = Vec::new();
+            for request in requests {
+                let candidates = request.files(&resolver);
+                if candidates.is_empty() {
+                    return Ok(None);
+                }
+                request_files.push(
+                    candidates
+                        .iter()
+                        .map(|file| crate::canonical_file_uri(file))
+                        .collect::<Option<Vec<_>>>(),
+                );
+                for file in candidates {
+                    if !files.contains(&file) {
+                        files.push(file);
+                    }
+                }
+            }
+            let Some(request_files) = request_files.into_iter().collect::<Option<Vec<_>>>() else {
+                return Ok(None);
+            };
+            (files, request_files, resolver.revision())
+        };
+        let Some(providers) = self.capture_conditional_autoload_providers(files).await? else {
+            return Ok(None);
+        };
+        self.with_selected_original_source_views_and_provider_headers(
+            &projection.ids,
+            Some(projection.revision),
+            &providers,
+            |views| {
+                Self::same_original_source_view_inventory(owners, views).then_some(())?;
+                let resolver = self.package_resolver.try_read().ok()?;
+                (resolver.revision() == revision).then_some(())?;
+                let (publications, ancestors) = Self::original_source_view_labels(views)?;
+                let inventory =
+                    Self::original_source_view_inventory(views, &publications, &ancestors);
+                let mut selected = None;
+                for (request, files) in requests.iter().zip(&request_files) {
+                    // Joint physical leasing does not let an interpretation
+                    // borrow a header from another request's indexed file.
+                    let headers = Self::conditional_autoload_provider_headers(&providers, files);
+                    let header =
+                        tcl_lsp_core::original_source_views::conditional_external_autoload_header(
+                            request, &inventory, &headers,
+                        )?;
+                    if selected.as_ref().is_some_and(|old: &tcl_lsp_core::original_source_views::ConditionalExternalSourceHeader| old.declaration() != header.declaration()) {
+                        return None;
+                    }
+                    selected = Some(header);
+                }
+                let header = selected?;
+                let identity = header.declaration();
+                let provider = providers
+                    .iter()
+                    .find(|provider| provider.source.uri.as_str() == identity.uri())?;
+                identity
+                    .is_current(identity.uri(), &provider.source.source, &provider.analysis)
+                    .then_some(())?;
+                let range = tcl_lsp_core::definition::span_to_range(
+                    &provider.source.source,
+                    &tcl_lexer::LineIndex::new_lsp(&provider.source.source),
+                    identity.span(),
+                );
+                Some(vec![tower_lsp_server::ls_types::Location {
+                    uri: provider.source.uri.clone(),
+                    range: super::super::lift_lsp_range(range),
+                }])
+            },
+        )
+        .await
     }
 }
 
@@ -6124,5 +6380,328 @@ mod closed_source_child_ingress_tests {
         let view = child_view(&fixture, &backend).await;
         assert_eq!(view.draft.physical.source.as_ref(), unsaved);
         assert!(view.draft.physical.publication.open_revision.is_some());
+    }
+
+    const AUTO_MAIN: &str = "source lib/helpers.tcl\n\nproc run {} {\n    puts [greet_helper world]\n    puts [mypkg_autoloaded]\n}\n";
+    const AUTO_HELPER: &str = "proc greet_helper {who} {\n    return \"hi $who\"\n}\n";
+    const AUTO_IMPL: &str = "proc mypkg_autoloaded {} {\n    return 42\n}\n";
+    const AUTO_INDEX: &str = "# Tcl autoload index file, version 2.0\nset auto_index(mypkg_autoloaded) [list source [file join $dir impl.tcl]]\n";
+    const AUTO_URI: &str = "file:///ws/main.tcl";
+    const AUTO_PROVIDER: &str = "file:///ws/tmp/mypkg/impl.tcl";
+
+    fn conditional_autoload_protocol(
+        source: &str,
+    ) -> (SourceProtocol, Arc<crate::vfs::MemoryStore>) {
+        let store = Arc::new(crate::vfs::MemoryStore::new());
+        for (uri, path, text) in [
+            (AUTO_URI, "/ws/main.tcl", source),
+            (
+                "file:///ws/lib/helpers.tcl",
+                "/ws/lib/helpers.tcl",
+                AUTO_HELPER,
+            ),
+            (
+                "file:///ws/tmp/mypkg/tclIndex",
+                "/ws/tmp/mypkg/tclIndex",
+                AUTO_INDEX,
+            ),
+            (AUTO_PROVIDER, "/ws/tmp/mypkg/impl.tcl", AUTO_IMPL),
+        ] {
+            store.upsert_uri(uri, path, text.as_bytes().to_vec());
+        }
+        assert_eq!(store.len(), 4);
+        let backend_store: Arc<dyn crate::vfs::SourceStore> = store.clone();
+        let (service, socket) =
+            LspService::new(move |client| Backend::with_store(client, backend_store));
+        let backend = service.inner().clone();
+        let (mut outgoing, mut responses) = socket.split();
+        let responder = tokio::spawn(async move {
+            while let Some(request) = outgoing.next().await {
+                let (method, id, params) = request.into_parts();
+                if let Some(id) = id {
+                    let result = if method == "workspace/configuration" {
+                        serde_json::Value::Array(
+                            params.unwrap()["items"]
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .map(|_| serde_json::json!({}))
+                                .collect(),
+                        )
+                    } else {
+                        serde_json::Value::Null
+                    };
+                    responses.send(Response::from_ok(id, result)).await.unwrap();
+                }
+            }
+        });
+        let service =
+            service.map_request(crate::service::normalise_request_uris as fn(Request) -> Request);
+        (
+            SourceProtocol {
+                service: crate::transport_liveness::DeferredConcurrency::new(
+                    service,
+                    crate::transport_liveness::DEFAULT_HANDLER_CONCURRENCY,
+                ),
+                backend,
+                responder,
+                startup: Vec::new(),
+                serial: 0,
+            },
+            store,
+        )
+    }
+
+    async fn start_conditional_autoload(protocol: &mut SourceProtocol, source: &str) {
+        let _=protocol.request("initialize",serde_json::json!({
+            "processId":null,"rootUri":"file:///ws","workspaceFolders":[{"uri":"file:///ws","name":"ws"}],
+            "capabilities":{"general":{"positionEncodings":["utf-16"]},"workspace":{"configuration":true,"symbol":{}},"textDocument":{"definition":{"linkSupport":false},"publishDiagnostics":{}}}
+        })).await;
+        protocol.notify("initialized", serde_json::json!({})).await;
+        assert!(
+            tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                protocol.backend.workspace_scan_ready.wait()
+            )
+            .await
+            .unwrap()
+        );
+        protocol.notify("textDocument/didOpen",serde_json::json!({"textDocument":{"uri":AUTO_URI,"languageId":"tcl","version":1,"text":source}})).await;
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert!(
+            !protocol
+                .backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(AUTO_PROVIDER)
+        );
+    }
+
+    async fn conditional_autoload_definition(
+        protocol: &mut SourceProtocol,
+        source: &str,
+    ) -> serde_json::Value {
+        let offset = source.rfind("mypkg_autoloaded").unwrap();
+        let position = tcl_lexer::LineIndex::new_lsp(source)
+            .position_at_utf16(u32::try_from(offset + 4).unwrap(), source);
+        protocol.request("textDocument/definition",serde_json::json!({"textDocument":{"uri":AUTO_URI},"position":{"line":position.line,"character":position.character.get()}})).await
+    }
+
+    fn has_conditional_autoload_provider(result: &serde_json::Value) -> bool {
+        result.as_array().is_some_and(|rows| {
+            rows.iter().any(|row| {
+                row["uri"] == AUTO_PROVIDER
+                    && row["range"]["start"]["line"] == 0
+                    && row["range"]["start"]["character"] == 5
+            })
+        })
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn conditional_external_source_autoload_preserves_first_browser_sequence() {
+        let (mut protocol, _store) = conditional_autoload_protocol(AUTO_MAIN);
+        start_conditional_autoload(&mut protocol, AUTO_MAIN).await;
+        let helper=protocol.request("textDocument/definition",serde_json::json!({"textDocument":{"uri":AUTO_URI},"position":{"line":3,"character":14}})).await;
+        let _symbols = protocol
+            .request(
+                "workspace/symbol",
+                serde_json::json!({"query":"greet_helper"}),
+            )
+            .await;
+        let first = conditional_autoload_definition(&mut protocol, AUTO_MAIN).await;
+        assert_eq!(protocol.serial, 4);
+        protocol.finish().await;
+        assert!(
+            helper.as_array().is_some_and(|rows| rows
+                .iter()
+                .any(|row| row["uri"] == "file:///ws/lib/helpers.tcl")),
+            "{helper}"
+        );
+        assert!(
+            has_conditional_autoload_provider(&first),
+            "first id4 external SOURCE candidate: {first}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn conditional_external_source_autoload_first_query_keeps_provider_currency() {
+        let (mut protocol, store) = conditional_autoload_protocol(AUTO_MAIN);
+        start_conditional_autoload(&mut protocol, AUTO_MAIN).await;
+        let first = conditional_autoload_definition(&mut protocol, AUTO_MAIN).await;
+        let unchanged = conditional_autoload_definition(&mut protocol, AUTO_MAIN).await;
+        store.upsert_uri(
+            AUTO_PROVIDER,
+            "/ws/tmp/mypkg/impl.tcl",
+            b"proc replaced_header {} {}\n".to_vec(),
+        );
+        let changed = conditional_autoload_definition(&mut protocol, AUTO_MAIN).await;
+        protocol.finish().await;
+        assert!(has_conditional_autoload_provider(&first), "{first}");
+        assert!(
+            has_conditional_autoload_provider(&unchanged),
+            "unchanged repeat is the currency prerequisite: {unchanged}"
+        );
+        assert!(
+            !has_conditional_autoload_provider(&changed),
+            "changed provider: {changed}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn conditional_external_source_autoload_keeps_shadow_rename_unknown_and_dynamic_barriers()
+    {
+        for body in [
+            "proc mypkg_autoloaded {} {}; puts [mypkg_autoloaded]",
+            "proc held {} {}; rename held mypkg_autoloaded; puts [mypkg_autoloaded]",
+            "rename mypkg_autoloaded removed; puts [mypkg_autoloaded]",
+            "mystery; puts [mypkg_autoloaded]",
+            "puts [mystery]; puts [mypkg_autoloaded]",
+            "puts [mypkg_autoloaded $arg]",
+        ] {
+            let source = format!("source lib/helpers.tcl\nproc run {{arg}} {{{body}}}\n");
+            let (mut protocol, _store) = conditional_autoload_protocol(&source);
+            start_conditional_autoload(&mut protocol, &source).await;
+            let result = conditional_autoload_definition(&mut protocol, &source).await;
+            protocol.finish().await;
+            assert!(
+                !has_conditional_autoload_provider(&result),
+                "{source}: {result}"
+            );
+        }
+    }
+    #[tokio::test]
+    async fn conditional_external_source_autoload_preserves_original_saved_byte_receipts() {
+        let (protocol, store) = conditional_autoload_protocol(AUTO_MAIN);
+        let providers = protocol
+            .backend
+            .capture_conditional_autoload_providers(vec![std::path::PathBuf::from(
+                "/ws/tmp/mypkg/impl.tcl",
+            )])
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(providers.len(), 1);
+        let provider = &providers[0];
+        let publications = [&provider.source.publication];
+        let admissions = [provider.source.admission.as_ref()];
+        let saved = Backend::conditional_autoload_saved_sources(&publications, &admissions)
+            .expect("original closed-file byte receipt");
+        assert_eq!(saved[0].1.as_ref(), AUTO_IMPL.as_bytes());
+        let selected = saved
+            .iter()
+            .map(|(admission, bytes)| (admission.as_ref(), bytes.as_ref()))
+            .collect::<Vec<_>>();
+        assert!(
+            super::super::super::DocumentPathAdmission::with_current_saved_sources(
+                &selected,
+                store.as_ref(),
+                || true
+            )
+            .unwrap()
+        );
+        let changed = AUTO_IMPL.replace('\n', "\r");
+        assert_eq!(tcl_lexer::normalise_lone_cr(&changed).as_ref(), AUTO_IMPL);
+        store.upsert_uri(
+            AUTO_PROVIDER,
+            "/ws/tmp/mypkg/impl.tcl",
+            changed.into_bytes(),
+        );
+        // The actual original publication keeps its original bytes, even when
+        // a newer read would normalise to precisely the same analysis source.
+        let retained =
+            Backend::conditional_autoload_saved_sources(&publications, &admissions).unwrap();
+        assert_eq!(retained[0].1.as_ref(), AUTO_IMPL.as_bytes());
+        assert!(
+            super::super::super::DocumentPathAdmission::with_current_saved_sources(
+                &selected,
+                store.as_ref(),
+                || true
+            )
+            .is_err()
+        );
+        protocol.finish().await;
+    }
+
+    #[tokio::test]
+    async fn conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers() {
+        let (protocol, store) = conditional_autoload_protocol(AUTO_MAIN);
+        store.upsert_uri(
+            "file:///ws/tmp/mypkg/other.tcl",
+            "/ws/tmp/mypkg/other.tcl",
+            b"proc unrelated_header {} {}\n".to_vec(),
+        );
+        let providers = protocol
+            .backend
+            .capture_conditional_autoload_providers(vec![
+                std::path::PathBuf::from("/ws/tmp/mypkg/other.tcl"),
+                std::path::PathBuf::from("/ws/tmp/mypkg/impl.tcl"),
+            ])
+            .await
+            .unwrap()
+            .unwrap();
+        let first_files = ["file:///ws/tmp/mypkg/other.tcl".parse::<Uri>().unwrap()];
+        let second_files = [AUTO_PROVIDER.parse::<Uri>().unwrap()];
+        let first = Backend::conditional_autoload_provider_headers(&providers, &first_files);
+        let second = Backend::conditional_autoload_provider_headers(&providers, &second_files);
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        let caller_source = "proc run {} {puts [mypkg_autoloaded]}";
+        let caller = tcl_compiler::analyser::Analyser::new().analyse(caller_source, "tcl8.6");
+        let publication =
+            tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(91_u8);
+        let documents = [
+            tcl_lsp_core::original_source_views::OriginalSourceViewDocument {
+                publication: &publication,
+                document: tcl_lsp_core::original_declaration::OriginalDeclarationDocument {
+                    uri: AUTO_URI,
+                    source: caller_source,
+                    analysis: &caller,
+                },
+                region: None,
+                ancestors: &[],
+            },
+        ];
+        let at = u32::try_from(caller_source.find("mypkg_autoloaded").unwrap() + 4).unwrap();
+        let requests = tcl_lsp_core::original_source_views::conditional_external_autoload_requests(
+            AUTO_URI, at, &documents,
+        )
+        .expect("genuine conditional body request");
+        assert_eq!(requests.len(), 1);
+        assert!(
+            tcl_lsp_core::original_source_views::conditional_external_autoload_header(
+                &requests[0],
+                &documents,
+                &second
+            )
+            .is_some(),
+            "the other indexed provider genuinely has the target header"
+        );
+        assert!(
+            tcl_lsp_core::original_source_views::conditional_external_autoload_header(
+                &requests[0],
+                &documents,
+                &first
+            )
+            .is_none(),
+            "this request's own indexed file cannot borrow that header"
+        );
+        assert_eq!(first[0].uri, first_files[0].as_str());
+        assert_eq!(second[0].uri, second_files[0].as_str());
+        assert!(
+            !first[0]
+                .analysis
+                .original_procedure_declarations()
+                .iter()
+                .any(|row| &first[0].source[row.name().span().as_range()] == "mypkg_autoloaded")
+        );
+        assert!(
+            second[0]
+                .analysis
+                .original_procedure_declarations()
+                .iter()
+                .any(|row| &second[0].source[row.name().span().as_range()] == "mypkg_autoloaded")
+        );
+        protocol.finish().await;
     }
 }

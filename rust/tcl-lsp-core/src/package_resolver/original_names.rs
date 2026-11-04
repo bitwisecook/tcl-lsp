@@ -535,6 +535,25 @@ impl PackageResolver {
         Vec::new()
     }
 
+    /// Genuine index files for separately typed conditional deferred-body SOURCE
+    /// advice. These are source header candidates, never a resolved binding or
+    /// proof that auto_load executes at the future body invocation.
+    #[must_use]
+    pub fn resolve_conditional_native_autoload_source(
+        &self,
+        advice: &tcl_compiler::registry_invocation::source_structure::OriginalNativeDeferredAutoloadAdvice,
+    ) -> Vec<PathBuf> {
+        for candidate in advice.candidates() {
+            if let Some(entries) = self
+                .original_auto_index
+                .get(&(advice.name().policy().string_protocol(), candidate.clone()))
+            {
+                return entries.iter().map(|entry| entry.file.clone()).collect();
+            }
+        }
+        Vec::new()
+    }
+
     /// Whether a retained original command can be loaded from a genuine index.
     /// Missing caller scope or source ownership supplies no global fallback.
     #[must_use]

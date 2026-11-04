@@ -188,7 +188,9 @@ pub use source_transition_advice::{
     OriginalAuthoredJimClassCall, OriginalAuthoredJimProcedureMember,
 };
 pub use source_transition_advice::{
+    OriginalNativeDeferredAutoloadAdvice, OriginalNativeDeferredAutoloadObligation,
     OriginalNativeProcedureBodyCommand, OriginalSourceProcedureCall,
+    source_native_deferred_autoload_advice_at,
 };
 pub(crate) use source_transition_advice::{
     OriginalNativeSourceBodyChildren, OriginalSourceCataloguePurpose,

@@ -125,6 +125,14 @@ impl SourceCommandBindings {
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Vec<Arc<OriginalNativeSourceDeclaration>>> {
+        self.original_native_source_declarations_with_query(input, None)
+    }
+
+    fn original_native_source_declarations_with_query(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        query: Option<super::SourceAdviceQuery<'_>>,
+    ) -> Option<Vec<Arc<OriginalNativeSourceDeclaration>>> {
         if input.has_logical_source_name_context()
             || input.has_hosted_source_name_context()
             || self.source_metadata_owner().source_analysis_input() != Some(input)
@@ -134,9 +142,10 @@ impl SourceCommandBindings {
         let analysis_owner = self.original_analysis_owner()?;
         analysis_owner.matches(self, input).then_some(())?;
         let seed = self.original_source_transition_seed()?;
-        let tape = Arc::new(seed.prepare_for(
+        let tape = Arc::new(seed.prepare_for_query(
             input.borrowed_context_registry(),
             super::OriginalSourceCataloguePurpose::CompletePrefix,
+            query,
         )?);
         let inventory = tape.procedure_publications()?;
         if !inventory.matches_source_context(
@@ -254,6 +263,45 @@ impl OriginalNativeProcedureBodyCommand {
         (!head.group().expand).then_some(())?;
         tcl_syntax::word_rules::original_static_word_unicode_value(head)
     }
+    pub(super) fn same_deferred_source_owner(&self, other: &Self) -> bool {
+        let left = &self.owner.declaration;
+        let right = &other.owner.declaration;
+        Arc::ptr_eq(&left.analysis_owner, &right.analysis_owner)
+            && Arc::ptr_eq(&left.site().source, &right.site().source)
+            && left.input == right.input
+            && left.procedure == right.procedure
+            && left.name == right.name
+            && left.formals == right.formals
+            && left.namespace == right.namespace
+            && left.scope == right.scope
+            && self.owner.commands == other.owner.commands
+            && self.original == other.original
+    }
+
+    pub(super) fn deferred_autoload_advice(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> Option<super::OriginalNativeDeferredAutoloadAdvice> {
+        self.caller_declaration(analysis)?;
+        let at = self.original.first()?.span().start();
+        let held = self
+            .owner
+            .tape
+            .native_deferred_autoload_horizons
+            .get(&at)?
+            .as_ref()?;
+        if held.original != self.original
+            || held.body.as_ref() != self.owner.declaration.procedure.body.as_ref()
+            || self.owner.tape.blocks_registry_source(at)
+        {
+            return None;
+        }
+        super::native_autoload_source::OriginalNativeDeferredAutoloadAdvice::capture(
+            self.clone(),
+            held.horizon.clone(),
+        )
+    }
+
     /// Current declaration from this exact retained source body allocation.
     #[must_use]
     pub fn caller_declaration<'a>(
@@ -281,8 +329,26 @@ impl SourceCommandBindings {
         &self,
         input: &crate::analyser::ResolvedAnalysisInput,
     ) -> Option<Vec<OriginalNativeProcedureBodyCommand>> {
+        self.original_native_procedure_body_commands_with_query(input, None)
+    }
+
+    pub(crate) fn original_native_deferred_autoload_body_commands(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<OriginalNativeProcedureBodyCommand>> {
+        self.original_native_procedure_body_commands_with_query(
+            input,
+            Some(super::SourceAdviceQuery::NativeDeferredAutoload),
+        )
+    }
+
+    fn original_native_procedure_body_commands_with_query(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        query: Option<super::SourceAdviceQuery<'_>>,
+    ) -> Option<Vec<OriginalNativeProcedureBodyCommand>> {
         let mut commands = Vec::new();
-        for declaration in self.original_native_source_declarations(input)? {
+        for declaration in self.original_native_source_declarations_with_query(input, query)? {
             let Some(owner) = declaration.children(self, input) else {
                 continue;
             };

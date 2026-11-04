@@ -457,6 +457,210 @@ pub fn references(
     result
 }
 
+/// A conditional external SOURCE header request from one exact deferred body.
+/// This retains unresolved applicability debts. It is not a resolved binding,
+/// runtime lookup/absence, entered frame, Normal result or edit permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConditionalExternalAutoloadRequest {
+    publication: OriginalSourceViewPublication,
+    cursor: u32,
+    advice:
+        tcl_compiler::registry_invocation::source_structure::OriginalNativeDeferredAutoloadAdvice,
+}
+
+impl ConditionalExternalAutoloadRequest {
+    /// Exact source interpretation that issued the conditional name recipe.
+    #[must_use]
+    pub const fn publication(&self) -> &OriginalSourceViewPublication {
+        &self.publication
+    }
+
+    /// Unresolved conditional applicability; no debt becomes an execution fact.
+    #[must_use]
+    pub fn obligations(&self) -> &[tcl_compiler::registry_invocation::source_structure::OriginalNativeDeferredAutoloadObligation]{
+        self.advice.obligations()
+    }
+
+    /// Real tclIndex source candidates in the canonical C auto-qualify order.
+    /// The files are advice only; their independent current headers remain owed.
+    #[must_use]
+    pub fn files(
+        &self,
+        resolver: &crate::package_resolver::PackageResolver,
+    ) -> Vec<std::path::PathBuf> {
+        resolver.resolve_conditional_native_autoload_source(&self.advice)
+    }
+}
+
+fn conditional_external_request(
+    owner: &OriginalSourceViewDocument<'_>,
+    cursor: u32,
+) -> Option<ConditionalExternalAutoloadRequest> {
+    owner.current()?;
+    // An interrupted physical prefix cannot donate a later inherited body.
+    // A region has its own genuine issuer; an ordinary root must be complete.
+    if owner.region.is_none()
+        && owner
+            .document
+            .analysis
+            .original_completed_command_world()
+            .is_none()
+    {
+        return None;
+    }
+    let advice = tcl_compiler::registry_invocation::source_structure::source_native_deferred_autoload_advice_at(
+        owner.document.source, owner.document.analysis, cursor,
+    )?;
+    if !advice.is_for_analysis(owner.document.analysis) {
+        return None;
+    }
+    let caller = advice.caller_declaration(owner.document.analysis)?;
+    let head = advice.name().span();
+    if !owner.owns_command(caller.declaration_site().offset)
+        || !(head.start() <= cursor && cursor < head.end())
+    {
+        return None;
+    }
+    Some(ConditionalExternalAutoloadRequest {
+        publication: owner.publication.clone(),
+        cursor,
+        advice,
+    })
+}
+
+/// Select conditional external header recipes by the genuine declaring-body
+/// owner. A suffix can claim only its own sealed body; URI/ranges alone cannot
+/// select or manufacture an inherited interpretation.
+#[must_use]
+pub fn conditional_external_autoload_requests(
+    uri: &str,
+    cursor: u32,
+    documents: &[OriginalSourceViewDocument<'_>],
+) -> Option<Vec<ConditionalExternalAutoloadRequest>> {
+    let mut claimed = Vec::new();
+    for owner in documents.iter().filter(|owner| owner.document.uri == uri) {
+        owner.current()?;
+        // Discover body ownership before checking issuance eligibility. An
+        // incomplete interpretation that owns this cursor must not disappear
+        // from the selected set and let a different interpretation answer.
+        let commands = tcl_compiler::registry_invocation::source_structure::source_native_procedure_body_commands(
+            owner.document.source, owner.document.analysis,
+        )?;
+        // This phase/caller membership is selection only. It grants no lookup
+        // and cannot turn a refused most-specific recipe into an ancestor one.
+        let owns_body = commands.iter().any(|command| {
+            let words = command.original_words();
+            let Some(first) = words.first() else {
+                return false;
+            };
+            let Some(last) = words.last() else {
+                return false;
+            };
+            let Some(caller) = command.caller_declaration(owner.document.analysis) else {
+                return false;
+            };
+            first.span().start() <= cursor
+                && cursor < last.span().end()
+                && owner.owns_command(caller.declaration_site().offset)
+        });
+        if owns_body {
+            claimed.push(owner);
+        }
+    }
+    let mut result = Vec::new();
+    for owner in &claimed {
+        if claimed
+            .iter()
+            .any(|child| child.ancestors.contains(owner.publication))
+        {
+            continue;
+        }
+        let request = conditional_external_request(owner, cursor)?;
+        if result
+            .iter()
+            .any(|old: &ConditionalExternalAutoloadRequest| old.publication == request.publication)
+        {
+            return None;
+        }
+        result.push(request);
+    }
+    (!result.is_empty()).then_some(result)
+}
+
+/// A conditional external SOURCE-header association, explicitly separate from
+/// an original call's resolved binding or entered implementation allocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConditionalExternalSourceHeader {
+    request: ConditionalExternalAutoloadRequest,
+    declaration: OriginalDeclarationIdentity,
+}
+
+impl ConditionalExternalSourceHeader {
+    /// Retained conditional purpose and its unresolved applicability debts.
+    #[must_use]
+    pub const fn request(&self) -> &ConditionalExternalAutoloadRequest {
+        &self.request
+    }
+
+    /// Independent current source declaration only; this is no call binding.
+    #[must_use]
+    pub const fn declaration(&self) -> &OriginalDeclarationIdentity {
+        &self.declaration
+    }
+}
+
+/// Match one conditional body name to independently current external SOURCE
+/// headers. This does not promote the advice to the call's runtime binding.
+/// The caller must retain/rejoin both producer and provider physical leases.
+#[must_use]
+pub fn conditional_external_autoload_header(
+    request: &ConditionalExternalAutoloadRequest,
+    documents: &[OriginalSourceViewDocument<'_>],
+    providers: &[crate::original_declaration::OriginalDeclarationDocument<'_>],
+) -> Option<ConditionalExternalSourceHeader> {
+    let mut owners = documents
+        .iter()
+        .filter(|owner| owner.publication == &request.publication);
+    let owner = owners.next()?;
+    owners.next().is_none().then_some(())?;
+    if conditional_external_request(owner, request.cursor).as_ref() != Some(request) {
+        return None;
+    }
+    let registry = owner.document.analysis.resolved_registry()?;
+    let mut headers = Vec::new();
+    for provider in providers {
+        if provider.uri == owner.document.uri {
+            return None;
+        }
+        crate::original_context::CurrentSourceContext::capture(provider.source, provider.analysis)?;
+        for row in provider.analysis.original_procedure_declarations() {
+            let identity = OriginalDeclarationIdentity::for_procedure(
+                provider.uri,
+                provider.source,
+                provider.analysis,
+                row,
+            );
+            headers.push((row.name().clone(), identity));
+        }
+        for row in provider.analysis.original_class_declarations() {
+            headers.push((row.name().clone(), None));
+        }
+    }
+    let matches = request.advice.matching_external_source_slots(
+        registry,
+        headers
+            .iter()
+            .map(|(name, identity)| (name.slot(), name.policy(), identity.clone())),
+    )?;
+    match matches.as_slice() {
+        [Some(identity)] => Some(ConditionalExternalSourceHeader {
+            request: request.clone(),
+            declaration: identity.clone(),
+        }),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod nested_procedure_navigation_tests {
     use super::*;
@@ -986,5 +1190,269 @@ mod region_call_cursor_tests {
             }];
             assert!(cursor_publications("file:///main.tcl", offset, &stale).is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod conditional_external_autoload_tests {
+    use super::*;
+    use crate::vfs::SourceStore as _;
+    use tcl_compiler::analyser::Analyser;
+
+    const SOURCE: &str = "source lib/helpers.tcl\n\nproc run {} {\n    puts [greet_helper world]\n    puts [mypkg_autoloaded]\n}\n";
+    const CHILD: &str = "proc greet_helper {who} {return \"hi $who\"}\n";
+    const PROVIDER: &str = "proc mypkg_autoloaded {} {return 42}\n";
+
+    fn with_views<R>(
+        source: &str,
+        use_views: impl FnOnce(&[OriginalSourceViewDocument<'_>], &OriginalSourceViewPublication) -> R,
+    ) -> R {
+        let prefix = Analyser::new().analyse(source, "tcl8.6");
+        let load =
+            tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                source, &prefix, 0,
+            )
+            .unwrap();
+        let point = load.source_point_entry(&prefix).unwrap();
+        let child = Analyser::new()
+            .analyse_with_source_point_entry(CHILD, "tcl8.6", &point)
+            .unwrap();
+        let regions = load
+            .conditional_continuation(&prefix, &child)
+            .unwrap()
+            .source_regions(&prefix, &child)
+            .unwrap();
+        assert_eq!(regions.regions().len(), 1);
+        let region = &regions.regions()[0];
+        let suffix = Analyser::new()
+            .analyse_source_region(region, &prefix, &child)
+            .unwrap();
+        let a = OriginalSourceViewPublication::retain(1_u8);
+        let b = OriginalSourceViewPublication::retain(2_u8);
+        let c = OriginalSourceViewPublication::retain(3_u8);
+        let child_parents = [a.clone()];
+        let suffix_parents = [b.clone(), a.clone()];
+        let views = [
+            OriginalSourceViewDocument {
+                publication: &a,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &prefix,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &b,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///helpers.tcl",
+                    source: CHILD,
+                    analysis: &child,
+                },
+                region: None,
+                ancestors: &child_parents,
+            },
+            OriginalSourceViewDocument {
+                publication: &c,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///main.tcl",
+                    source,
+                    analysis: &suffix,
+                },
+                region: Some(region),
+                ancestors: &suffix_parents,
+            },
+        ];
+        use_views(&views, &c)
+    }
+
+    fn cursor(source: &str) -> u32 {
+        u32::try_from(source.rfind("mypkg_autoloaded").unwrap() + 4).unwrap()
+    }
+
+    #[test]
+    fn deferred_body_index_headers_are_conditional_and_keep_exact_view_owners() {
+        with_views(SOURCE, |views, suffix| {
+            let at = cursor(SOURCE);
+            assert!(
+                prepare(suffix, at, views).is_none(),
+                "new advice must not manufacture ordinary binding"
+            );
+            let requests = conditional_external_autoload_requests("file:///main.tcl", at, views)
+                .expect("canonical deferred source recipe");
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0].publication(), suffix);
+            use tcl_compiler::registry_invocation::source_structure::OriginalNativeDeferredAutoloadObligation as Debt;
+            assert!(requests[0].obligations().contains(&Debt::BodyEntry));
+            assert!(requests[0].obligations().contains(&Debt::ActualLookup));
+            assert!(
+                requests[0]
+                    .obligations()
+                    .contains(&Debt::UnknownEarlierMutation)
+            );
+            let store = crate::vfs::MemoryStore::new();
+            store.upsert("/library/impl.tcl", PROVIDER.as_bytes().to_vec());
+            let mut resolver = crate::package_resolver::PackageResolver::default();
+            resolver.add_original_tcl_index("# Tcl autoload index file, version 2.0\nset auto_index(mypkg_autoloaded) [list source [file join $dir impl.tcl]]\n",std::path::Path::new("/library"),&|path|store.is_file(path));
+            assert_eq!(
+                requests[0].files(&resolver),
+                [std::path::PathBuf::from("/library/impl.tcl")]
+            );
+            let provider = Analyser::new().analyse(PROVIDER, "tcl8.6");
+            let headers = [OriginalDeclarationDocument {
+                uri: "file:///library/impl.tcl",
+                source: PROVIDER,
+                analysis: &provider,
+            }];
+            let selected = conditional_external_autoload_header(&requests[0], views, &headers)
+                .expect("conditional external source header");
+            assert_eq!(selected.request(), &requests[0]);
+            assert_eq!(selected.declaration().uri(), headers[0].uri);
+            assert_eq!(selected.declaration().span(), Span::new(5, 21));
+            assert!(prepare(suffix, at, views).is_none());
+        });
+    }
+
+    #[test]
+    fn deferred_body_index_headers_refuse_stale_foreign_and_ambiguous_providers() {
+        with_views(SOURCE, |views, _| {
+            let at = cursor(SOURCE);
+            let requests =
+                conditional_external_autoload_requests("file:///main.tcl", at, views).unwrap();
+            let provider = Analyser::new().analyse(PROVIDER, "tcl8.6");
+            let stale = [OriginalDeclarationDocument {
+                uri: "file:///library/impl.tcl",
+                source: "proc replaced {} {}",
+                analysis: &provider,
+            }];
+            assert!(conditional_external_autoload_header(&requests[0], views, &stale).is_none());
+            let duplicate = Analyser::new().analyse(PROVIDER, "tcl8.6");
+            let headers = [
+                OriginalDeclarationDocument {
+                    uri: "file:///library/impl.tcl",
+                    source: PROVIDER,
+                    analysis: &provider,
+                },
+                OriginalDeclarationDocument {
+                    uri: "file:///other/impl.tcl",
+                    source: PROVIDER,
+                    analysis: &duplicate,
+                },
+            ];
+            assert!(conditional_external_autoload_header(&requests[0], views, &headers).is_none());
+            let caller = views
+                .iter()
+                .find(|view| view.publication == requests[0].publication())
+                .unwrap();
+            let foreign = Analyser::new().analyse(SOURCE, "tcl8.6");
+            let bad = [OriginalSourceViewDocument {
+                publication: caller.publication,
+                document: OriginalDeclarationDocument {
+                    uri: caller.document.uri,
+                    source: SOURCE,
+                    analysis: &foreign,
+                },
+                region: caller.region,
+                ancestors: caller.ancestors,
+            }];
+            assert!(conditional_external_autoload_requests("file:///main.tcl", at, &bad).is_none());
+            let changed = format!("{SOURCE} ");
+            let bad = [OriginalSourceViewDocument {
+                publication: caller.publication,
+                document: OriginalDeclarationDocument {
+                    uri: caller.document.uri,
+                    source: &changed,
+                    analysis: caller.document.analysis,
+                },
+                region: caller.region,
+                ancestors: caller.ancestors,
+            }];
+            assert!(conditional_external_autoload_requests("file:///main.tcl", at, &bad).is_none());
+        });
+    }
+
+    #[test]
+    fn deferred_body_index_headers_preserve_positioned_shadow_and_effect_barriers() {
+        for body in [
+            "proc mypkg_autoloaded {} {}; puts [mypkg_autoloaded]",
+            "rename mypkg_autoloaded removed; puts [mypkg_autoloaded]",
+            "mystery; puts [mypkg_autoloaded]",
+            "puts [mystery]; puts [mypkg_autoloaded]",
+            "puts [mypkg_autoloaded $arg]",
+        ] {
+            let source = format!("source lib/helpers.tcl\nproc run {{arg}} {{{body}}}\n");
+            with_views(&source, |views, _| {
+                assert!(
+                    conditional_external_autoload_requests(
+                        "file:///main.tcl",
+                        cursor(&source),
+                        views
+                    )
+                    .is_none(),
+                    "{source}"
+                );
+            });
+        }
+    }
+    #[test]
+    fn deferred_body_index_headers_do_not_omit_an_owning_incomplete_interpretation() {
+        // A real inherited child has body membership, but no ordinary complete
+        // root world. It must not vanish when a second interpretation answers.
+        let main = "source child.tcl";
+        let child_source = "proc run {} {puts [mypkg_autoloaded]}";
+        let prefix = Analyser::new().analyse(main, "tcl8.6");
+        let load =
+            tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                main, &prefix, 0,
+            )
+            .unwrap();
+        let point = load.source_point_entry(&prefix).unwrap();
+        let child = Analyser::new()
+            .analyse_with_source_point_entry(child_source, "tcl8.6", &point)
+            .unwrap();
+        assert!(child.original_completed_command_world().is_none());
+        let independent = Analyser::new().analyse(child_source, "tcl8.6");
+        let a = OriginalSourceViewPublication::retain(81_u8);
+        let b = OriginalSourceViewPublication::retain(82_u8);
+        let documents = [
+            OriginalSourceViewDocument {
+                publication: &a,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///child.tcl",
+                    source: child_source,
+                    analysis: &independent,
+                },
+                region: None,
+                ancestors: &[],
+            },
+            OriginalSourceViewDocument {
+                publication: &b,
+                document: OriginalDeclarationDocument {
+                    uri: "file:///child.tcl",
+                    source: child_source,
+                    analysis: &child,
+                },
+                region: None,
+                ancestors: &[],
+            },
+        ];
+        let at = cursor(child_source);
+        assert!(
+            conditional_external_autoload_requests("file:///child.tcl", at, &documents[..1])
+                .is_some(),
+            "independent positive prerequisite"
+        );
+        let commands = tcl_compiler::registry_invocation::source_structure::source_native_procedure_body_commands(child_source, &child).expect("real inherited body inventory");
+        assert!(
+            commands.iter().any(|command| command
+                .original_words()
+                .first()
+                .is_some_and(|head| head.span().start() <= at && at < head.span().end())),
+            "incomplete owner genuinely claims clicked head"
+        );
+        assert!(
+            conditional_external_autoload_requests("file:///child.tcl", at, &documents).is_none()
+        );
     }
 }

@@ -20,6 +20,11 @@ pub use package_target_survey::{
     OriginalPackageIndexTargetGuard,
 };
 
+pub use crate::command_binding::{
+    OriginalNativeDeferredAutoloadAdvice, OriginalNativeDeferredAutoloadObligation,
+    source_native_deferred_autoload_advice_at,
+};
+
 use crate::analyser::AnalysisResult;
 use tcl_registry::{CommandRegistry, InvocationArguments};
 

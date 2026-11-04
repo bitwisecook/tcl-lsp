@@ -1140,6 +1140,40 @@ Logical callback source candidates retain the actual selected installer schema, 
 
 Explicit Standalone caller-frame collection retains actual original command words and complete held configuration, unchanged source and argv correspondence, and the selected Registry frame layout over literal, dynamic or expanded operands. A formal source read requires the shared whole-scalar-reference grammar and actual formal membership. Missing or changed original geometry remains opaque; a refused supplied source cannot reopen Standalone analysis.
 
+A separate conditional external-source header purpose may associate a deferred
+Native source head with C library `auto_qualify` keys. Its canonical body walker
+retains the exact original declaration, body, source/input/Registry and namespace,
+ordered command and library coordinates, occupied/deleted/Registry/possible
+occupants, prior original operations and arity debt. A known prior source call
+must retain its actual declaration/body and Registry schema mutation footprint;
+an unknown head, source mutation, script callback or frame-reaching prefix cannot
+borrow the name of a known command. Dynamic or expanded selected argv refuses.
+This receipt inventory is collected only for its explicit deferred-autoload source
+query; ordinary phase/body and source-advice requests keep their existing purpose.
+The recipe keeps body-entry, actual-lookup, observer and deferred-reachability
+obligations. Earlier mutation and unknown namespace-path debts remain explicit;
+they never establish absence or a stable runtime lookup. Candidate keys match
+only separately authenticated external SOURCE headers, with all known occupants
+still terminal. Core must render this relation as conditional source advice and
+retain/rejoin its actual source-view publication and declaring body after awaits.
+The recipe supplies no ordinary lookup, actual autoload, installed binding,
+Normal result, Native frame, code generation, reference census or edit authority.
+
+The host renders deferred-body autoload advice only as a conditional external
+SOURCE-header association. It retains every selected body-owning interpretation,
+including an owning incomplete interpretation that cannot issue a recipe, and
+never substitutes an ancestor or another interpretation for a refusal. Each
+request retains its own actual index-provided file/URI set; a jointly leased
+provider union cannot donate a different request's header. After awaits, the
+exact issuer recipe, source-view inventory and declaring region, resolver
+revision, input/configuration and independent provider analyses rejoin the
+current physical publication lease. Closed sources use the original bytes and
+path admission captured by each publication; a later equal-normalized-text read
+cannot renew it. Missing original byte receipts refuse. This readonly relation
+does not publish the provider in a source view or change ordinary binding,
+reference or edit eligibility. An incomplete navigation projection remains a
+refusal and is not repaired by the conditional purpose.
+
 Original autoload-index filenames remain counted data under the actual index input, Registry and full source configuration. The original Set schema owns the auto_index key, while authentic nested Script/list producers and conditional Source/path descriptors own only filename advice. Explicit directory text is not an observed variable value; whitespace, quotes and sigils are preserved as data, with changed, captured, expanded or unknown producers refused. File candidates and a successful original filename probe establish no reached load, Native lookup or Jim autoload implementation.
 
 Configured standalone refactor command selection and data-group convenience extraction share the original whole-word endpoint owner; their parsing purpose remains independent of current-analysis edit eligibility. Original class navigation coordinates also retain their selected factory/name/current-ClassDef correspondence independently of the Module-issued class-body syntax facet. An unavailable body facet cannot donate a body word or frame even when the separate source coordinate is known.

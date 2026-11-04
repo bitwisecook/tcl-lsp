@@ -187,6 +187,7 @@ pub(crate) use declaration_flow::{
     DeclarationInvocationFlow, DeclarationLifecycleInvocation, DeclarationSchemaOrigin,
     declaration_dictionary_scope_advice, declaration_invocation_flow,
     declaration_lifecycle_invocation, declaration_source_read_flow, declared_argument_words,
+    source_advice_has_no_declared_lookup_mutation,
 };
 
 mod interval_advice;

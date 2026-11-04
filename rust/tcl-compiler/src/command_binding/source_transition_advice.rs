@@ -68,6 +68,11 @@ pub use source_class_publications::{
 };
 pub use source_class_reference::OriginalSourceClassReference;
 pub use source_configured_class::OriginalSourceConfiguredClassReference;
+mod native_autoload_source;
+pub use native_autoload_source::{
+    OriginalNativeDeferredAutoloadAdvice, OriginalNativeDeferredAutoloadObligation,
+    source_native_deferred_autoload_advice_at,
+};
 mod native_declared_body;
 mod source_instance;
 mod source_procedure;
@@ -1036,6 +1041,10 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     conditional_procedure_declarations: ConditionalProcedureDeclarationSelections,
     native_procedure_may_commands:
         BTreeMap<u32, Option<native_declared_body::OriginalNativeSourceMayCommand>>,
+    native_deferred_autoload_prefixes:
+        BTreeMap<u32, Option<native_autoload_source::NativeAutoloadRecordedPrefix>>,
+    native_deferred_autoload_horizons:
+        BTreeMap<u32, Option<native_autoload_source::NativeAutoloadRecordedHorizon>>,
     logical_procedure_bodies: BTreeMap<u32, Option<Arc<OriginalLogicalProcedureBody>>>,
     logical_procedure_calls: BTreeMap<u32, Option<OriginalLogicalProcedureCall>>,
     logical_ensemble_transition_receipts:
@@ -1569,6 +1578,14 @@ impl OriginalSourceTransitionAdviceTape {
         merge_receipt_inventory(
             &mut self.native_procedure_may_commands,
             std::mem::take(&mut other.native_procedure_may_commands),
+        );
+        merge_receipt_inventory(
+            &mut self.native_deferred_autoload_prefixes,
+            std::mem::take(&mut other.native_deferred_autoload_prefixes),
+        );
+        merge_receipt_inventory(
+            &mut self.native_deferred_autoload_horizons,
+            std::mem::take(&mut other.native_deferred_autoload_horizons),
         );
         merge_receipt_inventory(
             &mut self.logical_callbacks,
@@ -2815,6 +2832,7 @@ struct AdviceTapeInputs<'a> {
 
 #[derive(Clone, Copy)]
 enum SourceAdviceQuery<'a> {
+    NativeDeferredAutoload,
     NormalSourceOutcome(&'a source_point::NormalSourceOutcomeQuery<'a>),
     SourcePoint(&'a source_point::SourcePointQuery<'a>),
     ClassRelation(source_relation_provider::ClassRelationQuery<'a>),

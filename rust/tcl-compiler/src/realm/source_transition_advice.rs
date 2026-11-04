@@ -893,6 +893,15 @@ impl super::CommandBindingRealm {
         self.bindings.original_native_procedure_body_commands(input)
     }
 
+    pub(crate) fn original_native_deferred_autoload_body_commands(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Vec<crate::command_binding::OriginalNativeProcedureBodyCommand>> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        self.bindings
+            .original_native_deferred_autoload_body_commands(input)
+    }
+
     fn prepared_source_procedure_advice(
         &self,
         context: &ContextRegistry,
