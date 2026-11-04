@@ -1010,11 +1010,14 @@ fn survey_index_entries_from_source(
                 return None;
             }
             let generation = crate::context_for_dialect_profile(profile);
-            let context = std::sync::Arc::new(
+            let loader_context = std::sync::Arc::new(
                 generation.with_command_store(registry.snapshot().shared_registry()),
             );
             let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
-                profile, profile, context, config,
+                profile,
+                profile,
+                loader_context,
+                config,
             );
             let source = tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture(content, input);
             Some(IndexSurveyContext::Source(Box::new(source)))

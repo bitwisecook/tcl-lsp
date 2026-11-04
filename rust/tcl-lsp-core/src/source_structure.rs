@@ -1408,9 +1408,9 @@ impl SourceStructure {
                     continue;
                 };
                 for region in regions {
-                    let content =
+                    let body_content =
                         region.content_for_authoring(&image, current.config(), &context)?;
-                    if content.start() <= cursor && cursor <= content.end() {
+                    if body_content.start() <= cursor && cursor <= body_content.end() {
                         if selected.is_some() {
                             return None;
                         }

@@ -555,6 +555,33 @@ pub fn completions(
         ));
     }
 
+    extend_context_snippets(
+        &mut items,
+        (source, line, character),
+        analysis,
+        cursor,
+        &current,
+    );
+    // Preserve prefix matches before considering response-wide fuzzy candidates.
+    fill_empty_completion_items(
+        &mut items,
+        (source, line, character, &line_index),
+        analysis,
+        registry,
+        profile,
+    );
+    original_word_completion_edits(source, line, &prefix, items)
+}
+
+fn extend_context_snippets(
+    items: &mut Vec<CompletionItem>,
+    position: (&str, u32, u32),
+    analysis: &AnalysisResult,
+    cursor: u32,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) {
+    let (source, line, character) = position;
+    let profile = current.profile();
     // Context-aware snippet templates (`tcl-proc`, `tcl-if`,
     // …).  Only the command-position fallback reaches here (the
     // variable / switch / subcommand contexts returned earlier), so
@@ -581,15 +608,6 @@ pub fn completions(
             file_events: &file_events,
         },
     ));
-    // Preserve prefix matches before considering response-wide fuzzy candidates.
-    fill_empty_completion_items(
-        &mut items,
-        (source, line, character, &line_index),
-        analysis,
-        registry,
-        profile,
-    );
-    original_word_completion_edits(source, line, &prefix, items)
 }
 
 /// Variable-trigger detection — `$prefix` or `${prefix}`.
