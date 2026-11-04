@@ -2,7 +2,7 @@
 
 ## Question
 
-Does the throw command is available to raise a structured error? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that the throw command is available to raise a structured error? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

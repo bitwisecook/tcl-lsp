@@ -2,7 +2,7 @@
 
 ## Question
 
-Does after is available in this execution context? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that after is available in this execution context? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

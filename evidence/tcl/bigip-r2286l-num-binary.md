@@ -2,7 +2,7 @@
 
 ## Question
 
-Does a binary-prefixed integer literal is accepted and evaluated? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that a binary-prefixed integer literal is accepted and evaluated? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

@@ -2,7 +2,7 @@
 
 ## Question
 
-Does backslash-LF joins an if condition to a following body? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that backslash-LF joins an if condition to a following body? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

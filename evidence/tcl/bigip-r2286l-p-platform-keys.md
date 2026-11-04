@@ -2,7 +2,7 @@
 
 ## Question
 
-Does the tcl_platform array exposes platform keys in this context? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that the tcl_platform array exposes platform keys in this context? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

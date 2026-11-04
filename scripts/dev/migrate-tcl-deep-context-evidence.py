@@ -186,7 +186,7 @@ def main():
         raise ValueError("missing case observations")
     for source, identities in by_source.items():
         canonical = ALIASES.get(identities[0], identities[0])
-        question = f"Does {TOPICS[canonical]}? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested."
+        question = f"When evaluating this source, is it true that {TOPICS[canonical]}? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested."
         parts = [
             f"# BIG-IP and appliance Tcl context: {canonical.replace('_', ' ')}\n\n## Question\n\n{question}\n\n",
             (

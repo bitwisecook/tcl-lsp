@@ -2,7 +2,7 @@
 
 ## Question
 
-Does interp aliases is available and reports aliases? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that interp aliases is available and reports aliases? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

@@ -2,7 +2,7 @@
 
 ## Question
 
-Does package names reports the available packages in the execution context? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that package names reports the available packages in the execution context? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

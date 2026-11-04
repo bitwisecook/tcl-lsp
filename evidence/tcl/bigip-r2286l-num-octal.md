@@ -2,7 +2,7 @@
 
 ## Question
 
-Does a leading-zero integer is interpreted as octal? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that a leading-zero integer is interpreted as octal? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

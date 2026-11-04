@@ -2,7 +2,7 @@
 
 ## Question
 
-Does namespace current reports the evaluation namespace? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that namespace current reports the evaluation namespace? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 

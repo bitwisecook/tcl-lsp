@@ -2,7 +2,7 @@
 
 ## Question
 
-Does a hash immediately following a braced word starts a comment or remains an argument? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
+When evaluating this source, is it true that a hash immediately following a braced word starts a comment or remains an argument? This constrains Tcl parsing, command availability or evaluation in the LSP, compiler and VM for the specific source and contexts tested.
 
 ## Assumptions
 
