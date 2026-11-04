@@ -40,6 +40,9 @@ performance cost; bracing the expression is your edit.
 
 - Reported only where `W100` is. An expression already braced, or one the
   analyser does not read as an expression word, draws neither.
+- A substituted hexadecimal conversion keeps W100 and O111, with W100's
+  additional `scan` recommendation. Its invalid direct bracing edit is not
+  offered; O111 remains an informational hint.
 
 ## How to disable
 

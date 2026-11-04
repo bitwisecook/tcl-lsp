@@ -1,0 +1,65 @@
+{
+  "issues": [
+    {
+      "number": 2286,
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2286",
+      "updated_at": "2026-11-04T09:09:24Z"
+    },
+    {
+      "number": 2289,
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2289",
+      "updated_at": "2026-11-04T09:09:09Z"
+    },
+    {
+      "number": 2290,
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2290",
+      "updated_at": "2026-11-04T09:09:03Z"
+    },
+    {
+      "number": 2501,
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2501",
+      "updated_at": "2026-11-04T09:08:29Z"
+    },
+    {
+      "number": 2502,
+      "url": "https://github.com/bitwisecook/tcl-lsp/issues/2502",
+      "updated_at": "2026-11-04T09:08:18Z"
+    }
+  ],
+  "linked_files": [
+    {
+      "issue": 2286,
+      "repository": "georgtree/tclopt",
+      "path": "test/test.test",
+      "ref": "main",
+      "git_blob_sha": "7c3d75e741cc66b1d55d548f2c1cdd5b1f2562f5",
+      "url": "https://github.com/georgtree/tclopt/blob/main/test/test.test",
+      "file": "2286-linked.test",
+      "bytes": 124908,
+      "sha256": "a01f2975010afa12ba96b32a1263e7ead551b2ac2f260c2c343957ed879965ac"
+    },
+    {
+      "issue": 2289,
+      "repository": "georgtree/rbc-tk9",
+      "path": "tests/RBC.vector.load.A.test",
+      "ref": "main",
+      "git_blob_sha": "53f27fc013e615e2188a74d42c592b71362cea9e",
+      "url": "https://github.com/georgtree/rbc-tk9/blob/main/tests/RBC.vector.load.A.test",
+      "file": "2289-linked.test",
+      "bytes": 13125,
+      "sha256": "a31ae46a653ca3f45e1e2606778bb0a3792b55644c4b156a3d8424cf0e91c516"
+    },
+    {
+      "issue": 2290,
+      "repository": "georgtree/tclmeasure",
+      "path": "tclmeasure.tcl",
+      "ref": "main",
+      "git_blob_sha": "b1c2d4bde656bffd23138ffb63ffcb69bc71c606",
+      "url": "https://github.com/georgtree/tclmeasure/blob/main/tclmeasure.tcl",
+      "file": "2290-linked.tcl",
+      "bytes": 34272,
+      "sha256": "0a5a3fe68964e30b16dbe5e4c2622716f7fe320a5dda584b8618fc2262a8cf79"
+    }
+  ],
+  "retrieved_on": "2026-11-04"
+}

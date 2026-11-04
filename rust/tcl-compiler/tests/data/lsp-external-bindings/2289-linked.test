@@ -1,0 +1,316 @@
+# Package initialization must keep the vector core independent of Tk.
+###Package Definition
+package provide vector.load
+
+package require rbc::vector
+namespace import rbc::*
+
+package require tcltest
+namespace import tcltest::*
+
+namespace eval vector.load {
+    testConstraint vectorLoadGui [expr {[package provide Tk] ne {}}]
+
+    proc New {} {
+        catch {interp delete vectorCoreChild}
+        interp create vectorCoreChild
+        interp eval vectorCoreChild [list set auto_path $::auto_path]
+    }
+    proc Clean {} {
+        catch {interp delete vectorCoreChild}
+    }
+    proc CapiPath {} {
+        if {[info exists ::env(RBC_CAPI_TEST_LIB)]} {
+            return [file normalize $::env(RBC_CAPI_TEST_LIB)]
+        }
+        return [file normalize rbccapitest[info sharedlibextension]]
+    }
+
+    test RBC.vector.load.A.1.1 {vector loading does not load Tk, toolbar, or argparse} -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc::vector
+            ::rbc::vector create v
+            v set {1 2 3}
+            v expr {v * 2}
+            list [v range 0 end] [package provide Tk] [package provide rbc] \
+                [package provide argparse] [info commands ::rbc::graph] \
+                [info commands ::rbc::graphtoolbar] [info commands ::rbc::spline] [info commands ::Rbc_ZoomStack]
+        }
+    } -cleanup {Clean} -result {{2.0 4.0 6.0} {} {} {} {} {} {} {}}
+
+    test RBC.vector.load.A.2.1 {repeated requires preserve vectors and array access} -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc::vector
+            ::rbc::vector create v
+            v set {1 2 3}
+            set version [package require rbc::vector]
+            package require -exact rbc::vector $version
+            set v(1) 7
+            list [v range 0 end] [package provide Tk]
+        }
+    } -cleanup {Clean} -result {{1.0 7.0 3.0} {}}
+
+    test RBC.vector.load.A.3.1 {a failed Tk require leaves the vector package usable} -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc::vector
+            ::rbc::vector create v
+            v set {1 2}
+            package ifneeded Tk 99.0 {error {Tk deliberately unavailable}}
+            set failed [catch {package require rbc} message]
+            v append 3
+            list $failed [string match {*deliberately unavailable*} $message] \
+                [v range 0 end] [package provide rbc] [package provide Tk]
+        }
+    } -cleanup {Clean} -result {1 1 {1.0 2.0 3.0} {} {}}
+
+    test RBC.vector.load.A.4.1 {direct loading uses the same prefix across interpreters} -setup {
+        New
+        set binary [interp eval vectorCoreChild {
+            package require rbc::vector
+            set path {}
+            foreach entry [info loaded] {
+                if {[lindex $entry 1] eq {Rbc}} {
+                    set path [lindex $entry 0]
+                    break
+                }
+            }
+            set path
+        }]
+        if {$binary eq {}} {error {RBC shared library not found in info loaded}}
+        New
+    } -body {
+        interp eval vectorCoreChild [list load $binary Rbc]
+        interp eval vectorCoreChild {
+            package require rbc::vector
+            list [package provide Tk] [package provide rbc] [info commands ::rbc::vector]
+        }
+    } -cleanup {Clean} -result {{} {} ::rbc::vector}
+
+    test RBC.vector.load.A.5.1 {a C consumer loads vectors through stubs without Tk} -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild [list load [CapiPath]]
+        interp eval vectorCoreChild {
+            ::rbccapitest create ::v real 3
+            v set {1 2 3}
+            list [dict get [::rbccapitest inspect ::v] length] \
+                [package provide Tk] [package provide rbc] \
+                [expr {[package provide rbc::vector] ne {}}]
+        }
+    } -cleanup {Clean} -result {3 {} {} 1}
+
+    test RBC.vector.load.A.6.1 {full loading preserves vectors and command identity} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc::vector
+            ::rbc::vector create v
+            v set {1 2 3}
+            set deleted 0
+            trace add command ::rbc::vector delete {apply {{args} {set ::deleted 1}}}
+            set version [package require rbc]
+            set v(1) 9
+            ::rbc::graph .g
+            .g element create e -xdata v -ydata v
+            list [v range 0 end] $deleted [winfo exists .g] \
+                [expr {$version eq [package require rbc::vector]}]
+        }
+    } -cleanup {Clean} -result {{1.0 9.0 3.0} 0 1 1}
+
+    test RBC.vector.load.A.7.1 {full loading also provides the vector package} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            set version [package require rbc]
+            ::rbc::vector create v
+            v set {4 5}
+            set core [package require rbc::vector]
+            list [expr {$core eq $version}] [v range 0 end]
+        }
+    } -cleanup {Clean} -result {1 {4.0 5.0}}
+
+    test RBC.vector.load.A.8.1 {GUI loading can be retried after Tk becomes available} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package ifneeded Tk 99.0 {error {Tk deliberately unavailable}}
+            catch {package require rbc}
+            ::rbc::vector create v
+            v set {7 8}
+            package forget Tk
+            package require rbc
+            list [v range 0 end] [expr {[info commands ::rbc::graph] ne {}}]
+        }
+    } -cleanup {Clean} -result {{7.0 8.0} 1}
+
+    test RBC.vector.load.A.9.1 {legacy stubs initialization adds GUI without replacing vectors} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild [list load [CapiPath]]
+        interp eval vectorCoreChild {
+            ::rbccapitest create ::v real 2
+            v set {6 7}
+            set version [::rbccapitest initfull]
+            list [v range 0 end] [dict get [::rbccapitest inspect ::v] length] \
+                [expr {$version eq [package provide rbc]}] \
+                [expr {[info commands ::rbc::graph] ne {}}]
+        }
+    } -cleanup {Clean} -result {{6.0 7.0} 2 1 1}
+
+    test RBC.vector.load.A.10.1 {vector-only loading advertises but does not load the toolbar} -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            set version [package require rbc::vector]
+            list [expr {[package ifneeded rbc::graphtoolbar $version] ne {}}] \
+                [package provide rbc::graphtoolbar] [package provide argparse] [package provide Tk]
+        }
+    } -cleanup {Clean} -result {1 {} {} {}}
+
+    test RBC.vector.load.A.11.1 {native widgets load even when argparse cannot load} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package ifneeded argparse 999.0 {error {argparse deliberately unavailable}}
+            package require rbc
+            ::rbc::graph .g
+            list [winfo exists .g] [package provide argparse] [package provide rbc::graphtoolbar] \
+                [info commands ::rbc::graphtoolbar] [info commands ::Rbc_ZoomStack]
+        }
+    } -cleanup {Clean} -result {1 {} {} {} ::Rbc_ZoomStack}
+
+    test RBC.vector.load.A.12.1 {missing toolbar dependency leaves native widgets usable} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package ifneeded argparse 999.0 {error {argparse deliberately unavailable}}
+            set failed [catch {package require rbc::graphtoolbar} message]
+            ::rbc::graph .g
+            list $failed [string match {*argparse deliberately unavailable*} $message] \
+                [package provide rbc::graphtoolbar] [winfo exists .g] \
+                [expr {[package provide rbc] ne {}}]
+        }
+    } -cleanup {Clean} -result {1 1 {} 1 1}
+
+    test RBC.vector.load.A.13.1 {adding toolbar preserves native widgets and repeat require preserves toolbar} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            set version [package require rbc]
+            ::rbc::vector create v
+            v set {1 2 3}
+            ::rbc::graph .g
+            .g element create e -xdata v -ydata v
+            set toolbarVersion [package require rbc::graphtoolbar]
+            ::rbc::graphtoolbar .toolbar -width 200 -height 150
+            set deleted 0
+            trace add command .toolbar delete {apply {{args} {set ::deleted 1}}}
+            package require rbc::graphtoolbar
+            list [expr {$version eq $toolbarVersion}] [v range 0 end] [.g element names] \
+                [winfo exists .toolbar] $deleted [expr {[package provide argparse] ne {}}]
+        }
+    } -cleanup {Clean} -result {1 {1.0 2.0 3.0} e 1 0 1}
+
+    test RBC.vector.load.A.14.1 {toolbar-only require loads native widgets and exports the existing command} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            set version [package require rbc::graphtoolbar]
+            namespace import ::rbc::*
+
+            list [expr {$version eq [package provide rbc]}] \
+                [expr {$version eq [package provide rbc::vector]}] \
+                [namespace origin graphtoolbar] [expr {[info commands ::rbc::graph] ne {}}]
+        }
+    } -cleanup {Clean} -result {1 1 ::rbc::graphtoolbar::graphtoolbar 1}
+
+    test RBC.vector.load.A.15.1 {missing argparse uses the bundled Tcl implementation} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc
+            # Keep RBC's package registrations but prevent external argparse discovery.
+            package forget argparse
+            package unknown {apply {{args} {}}}
+            package require rbc::graphtoolbar
+            ::rbc::graphtoolbar .toolbar -width 200 -height 150 -zoom -crosshairs
+            list [package provide argparse] [info procs ::argparse] [winfo exists .toolbar] \
+                    [.toolbar configure -crosshairsmode]
+        }
+    } -cleanup {Clean} -result {0.65 ::argparse 1 closest}
+
+    test RBC.vector.load.A.16.1 {registered argparse is preferred to the bundled copy} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc
+            package forget argparse
+            package ifneeded argparse 999.0 {
+                proc ::argparse {args} {return installed}
+                package provide argparse 999.0
+            }
+            package require rbc::graphtoolbar
+            list [package provide argparse] [argparse] [info commands ::rbc::graphtoolbar]
+        }
+    } -cleanup {Clean} -result {999.0 installed ::rbc::graphtoolbar}
+
+    test RBC.vector.load.A.17.1 {already loaded argparse retains its command identity} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc
+            proc ::argparse {args} {return preloaded}
+            package provide argparse 0.1
+            set deleted 0
+            trace add command ::argparse delete {apply {{args} {set ::deleted 1}}}
+            package require rbc::graphtoolbar
+            list [package provide argparse] [argparse] $deleted
+        }
+    } -cleanup {Clean} -result {0.1 preloaded 0}
+
+    test RBC.vector.load.A.18.1 {installed argparse initialization errors are preserved} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc
+            package ifneeded argparse 999.0 {error {broken installed argparse} {} {ARGPARSE BROKEN}}
+            set failed [catch {package require rbc::graphtoolbar} message options]
+            list $failed $message [dict get $options -errorcode] [package provide argparse] \
+                    [package provide rbc::graphtoolbar]
+        }
+    } -cleanup {Clean} -result {1 {broken installed argparse} {ARGPARSE BROKEN} {} {}}
+
+    test RBC.vector.load.A.19.1 {a missing dependency of installed argparse does not use fallback} \
+            -constraints vectorLoadGui -setup {
+        New
+    } -body {
+        interp eval vectorCoreChild {
+            package require rbc
+            package unknown {apply {{args} {}}}
+            package ifneeded argparse 999.0 {package require missingArgparseDependency}
+            set failed [catch {package require rbc::graphtoolbar} message options]
+            list $failed [string match {*missingArgparseDependency*} $message] [dict get $options -errorcode] \
+                    [package provide argparse] [package provide rbc::graphtoolbar]
+        }
+    } -cleanup {Clean} -result {1 1 {TCL PACKAGE UNFOUND} {} {}}
+
+    cleanupTests
+}
