@@ -1727,39 +1727,88 @@ mod tests {
         );
     }
 
-    /// A `proc` inside a `namespace eval` body shadows the built-in for the
-    /// bare heads in that namespace and nowhere else (#2065).
-    ///
-    /// tclsh 8.6.18 / 9.0.4, byte-identical:
-    ///
-    /// ```tcl
-    /// namespace eval n {proc format {args} {return NS}; puts [format %b 5]}
-    /// puts [format %d 5]      ;# NS, then 5
-    /// namespace eval a {proc format {args} {return A}
-    ///   namespace eval b {puts [format %d 7]}}   ;# 7 — `b` is not `a`
-    /// namespace eval a {puts [format %d 7]}      ;# A — the block re-opens
-    /// ```
+    fn logical_namespace_map_for(source: &str) -> CommandBindingRealm {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                .expect("known Logical fixture metadata")
+                .default_context_registry(),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        document_lexical_realm_with_resolved_input(source, &input, None)
+    }
+
     #[test]
     fn a_namespace_local_proc_shadows_the_builtin_inside_that_namespace() {
-        let src = "namespace eval n {\n    proc format {args} { return NS }\n    format %b 5\n}\nformat %d 5\n";
-        let map = map_for(src);
-        let inside = u32::try_from(src.find("format %b").unwrap()).unwrap();
-        let outside = u32::try_from(src.rfind("format %d").unwrap()).unwrap();
-        assert_eq!(
-            map.resolve("format", inside),
-            RealmBinding::Rebound,
-            "the namespace-local proc owns the bare head inside its body"
-        );
+        let source = "namespace eval n {\n    proc format {args} { return NS }\n    format %b 5\n}\nformat %d 5\n";
+        let map = logical_namespace_map_for(source);
+        let inside = u32::try_from(source.find("format %b").unwrap()).unwrap();
+        let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(map.resolve("format", inside), RealmBinding::Rebound);
         assert_eq!(
             map.resolve("format", outside),
-            RealmBinding::Command("format"),
-            "and says nothing about the global command table"
+            RealmBinding::Command("format")
         );
-        // The explicitly global spelling is the built-in even inside the body.
         assert_eq!(
             map.resolve("::format", inside),
             RealmBinding::Command("::format")
         );
+    }
+
+    #[test]
+    fn logical_namespace_local_declaration_keeps_the_global_table_independent() {
+        let source = "namespace eval n {proc format {args} {return NS}}\nformat %d 5\n";
+        let map = logical_namespace_map_for(source);
+        let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(
+            map.resolve("format", outside),
+            RealmBinding::Command("format")
+        );
+        assert_eq!(
+            map.resolve("::format", outside),
+            RealmBinding::Command("::format")
+        );
+    }
+
+    #[test]
+    fn logical_namespace_local_call_preserves_only_unchanged_global_slots() {
+        let source = "namespace eval n {proc format {args} {rename ::format ::saved_format; return NS}; format %b 5}\nformat %d 5\n";
+        let map = logical_namespace_map_for(source);
+        let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(map.resolve("format", outside), RealmBinding::Rebound);
+        assert_eq!(map.resolve("::format", outside), RealmBinding::Rebound);
+    }
+
+    #[test]
+    fn ordinary_native_unknown_local_call_does_not_donate_global_lookup() {
+        let source = "namespace eval n {proc format {args} {$unknown}; format %b 5}\nformat %d 5\n";
+        let environment = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .expect("known actual software Native owner");
+        let profile = environment.analyser_profile();
+        let context = environment.default_context_registry();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let (_owner, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            context.commands(),
+            crate::command_binding::SourceAnalysisOptions {
+                native_entry: Some(&entry),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_point(
+                    entry
+                        .execution_point
+                        .expect("captured actual execution point"),
+                )),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..crate::command_binding::SourceAnalysisOptions::default()
+            },
+        );
+        let map = realm_from_source_bindings(bindings, context.commands());
+        let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(map.resolve("format", outside), RealmBinding::Rebound);
+        assert_eq!(map.resolve("::format", outside), RealmBinding::Rebound);
     }
 
     /// The shadow is keyed by namespace, not by body: a later block re-opening

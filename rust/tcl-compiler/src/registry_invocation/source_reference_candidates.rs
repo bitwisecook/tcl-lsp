@@ -295,6 +295,30 @@ mod tests {
     }
 
     #[test]
+    fn original_body_candidates_retain_selected_for_condition_references() {
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        for text in [
+            "for {set i 0} {$i < $parameter} {incr i} {set copy $i}",
+            "set acc 0; for {set i 0} {$i < $parameter} {incr i} {set acc [expr {$acc + $i}]}; return $acc",
+        ] {
+            let (source, analysis, body) = fixture(text, config);
+            assert!(
+                original_body_reference_candidates(&source, &analysis, &body)
+                    .expect("current original body")
+                    .contains("parameter"),
+                "selected for-condition expression retains its parameter: {text}",
+            );
+        }
+        let (source, analysis, body) = fixture("unknown {$parameter}", config);
+        assert!(
+            !original_body_reference_candidates(&source, &analysis, &body)
+                .expect("current original body")
+                .contains("parameter"),
+            "arbitrary braces do not become an expression role",
+        );
+    }
+
+    #[test]
     fn original_body_candidates_retain_immediate_expression_sugar_and_nested_commands() {
         let config = tcl_lexer::LexerConfig::for_dialect("jim");
         for text in [

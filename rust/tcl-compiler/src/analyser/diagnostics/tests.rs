@@ -5395,249 +5395,222 @@ const MEMOIZED_DIAGNOSTIC_SNIPPETS: [&str; 6] = [
     "oo::class create K {\n  method m {} { return 1 }\n}\nproc top {} { set o [K new]; $o gone }\n",
 ];
 
-/// Memo key for an offset-0 procedure body in the memoized-unit tests: the
-/// structural hash of the whole `Script` (the same identity the db interns),
-/// without rendering its `Debug` text.
-fn memo_body_key(body: &crate::ir::Script) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    body.hash(&mut hasher);
-    hasher.finish()
+fn memo_diagnostic_input() -> crate::analyser::ResolvedAnalysisInput {
+    let profile = tcl_dialect::DialectProfile::plain_tcl();
+    crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .expect("known Logical fixture metadata")
+            .default_context_registry(),
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    )
+}
+
+#[derive(Default)]
+struct MemoDiagnosticWorkerCache {
+    entries: Vec<(
+        crate::body_analysis_capsule::BodyLatticeInputs,
+        crate::compilation_unit::FunctionUnit,
+    )>,
+    validated_hits: usize,
+    rebuilds: usize,
+}
+
+impl MemoDiagnosticWorkerCache {
+    fn function(
+        &mut self,
+        request: &crate::compilation_unit::LatticeRequest<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> crate::compilation_unit::FunctionUnit {
+        use crate::body_analysis_capsule::{BodyLatticeCommandBindings, BodyLatticeInputs};
+        let body = BodyLatticeInputs::retain_original_worker_request(request, registry)
+            .expect("the actual current declaration issued this lattice request");
+        if let Some((previous, cached)) = self
+            .entries
+            .iter()
+            .find(|(_, cached)| cached.name == request.qname)
+        {
+            let mut current = cached.clone();
+            if body.rebind_original_worker_result(previous, cached, &mut current) {
+                self.validated_hits += 1;
+                return current;
+            }
+        }
+        let bindings = BodyLatticeCommandBindings::from(request.command_bindings.clone());
+        let metadata = request.original_metadata_context(registry);
+        let trust = request.command_trust.snapshot();
+        let inputs = crate::compilation_unit::OriginalFunctionLatticeInputs {
+            qname: request.qname,
+            params: request.params,
+            upvar_procs: request.upvar_procs,
+            proc_params: request.proc_params,
+            global_write_procs: request.global_write_procs,
+            command_bindings: &bindings,
+            procedure_summary_owners: request.procedure_summary_owners,
+            lexer_config: request.lexer_config,
+            profile: request.dialect.map(tcl_dialect::DialectProfile::cache_key),
+            dialect: request.dialect.map_or("", |profile| profile.name),
+            param_constants: request.param_constants,
+            known_classes: request.known_classes,
+            traced_variables: request.traced_variables,
+            has_dynamic_variable_trace: request.has_dynamic_variable_trace,
+            original_declaration_body: request
+                .original_source_procedure()
+                .filter(|procedure| {
+                    procedure.body_kind == crate::ir::ProcedureBodyKind::OriginalDeclaration
+                })
+                .map(|_| request.body_id),
+            plain_command_dispatch: request.plain_command_dispatch,
+            metadata_context: &metadata,
+            source_metadata_input: request.source_metadata_input,
+            event_body: request.irules_event_body,
+            command_trust: &trust,
+            analysis_context: request.analysis_context,
+        };
+        let unit = body
+            .original_function_lattice(&inputs, registry)
+            .expect("the complete original worker accepts its unchanged request");
+        self.rebuilds += 1;
+        self.entries
+            .retain(|(_, cached)| cached.name != request.qname);
+        self.entries.push((body, unit.clone()));
+        unit
+    }
+}
+
+fn memo_diagnostic_unit(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    settings: &std::sync::Arc<crate::analyser::OriginalAnalyserSourceSettings>,
+    cache: &mut MemoDiagnosticWorkerCache,
+) -> crate::compilation_unit::CompilationUnit {
+    let context = input.context_registry();
+    let registry = context.commands();
+    let body_config = input.lexer_config().normalized();
+    let body = |text: &str, namespace: &str| {
+        crate::lowering::OriginalBodyLoweringTemplate::lower(
+            text,
+            namespace,
+            registry,
+            body_config,
+            Some(input.unit_profile()),
+        )
+    };
+    let syntax = |request: &crate::lowering::SourceBodySyntaxRequest| request.lower_neutral();
+    let mut lattice =
+        |request: &crate::compilation_unit::LatticeRequest<'_>| cache.function(request, registry);
+    let unit = crate::compilation_unit::CompilationUnit::build_memoized_with_original_body_lowering_and_source_settings(
+        source,
+        crate::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &mut lattice,
+        &body,
+        &syntax,
+        None,
+        (input, settings),
+    );
+    assert!(unit.original_lattice_callbacks_are_current());
+    assert!(unit.ir_module.source_metadata_input.as_ref() == Some(input));
+    unit.with_interprocedural(registry, Some(input.unit_profile()))
+}
+
+fn analyse_memo_diagnostic_unit(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    cache: &mut MemoDiagnosticWorkerCache,
+) -> crate::analyser::AnalysisResult {
+    let mut analyser = Analyser::new().with_resolved_input(input.clone());
+    let settings = analyser.source_compilation_settings();
+    let unit = memo_diagnostic_unit(source, input, &settings, cache);
+    analyser.set_cu_override(std::sync::Arc::new(unit));
+    analyser.analyse(source, "tcl")
 }
 
 #[test]
 fn memoized_compilation_unit_diagnostics_match_whole_file() {
-    use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    for src in MEMOIZED_DIAGNOSTIC_SNIPPETS {
-        // The permissive `tcl` profile loads no pack of its own.
-        let registry = tcl_registry::CommandRegistry::build_default();
-        // Whole-file reference.
-        let mut whole = Analyser::new();
-        let want = whole.analyse(src, "tcl");
-
-        // Build a memoised unit (cold cache) and run through the seam.
-        // The callback mirrors the db's `function_lattice`: build the
-        // offset-0 unit, keyed on the offset-0 body + name + params.
-        let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
-        let build_cu = |cache: &mut HashMap<String, FunctionUnit>| {
-            CompilationUnit::build_for_memoized(
-                src,
-                crate::compilation_unit::UnitBuildOptions {
-                    registry: &registry,
-                    defer_top_level: false,
-                    config: tcl_lexer::LexerConfig::default(),
-                    dialect: Some(
-                        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-                    ),
-                    external_call_sites: None,
-                    declared_commands: None,
-                },
-                &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
-                    // Key + build mirror the db's `function_lattice` query,
-                    // including the whole-unit `known_classes` /
-                    // `traced_variables` fingerprints.
-                    // The body enters the key through its structural hash:
-                    // its `Debug` text renders every retained source binding
-                    // and grew too large to format per request.
-                    let key = format!(
-                        "{}\u{0}{:x}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
-                        req.qname,
-                        memo_body_key(req.body),
-                        req.params,
-                        req.param_constants,
-                        req.known_classes,
-                        req.traced_variables,
-                        req.has_dynamic_variable_trace,
-                    );
-                    if let Some(fu) = cache.get(&key) {
-                        return fu.clone();
-                    }
-                    let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
-                        req.qname,
-                        req.body,
-                        true,
-                        &registry,
-                        req.plain_command_dispatch,
-                        (
-                            req.upvar_procs.clone(),
-                            req.proc_params.clone(),
-                            req.global_write_procs.clone(),
-                            req.command_bindings.clone(),
-                            req.procedure_summary_owners.clone(),
-                        ),
-                        tcl_lexer::LexerConfig::default(),
-                    );
-                    let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
-                    let known_classes: std::collections::HashSet<String> =
-                        req.known_classes.iter().cloned().collect();
-                    let traced_variables: std::collections::BTreeSet<String> =
-                        req.traced_variables.iter().cloned().collect();
-                    let trace_facts = crate::compilation_unit::ModuleTraceFacts {
-                        traced_variables: &traced_variables,
-                        has_dynamic_variable_trace: req.has_dynamic_variable_trace,
-                        deferred_writes: &req.analysis_context.deferred_writes,
-                    };
-                    let fu = FunctionUnit::build_with_param_constants_and_classes(
-                        req.qname,
-                        cfg,
-                        req.params,
-                        crate::compilation_unit::UnitDialect {
-                            registry: &registry,
-                            config: req.lexer_config,
-                            source_metadata_input: req.source_metadata_input,
-                        },
-                        pc.as_ref(),
-                        &known_classes,
-                        trace_facts,
-                    );
-                    cache.insert(key, fu.clone());
-                    fu
-                },
-            )
-            .with_interprocedural(
-                &registry,
-                Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
-            )
-        };
-
-        let cold = build_cu(&mut cache);
-        let mut a_cold = Analyser::new();
-        a_cold.set_cu_override(Arc::new(cold));
-        let got_cold = a_cold.analyse(src, "tcl");
-        assert_eq!(
-            want.diagnostics, got_cold.diagnostics,
-            "cold-cache memoised diagnostics differ for:\n{src}"
+    let input = memo_diagnostic_input();
+    for source in MEMOIZED_DIAGNOSTIC_SNIPPETS {
+        let want = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(source, "tcl");
+        let mut cache = MemoDiagnosticWorkerCache::default();
+        let cold = analyse_memo_diagnostic_unit(source, &input, &mut cache);
+        assert!(
+            want.diagnostics == cold.diagnostics,
+            "cold diagnostic equality: {source}"
         );
-        assert!(!cache.is_empty(), "cache should have entries for:\n{src}");
-
-        // Warm cache: every procedure body is a hit now.
-        let warm = build_cu(&mut cache);
-        let mut a_warm = Analyser::new();
-        a_warm.set_cu_override(Arc::new(warm));
-        let got_warm = a_warm.analyse(src, "tcl");
-        assert_eq!(
-            want.diagnostics, got_warm.diagnostics,
-            "warm-cache memoised diagnostics differ for:\n{src}"
+        assert!(
+            !cache.entries.is_empty(),
+            "no issued lattice requests: {source}"
         );
+        let entries = cache.entries.len();
+        let callbacks = cache.validated_hits + cache.rebuilds;
+        let warm = analyse_memo_diagnostic_unit(source, &input, &mut cache);
+        assert!(
+            want.diagnostics == warm.diagnostics,
+            "warm diagnostic equality: {source}"
+        );
+        assert_eq!(cache.entries.len(), entries);
+        assert!(cache.validated_hits + cache.rebuilds > callbacks);
     }
 }
 
-/// Shift-correctness: a body that is **unedited but shifted** (lines
-/// inserted above it) must NOT take a stale cache hit — the cached unit's
-/// spans are absolute, so its diagnostics must land at the new positions.
-/// The position-independent key + span rebase makes this a hit at the new
-/// offset, byte-identical to a fresh analyse.
 #[test]
 fn memoized_compilation_unit_shift_correctness() {
-    use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    // Bodies span read-before-set, dead store, and every control-flow shape
-    // (if/for/while/catch/switch) so the rebase traverses nested scripts +
-    // sub-spans, not just flat statements.  All produce positioned
-    // diagnostics whose spans must move with the shift.
+    let input = memo_diagnostic_input();
     let bodies = "proc a {} { return $undef }\n\
              proc b {} { set y 1; set y 2; return $y }\n\
              proc c {x} {\n  if {$x} { set z 1; set z 2 }\n  for {set i 0} {$i < 3} {incr i} { set w $q }\n  return $z\n}\n\
              proc d {n} {\n  while {$n} { catch { set r $undef2 } }\n  switch -- $n { 1 { set s 1; set s 2 } default { return $missing } }\n}\n";
-    let base = bodies.to_owned();
-    // Same procs, shifted down by several prepended top-level lines.
     let shifted = format!("set top 0\nset top2 1\n# a comment line\n{bodies}");
-    let base = base.as_str();
-    let shifted = shifted.as_str();
-
-    // The permissive `tcl` profile loads no pack of its own.
-    let registry = tcl_registry::CommandRegistry::build_default();
-    let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
-    let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
-        let cu = CompilationUnit::build_for_memoized(
-            s,
-            crate::compilation_unit::UnitBuildOptions {
-                registry: &registry,
-                defer_top_level: false,
-                config: tcl_lexer::LexerConfig::default(),
-                dialect: Some(
-                    tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-                ),
-                external_call_sites: None,
-                declared_commands: None,
-            },
-            // Position-independent key: the body is normalised to offset 0
-            // before the callback sees it, so a shifted-but-unedited proc
-            // hits and the builder rebases the cached offset-0 unit.
-            &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
-                // Structural body hash; see `memo_body_key`.
-                let key = format!(
-                    "{}\u{0}{:x}\u{0}{:?}\u{0}{:?}",
-                    req.qname,
-                    memo_body_key(req.body),
-                    req.params,
-                    req.param_constants
-                );
-                if let Some(fu) = cache.get(&key) {
-                    return fu.clone();
-                }
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
-                    req.qname,
-                    req.body,
-                    true,
-                    &registry,
-                    req.plain_command_dispatch,
-                    (
-                        req.upvar_procs.clone(),
-                        req.proc_params.clone(),
-                        req.global_write_procs.clone(),
-                        req.command_bindings.clone(),
-                        req.procedure_summary_owners.clone(),
-                    ),
-                    tcl_lexer::LexerConfig::default(),
-                );
-                let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
-                let fu = FunctionUnit::build_with_param_constants(
-                    req.qname,
-                    cfg,
-                    req.params,
-                    &registry,
-                    pc.as_ref(),
-                    tcl_lexer::LexerConfig::default(),
-                );
-                cache.insert(key, fu.clone());
-                fu
-            },
-        )
-        .with_interprocedural(
-            &registry,
-            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
-        );
-        let mut a = Analyser::new();
-        a.set_cu_override(Arc::new(cu));
-        a.analyse(s, "tcl")
-    };
-
-    // Prime the cache on `base`, then analyse `shifted` reusing it.  The
-    // procedure bodies are unchanged, so they hit the position-independent
-    // cache and are rebased to their new offsets.
-    let _ = build(base, &mut cache);
-    let entries_after_base = cache.len();
-    let got = build(shifted, &mut cache);
-    let want = Analyser::new().analyse(shifted, "tcl");
-    assert_eq!(
-        want.diagnostics, got.diagnostics,
-        "shifted-body diagnostics must match a fresh analyse (rebased hit)"
+    let mut cache = MemoDiagnosticWorkerCache::default();
+    let _ = analyse_memo_diagnostic_unit(bodies, &input, &mut cache);
+    let entries = cache.entries.len();
+    let callbacks = cache.validated_hits + cache.rebuilds;
+    let got = analyse_memo_diagnostic_unit(&shifted, &input, &mut cache);
+    let want = Analyser::new()
+        .with_resolved_input(input)
+        .analyse(&shifted, "tcl");
+    assert!(
+        want.diagnostics == got.diagnostics,
+        "shifted current-source diagnostic equality"
     );
-    // The shifted build reused the cached bodies (no new entries for the
-    // procedures), exercising the rebase path rather than rebuilding.
-    assert_eq!(
-        cache.len(),
-        entries_after_base,
-        "shifted bodies should reuse cached entries (position-independent key)"
-    );
+    assert_eq!(cache.entries.len(), entries);
+    assert!(cache.validated_hits + cache.rebuilds > callbacks);
     assert!(
         !want.diagnostics.is_empty(),
-        "test should exercise real positioned diagnostics"
+        "exercise positioned diagnostics"
     );
+    // A Logical declaration does not certify source-independent neutral reuse.
+    // A shifted request must pass the original worker rebind or rebuild; entry
+    // count alone is never treated as a cache hit.
+}
+
+#[test]
+fn logical_for_condition_keeps_its_used_parameter_reference() {
+    let source = MEMOIZED_DIAGNOSTIC_SNIPPETS[2];
+    let input = memo_diagnostic_input();
+    let whole = Analyser::new()
+        .with_resolved_input(input.clone())
+        .analyse(source, "tcl");
+    let mut cache = MemoDiagnosticWorkerCache::default();
+    let cold = analyse_memo_diagnostic_unit(source, &input, &mut cache);
+    let warm = analyse_memo_diagnostic_unit(source, &input, &mut cache);
+    for (kind, result) in [("whole", whole), ("cold", cold), ("warm", warm)] {
+        assert!(
+            !result.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == DiagCode::W214 && diagnostic.message.contains("Parameter 'n'")
+            }),
+            "{kind}: the original for condition references n",
+        );
+    }
 }
 
 #[test]

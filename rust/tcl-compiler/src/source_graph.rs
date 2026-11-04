@@ -180,6 +180,32 @@ pub fn procedure_body_for_declaration<'a>(
                 }
                 return Some((*id, procedure));
             }
+            if let Some(card) = module.original_logical_declaration_body_units.get(id) {
+                let input = analysis.resolved_input.as_ref()?;
+                let registry = analysis.resolved_registry()?;
+                let retained = module.retained_source_bindings.as_ref()?;
+                if !input.has_logical_source_name_context()
+                    || module.source_metadata_input.as_ref() != Some(input)
+                    || !card.matches_procedure(module, procedure)
+                    || card.scope().scope_name_input()?.original_word()
+                        != declaration.name_input().original_word()
+                    || declaration.metadata().params.len() != card.parameters().len()
+                    || !declaration
+                        .metadata()
+                        .params
+                        .iter()
+                        .zip(card.parameters())
+                        .all(|(stored, original)| {
+                            stored.name == original.name
+                                && stored.has_default == original.default.is_some()
+                                && stored.default_value.as_deref() == original.default.as_deref()
+                        })
+                {
+                    return None;
+                }
+                retained.original_logical_source_slot_for_body(module, *id, registry)?;
+                return Some((*id, procedure));
+            }
             let executed = procedure.body.executed_source.as_deref()?;
             let namespace = procedure.body.namespace_context.as_deref()?;
             if matches_original_logical_declaration(analysis, module, declaration, *id, procedure) {
@@ -911,5 +937,170 @@ mod event_function_owner_tests {
             event_body_for_function(&unit.ir_module, id, &forged, context.commands()).is_none()
         );
         assert_reissued_body_owners(&unit, id, original, &context, source);
+    }
+}
+
+#[cfg(test)]
+mod logical_declaration_body_tests {
+    use super::*;
+    use crate::analyser::{Analyser, ResolvedAnalysisInput};
+    use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+
+    const SOURCE: &str = "proc f {n} {for {set i 0} {$i < $n} {incr i} {set copy $i}; return $n}";
+
+    fn fixture() -> (ResolvedAnalysisInput, AnalysisResult, CompilationUnit) {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+                .expect("known Logical source metadata")
+                .default_context_registry(),
+            LexerConfig::for_file_grammar(profile.grammar),
+        );
+        let analysis = Analyser::new()
+            .with_resolved_input(input.clone())
+            .analyse(SOURCE, "tcl");
+        let context = input.context_registry();
+        let unit = CompilationUnit::build_with_analysis_input(
+            SOURCE,
+            UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config: input.lexer_config(),
+                dialect: Some(input.unit_profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (input, analysis, unit)
+    }
+
+    #[test]
+    fn logical_declaration_body_joins_its_issued_readonly_card_without_execution() {
+        let (_, analysis, unit) = fixture();
+        let declaration = analysis
+            .original_procedure_declarations()
+            .next()
+            .expect("original source declaration");
+        let module = &unit.ir_module;
+        assert!(module.source_entry.native_entry.is_none());
+        let (id, body) = procedure_body_for_declaration(SOURCE, &analysis, module, declaration)
+            .expect("the genuine current Logical card owns its readonly body");
+        assert!(
+            module
+                .original_logical_declaration_body_units
+                .contains_key(&id)
+        );
+        assert!(std::ptr::eq(module.body_units.get(&id).unwrap(), body));
+        assert!(body.publication.is_none());
+        assert!(body.body.executed_source.is_none());
+        assert!(body.body.native_compilation_admission.is_none());
+        assert!(
+            body.body
+                .namespace_context
+                .as_deref()
+                .unwrap()
+                .native_context()
+                .is_none()
+        );
+        let mut reporting = module.clone();
+        reporting.body_units.get_mut(&id).unwrap().qualified_name = "report-only".into();
+        assert!(
+            procedure_body_for_declaration(SOURCE, &analysis, &reporting, declaration).is_some()
+        );
+    }
+
+    #[test]
+    fn logical_declaration_body_refuses_foreign_or_changed_source_owners() {
+        let (input, analysis, unit) = fixture();
+        let declaration = analysis.original_procedure_declarations().next().unwrap();
+        let module = &unit.ir_module;
+        let (id, _) = procedure_body_for_declaration(SOURCE, &analysis, module, declaration)
+            .expect("current Logical source body");
+        for mode in 0..8 {
+            let mut changed = module.clone();
+            match mode {
+                0 => changed.source_metadata_input = None,
+                1 => {
+                    let foreign = tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+                        .unwrap()
+                        .default_context_registry();
+                    changed.source_metadata_input = Some(ResolvedAnalysisInput::new(
+                        input.analyser_profile(),
+                        input.unit_profile(),
+                        foreign,
+                        input.lexer_config(),
+                    ));
+                }
+                2 => {
+                    changed.original_logical_declaration_body_units.remove(&id);
+                }
+                3 => {
+                    changed
+                        .body_units
+                        .get_mut(&id)
+                        .unwrap()
+                        .body
+                        .statements
+                        .clear();
+                }
+                4 => {
+                    changed
+                        .body_units
+                        .get_mut(&id)
+                        .unwrap()
+                        .params
+                        .push("foreign".into());
+                }
+                5 => {
+                    changed.body_units.get_mut(&id).unwrap().body_kind =
+                        crate::ir::ProcedureBodyKind::Named;
+                }
+                6 => {
+                    changed.body_units.get_mut(&id).unwrap().name = "foreign".into();
+                }
+                7 => {
+                    changed
+                        .body_units
+                        .get_mut(&id)
+                        .unwrap()
+                        .declaration_site
+                        .as_mut()
+                        .unwrap()
+                        .offset += 1;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                procedure_body_for_declaration(SOURCE, &analysis, &changed, declaration).is_none(),
+                "changed owner mode {mode}"
+            );
+        }
+        assert!(
+            procedure_body_for_declaration(&format!("{SOURCE} "), &analysis, module, declaration)
+                .is_none()
+        );
+        let mut changed_config = module.clone();
+        changed_config.lexer_config.strict_quoting = !changed_config.lexer_config.strict_quoting;
+        assert!(
+            procedure_body_for_declaration(SOURCE, &analysis, &changed_config, declaration)
+                .is_none()
+        );
+        let mut changed_analysis = analysis.clone();
+        changed_analysis.resolved_input = Some(ResolvedAnalysisInput::new(
+            input.analyser_profile(),
+            input.unit_profile(),
+            tcl_registry::model::ingress::resolve_known_environment("tcl9.1")
+                .unwrap()
+                .default_context_registry(),
+            input.lexer_config(),
+        ));
+        assert!(
+            procedure_body_for_declaration(SOURCE, &changed_analysis, module, declaration)
+                .is_none()
+        );
     }
 }
