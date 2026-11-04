@@ -1,0 +1,165 @@
+{
+  "recorded_at": "2026-11-04 11:20:23 UTC",
+  "repository": "bitwisecook/tcl-lsp",
+  "branch": "work",
+  "requested_issue_count": 19,
+  "comments_verified": 19,
+  "excluded_issues": [
+    2021
+  ],
+  "external_issue_closures_performed": 0,
+  "issues": [
+    {
+      "issue": 940,
+      "title": "preview version: Considering {} as a list",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912",
+      "comment_id": 6629102912,
+      "verified_on_github": true,
+      "outcome": "Inconclusive: the S102 positive control is also missed."
+    },
+    {
+      "issue": 2181,
+      "title": "SpecTcl issue with having custom pack automatically apply to files in folders and/or workspaces",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2181#issuecomment-6629241452",
+      "comment_id": 6629241452,
+      "verified_on_github": true,
+      "outcome": "Partial: routed-environment edit/reopen and focused role changes pass; UI and broader lifecycle paths remain unverified."
+    },
+    {
+      "issue": 2242,
+      "title": "SpecTcl command arity diagnostics work in CLI but not via LSP",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2242#issuecomment-6629219439",
+      "comment_id": 6629219439,
+      "verified_on_github": true,
+      "outcome": "Verified native LSP arity publication and repair under Tcl 8.6/9.0."
+    },
+    {
+      "issue": 2265,
+      "title": "Semantic tokens off by one for nested command substitution in command position inside an expression",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2265#issuecomment-6629091417",
+      "comment_id": 6629091417,
+      "verified_on_github": true,
+      "outcome": "Verified exact Core token extents and geometry control."
+    },
+    {
+      "issue": 2286,
+      "title": "W210 false triggering",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6629095522",
+      "comment_id": 6629095522,
+      "verified_on_github": true,
+      "outcome": "Partial: reported W210s absent, but genuine Tcltest missing-read controls are also missed."
+    },
+    {
+      "issue": 2288,
+      "title": "Bind without braces",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2288#issuecomment-6628779207",
+      "comment_id": 6628779207,
+      "verified_on_github": true,
+      "outcome": "Verified additive bind diagnostic and active W105 control."
+    },
+    {
+      "issue": 2289,
+      "title": "Child interpreter created in different procedure",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2289#issuecomment-6629096965",
+      "comment_id": 6629096965,
+      "verified_on_github": true,
+      "outcome": "Scoped non-reproduction on current linked input and reduced creator/call; full RBC execution not tested."
+    },
+    {
+      "issue": 2290,
+      "title": "Another W210 false positive",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2290#issuecomment-6629098284",
+      "comment_id": 6629098284,
+      "verified_on_github": true,
+      "outcome": "Scoped non-reproduction on current linked input; historical September input not established."
+    },
+    {
+      "issue": 2497,
+      "title": "Incorrect reference count for methods called through my in inherited TclOO classes",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2497#issuecomment-6629092872",
+      "comment_id": 6629092872,
+      "verified_on_github": true,
+      "outcome": "Verified minimal inherited my reference/lens agreement; broader partial-coverage label tests still fail."
+    },
+    {
+      "issue": 2498,
+      "title": "False positive S100 diagnostic for numeric values retrieved from a list",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2498#issuecomment-6629104505",
+      "comment_id": 6629104505,
+      "verified_on_github": true,
+      "outcome": "Inconclusive: genuine shimmer controls also emit no warning."
+    },
+    {
+      "issue": 2499,
+      "title": "False positive W212 diagnostic for dynamic variable names",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2499#issuecomment-6628780552",
+      "comment_id": 6628780552,
+      "verified_on_github": true,
+      "outcome": "Verified dynamic read diagnostic and active W212 write-position control."
+    },
+    {
+      "issue": 2500,
+      "title": "False positive S100 and S102 diagnostics when initializing a variable with -Inf",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2500#issuecomment-6629106024",
+      "comment_id": 6629106024,
+      "verified_on_github": true,
+      "outcome": "Inconclusive: genuine shimmer controls also emit no warning; full example supported only on Tcl 8.5–9.1."
+    },
+    {
+      "issue": 2501,
+      "title": "False positive W210 diagnostic for variables assigned through lassign command",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2501#issuecomment-6629099746",
+      "comment_id": 6629099746,
+      "verified_on_github": true,
+      "outcome": "Partial: reported W210 absent; a reached control with lassign removed still misses a genuine read."
+    },
+    {
+      "issue": 2502,
+      "title": "False positive W210 diagnostics for variables introduced by dict with command",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2502#issuecomment-6629101423",
+      "comment_id": 6629101423,
+      "verified_on_github": true,
+      "outcome": "Partial: reported W210 absent; a procedure-local control without dict with still misses a genuine read."
+    },
+    {
+      "issue": 2503,
+      "title": "False positive W114 diagnostic for nested expr inside a quoted expression",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2503#issuecomment-6628781788",
+      "comment_id": 6628781788,
+      "verified_on_github": true,
+      "outcome": "Verified quoted nested expr diagnostic and active W114 control."
+    },
+    {
+      "issue": 2504,
+      "title": "False positive S101 diagnostic for numeric values iterated over a list",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2504#issuecomment-6629107328",
+      "comment_id": 6629107328,
+      "verified_on_github": true,
+      "outcome": "Inconclusive: genuine shimmer controls also emit no warning."
+    },
+    {
+      "issue": 2505,
+      "title": "W301 diagnostic incorrectly triggered by multiline list command",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2505#issuecomment-6628783425",
+      "comment_id": 6628783425,
+      "verified_on_github": true,
+      "outcome": "Verified multiline/single-line list callbacks and active W301 control."
+    },
+    {
+      "issue": 2506,
+      "title": "False positive T100 diagnostic for boolean values used in an expression",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2506#issuecomment-6629094133",
+      "comment_id": 6629094133,
+      "verified_on_github": true,
+      "outcome": "Verified boolean-derived operands and direct untrusted-input T100 control."
+    },
+    {
+      "issue": 2507,
+      "title": "Suggest scan as an alternative for unbraced hexadecimal expr conversions",
+      "comment_url": "https://github.com/bitwisecook/tcl-lsp/issues/2507#issuecomment-6629220744",
+      "comment_id": 6629220744,
+      "verified_on_github": true,
+      "outcome": "Verified W100/O111/scan recommendation and safe action behavior; seven tests pass."
+    }
+  ]
+}

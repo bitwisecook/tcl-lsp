@@ -4,7 +4,7 @@ Updated 4 November 2026. Branch: `work`. The LSP is not yet release-ready.
 
 User priority update: the conditional-list S102 follow-up in #940 takes priority.
 The user permits evidence comments and closure only for verified fixed issues
-authored by bitwisecook. The five issues #2254, #2255, #2334, #2351 and #2434
+authored by bitwisecook. The six issues #2254, #2255, #2334, #2351, #2434 and #2440
 were verified, commented and closed. All 20 other-reporter issues remain open;
 their current assessment is in [LSP_RELEASE_EXTERNAL.md](LSP_RELEASE_EXTERNAL.md).
 
@@ -40,4 +40,13 @@ All naming changes use the shared naming owners. Tcl parsing must use the existi
 - Next: run fresh focused regressions, fix residual defects, preserve positive and refusal cases, update lane evidence, and continue scheduled integration.
 - The corrected optimiser differential cohort passes 44/44 on the applicable pinned Tcl releases at `1c15d4ff5`; expanded controls and newer changes require their own results.
 - Full locked Cargo metadata succeeds for the LSP server, Spec Studio and Explorer WASM hosts. This verifies those lockfiles, not a WASM binary or editor package build.
+
+
+## External comment validation completed
+
+All 19 requested external issue comments were posted and verified on GitHub;
+#2021 was excluded. [Comment index and outcomes](LSP_RELEASE_EXTERNAL.md).
+The comments distinguish passing scoped checks from genuine-control failures.
+The source-owner/shimmer gap remains unresolved for #940 and related reports;
+no speculative authority or parser workaround was committed.
 

@@ -1,32 +1,38 @@
-# Open issues from other reporters
+# External issue validation comments
 
-Snapshot: 4 November 2026. These 20 issues were open in the authorship inventory.
-They remain open: the user authorised closure only for bitwisecook-authored
-issues. Source coverage alone is not a passing execution result.
+Updated 2026-11-04 11:20:23 UTC. All **19 requested issue comments** were posted and
+reread on GitHub. **#2021 was excluded and received no comment from this sweep.**
+No external issue was closed by this work. Revisions, commands, native-oracle
+versions, controls and scope limits are in the linked comments.
 
-| Issue | Reporter | Current validation status |
+A quiet reported example is not called fixed when its genuine positive control
+also fails. In particular, #940, #2498, #2500 and #2504 remain inconclusive;
+#2286, #2501 and #2502 retain missing-read gaps, and #2181 has unverified UI and
+broader lifecycle paths. The LSP is not release-ready on this evidence alone.
+
+| Issue | Validation outcome | Evidence comment |
 | --- | --- | --- |
-| #940 | nico-robert | Highest priority: conditional `lappend` S102 follow-up under investigation. Native execution agrees on Tcl 8.4–9.1 and latest Jim; compiler regression must retain source metadata and a true-warning control. |
-| #2021 | yarko18 | EOF and shutdown/exit during scanning pass both real-process regressions at `9d9140a60`. The original extension-update/orphan scenario was not reproduced. |
-| #2181 | torbenmu | Nested body-role and association/reload regressions exist. Fresh protocol/editor verification pending. |
-| #2242 | Ammar-Kasem | Exact custom-pack arity publication regression exists. Fresh LSP execution pending. |
-| #2265 | torbenmu | Exact nested-expression semantic-token span regression passes in the fresh Core build recorded at `5effb7ceb`. |
-| #2286 | georgtree | All four reported tcltest fixture shapes are clean of W210 in a fresh compiler baseline at `961f17a32`. |
-| #2288 | georgtree | Additive `bind` callback report awaiting fresh focused validation. |
-| #2289 | georgtree | Existing child-interpreter/procedure witness passes in the fresh binding baseline; full linked-file scenario needs final assessment. |
-| #2290 | georgtree | Latest linked tclmeasure file has no W210 in the fresh binding baseline; W103 findings remain unrelated. |
-| #2497 | nico-robert | Fresh inherited-`my` Code Lens/reference agreement regression passes at `5effb7ceb`. |
-| #2498 | nico-robert | Numeric `lindex` value: existing source coverage; fresh executed report pending. |
-| #2499 | nico-robert | Dynamic variable-name read: existing source coverage; fresh executed report pending. |
-| #2500 | nico-robert | Negative infinity representation: existing source coverage; fresh executed report pending. |
-| #2501 | nico-robert | Exact regexp/lassign loop report is clean of W210 in the fresh binding baseline. |
-| #2502 | nico-robert | Exact dict-with variable report is clean of W210 in the fresh binding baseline. |
-| #2503 | nico-robert | Nested expr within quoted result: existing source coverage; fresh executed report pending. |
-| #2504 | nico-robert | Numeric foreach binder: existing source coverage; fresh executed report pending. |
-| #2505 | nico-robert | Multiline list callback: existing source coverage; fresh executed report pending. |
-| #2506 | nico-robert | Boolean-expression taint: existing source coverage; fresh executed report pending. |
-| #2507 | nico-robert | Hex conversion scan recommendation: existing source coverage; fresh executed report pending. |
+| #940 | Inconclusive: the S102 positive control is also missed. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/940#issuecomment-6629102912) |
+| #2181 | Partial: routed-environment edit/reopen and focused role changes pass; UI and broader lifecycle paths remain unverified. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2181#issuecomment-6629241452) |
+| #2242 | Verified native LSP arity publication and repair under Tcl 8.6/9.0. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2242#issuecomment-6629219439) |
+| #2265 | Verified exact Core token extents and geometry control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2265#issuecomment-6629091417) |
+| #2286 | Partial: reported W210s absent, but genuine Tcltest missing-read controls are also missed. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6629095522) |
+| #2288 | Verified additive bind diagnostic and active W105 control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2288#issuecomment-6628779207) |
+| #2289 | Scoped non-reproduction on current linked input and reduced creator/call; full RBC execution not tested. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2289#issuecomment-6629096965) |
+| #2290 | Scoped non-reproduction on current linked input; historical September input not established. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2290#issuecomment-6629098284) |
+| #2497 | Verified minimal inherited my reference/lens agreement; broader partial-coverage label tests still fail. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2497#issuecomment-6629092872) |
+| #2498 | Inconclusive: genuine shimmer controls also emit no warning. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2498#issuecomment-6629104505) |
+| #2499 | Verified dynamic read diagnostic and active W212 write-position control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2499#issuecomment-6628780552) |
+| #2500 | Inconclusive: genuine shimmer controls also emit no warning; full example supported only on Tcl 8.5–9.1. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2500#issuecomment-6629106024) |
+| #2501 | Partial: reported W210 absent; a reached control with lassign removed still misses a genuine read. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2501#issuecomment-6629099746) |
+| #2502 | Partial: reported W210 absent; a procedure-local control without dict with still misses a genuine read. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2502#issuecomment-6629101423) |
+| #2503 | Verified quoted nested expr diagnostic and active W114 control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2503#issuecomment-6628781788) |
+| #2504 | Inconclusive: genuine shimmer controls also emit no warning. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2504#issuecomment-6629107328) |
+| #2505 | Verified multiline/single-line list callbacks and active W301 control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2505#issuecomment-6628783425) |
+| #2506 | Verified boolean-derived operands and direct untrusted-input T100 control. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2506#issuecomment-6629094133) |
+| #2507 | Verified W100/O111/scan recommendation and safe action behavior; seven tests pass. | [Proof](https://github.com/bitwisecook/tcl-lsp/issues/2507#issuecomment-6629220744) |
 
-Owning lanes keep exact commands, inputs and limitations in their corresponding
-`LSP_RELEASE_*.md` documents. The final chat report must include every row here,
-with updated outcomes, rather than treating this file as a substitute.
+The full linked inputs, hashes, upstream licences and compiler receipts are under
+`rust/tcl-compiler/tests/data/lsp-external-bindings/`. Values and protocol details
+remain in their `LSP_RELEASE_*.md` lane records. A machine-readable comment audit
+is in [LSP_RELEASE_ISSUE_COMMENTS_2026-11-04.json](LSP_RELEASE_ISSUE_COMMENTS_2026-11-04.json).
