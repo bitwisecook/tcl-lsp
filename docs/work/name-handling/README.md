@@ -1,5 +1,8 @@
 # LSP naming migration on work
 
+Current09:21 UTC snapshot: reviewed1fa97847b cut-body source-reference producer and test-prerequisite corrections are adopted; focusedCore11 is building with the two-file positive first. PriorCoreV3 remains15pass/5fail and installed15/15 pass. ClippyV19 fails41 emitted type/inference diagnostics; scoped repairs are adopted and final lint remains pending. [Current state](current-state.md) owns exact sources and limits.
+
+
 Updated 04 November 2026, 09:00 UTC. [current-state.md](current-state.md) is the authority for source-bound results, committed work, private drafts and blockers. [outstanding/README.md](outstanding/README.md) lists current responsibilities.
 
 **The LSP is not release-ready.** The user prioritises the LSP and its transitive libraries. Separate VM, BIG-IP and ancillary feature development is deferred; linked VM/SpecTcl execution and required repository gates remain in scope.

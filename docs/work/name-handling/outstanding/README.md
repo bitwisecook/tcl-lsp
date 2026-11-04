@@ -1,5 +1,8 @@
 # Outstanding LSP release work
 
+Current09:21 UTC snapshot: reviewed1fa97847b cut-body source-reference producer and test-prerequisite corrections are adopted; focusedCore11 is building with the two-file positive first. PriorCoreV3 remains15pass/5fail and installed15/15 pass. ClippyV19 fails41 emitted type/inference diagnostics; scoped repairs are adopted and final lint remains pending. [Current state](current-state.md) owns exact sources and limits.
+
+
 Updated 04 November 2026, 09:00 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for exact sources and receipts.
 
 | Work | Open acceptance |
