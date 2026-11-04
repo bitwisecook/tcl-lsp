@@ -207,6 +207,35 @@ anything that can genuinely be pending — a channel receive, a oneshot, or
 awaiting it, and why client replies are queued to a relay task rather than
 awaited into the sink.
 
+### Fresh-analysis interruption on input progress
+
+WASI still runs blocking work inline. Fresh analysis uses
+`Analyser::try_analyse_owned` with a transport scheduling control to relinquish
+that thread when input needs attention. Compiler checkpoints cover source,
+realm, procedure-body and fixpoint walks. Interruption returns a typed error;
+the owned analyser and its provisional result are discarded. Interrupted source
+walks cannot retain a complete semantic-cache entry. Nested controlled analyses
+inherit interruption in both directions, so ignoring an inner error cannot make
+the outer job publish a complete result. These controls supply no Tcl source,
+lookup, completion or execution facts.
+
+`AnalysisCooperation` connects that error to the sole-reader Driver. Its readiness
+probe never reads or dispatches input. Already decoded frames also request
+interruption when the raw descriptor is quiet. The Driver distinguishes a routed
+complete frame from bytes drained into an incomplete frame; the latter permits a
+retry without claiming that a message was routed or waiting for a client to send
+more bytes before receiving an earlier response. Exit and EOF select terminal
+state before waking suspended analysis. Held requests retain the service's
+admission ordering. A quiet turn does not create another retry or a recurring
+analysis time slice.
+
+Only fresh analysis currently uses this path. Parsing, lowering and SSA remain
+atomic, other inline jobs are unchanged, and unsupported descriptor readiness
+cannot provide the same responsiveness. The transport deadline below continues
+to bound waiting rather than arbitrary CPU work. Native unit controls and the
+original WASI busy-exit/EOF workload test separate parts of this contract;
+passing one does not establish the other.
+
 ### Step 5's deadline is what keeps the timers moving
 
 Tokio's timer wheel only advances when the runtime is driven, and the runtime is
