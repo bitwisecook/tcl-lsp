@@ -4,4 +4,4 @@
 - #2021: The native server already has an exit watchdog for stdin EOF and the `exit` notification, with process-level regressions for both paths during a workspace scan. It does not independently monitor the client process if another process retains stdin. Verification is pending in this checkout.
 - #2295: The first workspace-symbol query already waits on startup scan readiness with separate bounded budgets for scan start and completion. The existing end-to-end test checks that the first query finds the on-disk fixture. This intentionally permits a stale result if the scan exceeds its time budget; verification is pending in this checkout.
 
-Focused #1657 test build started after enabling network access to the configured proxy. It was stopped before completion to coordinate memory use with other builds; verification remains pending.
+Verification: `cargo fmt --all -- --check` passed. The focused #1657 transport regression passed (1 test). The #2021 and #2295 end-to-end regressions have not yet completed.
