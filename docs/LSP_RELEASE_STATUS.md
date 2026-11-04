@@ -32,7 +32,7 @@ All naming changes use the shared naming owners. Tcl parsing must use the existi
 Naming snapshot, 4 November 2026 at 17:42 UTC: **not release-ready**. The fresh 21-control Compiler diagnostic passes 16/21. Adopted Named binding, card-fixture and prefix transport repairs remain untested; Logical namespace/channel drafts are private. Core V13 builds, then refuses before tests on one unsealed Tcl input; its separate post-build diagnostic passes 21/23 plus observation with unchanged pins, but complete prebuild custody, current-Main and parent acceptance remain false. RMW v19 starts fresh builds. New host run 41877790468 is queued after integrated Explorer Arc repair `33cf8caf26`; the previous b0ff run fails before runtime tests. Old b067 Browser 40/41 and WASI 32/33 remain source-bound failures. Host V7 private controls, lint and TypeScript pass; real-host acceptance is pending. Tcl evidence checks 321 files and passes 11 tests; full release gates and performance remain open. Shallow `work` continues reviewed five-minute syncs without force. [Current naming state](work/name-handling/current-state.md) records exact receipts, earlier failures and the restored 13-fixture cleanup incident.
 
 - The initial GitHub inventory contains 203 open issues. Assignment does not mean reproduced or fixed; each lane must record its verdict and exact checks.
-- The source is a filtered shallow clone. Historical experiment/audit trees are excluded from the working tree; source and regression fixtures remain available through Git when required.
+- The source is a shallow clone. Its current sparse checkout excludes exactly114 Git-backed historical handoff archives; all128,890 other tracked paths remain present, including source and regression fixtures. Any later gate needing an excluded archive must rehydrate that exact file.
 - The first development sync completed at 09:13 UTC, incorporating `961f17a32` and pushing the current head. No product test result is inferred.
 - Coordinator #2255: `variable_component` already enables every array-index substitution independently of the enclosing mask. Expanded its existing regression to include Tcl 8.4 and 8.5. All 586 lexer unit tests pass. A fixed native witness agrees on all five Tcl releases and Jim: command and escape substitutions inside the index remain enabled while disabled outside; disabling variables retains the whole literal operand.
 - Lexer Clippy is blocked by a pre-existing `assert_is_empty` finding in `source_map.rs:917`; no lint suppression was added. Full repository gates remain pending in the separate gate-fixing work.
@@ -68,14 +68,4 @@ The source-owner/shimmer gap remains unresolved for #940 and related reports;
 no speculative authority or parser workaround was committed.
 
 
-Naming status at 19:20 UTC: Compiler34 remains30/34; a fresh post-correction Compiler-library probe now resolves namespace-local and global calls correctly, unit renewal pending. Core27 completes25/27; two obsolete point premises have a reviewed correction. Additional same-ELF12-control diagnostic passes7/12; O112 selector and opaque-name source completion repairs are adopted, untested; O127 and callback-reference failures remain. Registry9 builds then refuses before tests on20 late fixture inputs. Latest de5f Browser40/41 twice and WASI32/33 twice remain failures; WASI trace ends inside inline analysis before exit/EOF routing. Full gates, performance and packages remain open. [Current naming snapshot](work/name-handling/current-state.md) and [outstanding work](work/name-handling/outstanding/README.md) retain exact evidence and limits.
-
-Baseline compiler lint repair, 19:36 UTC: the two oversized Logical source
-walkers are split into their existing static body/target selection and typed
-effect/transition checks. Guards, state transitions and Native/Normal boundaries
-are preserved, including the concurrent delegated-script effect selection;
-no lint suppression is added. The reviewed patch SHA-256 is
-`19dc230cd86eb4164244ea44c55e57f73ebae76322189d60310987ed91281256`.
-Standalone rustfmt and diff checks pass. Compilation, production Clippy and
-runtime regression checks are pending the priority #940 joint build; this is
-not a claim that either repository gate is green.
+Naming status at 19:42 UTC: Compiler34 remains30/34; fresh post-correction library probe resolves local and global namespace calls, unit renewal pending. Core27 completes25/27 and separate same-ELF diagnostic7/12; point/O112/opaque/callback repairs are adopted, untested. Registry9 post-build diagnostic passes9/9 while parent prebuild custody remains false. Server V16 builds and first15/31 mandatory controls pass, probes pending. Browser40/41 and WASI32/33 twice remain failures; WASI trace ends in synchronous analysis. GitHub auth failed again; last successful sync19:37:59. Full gates/performance/packages remain open. [Current snapshot](work/name-handling/current-state.md) gives exact receipts and limits.
