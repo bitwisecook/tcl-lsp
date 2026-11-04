@@ -1,20 +1,20 @@
 # LSP value and diagnostic release audit
 
-Audit base: `961f17a32` on `work`. A source-level review found existing focused
-regression cases for the reported recent issues; a test name below is evidence
-of coverage, not a claim that it has been rerun in this checkout.
+The source revisions and scope of each check are recorded below. Quiet
+warnings are not treated as verification when a genuine positive control is
+also silent.
 
 | Issue | Current evidence and status |
 | --- | --- |
-| #940 | The reporter’s conditional `lappend` program returns the same values on Tcl 8.4–9.1 and Jim 0.84. Tcl 8.6 shows one pure-string to list promotion; Tcl 9.0 and 9.1 retain list representations. Reproduction with retained compiler analysis input is running; an earlier standalone-unit test abstained and is not evidence. |
-| #2498, #2500, #2504 | `compiler_checks::list_element_shimmer_controls` covers list elements and signed infinity; execution pending. |
-| #2499 | `w212_allows_indirect_read_through_a_computed_name_2499` covers the reported form; execution pending. |
-| #2503 | `selected_nested_expression_controls` covers quoted and array-index operands and a direct expression operand; execution pending. |
-| #2505 | `w301_list_built_uplevel_script_is_silent_across_lines_2505` covers multiline, single-line and unsafe quoted controls; execution pending. |
-| #2506 | `a_comparison_result_is_not_tainted_2506` covers comparison result flow; execution pending. |
-| #2507 | `w100_suggests_scan_for_a_hexadecimal_conversion_2507` covers the advisory and a non-hex control; execution pending. |
+| #940 | At `5755cd79d`, the reported conditional append and original font-size examples are quiet. A genuine int/string loop also produces no S102, so the result is inconclusive. See the replay below. |
+| #2498, #2500, #2504 | At `5755cd79d`, each reported warning is quiet, but all three genuine shimmer controls below also produce no warning. The results are inconclusive. |
+| #2499 | At `e19c0acaa`, the dynamic read is quiet and the dynamic write control emits W212. `lsp_external_validation::issue_2499_dynamic_variable_read`. |
+| #2503 | At `e19c0acaa`, the quoted expression is quiet and a direct nested expression emits W114. `lsp_external_validation::issue_2503_nested_expr_inside_quoted_result`. |
+| #2505 | At `e19c0acaa`, multiline and single-line list-built scripts are quiet and an interpolated script emits W301. `lsp_external_validation::issue_2505_multiline_list_uplevel`. |
+| #2506 | At `0c7b97c9d`, the boolean comparison remains quiet and `set raw [gets stdin]; expr {$raw + 1}` emits T100 for `raw`. The exact control is committed in `lsp_external_taint_validation::issue_2506_boolean_comparison_taint`. |
+| #2507 | Separate LSP report and action checks passed at `14b26b2e0`; see the optimiser validation record. |
 | #2131 | `type_infer` uses the `tcl-syntax` `MathResultClass` owner; execution pending. |
-| #2288 | `fp_sty_14_prefixed_list_built_body_no_w105_2288` exists; execution pending. |
+| #2288 | At `e19c0acaa`, the prefixed list-built Tk callback is quiet and an interpolated Tk callback emits W105. `lsp_external_validation::issue_2288_prefixed_tk_bind_script`. |
 | #2440 | Selected script-argument roles avoid scanning the containing body. The focused integration regression passed before the final rebase, covering proc literal and proven use, conditional and iRules bodies, and braced data. Final-head rerun pending. |
 | #2436 | Tcl 8.4–9.1 reject both reported welded forms; Jim 0.84 rejects welded braces and accepts welded quotes. Shared per-command parse-cut API and analyser integration drafted; lexer regression passes, compiler integration pending. |
 | #2387, #2437, #2438, #2451–#2454, #2427 | Awaiting reproduction against current branch. |
@@ -25,3 +25,217 @@ build failed on 43 existing test-compilation errors, including unavailable
 sparse-checkout fixtures and private-module and ambiguous empty-array assertions
 (`/tmp/lsp-values-2440.log`). The focused integration test passed before the final rebase. Full gates have not run
 in this checkout.
+
+
+## Shimmer reproduction at `5755cd79d`
+
+The following standalone Cargo test uses the production analyser input,
+captured source settings, and interprocedural phase. It explicitly checks that
+`ShimmerContext::for_function` is available for each analysed function. The
+seven checks yielded five passes and two failures: the reported examples were
+quiet, while `issue_940_conditional_accumulators_with_oscillation_control` and
+`shimmer_positive_control` failed because the genuine controls were quiet too.
+The first-list-conversion check for `fontSizes` passed. The same run's #2506
+boolean and positive taint cases passed. Source hashes were unchanged during
+the run.
+
+Tcl 8.6.18, 9.0.4 and 9.1.0 `tcl::unsupported::representation` confirms that
+`set n [string length $s]; lindex $n 0` changes the same object from int to
+list, and `set d [dict create k x]; llength $d` changes the same object from
+dict to list. In the S102 control `set x [expr {$x+1}]; set x [string range
+$x 0 end]`, each of those runtimes reports int after `expr` and string after
+`string range` on two iterations. Tcl 8.4.20 through 9.1.0 and Jim 0.84 run
+the reported #940 loop and return `ys={4 6}` and `pts={{3 4} {5 6}}`.
+
+To replay, create a temporary Cargo package with dependencies on this
+checkout's `rust/tcl-compiler`, `rust/tcl-registry`, `rust/tcl-dialect`, and
+`rust/tcl-core-types` crates, put the code below in `src/lib.rs`, and run
+`cargo test -- --nocapture --test-threads=1`. Use an isolated target directory
+for the checkout. The two positive-control failures are intentional evidence
+of the current gap, not expected passing tests.
+
+```rust
+use tcl_compiler::analyser::Analyser;
+use tcl_core_types::DiagCode;
+
+fn with_unit<T>(source: &str, run: impl FnOnce(&tcl_compiler::compilation_unit::CompilationUnit, &tcl_registry::CommandRegistry, &'static tcl_dialect::DialectProfile) -> T) -> T {
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use tcl_compiler::shimmer::ShimmerContext;
+    let mut analyser = Analyser::new();
+    let _analysis = analyser.analyse(source, "tcl8.6");
+    let input = analyser.resolved_analysis_input();
+    let settings = analyser.source_compilation_settings();
+    let registry = input.borrowed_context_registry().commands();
+    let profile = input.unit_profile();
+    let options = UnitBuildOptions {registry, defer_top_level: false, config: input.lexer_config(), dialect: Some(profile), external_call_sites: None, declared_commands: None};
+    let unit = CompilationUnit::build_with_analysis_input_and_source_settings(source, options, None, &input, &settings).with_interprocedural(registry, Some(profile));
+    assert!(unit.analysable_functions().next().is_some());
+    assert!(unit.analysable_functions().all(|f| ShimmerContext::for_function(f, registry).is_some()));
+    run(&unit, registry, profile)
+}
+
+fn shimmer(source: &str) -> Vec<(DiagCode, String)> {
+    with_unit(source, |unit, registry, _| {
+        tcl_compiler::shimmer::find_shimmer_warnings_for_cu(unit, registry).into_iter().map(|warning| (warning.code, warning.variable)).collect()
+    })
+}
+
+#[test]
+fn issue_2498_list_element_arithmetic() {
+    let source = "set steps {0.001 0.002 0.005 0.01 0.02 0.05 0.1 0.2 0.5 1 2 5 10 15 30 60 120 300 600 900 1800 3600 7200 10800 21600 43200 86400}\nset hi [lindex $steps end]\nset pow [expr {pow(10, floor(log10(5)))}]\nset e [expr {5 / $pow}]\nset mult [expr {$e >= 5 ? 5 : ($e >= 2 ? 2 : 1)}]\nset step [expr {$mult * $pow * $hi}]";
+    let warnings = shimmer(source);
+    assert!(!warnings.iter().any(|(code, var)| *code == DiagCode::S100 && var == "hi"), "{warnings:?}");
+}
+
+#[test]
+fn issue_2500_signed_infinity() {
+    let source = "set x0 Inf\nset x1 -Inf\nforeach child {1 2 3 4} {lassign {10 20 30 40} x y w h; set x0 [expr {min($x0, $x)}]; set x1 [expr {max($x1, $x + $w)}]}";
+    with_unit(source, |unit, registry, _| {
+        let shimmers = tcl_compiler::shimmer::find_shimmer_warnings_for_cu(unit, registry);
+        let thunks = tcl_compiler::shimmer::find_thunking_warnings_for_cu(unit, registry);
+        assert!(!shimmers.iter().any(|w| w.code == DiagCode::S100 && w.variable == "x1"), "{shimmers:?}");
+        assert!(!thunks.iter().any(|w| w.variable == "x1"), "{thunks:?}");
+    });
+}
+
+#[test]
+fn issue_2504_list_iteration_arithmetic() {
+    let source = "proc rgbToLab {{r 255} {g 255} {b 255}} { foreach c [list $r $g $b] {set cs [expr {$c / 255.0}]} }; rgbToLab 200 150 90";
+    let warnings = shimmer(source);
+    assert!(!warnings.iter().any(|(code, var)| *code == DiagCode::S101 && var == "c"), "{warnings:?}");
+}
+
+#[test]
+fn shimmer_positive_control() {
+    let sources = [
+        "proc computed {} {set s abc; set n [string length $s]; lindex $n 0}; computed",
+        "proc counted {} {set i 0; incr i; lindex $i 0}; counted",
+        "proc f {l} {foreach x $l {set d [dict create k $x]; set n [llength $d]}}; f {1 2}",
+    ];
+    let found: Vec<_> = sources.iter().map(|source| (source, shimmer(source))).collect();
+    eprintln!("valid shimmer positive controls: {found:?}");
+    assert!(found.iter().any(|(_, warnings)| !warnings.is_empty()), "no valid shimmer positive control warned: {found:?}");
+}
+
+fn taint(source: &str) -> Vec<String> {
+    with_unit(source, |unit, registry, profile| {
+        tcl_compiler::taint::find_taint_warnings_for_cu(unit, registry, Some(profile)).into_iter().filter(|w| w.code == DiagCode::T100).map(|w| w.variable).collect()
+    })
+}
+
+#[test]
+fn issue_2506_boolean_comparison_taint() {
+    let source = "set line [gets stdin]\nset trimmed [string trimleft $line]\nset is_empty [expr {$trimmed eq \"\"}]\nset is_comment [expr {!$is_empty && [string index $trimmed 0] eq \"#\"}]\nset is_code [expr {!$is_empty && !$is_comment}]";
+    let warnings = taint(source);
+    assert!(!warnings.iter().any(|v| v == "is_empty" || v == "is_comment"), "{warnings:?}");
+    let control = taint("set n [gets stdin]\nset m [expr {$n + 1}]\nif {$m} {puts y}");
+    assert!(control.iter().any(|v| v == "m"), "taint analysis failed positive control: {control:?}");
+}
+
+#[test]
+fn issue_940_conditional_accumulators_with_oscillation_control() {
+    use tcl_compiler::shimmer::find_thunking_warnings_for_cu;
+    let source = "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; if {$y > 2} {lappend ys $y; lappend pts $pt}}";
+    let warnings = with_unit(source, |unit, registry, _| find_thunking_warnings_for_cu(unit, registry));
+    assert!(!warnings.iter().any(|w| w.variable == "ys" || w.variable == "pts"), "{warnings:?}");
+    let control = "proc f {n} { set x 0; while {$n} { set x [expr {$x + 1}]; set x [string range $x 0 end]; incr n -1 }; return $x }; f 3";
+    let warnings = with_unit(control, |unit, registry, _| find_thunking_warnings_for_cu(unit, registry));
+    assert!(warnings.iter().any(|w| w.variable == "x"), "genuine int/string control has no S102: {warnings:?}");
+}
+
+#[test]
+fn issue_940_font_sizes_first_list_conversion() {
+    for source in [
+        "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }",
+        "set fontSizes [list 10.0 12.0 16.0 24.0]\nforeach size $fontSizes { puts $size }",
+    ] {
+        let warnings = shimmer(source);
+        assert!(!warnings.iter().any(|(code, var)| *code == DiagCode::S100 && var == "fontSizes"), "{warnings:?}");
+    }
+}
+```
+
+A bounded source-owner probe at `5755cd79d` separately queried
+`source_registry_words_at` with the retained analysis and obtained source
+schemas for each #940 loop-body `set`, `lindex`, and both `lappend` sites, as
+well as the positive proc's `set`, `expr`, `string range`, and `incr` sites.
+Those source schemas are advisory facts; they do not prove runtime command
+selection or successful execution.
+
+The bounded probe uses the same temporary Cargo package and its retained
+analysis:
+
+```rust
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::registry_invocation::source_structure::source_registry_words_at;
+
+#[test]
+fn original_body_source_schemas() {
+    for (source, needles) in [
+        ("set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; if {$y > 2} {lappend ys $y; lappend pts $pt}}", &["set y ", "lindex ", "lappend ys", "lappend pts"][..]),
+        ("proc f {n} { set x 0; while {$n} { set x [expr {$x + 1}]; set x [string range $x 0 end]; incr n -1 }; return $x }; f 3", &["set x [expr", "expr {", "set x [string", "string range", "incr n"][..]),
+    ] {
+        let mut analyser = Analyser::new();
+        let analysis = analyser.analyse(source, "tcl8.6");
+        let input = analyser.resolved_analysis_input();
+        for needle in needles {
+            let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
+            let words = source_registry_words_at(source, &analysis, offset);
+            let schema = words.as_ref().and_then(|words| words.with_source_schema(input.borrowed_context_registry(), |schema| (schema.semantics.lowering_hook, schema.authored_source_argument_roles())));
+            println!("{needle:?} offset={offset} words={} schema={schema:?}", words.is_some());
+        }
+    }
+}
+```
+
+## External report language oracles
+
+Run each script below under Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0,
+and Jim 0.84. The first script returned `+widget destroy`, `{12 34}`, `25%`,
+and `hello` on all six. Its `bind` stub examines Tcl substitution and list
+construction; it does not exercise Tk GUI dispatch.
+
+```tcl
+proc self {} {return widget}
+proc bind {name event script} {return $script}
+set frameName .f
+set result2288 [bind $frameName <Destroy> +[list [self] destroy]]
+set sides {left right}; set left 12; set right 34; set result2499 {}
+foreach side $sides {lappend result2499 [set $side]}
+set progress 0.25
+set result2503 [expr {$progress eq "" ? "" : "[expr {round($progress * 100)}]%"}]
+proc sink {x} {return $x}
+set result2505 [uplevel #0 [list \
+    sink hello \
+]]
+puts [list [info patchlevel] $result2288 $result2499 $result2503 $result2505]
+```
+
+The next script returned `432000.0` for #2498 and `{0 1 0}` for #2506 on
+all six. #2504 returned the expected ratios, with Tcl 8.4 and Jim displaying
+fewer digits. #2500 returned `{10 40}` on Tcl 8.5–9.1; Tcl 8.4 rejected
+`min`, and Jim rejected that expression.
+
+```tcl
+set script2498 {
+ set steps {0.001 0.002 0.005 0.01 0.02 0.05 0.1 0.2 0.5 1 2 5 10 15 30 60 120 300 600 900 1800 3600 7200 10800 21600 43200 86400}
+ set hi [lindex $steps end]; set pow [expr {pow(10, floor(log10(5)))}]; set e [expr {5/$pow}]; set mult [expr {$e>=5 ? 5 : ($e>=2 ? 2 : 1)}]; expr {$mult*$pow*$hi}
+}
+set script2500 {
+ set x0 Inf; set x1 -Inf
+ foreach child {1 2 3 4} {lassign {10 20 30 40} x y w h; set x0 [expr {min($x0,$x)}]; set x1 [expr {max($x1,$x+$w)}]}
+ list $x0 $x1
+}
+set script2504 {
+ proc rgbToLab {{r 255} {g 255} {b 255}} {set out {}; foreach c [list $r $g $b] {lappend out [expr {$c / 255.0}]}; return $out}
+ rgbToLab 200 150 90
+}
+set script2506 {
+ set trimmed [string trimleft " # comment"]; set is_empty [expr {$trimmed eq ""}]; set is_comment [expr {!$is_empty && [string index $trimmed 0] eq "#"}]; set is_code [expr {!$is_empty && !$is_comment}]; list $is_empty $is_comment $is_code
+}
+foreach number {2498 2500 2504 2506} {
+ set script [set script$number]
+ set status [catch {eval $script} result]
+ puts [list [info patchlevel] $number $status $result]
+}
+```
