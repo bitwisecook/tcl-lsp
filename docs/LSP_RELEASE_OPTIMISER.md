@@ -19,8 +19,26 @@ a conditional List requirement/store/result for the target container. Ordinary
 objects, unobserved storage, original source/receiver custody and successful
 handling remain separate premises; appended element representations are never
 copied to the target. The prototype remains under `/tmp` while the values
-source snapshot is frozen. Compiler controls and source/execution evidence are
-still being assembled; this checkpoint claims no verified implementation.
+source snapshot is frozen. Independent review added agreement between the
+selected native operation and the effective semantic operation; refusal
+fixtures include an actual selected form hiding raw extra effects. The frozen
+child is `/tmp/lsp-940-conditional_list_append.rs`, SHA-256
+`82aa633c03d4dd8f9088162febe9cc7216afd0049284a4ce629543f8f6d6e466`.
+Its four fixed-input Rust tests and compiler integration have not run.
+
+The handoff manifest is `/tmp/lsp-940-conditional-list-append-manifest.json`.
+It links pinned C source reviews and four standalone Tcl execution records,
+including the initial C9 trace-syntax failures. The portable observer/shadow
+script and separate root/procedure operand-order scripts each completed under
+all five pinned C releases and current Jim. Representation introspection was
+unavailable under C8.4, C8.5 and Jim, so those runs establish only their recorded
+values and errors. The shared evidence checker passes all four records, and
+the extractor recovers each exact executed script. These native observations
+do not verify the LSP projection. The target-cell read must follow all appended
+operand effects while retaining the earlier receiver-name value; neither
+appended numeric representations nor stale pre-operand producers can supply
+the target container representation. No shared values-tree write or Cargo
+invocation is claimed for this checkpoint; full push gates remain pending.
 
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -18,6 +19,58 @@ SCRIPTS = ROOT / "scripts/dev/bigip-probes/resolution-2286"
 
 
 class BigIPEvidenceTests(unittest.TestCase):
+    def test_appliance_cleanup_compares_current_configuration_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            fixtures = root / "fixtures"
+            fixtures.mkdir()
+            journal = root / "journal"
+            state = root / "state"
+            (fixtures / "rules.tsv").write_text(
+                "probe.conf\t/Common/__tcl_lsp_probe_2286_test\n"
+            )
+            (fixtures / "probe.conf").write_text("original configuration\n")
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            tmsh = bin_dir / "tmsh"
+            tmsh.write_text(
+                "#!/usr/bin/env bash\n"
+                "if [[ $1 == list ]]; then\n"
+                '  if [[ -f "$TEST_RULE_STATE" ]]; then cat "$TEST_RULE_STATE"; '
+                'else echo "was not found" >&2; exit 1; fi\n'
+                'elif [[ $1 == load ]]; then cp "$6" "$TEST_RULE_STATE"\n'
+                'elif [[ $1 == delete ]]; then rm "$TEST_RULE_STATE"\n'
+                "else exit 9; fi\n"
+            )
+            tmsh.chmod(0o755)
+            environment = dict(
+                os.environ,
+                PATH=f"{bin_dir}:{os.environ['PATH']}",
+                TEST_RULE_STATE=str(state),
+            )
+            driver = str(SCRIPTS / "appliance-rules.sh")
+            load = ["bash", driver, "load", str(fixtures), str(journal), "probe"]
+            cleanup = ["bash", driver, "cleanup", str(fixtures), str(journal)]
+            subprocess.run(load, env=environment, check=True, capture_output=True)
+            self.assertEqual(
+                (journal / "owned.tsv").read_text(),
+                "/Common/__tcl_lsp_probe_2286_test\tprobe\n",
+            )
+            state.write_text("changed configuration\n")
+            refused = subprocess.run(
+                cleanup, env=environment, check=False, capture_output=True
+            )
+            self.assertEqual(refused.returncode, 3)
+            self.assertEqual(state.read_text(), "changed configuration\n")
+            state.write_text("original configuration\n")
+            # Existing journals stored a digest in this column; the fixture map
+            # and captured original configuration still permit exact comparison.
+            (journal / "owned.tsv").write_text(
+                "/Common/__tcl_lsp_probe_2286_test\t" + "a" * 64 + "\n"
+            )
+            subprocess.run(cleanup, env=environment, check=True, capture_output=True)
+            self.assertFalse(state.exists())
+
     def test_context_generator_preserves_payload_without_a_digest(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
