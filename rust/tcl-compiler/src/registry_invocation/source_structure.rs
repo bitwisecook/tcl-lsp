@@ -402,7 +402,7 @@ impl OriginalSourceRegistryContext {
     }
 
     /// Capture the ordinary standalone structural consumer's exact pre-walk
-    /// input, settings and immutable realm, without producing an AnalysisResult.
+    /// input, settings and immutable realm, without producing an `AnalysisResult`.
     #[must_use]
     pub fn capture_standalone_structure(
         source: &str,
