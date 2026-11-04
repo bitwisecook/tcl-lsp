@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 03:42 UTC. This is the active snapshot; historical results certify only their recorded source and inputs.
+Updated 04 November 2026, 03:39 UTC. This is the active snapshot; historical results certify only their recorded source and inputs.
 
 ## Scope and release verdict
 
@@ -14,7 +14,7 @@ The checkout `/workspace/tcl-lsp-partial` is a shallow clone on `work`, configur
 - Definition-only partial suffix navigation (`18742cb29`) uses actually issued cursor-owning regions. Unique-target/uncertainty checks remain; references, rename, scope completion and command-world authority are unchanged. Native final-main closed-file failure remains open below.
 - Source-view hover (`c1cec1199`, contract `4ac78b461`) retains owned procedure/class/method/schema/special-variable metadata and ordinary provider applicability. Final-main procedural hover remains unavailable.
 - Autoload source-schema abstention (`fe925d8f7`) retains exact complete source/input/settings/purpose and full-consumer route checks. Authored command-table mutation withdraws the proof (`90782b1ca`). No fake dir value, Native execution, partial AnalysisResult or general None-skip is introduced.
-- A separately typed authored Invalid filename-layout API is adopted (`9e95e5e41`, `436c0de21`, type/lifetime repairs `bf983a16f`, `057837b2c`). Its seven independent controls now pass. **Default extraction still uses the old path**; the activation patch remains private, independently reviewed with no concrete blocker, and is gaining mixed-row controls before adoption. It proves unchanged-consumer non-contribution, not runtime errors/file absence; general callers must separately join live input/source/provider currency.
+- A separately typed authored Invalid filename-layout API is adopted (`9e95e5e41`, `436c0de21`, type/lifetime repairs `bf983a16f`, `057837b2c`). Its seven independent controls now pass. Default extraction now uses the reviewed guarded layout survey. Mixed valid/invalid rows in both orders and later-unknown fallback controls are adopted; post-activation compilation/tests remain pending. It proves unchanged-consumer non-contribution, not runtime errors/file absence; general callers must separately join live input/source/provider currency.
 - Server helper extraction retains the actual registry Arc (`3d1b206de`, `449b59013`); large filename proof storage is boxed (`2f6ebdfb1`). Test-only lint repairs are adopted (`d90b82b4e`, `daab73ec1`, `957ca8cf5`, `bc8cdab15`). No complete current lint pass exists.
 - Fixture corrections retain their purposes: primary-version availability explicitly checks W135 across15.0/21.1 and separately no W150 (`675d440da`); formatter explicitly requests expansion (`22db36ad1`); Core retains prior-puts debt as a negative and uses verified pure-list Unicode positive (`ad4567bd9`). Production defaults/debt guards are unchanged.
 - Remote commits `4d0f25b47`/`240be4501`, reviewed and merged as `a3c1d8a76`, retain authored coordinates for brace-folded bodies (#2505); bodies containing `${` remain materialised. Source-specific remote issue checks are historical, not merged acceptance.

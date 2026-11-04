@@ -189,8 +189,12 @@ receipts retain their exact original vector, input, source grammar and issuer;
 the filename result is bound to its actual loader and directory. This proves
 only that the unchanged filename consumer contributes no candidate. It does not
 prove a runtime error, file absence, completed evaluation or dispatch identity.
-The default index extraction retains its existing fallback until the separate
-survey is explicitly selected; host publication/input currency stays independent.
+Default index extraction uses this survey through its retained per-index loader.
+It skips only a matching authenticated layout or missing-schema receipt; unknown
+paths, unavailable proofs and mismatched receipts retain full analysis. The
+synchronous standalone caller retains one complete source/configuration/input
+snapshot throughout issue and use; general host publication/input currency stays
+independent.
 
 Source-view hover rejoins the exact retained procedure declaration and every
 physical ancestor before rendering. Source schema, selected root-special-variable

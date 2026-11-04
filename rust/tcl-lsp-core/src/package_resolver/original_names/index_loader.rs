@@ -31,7 +31,7 @@ pub(super) enum IndexFilenameSurvey<'a> {
     Unavailable,
 }
 
-/// Opt-in original filename query, independently of future loader execution.
+/// Original filename query, independently of future loader execution.
 #[derive(Debug)]
 pub enum OriginalIndexFilenameSurvey<'a> {
     /// Filename retained by the existing original source consumer.
@@ -109,7 +109,7 @@ impl OriginalIndexFilenameInvalidLayout<'_> {
 
 /// Survey one original filename with independently typed Invalid source-layout
 /// evidence. Unknown schema/grammar/path proofs retain Unavailable. Existing
-/// package extraction keeps its separate source-schema-only purpose.
+/// package extraction reuses its captured loader and the same proof checks.
 #[must_use]
 pub fn survey_original_index_filename<'a>(
     source: &'a str,
@@ -265,7 +265,7 @@ impl<'a> IndexLoader<'a> {
         }))
     }
 
-    fn survey_filename_with_layout_proof(
+    pub(super) fn survey_filename_with_layout_proof(
         &self,
         loader: &NativeWord,
         directory: &Path,
