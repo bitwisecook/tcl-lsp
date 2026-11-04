@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 01:43 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP feature work is deferred. No PR or release exists. [Current state](current-state.md) records exact published checkpoints, execution and blockers. The dated observations below are historical, not a current validation recount.
+**ACTIVE — 04 November 2026, 05:24 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP feature work is deferred. No PR or release exists. [Current state](current-state.md) records exact published checkpoints, execution and blockers. The dated observations below are historical, not a current validation recount.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -46,66 +46,46 @@ All of these conditions are necessary:
   warnings, packaging works, and running generation/gates leaves no unexplained
   tracked changes. Squash-tree verification uses the same product tree.
 
-## Historical planning position and acceptance sequence
+## Current acceptance sequence
 
-The six-hour target passed at14:56UTC with required gates still red. Work and
-the reduced release branch remain separate; no PR is open. Current detailed
-outcomes and owner routing live in `current-state.md` and `outstanding/`.
+Implementation and current evidence remain on the shallow `work` checkout.
+Root owns Main and the shared Cargo target; agents use narrow private files.
+There is no current reduced release candidate or PR. Historical baseline,
+report-equivalence, formatting, Kotlin and performance results in older git
+revisions certify only their recorded source. They do not validate the current
+checkout or establish a fresh baseline identity inventory.
 
-Current source identities, scoped results and immutable receipts are maintained in
-`current-state.md`; this plan does not duplicate the run ledger. The unchanged
-Default minify tests, including factorial, and the compiler minify control now
-pass in authenticated captures. Read-only compiler cases, native string effects,
-Jim applicability, runtime allocation/depth and browser/WASI/reference coverage
-remain release obligations. Later compiler errors can prevent new cases from
-running and must be repaired before any semantic result is inferred. Scoped
-successes do not close section F.
+The active snapshot records actual checkpoint interruptions and successful
+resumption, source-bound test results, failed builds and missing acceptance.
+The user explicitly authorises reviewed development pushes before green gates;
+that exception grants no merge or release publication. Required PR-event and
+shipping checks still need to pass on the final candidate.
 
-Current `origin/rust` advanced to`ed694de47cbbeff0bb9f5cd5888cc336e1e8a463`.
-It is merged into both development and release branches, retaining naming
-changes and current dependency locks. The prior24312-name baseline is historical;
-a fresh full baseline CI run40187433105 has executed. Its24624 observed namedPASS inventory remains intact. The prior355-test Heavy listing was misattributed from candidate658;44 missing-baseline claims are withdrawn. Exact baseline Heavy selector-list provenance remains unavailable. Full candidate CI
-must also produce complete current inventories. Unknown or cancelled outcomes
-cannot establish zero pass-to-fail.
+1. Complete current Compiler/Core proof controls, the typed source-publication
+   producer repair and actual first-request navigation/hover. Preserve genuine
+   absence, stale input, unrelated-scope and full reference-inventory guards.
+2. Complete linked hook confinement tests and supported SpecTcl execution,
+   package/index vectors and cross-file lifecycle/configuration/retirement
+   controls. Separate VM/BIG-IP feature development remains deferred; linked
+   regressions and mandatory gates remain in scope.
+3. Validate the final native, browser/WASM, WASI and editor transports and
+   current physical edit/refusal behavior. Authenticate complete selected
+   baseline/candidate inventories; unknown, skipped, cancelled and unreached
+   cases cannot establish zero pass-to-fail.
+4. Measure matched final release builds under the recorded Tcl corpus,
+   startup, latency, cancellation and memory contracts. A scoped source proof
+   or an unmatched timing does not establish runtime or performance acceptance.
+   The earlier dedicated iRules-timing waiver grants no other performance waiver.
+5. Reconcile global proof provenance without blind digest renewal or restoring
+   unsanitised captures. No private LSP-profile draft is a passing exemption.
+   Complete strict lint, formatting, generated drift, package custody/builds,
+   rust-check and prep-pr on the final shipping source.
+6. Perform repository-wide temporary-document/comment cleanup while preserving
+   reproducible fixtures/oracle evidence, verify the squash tree matches the
+   tested product, and open the already-authorised PR only after acceptance.
+   Merge, tag and release publication remain subsequent actions.
 
-Six paired Tcl performance jobs now compare Linux/macOS small, medium and full
-corpora against the current rust baseline. Three interleaved pairs and all15
-checks preserve their identity/count guards. All six scopes failed or terminated without a valid accepted comparison.
-Shipping acceptance requires complete valid results on the final source.
-Dedicated iRules timing alone is waived.
-
-The active documentation checkout retains frozen older product bytes and must
-not be built or reported as the shipping source. Fixes land in the publisher's
-`work` first; reviewed counterparts then carry to the release branch. Work-only
-diagnostic observers and manual validation jobs stay out of the release.
-The release chaff audit removes the unreferenced optimisation experiment while
-retaining functional fixtures/generated data. Whole root/runtime formatting
-passes on the recorded candidate; later changes require appropriate rechecks.
-Actual Kotlin validation passed97 tests on recordedcandidate658 through a bounded WORK job; later relevant changes require revalidation.
-
-1. Authenticate each current focused run and clean CI without canceling
-   healthy runs. Preserve failures, resource stops and unreached tests. Required
-   source pins now pass before dispatch; actual source/provider/artifact and
-   process seals remain necessary when interpreting results.
-2. Fix the measured startup/cancellation producers, remaining compiler flow
-   failures, Jim W210/body ownership, host navigation, Heavy bootstrap and runtime
-   failures. Validate the genuine closed-consumer implementation independently. Keep all original
-   assertions, currentness and fail-closed guards; handle unanswered new policy
-   questions only when the user's decision arrives.
-3. Complete strict Core/Server checks and every required native, browser,
-   WASI, editor, generated and SpecTcl gate on the integrated shipping tree.
-   Reconcile every selected baseline identity; unknown is not pass.
-4. Preserve the existing perf owner's completed authenticated old/mixed
-   report-equivalence proof and the reviewed integrated realm/interprocedural
-   patch. Measure the final shipping source under the recorded
-   latency/cancellation/memory contract; source-level equivalence does not
-   establish shipping performance. Dedicated iRules timing alone is waived.
-5. Complete repository-wide documentation/comment cleanup and generated drift,
-   retain test-consumed fixtures, run final formatting/rust-check/prep-pr and
-   packaging, then verify the squash tree matches the validated product.
-   Open the already-authorised PR only after every acceptance condition holds.
-
-## Required functional workstreams
+## Historical workstream inventory
 
 | Workstream | Required completion | Owner |
 |---|---|---|
