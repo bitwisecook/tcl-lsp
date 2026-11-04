@@ -1,12 +1,12 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 08:28 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for exact sources and receipts.
+Updated 04 November 2026, 08:39 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for exact sources and receipts.
 
 | Work | Open acceptance |
 | --- | --- |
 | Root integration |Current Compiler V3 exact-input6/6 passes. Final strict lint, proof/drift, full host/performance/package acceptance and truthful regular sync remain required. |
 | Closed-file navigation |Earlier sealed Server7/7 and native15+20+5 pass before current style/index changes; repeat final current source. Preserve source/index/ancestor/input and reference guards. Strict startup remains failed; cold positive/negative host plan is unexecuted. |
-| Hover/rename/edit |Broader current readonly metadata/hover/source gaps remain. Same-document rename/collision controls pass on recorded source; natural source-linked multi-doc shapes refuse, O127 has zero paired edits. Kernel V5 passes11/11 selected sealed software controls. Host-onlyv5 and negative rename wire-test correction are adopted but uncompiled; no host/Core/Native acceptance follows. |
+| Hover/rename/edit |Broader current readonly metadata/hover/source gaps remain. Same-document rename/collision controls pass on recorded source; natural source-linked multi-doc shapes refuse, O127 has zero paired edits. Kernel V5 passes11/11 selected sealed software controls. Host-onlyv5 and negative rename wire-test correction are adopted; initial type checking ran, focused execution remains pending; no host/Core/Native acceptance follows. |
 | Autoload |Pre-reuse installed15/15 and earlier Core10/10 pass. Current corrected Compiler6/6 passes. New Core11-control/15-vector plan and matched cold-host/startup checks are unexecuted; require-prefix lookup refusal is not a positive fixture. |
 | Linked hook containment |Sealed RMWv6 builds all3 packages and executes8 runs with unchanged source/generated/executables; aggregate fails Engine1/6, hooks10/13, VM Jim1/1. ScriptBytes test-only fix is adopted but unrerun; two budget/F5 abs failures remain. Exact-config budget diagnosis is not repaired-test acceptance. |
 | Packaging/hosts |Four no-build custody/dependency contracts pass. Current real native/WASM/WASI/editor/archive behavior and release-package production remain failed or unexecuted. |
