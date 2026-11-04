@@ -31769,6 +31769,116 @@ impl Backend {
 }
 
 impl Backend {
+    async fn workspace_symbol_attempt(
+        &self,
+        query: &str,
+    ) -> DocumentSourceResult<ControlFlow<Option<WorkspaceSymbolResponse>>> {
+        let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
+        let inputs_epoch = self.diag_inputs_epoch();
+        let factory_generation = *self.class_factory_generation.read().await;
+        // Open buffers the index does not currently hold, filled in from their
+        // own analysis.  `did_open` drops a document's index entry (its
+        // on-disk records stop being authoritative the moment a buffer exists)
+        // and the debounced publish is what puts it back, so for that window
+        // every symbol in the file the user *just opened* — the file most
+        // likely to be searched for — would be missing from the picker.
+        // Bounded by the open-document set, empty in steady state, and the
+        // analysis read here is the memoised one the pending publish is
+        // already computing.
+        let WorkspaceSymbolCandidates {
+            fallback_hits: mut hits,
+            indexed_hits,
+            indexed_revisions,
+            mut sources,
+            mut analyses,
+        } = self.open_but_unindexed_symbols(query, limit).await?;
+        if hits.len() < limit {
+            let remaining = limit - hits.len();
+            hits.extend(indexed_hits.into_iter().take(remaining));
+        }
+        if hits.is_empty() {
+            return Ok(ControlFlow::Break(None));
+        }
+        // A name span becomes an LSP range only against a checked source
+        // snapshot for its own URI. The index retains immutable validation
+        // context, not a mutable current buffer. `hits` arrives grouped by
+        // URI, so each document is resolved once — from the open buffer when
+        // there is one, else from disk.
+        let mut all: Vec<(SymbolInformation, Uri, DocumentState, Option<u64>)> =
+            Vec::with_capacity(hits.len());
+        for hit in hits {
+            if !sources.contains_key(&hit.uri) {
+                let loaded = match Uri::from_str(&hit.uri) {
+                    Ok(uri) => self.read_document(&uri).await?,
+                    Err(_) => None,
+                };
+                sources.insert(hit.uri.clone(), loaded);
+            }
+            let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
+            else {
+                continue;
+            };
+            if !analyses.contains_key(&hit.uri) {
+                let current = self.capture_workspace_symbol_analysis(&uri, doc).await?;
+                analyses.insert(hit.uri.clone(), current);
+            }
+            let Some(Some(current)) = analyses.get(&hit.uri) else {
+                continue;
+            };
+            if !Self::workspace_symbol_hit_is_current(&hit, doc, current, &indexed_revisions) {
+                continue;
+            }
+            let start = doc
+                .line_index
+                .position_at_utf16(hit.name_span.start(), &doc.text);
+            let end = doc
+                .line_index
+                .position_at_utf16(hit.name_span.end(), &doc.text);
+            #[allow(deprecated)]
+            let symbol = SymbolInformation {
+                name: hit.name,
+                kind: Self::indexed_workspace_symbol_kind(hit.kind),
+                tags: None,
+                deprecated: None,
+                location: Location {
+                    uri: uri.clone(),
+                    range: Range {
+                        start: Position {
+                            line: start.line,
+                            character: start.character.get(),
+                        },
+                        end: Position {
+                            line: end.line,
+                            character: end.character.get(),
+                        },
+                    },
+                },
+                container_name: hit.container_name,
+            };
+            all.push((
+                symbol,
+                uri.clone(),
+                (*doc).clone(),
+                indexed_revisions.get(&hit.uri).copied(),
+            ));
+        }
+        if all.is_empty() {
+            return Ok(ControlFlow::Break(None));
+        }
+
+        // Reuse each actual checked URI input without weakening its final
+        // source/configuration/provider/index currency. No await separates the
+        // final joint owner checks from response projection.
+        self.workspace_symbol_response_transaction(
+            &analyses,
+            &all,
+            inputs_epoch,
+            factory_generation,
+        )
+        .await
+        .map(readonly_reference_reports::ReadonlyTransaction::into_attempt)
+    }
+
     fn workspace_symbol_hit_is_current(
         hit: &core_workspace_symbols::IndexedWorkspaceSymbol,
         doc: &DocumentState,
@@ -35810,107 +35920,12 @@ impl LanguageServer for Backend {
         // a query issued after an open must observe that open.
         self.edits_settled().await;
         self.wait_for_workspace_scan().await;
-        let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
-        let inputs_epoch = self.diag_inputs_epoch();
-        let factory_generation = *self.class_factory_generation.read().await;
-        // Open buffers the index does not currently hold, filled in from their
-        // own analysis.  `did_open` drops a document's index entry (its
-        // on-disk records stop being authoritative the moment a buffer exists)
-        // and the debounced publish is what puts it back, so for that window
-        // every symbol in the file the user *just opened* — the file most
-        // likely to be searched for — would be missing from the picker.
-        // Bounded by the open-document set, empty in steady state, and the
-        // analysis read here is the memoised one the pending publish is
-        // already computing.
-        let WorkspaceSymbolCandidates {
-            fallback_hits: mut hits,
-            indexed_hits,
-            indexed_revisions,
-            mut sources,
-            mut analyses,
-        } = self
-            .open_but_unindexed_symbols(&params.query, limit)
-            .await?;
-        if hits.len() < limit {
-            let remaining = limit - hits.len();
-            hits.extend(indexed_hits.into_iter().take(remaining));
-        }
-        if hits.is_empty() {
-            return Ok(None);
-        }
-        // A name span becomes an LSP range only against a checked source
-        // snapshot for its own URI. The index retains immutable validation
-        // context, not a mutable current buffer. `hits` arrives grouped by
-        // URI, so each document is resolved once — from the open buffer when
-        // there is one, else from disk.
-        let mut all: Vec<(SymbolInformation, Uri, DocumentState, Option<u64>)> =
-            Vec::with_capacity(hits.len());
-        for hit in hits {
-            if !sources.contains_key(&hit.uri) {
-                let loaded = match Uri::from_str(&hit.uri) {
-                    Ok(uri) => self.read_document(&uri).await?,
-                    Err(_) => None,
-                };
-                sources.insert(hit.uri.clone(), loaded);
-            }
-            let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
-            else {
-                continue;
-            };
-            if !analyses.contains_key(&hit.uri) {
-                let current = self.capture_workspace_symbol_analysis(&uri, doc).await?;
-                analyses.insert(hit.uri.clone(), current);
-            }
-            let Some(Some(current)) = analyses.get(&hit.uri) else {
-                continue;
-            };
-            if !Self::workspace_symbol_hit_is_current(&hit, doc, current, &indexed_revisions) {
-                continue;
-            }
-            let start = doc
-                .line_index
-                .position_at_utf16(hit.name_span.start(), &doc.text);
-            let end = doc
-                .line_index
-                .position_at_utf16(hit.name_span.end(), &doc.text);
-            #[allow(deprecated)]
-            let symbol = SymbolInformation {
-                name: hit.name,
-                kind: Self::indexed_workspace_symbol_kind(hit.kind),
-                tags: None,
-                deprecated: None,
-                location: Location {
-                    uri: uri.clone(),
-                    range: Range {
-                        start: Position {
-                            line: start.line,
-                            character: start.character.get(),
-                        },
-                        end: Position {
-                            line: end.line,
-                            character: end.character.get(),
-                        },
-                    },
-                },
-                container_name: hit.container_name,
-            };
-            all.push((
-                symbol,
-                uri.clone(),
-                (*doc).clone(),
-                indexed_revisions.get(&hit.uri).copied(),
-            ));
-        }
-        if all.is_empty() {
-            return Ok(None);
-        }
-
-        // Reuse each actual checked URI input without weakening its final
-        // source/configuration/provider/index currency. No await separates the
-        // final joint owner checks from response projection.
-        self.finish_workspace_symbol_response(&analyses, &all, inputs_epoch, factory_generation)
-            .await
-            .map_err(Into::into)
+        let query = params.query.as_str();
+        readonly_reference_reports::retry_readonly_attempt(None, move || {
+            self.workspace_symbol_attempt(query)
+        })
+        .await
+        .map_err(Into::into)
     }
 
     async fn document_link(

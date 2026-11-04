@@ -131,6 +131,13 @@ impl OriginalCodeActionSource {
     }
 }
 
+type WorkspaceSymbolRow = (
+    tower_lsp_server::ls_types::SymbolInformation,
+    Uri,
+    super::DocumentState,
+    Option<u64>,
+);
+
 enum WorkspaceSymbolAnalysisKind {
     Database(Box<OriginalReadonlyReferenceDocument>),
     Fresh(Box<WorkspaceSymbolFreshInput>),
@@ -925,18 +932,31 @@ impl Backend {
     /// place, closed or deleted is withdrawn, and so is a closed document
     /// whose disk read or index revision changed. This retains possible
     /// symbol advice, not a complete workspace absence census.
+    #[cfg(test)]
     pub(super) async fn finish_workspace_symbol_response(
         &self,
         analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
-        rows: &[(
-            tower_lsp_server::ls_types::SymbolInformation,
-            Uri,
-            super::DocumentState,
-            Option<u64>,
-        )],
+        rows: &[WorkspaceSymbolRow],
         inputs_epoch: u64,
         factory_generation: u64,
     ) -> DocumentSourceResult<Option<tower_lsp_server::ls_types::WorkspaceSymbolResponse>> {
+        self.workspace_symbol_response_transaction(analyses, rows, inputs_epoch, factory_generation)
+            .await
+            .map(ReadonlyTransaction::published)
+    }
+
+    pub(super) async fn workspace_symbol_response_transaction(
+        &self,
+        analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+        rows: &[WorkspaceSymbolRow],
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> DocumentSourceResult<
+        ReadonlyTransaction<tower_lsp_server::ls_types::WorkspaceSymbolResponse>,
+    > {
+        if rows.is_empty() {
+            return Ok(ReadonlyTransaction::PublishRefused);
+        }
         let owners = rows
             .iter()
             .map(|(_, uri, _, _)| uri.as_str())
@@ -946,8 +966,18 @@ impl Backend {
             .map(|uri| analyses.get(*uri)?.as_ref())
             .collect::<Option<Vec<_>>>()
         else {
-            return Ok(None);
+            return Ok(ReadonlyTransaction::PublishRefused);
         };
+        if !rows.iter().any(|(_, uri, snapshot, _)| {
+            analyses
+                .get(uri.as_str())
+                .and_then(Option::as_ref)
+                .is_some_and(|analysis| {
+                    WorkspaceSymbolSourceAnalysis::matches_snapshot(analysis, uri, snapshot)
+                })
+        }) {
+            return Ok(ReadonlyTransaction::PublishRefused);
+        }
         let mut admissions = selected
             .iter()
             .map(|analysis| WorkspaceSymbolSourceAnalysis::admission(analysis))
@@ -958,7 +988,7 @@ impl Backend {
         for (_, uri, snapshot, _) in rows {
             if let Some(admission) = snapshot.path_admission.as_deref() {
                 if admission.uri() != uri {
-                    return Ok(None);
+                    return Ok(ReadonlyTransaction::PublishRefused);
                 }
                 admissions.push(admission);
             } else if self.store.workspace_source_inventory_provider()
@@ -967,45 +997,38 @@ impl Backend {
             {
                 // Preserve the original host-file source-receipt refusal.
                 // Native and pathless/in-memory purposes remain independent.
-                return Ok(None);
+                return Ok(ReadonlyTransaction::PublishRefused);
             }
         }
-        self.with_current_readonly_source_state(
+        self.readonly_source_transaction(
             inputs_epoch,
             factory_generation,
             &admissions,
             None,
             |state| {
-                // One full-input query per selected URI. The transaction continues
-                // to hold those actual input/DB/open guards through publication.
-                Some(
-                    owners
-                        .iter()
-                        .copied()
-                        .filter(|uri| {
-                            analyses
-                                .get(*uri)
-                                .and_then(Option::as_ref)
-                                .is_some_and(|analysis| {
-                                    WorkspaceSymbolSourceAnalysis::matches_request_snapshot(
-                                        analysis,
-                                        state,
-                                        inputs_epoch,
-                                        factory_generation,
-                                    )
-                                })
-                        })
-                        .collect::<std::collections::HashSet<_>>(),
-                )
-            },
-            |state, current_inputs| {
-                // The established writer order is documents -> index. Never await
-                // an index guard while holding the DB/publication/provider lease.
-                let Ok(index) = self.workspace_index.try_read() else {
-                    return None;
-                };
+                // The established writer order is documents -> index. A busy
+                // index withdraws currency so the whole query can recapture.
+                // Retain this guard through the provider lease and projection.
+                let index = self.workspace_index.try_read().ok()?;
+                let current_inputs = owners
+                    .iter()
+                    .copied()
+                    .filter(|uri| {
+                        analyses
+                            .get(*uri)
+                            .and_then(Option::as_ref)
+                            .is_some_and(|analysis| {
+                                WorkspaceSymbolSourceAnalysis::matches_request_snapshot(
+                                    analysis,
+                                    state,
+                                    inputs_epoch,
+                                    factory_generation,
+                                )
+                            })
+                    })
+                    .collect::<std::collections::HashSet<_>>();
                 let mut current = Vec::with_capacity(rows.len());
-                for (symbol, uri, snapshot, indexed_revision) in rows {
+                for (ordinal, (_, uri, snapshot, indexed_revision)) in rows.iter().enumerate() {
                     if !current_inputs.contains(uri.as_str())
                         || !WorkspaceSymbolSourceAnalysis::matches_snapshot(
                             analyses.get(uri.as_str())?.as_ref()?,
@@ -1015,27 +1038,25 @@ impl Backend {
                     {
                         continue;
                     }
-                    let Some(advanced) =
-                        workspace_symbol_snapshot_advanced(snapshot, state.open.get(uri))
-                    else {
-                        continue;
-                    };
-                    // An unchanged or closed document revision must still be
-                    // the one its captured index view describes.
-                    if !advanced {
-                        match indexed_revision {
-                            Some(revision)
-                                if index.document_revision(uri.as_str()) == Some(*revision) => {}
-                            Some(_) => continue,
-                            None if index.contains_document(uri.as_str()) => continue,
-                            None => {}
-                        }
+                    if workspace_symbol_index_snapshot_is_current(
+                        uri,
+                        snapshot,
+                        *indexed_revision,
+                        state.open.get(uri),
+                        &index,
+                    ) {
+                        current.push(ordinal);
                     }
-                    current.push(symbol.clone());
                 }
-                (!current.is_empty()).then_some(
-                    tower_lsp_server::ls_types::WorkspaceSymbolResponse::Flat(current),
-                )
+                (!current.is_empty()).then_some((index, current))
+            },
+            |_, (_, current)| {
+                Some(tower_lsp_server::ls_types::WorkspaceSymbolResponse::Flat(
+                    current
+                        .iter()
+                        .map(|&ordinal| rows[ordinal].0.clone())
+                        .collect(),
+                ))
             },
         )
         .await
@@ -2441,6 +2462,24 @@ fn open_document_advanced(captured: &super::DocumentState, live: &super::Documen
         (captured.version, live.version),
         (Some(captured_version), Some(live_version)) if live_version > captured_version
     ) && live.revision >= captured.revision
+}
+
+fn workspace_symbol_index_snapshot_is_current(
+    uri: &Uri,
+    snapshot: &super::DocumentState,
+    indexed_revision: Option<u64>,
+    live: Option<&super::DocumentState>,
+    index: &tcl_lsp_core::workspace_index::WorkspaceIndex,
+) -> bool {
+    let Some(advanced) = workspace_symbol_snapshot_advanced(snapshot, live) else {
+        return false;
+    };
+    // An unchanged or closed source keeps its captured index revision.
+    advanced
+        || match indexed_revision {
+            Some(revision) => index.document_revision(uri.as_str()) == Some(revision),
+            None => !index.contains_document(uri.as_str()),
+        }
 }
 
 fn workspace_symbol_snapshot_advanced(
@@ -4027,6 +4066,219 @@ mod workspace_symbol_input_lease_tests {
             )
             .await
             .unwrap()
+    }
+
+    async fn transaction(
+        backend: &Backend,
+        prepared: &Prepared,
+    ) -> ReadonlyTransaction<WorkspaceSymbolResponse> {
+        backend
+            .workspace_symbol_response_transaction(
+                &prepared.analyses,
+                &prepared.rows,
+                prepared.inputs_epoch,
+                prepared.factory_generation,
+            )
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_index_contention_recaptures_the_whole_query() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-retry-index.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        let prepared = prepare(&backend, &uri).await;
+        let held = std::cell::RefCell::new(Some(backend.workspace_index.write().await));
+        assert!(finish(&backend, &prepared).await.is_none());
+        let attempts = std::cell::Cell::new(0);
+        let response = retry_readonly_attempt(None, || async {
+            let attempt = attempts.get();
+            attempts.set(attempt + 1);
+            if attempt == 0 {
+                let refused = transaction(&backend, &prepared).await;
+                assert!(matches!(refused, ReadonlyTransaction::CurrencyRefused));
+                drop(held.borrow_mut().take());
+                Ok::<_, super::super::DocumentSourceUnavailable>(refused.into_attempt())
+            } else {
+                backend.workspace_symbol_attempt("symbol").await
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(attempts.get(), 2);
+        let Some(WorkspaceSymbolResponse::Flat(rows)) = response else {
+            panic!("the recaptured query publishes current source symbols");
+        };
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|row| row.location.uri == uri));
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_currency_withdrawal_recaptures_current_source() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-retry-source.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        let prepared = prepare(&backend, &uri).await;
+        backend
+            .documents
+            .lock("replace symbol retry source")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(
+                    "proc current_symbol {} {}\n".to_owned(),
+                    "tcl8.6".to_owned(),
+                )
+                .with_publication_pending(),
+            );
+        backend
+            .workspace_index
+            .write()
+            .await
+            .remove_document(uri.as_str());
+        let attempts = std::cell::Cell::new(0);
+        let response = retry_readonly_attempt(None, || async {
+            let attempt = attempts.get();
+            attempts.set(attempt + 1);
+            if attempt == 0 {
+                let refused = transaction(&backend, &prepared).await;
+                assert!(matches!(refused, ReadonlyTransaction::CurrencyRefused));
+                Ok::<_, super::super::DocumentSourceUnavailable>(refused.into_attempt())
+            } else {
+                backend.workspace_symbol_attempt("symbol").await
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(attempts.get(), 2);
+        let Some(WorkspaceSymbolResponse::Flat(rows)) = response else {
+            panic!("the query must recapture its actual replacement source");
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].name, "current_symbol");
+        assert_eq!(rows[0].location.uri, uri);
+        assert!(matches!(
+            transaction(&backend, &prepared).await,
+            ReadonlyTransaction::CurrencyRefused
+        ));
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_persistent_index_contention_exhausts_existing_budget() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-retry-exhausted.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        let prepared = prepare(&backend, &uri).await;
+        let held = backend.workspace_index.write().await;
+        let attempts = std::cell::Cell::new(0);
+        let response = retry_readonly_attempt(None, || async {
+            attempts.set(attempts.get() + 1);
+            let refused = transaction(&backend, &prepared).await;
+            assert!(matches!(refused, ReadonlyTransaction::CurrencyRefused));
+            Ok::<_, super::super::DocumentSourceUnavailable>(refused.into_attempt())
+        })
+        .await
+        .unwrap();
+        assert!(response.is_none());
+        assert_eq!(attempts.get(), READONLY_CURRENCY_ATTEMPTS);
+        assert!(backend.workspace_index.try_read().is_err());
+        drop(held);
+        assert!(transaction(&backend, &prepared).await.published().is_some());
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_missing_indexed_fact_remains_terminal() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-retry-fact.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        backend
+            .documents
+            .lock("withdraw indexed symbol fact")
+            .await
+            .insert(
+                uri.clone(),
+                DocumentState::new(
+                    SOURCE.replace("first_symbol", "replacement_symbol"),
+                    "tcl8.6".to_owned(),
+                ),
+            );
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .symbols_matching("first_symbol", 10)
+                .len(),
+            1,
+            "the old indexed fact remains present"
+        );
+        let attempts = std::cell::Cell::new(0);
+        let response = retry_readonly_attempt(None, || async {
+            attempts.set(attempts.get() + 1);
+            let attempt = backend.workspace_symbol_attempt("first_symbol").await?;
+            assert!(matches!(attempt, ControlFlow::Break(None)));
+            Ok::<_, super::super::DocumentSourceUnavailable>(attempt)
+        })
+        .await
+        .unwrap();
+        assert!(response.is_none());
+        assert_eq!(attempts.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_terminal_snapshot_row_keeps_other_current_rows() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-retry-partial.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        let mut prepared = prepare(&backend, &uri).await;
+        let mismatched =
+            DocumentState::new("proc unrelated {} {}\n".to_owned(), "tcl8.6".to_owned());
+        prepared.rows[0].2 = mismatched.clone();
+        let ReadonlyTransaction::Published(WorkspaceSymbolResponse::Flat(rows)) =
+            transaction(&backend, &prepared).await
+        else {
+            panic!("the independent current row remains available");
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].name, prepared.rows[1].0.name);
+        prepared.rows[1].2 = mismatched;
+        assert!(matches!(
+            transaction(&backend, &prepared).await,
+            ReadonlyTransaction::PublishRefused
+        ));
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_missing_source_analysis_remains_terminal() {
+        let backend = crate::tests::test_backend();
+        let uri: Uri = "file:///tmp/workspace-symbol-retry-terminal.tcl"
+            .parse()
+            .unwrap();
+        register(&backend, &uri, false).await;
+        let mut prepared = prepare(&backend, &uri).await;
+        prepared.analyses.insert(uri.as_str().to_owned(), None);
+        let attempts = std::cell::Cell::new(0);
+        let response = retry_readonly_attempt(None, || async {
+            attempts.set(attempts.get() + 1);
+            let refused = transaction(&backend, &prepared).await;
+            assert!(matches!(refused, ReadonlyTransaction::PublishRefused));
+            Ok::<_, super::super::DocumentSourceUnavailable>(refused.into_attempt())
+        })
+        .await
+        .unwrap();
+        assert!(response.is_none());
+        assert_eq!(attempts.get(), 1);
     }
 
     #[tokio::test]
