@@ -697,7 +697,7 @@ mod tests {
     }
 
     #[test]
-    fn computed_frozen_values_remain_readonly_without_static_container() {
+    fn computed_source_text_requires_an_original_value_producer() {
         let source = "set target first; list $target";
         let image = SourceImage::document(source);
         let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
@@ -713,14 +713,58 @@ mod tests {
             },
         );
         let start = u32::try_from(source.find("$target").unwrap()).unwrap();
-        let input = bindings
-            .original_written_name_input_at_span_in_source(
-                &image,
-                Span::new(start, start + 7),
-                config,
-            )
+        let span = Span::new(start, start + 7);
+        assert!(bindings.matches_original_source_image(&image, config));
+        let (word, call_offset) = bindings
+            .original_written_word_at_span_in_source(&image, span, config)
             .unwrap();
+        assert_eq!(word.span(), span);
+        assert_eq!(
+            call_offset,
+            u32::try_from(source.find("list").unwrap()).unwrap()
+        );
+        let binding = bindings.invocation_at_source("list", call_offset);
+        assert_eq!(binding.invocation_site().unwrap().offset, call_offset);
+        assert_eq!(
+            binding.evaluated_argument_values,
+            [Some("first".to_owned())]
+        );
+        assert_eq!(
+            binding
+                .original_retained_written_name_input(0)
+                .unwrap()
+                .bytes(),
+            b"list"
+        );
+        assert!(binding.original_retained_written_name_input(1).is_none());
+        assert!(
+            bindings
+                .original_written_name_input_at_span_in_source(&image, span, config)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_formal_fields_remain_readonly_without_static_container() {
+        let source = "apply {{first} {return $first}} ONE";
+        let image = SourceImage::document(source);
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .has_logical_source_name_context()
+        );
+        let offset = u32::try_from(source.find("first").unwrap()).unwrap();
+        let occurrence = analysis.original_variable_symbol_at_offset(offset).unwrap();
+        let input = occurrence.original_name_input().clone();
+        assert!(matches!(
+            input,
+            SignatureSourceNameInput::OriginalLogicalListField(_)
+        ));
         assert_eq!(input.bytes(), b"first");
+        assert!(input.original_word_key().is_none());
         assert!(input.original_static_list_container().is_none());
         assert!(
             original_name_input_edits(&image, &[(input, b"other".as_slice().into())]).is_none()
