@@ -969,6 +969,57 @@ impl WorkspaceSymbolSelection {
     }
 }
 
+#[derive(Clone, Default)]
+struct WorkspaceSymbolDiagnostic(Option<Arc<std::sync::Mutex<Vec<String>>>>);
+
+impl WorkspaceSymbolDiagnostic {
+    fn new() -> Self {
+        if matches!(option_env!("TCL_LSP_TRACE_WORKSPACE_SYMBOLS"), Some("1")) {
+            Self(Some(Arc::new(std::sync::Mutex::new(Vec::new()))))
+        } else {
+            Self::default()
+        }
+    }
+
+    fn enabled(&self) -> bool {
+        self.0.is_some()
+    }
+
+    fn record(&self, class: &'static str, counts: &[usize]) {
+        let Some(events) = &self.0 else { return };
+        let mut events = events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if events.len() < 32 {
+            events.push(format!("{class}:{counts:?}"));
+        }
+    }
+
+    fn check(&self, class: &'static str, admitted: bool) -> bool {
+        if !admitted {
+            self.record(class, &[]);
+        }
+        admitted
+    }
+
+    async fn emit(&self, client: &Client, verdict: &'static str) {
+        static ISSUED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let Some(events) = &self.0 else { return };
+        let message = {
+            let events = events
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            format!(
+                "[workspace-symbol-trace] verdict={verdict} events={}",
+                events.join(";")
+            )
+        };
+        if ISSUED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 32 {
+            client.log_message(MessageType::LOG, message).await;
+        }
+    }
+}
+
 /// Symbols captured from one workspace-index snapshot, together with the exact
 /// open-document snapshots their byte spans were analysed against. Keeping the
 /// snapshots beside both fallback and indexed hits avoids mapping an old span
@@ -30283,10 +30334,25 @@ impl Backend {
     /// dead URI. A pending non-orphan is different: a brand-new or untitled
     /// buffer may simply not have reached its first Salsa publication, so its
     /// captured live text remains authoritative even without an input handle.
+    #[cfg(test)]
     async fn open_but_unindexed_symbols(
         &self,
         query: &str,
         limit: usize,
+    ) -> DocumentSourceResult<WorkspaceSymbolCandidates> {
+        self.open_but_unindexed_symbols_diagnostic(
+            query,
+            limit,
+            &WorkspaceSymbolDiagnostic::default(),
+        )
+        .await
+    }
+
+    async fn open_but_unindexed_symbols_diagnostic(
+        &self,
+        query: &str,
+        limit: usize,
+        diagnostic: &WorkspaceSymbolDiagnostic,
     ) -> DocumentSourceResult<WorkspaceSymbolCandidates> {
         const MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS: usize = 3;
         for attempt in 0..MAX_CLOSED_SOURCE_SNAPSHOT_ATTEMPTS {
@@ -30320,7 +30386,9 @@ impl Backend {
                 // Retain the checked source/input owner alongside fallback
                 // symbols. Pending buffers keep their genuine fresh seed;
                 // published database inputs retain the existing readonly owner.
-                let Some(source_owner) = self.capture_workspace_symbol_analysis(&uri, &doc).await?
+                let Some(source_owner) = self
+                    .capture_workspace_symbol_analysis_diagnostic(&uri, &doc, diagnostic)
+                    .await?
                 else {
                     continue;
                 };
@@ -30335,6 +30403,15 @@ impl Backend {
                     .insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
             }
             let fallback_hits = pending.symbols_matching(query, limit);
+            diagnostic.record(
+                "candidates",
+                &[
+                    fallback_hits.len(),
+                    indexed_hits.len(),
+                    sources.len(),
+                    closed_revisions.len(),
+                ],
+            );
 
             // Fallback hits have priority in the final response. Do not read
             // closed sources for indexed candidates that cannot fit after
@@ -31783,9 +31860,19 @@ impl Backend {
 }
 
 impl Backend {
+    #[cfg(test)]
     async fn workspace_symbol_attempt(
         &self,
         query: &str,
+    ) -> DocumentSourceResult<ControlFlow<Option<WorkspaceSymbolResponse>>> {
+        self.workspace_symbol_attempt_diagnostic(query, &WorkspaceSymbolDiagnostic::default())
+            .await
+    }
+
+    async fn workspace_symbol_attempt_diagnostic(
+        &self,
+        query: &str,
+        diagnostic: &WorkspaceSymbolDiagnostic,
     ) -> DocumentSourceResult<ControlFlow<Option<WorkspaceSymbolResponse>>> {
         let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
         let inputs_epoch = self.diag_inputs_epoch();
@@ -31805,12 +31892,15 @@ impl Backend {
             indexed_revisions,
             mut sources,
             mut analyses,
-        } = self.open_but_unindexed_symbols(query, limit).await?;
+        } = self
+            .open_but_unindexed_symbols_diagnostic(query, limit, diagnostic)
+            .await?;
         if hits.len() < limit {
             let remaining = limit - hits.len();
             hits.extend(indexed_hits.into_iter().take(remaining));
         }
         if hits.is_empty() {
+            diagnostic.record("attempt.no_hits", &[]);
             return Ok(ControlFlow::Break(None));
         }
         // A name span becomes an LSP range only against a checked source
@@ -31830,16 +31920,27 @@ impl Backend {
             }
             let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
             else {
+                diagnostic.record("attempt.no_source_snapshot", &[]);
                 continue;
             };
             if !analyses.contains_key(&hit.uri) {
-                let current = self.capture_workspace_symbol_analysis(&uri, doc).await?;
+                let current = self
+                    .capture_workspace_symbol_analysis_diagnostic(&uri, doc, diagnostic)
+                    .await?;
                 analyses.insert(hit.uri.clone(), current);
             }
             let Some(Some(current)) = analyses.get(&hit.uri) else {
+                diagnostic.record("attempt.no_source_analysis", &[]);
                 continue;
             };
             if !Self::workspace_symbol_hit_is_current(&hit, doc, current, &indexed_revisions) {
+                diagnostic.record(
+                    "attempt.hit_owner_refused",
+                    &[
+                        usize::from(hit.original_location.is_some()),
+                        usize::from(hit.logical_source.is_some()),
+                    ],
+                );
                 continue;
             }
             let start = doc
@@ -31877,20 +31978,38 @@ impl Backend {
             ));
         }
         if all.is_empty() {
+            diagnostic.record("attempt.no_mapped_rows", &[]);
             return Ok(ControlFlow::Break(None));
         }
 
         // Reuse each actual checked URI input without weakening its final
         // source/configuration/provider/index currency. No await separates the
         // final joint owner checks from response projection.
-        self.workspace_symbol_response_transaction(
-            &analyses,
-            &all,
-            inputs_epoch,
-            factory_generation,
-        )
-        .await
-        .map(readonly_reference_reports::ReadonlyTransaction::into_attempt)
+        let result = self
+            .workspace_symbol_response_transaction_diagnostic(
+                &analyses,
+                &all,
+                inputs_epoch,
+                factory_generation,
+                diagnostic,
+            )
+            .await;
+        diagnostic.record(
+            match &result {
+                Ok(readonly_reference_reports::ReadonlyTransaction::Published(_)) => {
+                    "lease.published"
+                }
+                Ok(readonly_reference_reports::ReadonlyTransaction::CurrencyRefused) => {
+                    "lease.currency_refused"
+                }
+                Ok(readonly_reference_reports::ReadonlyTransaction::PublishRefused) => {
+                    "lease.publish_refused"
+                }
+                Err(_) => "lease.error",
+            },
+            &[all.len()],
+        );
+        result.map(readonly_reference_reports::ReadonlyTransaction::into_attempt)
     }
 
     fn workspace_symbol_hit_is_current(
@@ -35908,6 +36027,7 @@ impl LanguageServer for Backend {
         &self,
         params: WorkspaceSymbolParams,
     ) -> jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
+        let diagnostic = WorkspaceSymbolDiagnostic::new();
         // Workspace-wide query (no document URI): gate on the process-global
         // `workspaceSymbols` toggle.
         if !self
@@ -35916,6 +36036,8 @@ impl LanguageServer for Backend {
             .await
             .is_enabled("workspaceSymbols")
         {
+            diagnostic.record("endpoint.disabled", &[]);
+            diagnostic.emit(&self.client, "none").await;
             return Ok(None);
         }
         // Answered from the workspace index, not from the open-document map.
@@ -35937,11 +36059,22 @@ impl LanguageServer for Backend {
         self.edits_settled().await;
         self.wait_for_workspace_scan().await?;
         let query = params.query.as_str();
-        readonly_reference_reports::retry_readonly_attempt(None, move || {
-            self.workspace_symbol_attempt(query)
+        let result = readonly_reference_reports::retry_readonly_attempt(None, || {
+            self.workspace_symbol_attempt_diagnostic(query, &diagnostic)
         })
         .await
-        .map_err(Into::into)
+        .map_err(Into::into);
+        diagnostic
+            .emit(
+                &self.client,
+                match &result {
+                    Ok(Some(_)) => "some",
+                    Ok(None) => "none",
+                    Err(_) => "error",
+                },
+            )
+            .await;
+        result
     }
 
     async fn document_link(

@@ -471,23 +471,42 @@ impl Backend {
         owner: &str,
         source: Arc<str>,
     ) -> DocumentSourceResult<Option<ReadonlySourceDocument>> {
+        self.capture_readonly_source_document_diagnostic(
+            owner,
+            source,
+            &super::WorkspaceSymbolDiagnostic::default(),
+        )
+        .await
+    }
+
+    pub(super) async fn capture_readonly_source_document_diagnostic(
+        &self,
+        owner: &str,
+        source: Arc<str>,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> DocumentSourceResult<Option<ReadonlySourceDocument>> {
         let Ok(uri) = owner.parse::<Uri>() else {
+            diagnostic.record("source.uri_parse", &[]);
             return Ok(None);
         };
         let Some(document) = self.read_document(&uri).await? else {
+            diagnostic.record("source.read_absent", &[]);
             return Ok(None);
         };
         if document.text != source {
+            diagnostic.record("source.text_changed", &[]);
             return Ok(None);
         }
         let config = self.resolved_db_config(&uri).await;
         let Some(publication) = self.library_publication_source(&uri, document).await else {
+            diagnostic.record("source.publication_unavailable", &[]);
             return Ok(None);
         };
         let (file, configuration, input, external_call_sites, admission, database_revision) = {
             let db = self.db.lock().await;
             let files = self.db_files.lock().await;
             let Some(&file) = files.get(&uri) else {
+                diagnostic.record("source.no_db_file", &[]);
                 return Ok(None);
             };
             let published = self
@@ -495,6 +514,7 @@ impl Backend {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             let Some(retained) = published.get(&uri) else {
+                diagnostic.record("source.no_retained_path", &[]);
                 return Ok(None);
             };
             if retained.file != file
@@ -507,11 +527,13 @@ impl Backend {
                     .as_deref()
                     .is_some_and(|admission| admission != retained.admission.as_ref())
             {
+                diagnostic.record("source.retained_publication_mismatch", &[]);
                 return Ok(None);
             }
             let Ok(input) =
                 with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, config))
             else {
+                diagnostic.record("source.analysis_input_unavailable", &[]);
                 return Ok(None);
             };
             (
@@ -542,7 +564,25 @@ impl Backend {
         owner: &str,
         source: Arc<str>,
     ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceDocument>> {
-        let Some(retained) = self.capture_readonly_source_document(owner, source).await? else {
+        self.capture_readonly_reference_document_diagnostic(
+            owner,
+            source,
+            &super::WorkspaceSymbolDiagnostic::default(),
+        )
+        .await
+    }
+
+    async fn capture_readonly_reference_document_diagnostic(
+        &self,
+        owner: &str,
+        source: Arc<str>,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceDocument>> {
+        let Some(retained) = self
+            .capture_readonly_source_document_diagnostic(owner, source, diagnostic)
+            .await?
+        else {
+            diagnostic.record("metadata.no_source_owner", &[]);
             return Ok(None);
         };
         let ReadonlySourceDocument {
@@ -577,6 +617,7 @@ impl Backend {
         .await
         .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??;
         if seed.path_admission.as_ref() != admission.as_ref() {
+            diagnostic.record("metadata.path_admission_changed", &[]);
             return Ok(None);
         }
         let current = OriginalReadonlyReferenceDocument {
@@ -592,7 +633,30 @@ impl Backend {
             publication,
             database_revision,
         };
-        Ok(current.matches_original_input().then_some(current))
+        let accepted = current.matches_original_input();
+        if !accepted && diagnostic.enabled() {
+            let analysis = &current.analysis;
+            let input = &current.input;
+            let config = input.lexer_config();
+            diagnostic.record(
+                "metadata_match",
+                &[
+                    usize::from(analysis.resolved_input.as_ref() == Some(input.as_ref())),
+                    usize::from(analysis.analysis_context_unavailable.is_none()),
+                    usize::from(analysis.body_lexer_config == Some(config)),
+                    usize::from(analysis.matches_original_source_image(
+                        &tcl_lexer::SourceImage::document(&current.source),
+                        config,
+                    )),
+                    usize::from(
+                        analysis
+                            .retained_command_realm()
+                            .is_some_and(|realm| realm.matches_resolved_analysis_input(input)),
+                    ),
+                ],
+            );
+        }
+        Ok(accepted.then_some(current))
     }
 
     /// Preserve the source snapshot's own semantic input. Published database
@@ -603,11 +667,27 @@ impl Backend {
         uri: &Uri,
         snapshot: &super::DocumentState,
     ) -> DocumentSourceResult<Option<WorkspaceSymbolSourceAnalysis>> {
+        self.capture_workspace_symbol_analysis_diagnostic(
+            uri,
+            snapshot,
+            &super::WorkspaceSymbolDiagnostic::default(),
+        )
+        .await
+    }
+
+    pub(super) async fn capture_workspace_symbol_analysis_diagnostic(
+        &self,
+        uri: &Uri,
+        snapshot: &super::DocumentState,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> DocumentSourceResult<Option<WorkspaceSymbolSourceAnalysis>> {
         let snapshot = if snapshot.dialect.is_empty() {
             let Some(current) = self.read_document(uri).await? else {
+                diagnostic.record("capture.closed_read_absent", &[]);
                 return Ok(None);
             };
             if current.clone().normalised_for_analysis().text != snapshot.text {
+                diagnostic.record("capture.closed_text_changed", &[]);
                 return Ok(None);
             }
             current.normalised_for_analysis()
@@ -618,22 +698,31 @@ impl Backend {
             && self.db_files.lock().await.contains_key(uri)
         {
             let Some(document) = self
-                .capture_readonly_reference_document(uri.as_str(), Arc::clone(&snapshot.text))
+                .capture_readonly_reference_document_diagnostic(
+                    uri.as_str(),
+                    Arc::clone(&snapshot.text),
+                    diagnostic,
+                )
                 .await?
             else {
+                diagnostic.record("capture.no_metadata_owner", &[]);
                 return Ok(None);
             };
-            return Ok((document.publication.document.raw() == snapshot.raw()
-                && document.publication.document.dialect == snapshot.dialect)
-                .then_some(WorkspaceSymbolSourceAnalysis {
-                    kind: WorkspaceSymbolAnalysisKind::Database(Box::new(document)),
-                }));
+            let accepted = document.publication.document.raw() == snapshot.raw()
+                && document.publication.document.dialect == snapshot.dialect;
+            if !accepted {
+                diagnostic.record("symbol_capture_document_snapshot", &[]);
+            }
+            return Ok(accepted.then_some(WorkspaceSymbolSourceAnalysis {
+                kind: WorkspaceSymbolAnalysisKind::Database(Box::new(document)),
+            }));
         }
 
-        self.capture_fresh_source_analysis(
+        self.capture_fresh_source_analysis_diagnostic(
             uri,
             snapshot,
             FreshSourceAnalysisPurpose::ReadonlyComplete,
+            diagnostic,
         )
         .await
     }
@@ -645,6 +734,22 @@ impl Backend {
         uri: &Uri,
         snapshot: super::DocumentState,
         purpose: FreshSourceAnalysisPurpose,
+    ) -> DocumentSourceResult<Option<WorkspaceSymbolSourceAnalysis>> {
+        self.capture_fresh_source_analysis_diagnostic(
+            uri,
+            snapshot,
+            purpose,
+            &super::WorkspaceSymbolDiagnostic::default(),
+        )
+        .await
+    }
+
+    async fn capture_fresh_source_analysis_diagnostic(
+        &self,
+        uri: &Uri,
+        snapshot: super::DocumentState,
+        purpose: FreshSourceAnalysisPurpose,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
     ) -> DocumentSourceResult<Option<WorkspaceSymbolSourceAnalysis>> {
         let config = self.resolved_db_config(uri).await;
         let (configuration, database_revision) = {
@@ -663,6 +768,7 @@ impl Backend {
             // A path receipt authenticates the selected provider address, not
             // unchanged closed-file bytes. This new publication purpose needs
             // the actual retained open-document source owner.
+            diagnostic.record("fresh.structure_without_open", &[]);
             return Ok(None);
         }
         let uri_generation = self.live_publication_uri_generation(uri);
@@ -674,6 +780,7 @@ impl Backend {
             }
             FreshSourceAnalysisPurpose::SemanticStructure => {
                 let Some(admission) = snapshot.path_admission.clone() else {
+                    diagnostic.record("fresh.structure_without_path", &[]);
                     return Ok(None);
                 };
 
@@ -691,11 +798,32 @@ impl Backend {
             }
         };
         let Some(input) = seed.analysis.resolved_input.clone().map(Arc::new) else {
+            diagnostic.record("fresh.no_resolved_input", &[]);
             return Ok(None);
         };
         let matches_input =
             original_readonly_analysis_matches_input(&snapshot.text, &seed.analysis, &input);
         if !matches_input {
+            if diagnostic.enabled() {
+                diagnostic.record(
+                    "fresh_match",
+                    &[
+                        usize::from(seed.analysis.resolved_input.as_ref() == Some(input.as_ref())),
+                        usize::from(seed.analysis.analysis_context_unavailable.is_none()),
+                        usize::from(seed.analysis.body_lexer_config == Some(input.lexer_config())),
+                        usize::from(seed.analysis.matches_original_source_image(
+                            &tcl_lexer::SourceImage::document(&snapshot.text),
+                            input.lexer_config(),
+                        )),
+                        usize::from(
+                            seed.analysis
+                                .retained_command_realm()
+                                .is_some_and(|realm| realm.matches_resolved_analysis_input(&input)),
+                        ),
+                    ],
+                );
+            }
+            diagnostic.record("fresh.source_input_mismatch", &[]);
             return Ok(None);
         }
         Ok(Some(WorkspaceSymbolSourceAnalysis {
@@ -945,6 +1073,7 @@ impl Backend {
             .map(ReadonlyTransaction::published)
     }
 
+    #[cfg(test)]
     pub(super) async fn workspace_symbol_response_transaction(
         &self,
         analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
@@ -954,7 +1083,28 @@ impl Backend {
     ) -> DocumentSourceResult<
         ReadonlyTransaction<tower_lsp_server::ls_types::WorkspaceSymbolResponse>,
     > {
+        self.workspace_symbol_response_transaction_diagnostic(
+            analyses,
+            rows,
+            inputs_epoch,
+            factory_generation,
+            &super::WorkspaceSymbolDiagnostic::default(),
+        )
+        .await
+    }
+
+    pub(super) async fn workspace_symbol_response_transaction_diagnostic(
+        &self,
+        analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+        rows: &[WorkspaceSymbolRow],
+        inputs_epoch: u64,
+        factory_generation: u64,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> DocumentSourceResult<
+        ReadonlyTransaction<tower_lsp_server::ls_types::WorkspaceSymbolResponse>,
+    > {
         if rows.is_empty() {
+            diagnostic.record("lease.publish_guard.1", &[]);
             return Ok(ReadonlyTransaction::PublishRefused);
         }
         let owners = rows
@@ -966,6 +1116,7 @@ impl Backend {
             .map(|uri| analyses.get(*uri)?.as_ref())
             .collect::<Option<Vec<_>>>()
         else {
+            diagnostic.record("lease.publish_guard.2", &[]);
             return Ok(ReadonlyTransaction::PublishRefused);
         };
         if !rows.iter().any(|(_, uri, snapshot, _)| {
@@ -976,6 +1127,7 @@ impl Backend {
                     WorkspaceSymbolSourceAnalysis::matches_snapshot(analysis, uri, snapshot)
                 })
         }) {
+            diagnostic.record("lease.publish_guard.3", &[]);
             return Ok(ReadonlyTransaction::PublishRefused);
         }
         let mut admissions = selected
@@ -988,6 +1140,7 @@ impl Backend {
         for (_, uri, snapshot, _) in rows {
             if let Some(admission) = snapshot.path_admission.as_deref() {
                 if admission.uri() != uri {
+                    diagnostic.record("lease.publish_guard.4", &[]);
                     return Ok(ReadonlyTransaction::PublishRefused);
                 }
                 admissions.push(admission);
@@ -997,19 +1150,23 @@ impl Backend {
             {
                 // Preserve the original host-file source-receipt refusal.
                 // Native and pathless/in-memory purposes remain independent.
+                diagnostic.record("lease.publish_guard.5", &[]);
                 return Ok(ReadonlyTransaction::PublishRefused);
             }
         }
-        self.readonly_source_transaction(
-            inputs_epoch,
-            factory_generation,
+        self.readonly_source_transaction_diagnostic(
+            (inputs_epoch, factory_generation),
             &admissions,
             None,
+            diagnostic,
             |state| {
                 // The established writer order is documents -> index. A busy
                 // index withdraws currency so the whole query can recapture.
                 // Retain this guard through the provider lease and projection.
-                let index = self.workspace_index.try_read().ok()?;
+                let Ok(index) = self.workspace_index.try_read() else {
+                    diagnostic.record("lease.index_busy", &[]);
+                    return None;
+                };
                 let current_inputs = owners
                     .iter()
                     .copied()
@@ -1023,10 +1180,15 @@ impl Backend {
                                     state,
                                     inputs_epoch,
                                     factory_generation,
+                                    diagnostic,
                                 )
                             })
                     })
                     .collect::<std::collections::HashSet<_>>();
+                diagnostic.record(
+                    "lease.inputs_current",
+                    &[current_inputs.len(), owners.len()],
+                );
                 let mut current = Vec::with_capacity(rows.len());
                 for (ordinal, (_, uri, snapshot, indexed_revision)) in rows.iter().enumerate() {
                     if !current_inputs.contains(uri.as_str())
@@ -1046,7 +1208,12 @@ impl Backend {
                         &index,
                     ) {
                         current.push(ordinal);
+                    } else {
+                        diagnostic.record("lease.index_snapshot_refused", &[]);
                     }
+                }
+                if current.is_empty() {
+                    diagnostic.record("lease.no_current_rows", &[]);
                 }
                 (!current.is_empty()).then_some((index, current))
             },
@@ -1253,9 +1420,30 @@ impl Backend {
         factory_generation: u64,
         admissions: &[&DocumentPathAdmission],
         saved_sources: Option<&[(&DocumentPathAdmission, &[u8])]>,
+        check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
+        publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
+    ) -> DocumentSourceResult<ReadonlyTransaction<T>> {
+        self.readonly_source_transaction_diagnostic(
+            (inputs_epoch, factory_generation),
+            admissions,
+            saved_sources,
+            &super::WorkspaceSymbolDiagnostic::default(),
+            check,
+            publish,
+        )
+        .await
+    }
+
+    async fn readonly_source_transaction_diagnostic<T, Checked>(
+        &self,
+        epochs: (u64, u64),
+        admissions: &[&DocumentPathAdmission],
+        saved_sources: Option<&[(&DocumentPathAdmission, &[u8])]>,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
         mut check: impl FnMut(&ReadonlySourceState<'_>) -> Option<Checked>,
         mut publish: impl FnMut(&ReadonlySourceState<'_>, &Checked) -> Option<T>,
     ) -> DocumentSourceResult<ReadonlyTransaction<T>> {
+        let (inputs_epoch, factory_generation) = epochs;
         #[cfg(test)]
         self.write_unrelated_input_before_final().await;
         let _inputs = self.analyser_inputs_gate.read().await;
@@ -1265,9 +1453,11 @@ impl Backend {
             .lock("readonly_reference_final_snapshot")
             .await;
         let Ok(db) = self.db.try_lock() else {
+            diagnostic.record("lease.db_busy", &[]);
             return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let Ok(files) = self.db_files.try_lock() else {
+            diagnostic.record("lease.files_busy", &[]);
             return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let published = self
@@ -1279,6 +1469,7 @@ impl Backend {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if !(self.diag_inputs_epoch() == inputs_epoch && *generation == factory_generation) {
+            diagnostic.record("lease.epoch_or_factory", &[]);
             return Ok(ReadonlyTransaction::CurrencyRefused);
         }
         let state = ReadonlySourceState {
@@ -1289,6 +1480,7 @@ impl Backend {
             uri_generations: &uri_generations,
         };
         let Some(checked) = check(&state) else {
+            diagnostic.record("lease.source_or_index_state", &[]);
             return Ok(ReadonlyTransaction::CurrencyRefused);
         };
         let issued = if let Some(sources) = saved_sources {
@@ -2415,7 +2607,11 @@ impl OriginalReadonlyReferenceDocument {
     /// captured ones; the database revision need not, so an unrelated write
     /// or a later edit of this buffer keeps the captured answer. An unchanged
     /// buffer, or a closed file, must still be the exact captured publication.
-    fn matches_request_snapshot(&self, state: &ReadonlySourceState<'_>) -> bool {
+    fn matches_request_snapshot(
+        &self,
+        state: &ReadonlySourceState<'_>,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> bool {
         let current = state.open.get(&self.uri);
         let advanced = self.publication.open_revision.is_some()
             && current
@@ -2433,18 +2629,34 @@ impl OriginalReadonlyReferenceDocument {
                 && self.file.text(state.db).as_str() == self.source.as_ref()
                 && self.file.dialect(state.db) == &self.publication.document.dialect
         };
-        publication_matches
-            && self.matches_original_input()
-            && state.files.get(&self.uri) == Some(&self.file)
-            && state.published.get(&self.uri).is_some_and(|retained| {
-                retained.file == self.file && retained.admission.as_ref() == self.admission.as_ref()
-            })
-            && self.file.path(state.db).as_deref() == self.admission.analyser_path()
-            && self.config.diagnostic_report_configuration(state.db) == self.configuration
-            && with_pack_hooks(|| {
-                tcl_lsp_db::document_analysis_input(state.db, self.file, self.config)
-            })
-            .is_ok_and(|input| input.as_ref() == self.input.as_ref())
+        diagnostic.check("lease.db.publication", publication_matches)
+            && diagnostic.check("lease.db.original_input", self.matches_original_input())
+            && diagnostic.check(
+                "lease.db.file",
+                state.files.get(&self.uri) == Some(&self.file),
+            )
+            && diagnostic.check(
+                "lease.db.path_receipt",
+                state.published.get(&self.uri).is_some_and(|retained| {
+                    retained.file == self.file
+                        && retained.admission.as_ref() == self.admission.as_ref()
+                }),
+            )
+            && diagnostic.check(
+                "lease.db.path",
+                self.file.path(state.db).as_deref() == self.admission.analyser_path(),
+            )
+            && diagnostic.check(
+                "lease.db.configuration",
+                self.config.diagnostic_report_configuration(state.db) == self.configuration,
+            )
+            && diagnostic.check(
+                "lease.db.analysis_input",
+                with_pack_hooks(|| {
+                    tcl_lsp_db::document_analysis_input(state.db, self.file, self.config)
+                })
+                .is_ok_and(|input| input.as_ref() == self.input.as_ref()),
+            )
     }
 }
 
@@ -2611,10 +2823,11 @@ impl WorkspaceSymbolSourceAnalysis {
         state: &ReadonlySourceState<'_>,
         inputs_epoch: u64,
         factory_generation: u64,
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
     ) -> bool {
         match &self.kind {
             WorkspaceSymbolAnalysisKind::Database(document) => {
-                document.matches_request_snapshot(state)
+                document.matches_request_snapshot(state, diagnostic)
             }
             WorkspaceSymbolAnalysisKind::Fresh(document) => {
                 let current = state.open.get(&document.uri);
@@ -2631,9 +2844,15 @@ impl WorkspaceSymbolSourceAnalysis {
                     None => !document.was_open,
                     Some(_) => false,
                 };
-                open_matches
-                    && (advanced || document.uri_generation_matches(state))
-                    && document.matches_input_state(state, inputs_epoch, factory_generation)
+                diagnostic.check("lease.fresh.open_snapshot", open_matches)
+                    && diagnostic.check(
+                        "lease.fresh.uri_generation",
+                        advanced || document.uri_generation_matches(state),
+                    )
+                    && diagnostic.check(
+                        "lease.fresh.inputs",
+                        document.matches_input_state(state, inputs_epoch, factory_generation),
+                    )
             }
         }
     }

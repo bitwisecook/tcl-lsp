@@ -1,0 +1,111 @@
+name: Browser symbol ownership diagnostic
+
+# Instrumented diagnostic only; ordinary CI and release gates remain required.
+on:
+  push:
+    branches: [work]
+    paths:
+      - .github/workflows/browser-symbol-ownership-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-symbol-ownership-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_BUILD_JOBS: "1"
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
+jobs:
+  browser:
+    name: Instrumented browser workspace-symbol ownership
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - name: Prepare diagnostic logs
+        env:
+          SOURCE_REF: ${{ github.ref }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/browser-symbol-ownership"
+          printf 'Instrumented diagnostic only; not release acceptance.\nref=%s\nsha=%s\ntrace_compile_flag=TCL_LSP_TRACE_WORKSPACE_SYMBOLS=1\n' \
+            "$SOURCE_REF" "$SOURCE_SHA" > "$RUNNER_TEMP/browser-symbol-ownership/context.log"
+          cat "$RUNNER_TEMP/browser-symbol-ownership/context.log"
+          echo 'Instrumented ownership diagnostic only; ordinary CI and release gates remain required.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Require the work branch
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" != branch ] || [ "$REF_NAME" != work ]; then
+            echo '::error::Browser ownership diagnostics only accepts the work branch.'
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - name: Free disk space
+        run: |
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          cache-key: manual-lsp-browser
+          cache-workspaces: rust/tcl-lsp-server-wasm
+      - name: Install wasm-bindgen CLI
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: wasm-bindgen-cli@0.2.129
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - name: Record instrumented source and toolchain
+        run: |
+          set -euo pipefail
+          grep -F 'option_env!("TCL_LSP_TRACE_WORKSPACE_SYMBOLS")' rust/tcl-lsp-server/src/lib.rs
+          {
+            git rev-parse HEAD
+            rustc --version
+            node --version
+            wasm-bindgen --version
+          } >> "$RUNNER_TEMP/browser-symbol-ownership/context.log"
+          sha256sum .github/workflows/browser-symbol-ownership-diagnostic.yml \
+            Makefile rust/tcl-lsp-server-wasm/build-wasm.sh \
+            rust/tcl-lsp-server/src/lib.rs \
+            rust/tcl-lsp-server/src/readonly_reference_reports.rs \
+            rust/tcl-lsp-server-wasm/test/e2e.mjs \
+            scripts/dev/lsp-naming-host-proof.mjs \
+            scripts/dev/manual-lsp-rpc-capture.cjs \
+            > "$RUNNER_TEMP/browser-symbol-ownership/source.sha256"
+      - name: Build instrumented browser LSP
+        run: |
+          set -euo pipefail
+          TCL_LSP_TRACE_WORKSPACE_SYMBOLS=1 make lsp-server-wasm \
+            2>&1 | tee "$RUNNER_TEMP/browser-symbol-ownership/wasm-build.log"
+      - name: Exercise the existing public browser protocol
+        env:
+          NODE_OPTIONS: --require=${{ github.workspace }}/scripts/dev/manual-lsp-rpc-capture.cjs
+          LSP_RPC_RESPONSE_LOG: ${{ runner.temp }}/browser-symbol-ownership/responses.jsonl
+        run: |
+          set -euo pipefail
+          node rust/tcl-lsp-server-wasm/test/e2e.mjs \
+            2>&1 | tee "$RUNNER_TEMP/browser-symbol-ownership/protocol.log"
+      - name: Upload diagnostic logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-symbol-ownership-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/browser-symbol-ownership
+          if-no-files-found: warn
+          retention-days: 3
