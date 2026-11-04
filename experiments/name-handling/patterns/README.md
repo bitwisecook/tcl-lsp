@@ -30,8 +30,8 @@ their [acceptance scopes](../results/RESULTS.md#shared-namespace-variable-query-
 retain failed and unreached providers separately. Empty namespace addresses are
 measured independently in [namespace-address-purpose](../namespace-address-purpose/README.md).
 
-The following original namespace questions retain their executable inputs,
-provider/source/init hashes and raw output beside each manifest. They establish
+The following original namespace questions retain their executable inputs and
+raw output beside each manifest. They establish
 only the recorded C/Jim observations; implementation replay and F5 answers
 remain independent.
 
@@ -214,7 +214,7 @@ reason. Popular idioms alone cannot establish a particular call target.
 [Probe source](probes), [capture runner](run_corpus_probes.py),
 [75 original record joins](results/records.json) and
 [capture provenance](results/provenance.json) retain full input, stdout/stderr,
-setup/lookup completion, return options where supported and actual binary hashes.
+setup/lookup completion and return options where supported.
 Each row links its exact source and canonical question. Jim entries link their
 separate original capture/channel; details are below. C columns report lookup
 completion/result, not process exit: all capture processes exited zero.
@@ -336,7 +336,7 @@ cannot replace those original failures or infer C equivalence:
 The 11 reached original corpus questions have registered Jim provider answers
 in their existing canonical records: seven returned values and four guest
 errors. Their exact unchanged setup/final-question wrappers, raw fields,
-upstream revision, harness hashes and build configuration remain attached.
+upstream revision and build configuration remain attached.
 The four corpus setup failures supply no intended-question answer. Wiki inner
 adaptations and the four separately authored Jim-native controls remain
 supplemental captures with their own driver/source bytes and adaptation metadata.
@@ -386,27 +386,25 @@ static-consumer accuracy or whole-application conformance is established here.
 
 ## Maintaining this catalogue
 
-For each new source pattern retain a pinned source coordinate, licence reference,
-full-source/range hash and reviewed execution context before counting a site.
+For each new source pattern retain a source coordinate, licence reference,
+the relevant source bytes and reviewed execution context before counting a site.
 Keep derivatives grouped. State the observed idiom and the semantic question,
 then add an authored positive reduction and adversarial variant with original
 input bytes. Record context-specific gaps separately from the reduced question.
 
-Execute each applicable provider on exact retained inputs. Preserve input and
-runner bytes, startup/build/source receipts, raw stdout/stderr, completion/return
-options and reached-stage markers. Rejected setup, skipped constraints, failed
-captures and unavailable providers stay explicit. Record patchlevels and Jim
-revisions; attach BIG-IP answers through the appliance protocol. New captures
-use a fresh output directory; existing evidence is immutable.
+Execute each applicable provider on exact retained inputs. Record each executed
+script, its full semantic question and assumptions, observed environments,
+stdout/stderr and other results in one Markdown file per script, following the
+[Tcl execution evidence standard](../../../docs/design/contracts/tcl-execution-evidence.md).
+Keep rejected setups, skipped constraints, failed captures and unavailable
+providers explicit. Record patchlevels and Jim revisions where observed; include
+BIG-IP only when it was actually used. Update this catalogue's source mapping,
+result/status tables and scope limits from those observations.
 
-Register new questions or separately retained answers through the existing
-canonical proof owner and update its source/case joins. Update this catalogue's
-source mapping, result/status tables and scope limits from those actual records.
-Do not replace raw evidence with a summary or create a competing result manifest.
-Run the complete proof check after registration:
+Validate the evidence files with:
 
 ```sh
-python3 scripts/dev/check-name-resolution-proofs.py
+make check-tcl-evidence
 ```
 
 Promote observed results into deterministic shared-owner conformance fixtures,
@@ -416,15 +414,13 @@ rename and optimisation have different proof obligations; every surface must
 consume the same shared facts. Keep those implementation results in the
 canonical consumer integration map.
 
-[Stock final-error review](f5/answers/stock-final-review.md) retains source-reviewed original near-error final operations from sealed stock2 captures without claiming a new execution.
+[Stock final-error review](f5/answers/stock-final-review.md) retains source-reviewed original near-error final operations from stock2 captures without claiming a new execution.
 
 [Current appliance coverage](f5/answers/nh20261012coverage2/answers.md) retains
 400 original context states: 93 observed, 244 unreached and 63 unavailable.
 Bounded variants and per-unit/invocation receipt counts remain separate.
 The [portable report index](../f5/answers/README.md#portable-report-index)
-links the 23 input reports, raw records and seals. All 30 retained F5 answer
-seals verified at `755f78207b993cdfa4b0fd230abcafb1f3f606bc` (26,097 entries;
-no missing or mismatching blobs). The
+links the 23 input reports and raw records. The
 [broad numbered-question snapshot](../f5/answers/nh20261012coverage2/answers.md)
 keeps F5-N01–F5-N16 remaining variants explicit, including suspended frames,
 restart/reload after deletion, other traffic contexts and earlier-state
@@ -487,7 +483,7 @@ Original [configured package body-word values](package-body-word-values/README.m
 
 Original [generated request word/container probes](../generated-request-words-20261015/README.md) retain all six provider/init receipts, actual capture driver and raw word/body/entry channels. Literal-value and enclosing braced-script byte preservation are independent: quoted source can activate substitutions or fail its enclosing body. These observations establish neither F5 request behavior, Rust acceptance, reached handlers nor path satisfaction.
 
-Original [fresh dying-namespace operands](../results/original-fresh-dying-namespace-20261015/README.md) retain separate legacy-trace and trace-add probes, all original channels and provider/init hashes. Reached C8.4 sees the dying name and evaluates it; C8.5–9.1 hide it from exists and refuse fresh eval. C9 legacy-trace and Jim trace-unavailable attempts remain explicit. Pinned conversion-source anchors are separate from build correspondence and establish no hot/cache/header, Runtime/VM, F5 or final-free/lifecycle acceptance.
+Original [fresh dying-namespace operands](../results/original-fresh-dying-namespace-20261015/README.md) retain separate legacy-trace and trace-add probes and all original channels. Reached C8.4 sees the dying name and evaluates it; C8.5–9.1 hide it from exists and refuse fresh eval. C9 legacy-trace and Jim trace-unavailable attempts remain explicit. Pinned conversion-source anchors are separate from build correspondence and establish no hot/cache/header, Runtime/VM, F5 or final-free/lifecycle acceptance.
 
 [Original Jim namespace-delete helper](../results/original-jim-namespace-delete-sdk-20261015/README.md) retains333 rows over16 public/direct cases and32 original-object COLD/REUSE phases, including getter order, actual replacement/deletion, callback counts and replacement List member identity. Destructive restoration advances epochs; no universal hot-hit, Runtime or final-free acceptance follows.
 
@@ -497,7 +493,7 @@ Original [fresh dying-namespace operands](../results/original-fresh-dying-namesp
 
 Original [RHS source-word values](../expression-literal-word-values-20261015/README.md) retain the controlled six-provider
 file-driver capture and excluded initial inline-driver trial separately, including
-all twelve empty stderr channels and unchanged manifests linked by hash. Trailing
+all twelve empty stderr channels. Trailing
 dollars, escaped sigils/quotes and braced command-looking bytes remain literal
 data, while actual variable interpolation is distinct. These are original source
 word-value observations, without F5 operator or regex semantics, URI/path
