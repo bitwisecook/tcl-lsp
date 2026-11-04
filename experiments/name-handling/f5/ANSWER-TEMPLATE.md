@@ -1,41 +1,37 @@
-# F5 name-handling measurements: <run-id>
+# BIG-IP Tcl execution: <short descriptive title>
 
-## Provenance
+Create one file per script actually run. Follow the
+[Tcl execution evidence standard](../../../docs/design/contracts/tcl-execution-evidence.md),
+which defines the reversible notation for scripts and results.
 
-- Branch/commit containing the exact probes:
-- Run identifier and UTC timestamp:
-- BIG-IP version, hotfix/build, platform:
-- TMM count and relevant profiles/event configuration:
-- Interpreter context(s) and reported version where available:
-- Probe paths, SHA-256, invocation/attachment/execution method:
-- Control interpreter identities and paths:
-- Raw stdout/stderr/log/acceptance transcript paths:
+## Question
+
+<State the full LSP, compiler, or VM question this script was designed to answer,
+why the distinction matters, and the specific case being exercised.>
+
+## Assumptions
+
+<State the experimental assumptions and limits, including relevant BIG-IP
+context, profiles, event, unit, setup and whether the intended operation was
+reached. Write Not recorded for missing details.>
+
+## Script
+
+<Insert the exact executed Tcl bytes as a tcl-visible block using
+scripts/dev/tcl-script-to-block.py.>
 
 ## Results
 
-| Question/variant ID | Input / NH case | Context | Setup/load status | Runtime completion | Result bytes / transcript | Error options | Interpretation |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| F5-Nxx-variant | | | | | | | |
+### <BIG-IP version and execution context>
 
-Setup/load and runtime outcomes are separate. Unsupported, unavailable and
-infrastructure failure remain distinct. Include exact reduced scripts where
-the full seed cannot run, and state whether the reduction changes the question.
+- Recorded version: <version/build or Not recorded>
+- Recorded input channel: <channel or Not recorded>
+- Exit status: <status or Not recorded>
+- Standard output: <text-visible block, empty, or Not recorded>
+- Standard error: <text-visible block, empty, or Not recorded>
 
-## Controls and reproducibility
-
-Record controls, repeated runs and observable normalisation. Preserve raw
-values when deriving stable summaries. State the precise version/context scope
-of each conclusion and any contradictory measurement.
-
-## Cleanup proof
-
-Probe names were absent before creation. Identify created objects, cleanup
-commands/trap and the post-run absence checks. Record residual objects or failed
-cleanup exactly. State whether configuration was saved (the protocol forbids it).
-
-## Answer coverage
-
-List answered variant IDs, measured unsupported variants and pending variants
-with reasons. Link tests/vector IDs if already promoted; otherwise state
-“not promoted”. Describe only method and evidence, without an implementation
-history or agent/session diary.
+For a result observed through another channel, such as a browser option or an
+iRule event, add a Recorded result text-visible block and describe that channel.
+Keep load acceptance or rejection distinct from runtime completion. Do not
+infer results for an unexecuted context or infer an operation was reached when
+setup failed.

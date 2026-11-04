@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import tempfile
@@ -42,13 +41,10 @@ class EvidenceMigrationTests(unittest.TestCase):
                 "id": identifier,
                 "role": role,
                 "path": path,
-                "sha256": hashlib.sha256(sources[path]).hexdigest(),
             }
 
         receipt = {
             "exit": 0,
-            "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
-            "stderr_sha256": hashlib.sha256(b"").hexdigest(),
         }
         sources["run/receipt.json"] = json.dumps(receipt).encode()
         (root / "run/receipt.json").write_bytes(sources["run/receipt.json"])
@@ -96,11 +92,11 @@ class EvidenceMigrationTests(unittest.TestCase):
             self.assertIn("- Exit status: 0", document)
             self.assertNotIn("sha256", document)
 
-    def test_does_not_guess_or_replace_a_changed_script(self) -> None:
+    def test_does_not_guess_a_missing_script(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             record, _, _ = self.fixture(root)
-            (root / "run/script.tcl").write_text("puts changed\n")
+            (root / "run/script.tcl").unlink()
             path = root / migration.LEGACY
             path.parent.mkdir(parents=True)
             path.write_text(json.dumps({"proofs": [record]}))

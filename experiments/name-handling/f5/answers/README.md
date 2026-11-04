@@ -1,15 +1,16 @@
 # Returned BIG-IP answers
 
-The appliance-access chat writes one provenance-named directory per run here
-on `work`. Include an answer document based on
-[ANSWER-TEMPLATE.md](../ANSWER-TEMPLATE.md), exact/materialised input sources,
-raw acceptance and runtime transcripts, control records and cleanup proof.
+The directories indexed here are historical development records and retained
+captures. New Tcl executions use one Markdown file per script under
+`evidence/tcl/`, following [ANSWER-TEMPLATE.md](../ANSWER-TEMPLATE.md) and the
+[Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+The historical index does not itself establish an execution result.
 
 The current [F5-N01–F5-N16 coverage snapshot](nh20261012coverage2/answers.md)
 records every numbered question/context with actual receipt-state counts,
 bounded input counts, representative links and concrete remaining variants.
 Its [JSON inventory](nh20261012coverage2/coverage.json) retains every independent
-unit/invocation, source hash and original-matrix answer/attempt pointer. The
+unit/invocation and original-matrix answer/attempt pointer. The
 [historical snapshot 1](nh20261012coverage1/answers.md) remains unchanged.
 
 The [completed 307-row investigation](../../patterns/f5/answers/nh20261012finish1/ANSWERS.md)
@@ -82,36 +83,32 @@ Follow the JSON pointer from the original matrix or coverage inventory into
 actual inputs, provider metadata, raw capture and cleanup evidence. Repeated
 units/invocations remain independent; report totals do not add original answers.
 
-| Run report | Raw records | Seal |
-| --- | --- | --- |
-| [nh20261012aplcap1](../../patterns/f5/answers/nh20261012aplcap1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplcap1/records.json) (17) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012aplcap1/MANIFEST.sha256) |
-| [nh20261012aplexact1](../../patterns/f5/answers/nh20261012aplexact1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplexact1/records.json) (46) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012aplexact1/MANIFEST.sha256) |
-| [nh20261012aplpat1](../../patterns/f5/answers/nh20261012aplpat1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplpat1/records.json) (15) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012aplpat1/MANIFEST.sha256) |
-| [nh20261012aplwiki1](../../patterns/f5/answers/nh20261012aplwiki1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplwiki1/records.json) (31) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012aplwiki1/MANIFEST.sha256) |
-| [nh20261012app1](../../patterns/f5/answers/nh20261012app1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012app1/records.json) (34) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012app1/MANIFEST.sha256) |
-| [nh20261012app2](../../patterns/f5/answers/nh20261012app2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012app2/records.json) (34) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012app2/MANIFEST.sha256) |
-| [nh20261012app3](../../patterns/f5/answers/nh20261012app3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012app3/records.json) (280) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012app3/MANIFEST.sha256) |
-| [nh20261012cap2](../../patterns/f5/answers/nh20261012cap2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012cap2/records.json) (238) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012cap2/MANIFEST.sha256) |
-| [nh20261012cap3](../../patterns/f5/answers/nh20261012cap3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012cap3/records.json) (272) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012cap3/MANIFEST.sha256) |
-| [nh20261012exact1](../../patterns/f5/answers/nh20261012exact1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012exact1/records.json) (135) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012exact1/MANIFEST.sha256) |
-| [nh20261012exact2](../../patterns/f5/answers/nh20261012exact2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012exact2/records.json) (1080) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012exact2/MANIFEST.sha256) |
-| [nh20261012pat1](../../patterns/f5/answers/nh20261012pat1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012pat1/records.json) (285) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012pat1/MANIFEST.sha256) |
-| [nh20261012pat3](../../patterns/f5/answers/nh20261012pat3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012pat3/records.json) (330) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012pat3/MANIFEST.sha256) |
-| [nh20261012stock2](../../patterns/f5/answers/nh20261012stock2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012stock2/records.json) (90) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012stock2/MANIFEST.sha256) |
-| [nh20261012stock3](../../patterns/f5/answers/nh20261012stock3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012stock3/records.json) (90) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012stock3/MANIFEST.sha256) |
-| [nh20261012stockfinal1](../../patterns/f5/answers/nh20261012stockfinal1/records.json) | [records.json](../../patterns/f5/answers/nh20261012stockfinal1/records.json) (4) | [MANIFEST.sha256](../../patterns/f5/answers/nh20261012stockfinal1/MANIFEST.sha256) |
-| [nh20261012aplbroad1](nh20261012aplbroad1/ANSWERS.md) | [records.json](nh20261012aplbroad1/records.json) (64) | [MANIFEST.sha256](nh20261012aplbroad1/MANIFEST.sha256) |
-| [nh20261012aplnsowner1](nh20261012aplnsowner1/ANSWERS.md) | [records.json](nh20261012aplnsowner1/records.json) (2) | [MANIFEST.sha256](nh20261012aplnsowner1/MANIFEST.sha256) |
-| [nh20261012broad1](nh20261012broad1/ANSWERS.md) | [records.json](nh20261012broad1/records.json) (792) | [MANIFEST.sha256](nh20261012broad1/MANIFEST.sha256) |
-| [nh20261012broad2](nh20261012broad2/ANSWERS.md) | [records.json](nh20261012broad2/records.json) (1107) | [MANIFEST.sha256](nh20261012broad2/MANIFEST.sha256) |
-| [nh20261012literal1](nh20261012literal1/ANSWERS.md) | [records.json](nh20261012literal1/records.json) (55) | [MANIFEST.sha256](nh20261012literal1/MANIFEST.sha256) |
-| [nh20261012nsowner1](nh20261012nsowner1/ANSWERS.md) | [records.json](nh20261012nsowner1/records.json) (29) | [MANIFEST.sha256](nh20261012nsowner1/MANIFEST.sha256) |
-| [nh20261012persist1](nh20261012persist1/ANSWERS.md) | [records.json](nh20261012persist1/records.json) (287) | [MANIFEST.sha256](nh20261012persist1/MANIFEST.sha256) |
+| Run report | Raw records |
+| --- | --- |
+| [nh20261012aplcap1](../../patterns/f5/answers/nh20261012aplcap1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplcap1/records.json) (17) |
+| [nh20261012aplexact1](../../patterns/f5/answers/nh20261012aplexact1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplexact1/records.json) (46) |
+| [nh20261012aplpat1](../../patterns/f5/answers/nh20261012aplpat1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplpat1/records.json) (15) |
+| [nh20261012aplwiki1](../../patterns/f5/answers/nh20261012aplwiki1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012aplwiki1/records.json) (31) |
+| [nh20261012app1](../../patterns/f5/answers/nh20261012app1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012app1/records.json) (34) |
+| [nh20261012app2](../../patterns/f5/answers/nh20261012app2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012app2/records.json) (34) |
+| [nh20261012app3](../../patterns/f5/answers/nh20261012app3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012app3/records.json) (280) |
+| [nh20261012cap2](../../patterns/f5/answers/nh20261012cap2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012cap2/records.json) (238) |
+| [nh20261012cap3](../../patterns/f5/answers/nh20261012cap3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012cap3/records.json) (272) |
+| [nh20261012exact1](../../patterns/f5/answers/nh20261012exact1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012exact1/records.json) (135) |
+| [nh20261012exact2](../../patterns/f5/answers/nh20261012exact2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012exact2/records.json) (1080) |
+| [nh20261012pat1](../../patterns/f5/answers/nh20261012pat1/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012pat1/records.json) (285) |
+| [nh20261012pat3](../../patterns/f5/answers/nh20261012pat3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012pat3/records.json) (330) |
+| [nh20261012stock2](../../patterns/f5/answers/nh20261012stock2/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012stock2/records.json) (90) |
+| [nh20261012stock3](../../patterns/f5/answers/nh20261012stock3/ANSWERS.md) | [records.json](../../patterns/f5/answers/nh20261012stock3/records.json) (90) |
+| [nh20261012stockfinal1](../../patterns/f5/answers/nh20261012stockfinal1/records.json) | [records.json](../../patterns/f5/answers/nh20261012stockfinal1/records.json) (4) |
+| [nh20261012aplbroad1](nh20261012aplbroad1/ANSWERS.md) | [records.json](nh20261012aplbroad1/records.json) (64) |
+| [nh20261012aplnsowner1](nh20261012aplnsowner1/ANSWERS.md) | [records.json](nh20261012aplnsowner1/records.json) (2) |
+| [nh20261012broad1](nh20261012broad1/ANSWERS.md) | [records.json](nh20261012broad1/records.json) (792) |
+| [nh20261012broad2](nh20261012broad2/ANSWERS.md) | [records.json](nh20261012broad2/records.json) (1107) |
+| [nh20261012literal1](nh20261012literal1/ANSWERS.md) | [records.json](nh20261012literal1/records.json) (55) |
+| [nh20261012nsowner1](nh20261012nsowner1/ANSWERS.md) | [records.json](nh20261012nsowner1/records.json) (29) |
+| [nh20261012persist1](nh20261012persist1/ANSWERS.md) | [records.json](nh20261012persist1/records.json) (287) |
 
-The other seven seals retain coverage, capability, cleanup, repair and
-validation artefacts:
-
-- [nh20261012coverage2](nh20261012coverage2/MANIFEST.sha256).
 - [nh20261012cap1](../../patterns/f5/answers/nh20261012cap1/MANIFEST.sha256).
 - [nh20261012cleanup1](../../patterns/f5/answers/nh20261012cleanup1/MANIFEST.sha256).
 - [nh20261012cleanup2](../../patterns/f5/answers/nh20261012cleanup2/MANIFEST.sha256).

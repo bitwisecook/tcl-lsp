@@ -12,7 +12,7 @@ Assumptions were not separately recorded in the retained capture.
 
 Recorded scope and limits:
 
-> One complete fixed ASCII script in a fresh native shell process, with recorded shell argument vectors, source/executable digests and exact byte streams. Actual info patchlevel is printed before registration. No counted object-vector, native compilation admission, opaque/zero names, variable links, multiple deferred loaders or appliance execution is measured.
+> One complete fixed ASCII script in a fresh native shell process, with recorded shell argument vectors, exact byte streams. Actual info patchlevel is printed before registration. No counted object-vector, native compilation admission, opaque/zero names, variable links, multiple deferred loaders or appliance execution is measured.
 
 ## Script
 

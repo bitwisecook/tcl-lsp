@@ -32,11 +32,13 @@ case needs a precise reason and, when possible, a reduced applicable variant.
 The repository's implementation chat will consume your versioned answer
 records and turn real observations into regressions.
 
-Commit answer documents and raw transcripts under
-`experiments/name-handling/f5/answers/<run-id>/`, and reusable materialised
-scripts/probes under that run or a shared experiment source directory. Use
-`ANSWER-TEMPLATE.md`; include the input hash and map every result to question
-and case IDs. Commit and push answer batches regularly on `work`; the user authorises
+For each script actually executed, write one standalone Markdown file under
+`evidence/tcl/` using [ANSWER-TEMPLATE.md](ANSWER-TEMPLATE.md) and the
+[Tcl execution evidence standard](../../../docs/design/contracts/tcl-execution-evidence.md).
+State the underlying question, assumptions, exact script and measured results,
+including question and case IDs when useful. Record load rejection separately
+from runtime results, and do not require input hashes. Commit and push answer
+batches regularly on `work`; the user authorises
 development pushes while checks are red. Record actual checks and failures.
 All required repository gates must pass before the final PR. Do not
 rewrite existing answers or erase contradictory measurements. Return a concise

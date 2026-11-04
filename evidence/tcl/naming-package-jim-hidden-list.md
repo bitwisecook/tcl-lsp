@@ -12,7 +12,7 @@ Assumptions were not separately recorded in the retained capture.
 
 Recorded scope and limits:
 
-> One fixed ASCII script-file program in a fresh current Jim native process. Actual patchlevel, complete input/executable/stream digests, three caught outcomes and outer process status are recorded. Dynamic enumeration content belongs to this process, not a universal installed-package set.
+> One fixed ASCII script-file program in a fresh current Jim native process. Actual patchlevel, three caught outcomes and outer process status are recorded. Dynamic enumeration content belongs to this process, not a universal installed-package set.
 
 ## Script
 

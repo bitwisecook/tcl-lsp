@@ -13,7 +13,6 @@ review; they are not silently treated as executions.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
@@ -27,18 +26,14 @@ LEGACY = Path("docs/design/analysis/name-resolution-proofs/manifest.json")
 
 
 def retained_bytes(root: Path, item: dict[str, Any]) -> bytes | None:
-    """Use an old recorded digest only to identify the captured version."""
+    """Read a retained file inside the checkout, without hashing it."""
     name = Path(item.get("path", ""))
     if not name.parts or name.is_absolute() or ".." in name.parts:
         return None
     path = (root / name).resolve()
     if not path.is_relative_to(root) or not path.is_file():
         return None
-    data = path.read_bytes()
-    recorded = item.get("sha256")
-    if not isinstance(recorded, str) or hashlib.sha256(data).hexdigest() != recorded:
-        return None
-    return data
+    return path.read_bytes()
 
 
 def stream_kind(path: str) -> str | None:
@@ -80,11 +75,17 @@ def capture_for_provider(
     if stdout is None or stderr is None:
         return None, "a retained output stream version cannot be identified"
 
-    # A process status is used only when a retained receipt explicitly joins it
-    # to these complete streams. An absent or ambiguous status stays unknown.
+    # A status is used only when a single referenced receipt belongs to the
+    # same capture directory as both streams. Never infer one from output.
     statuses: set[int] = set()
     for item in refs:
         if item.get("role") != "provider" or not item.get("path", "").endswith(".json"):
+            continue
+        receipt_dir = Path(item["path"]).parent
+        if (
+            receipt_dir != Path(stdout_item["path"]).parent
+            or receipt_dir != Path(stderr_item["path"]).parent
+        ):
             continue
         data = retained_bytes(root, item)
         if data is None:
@@ -93,12 +94,7 @@ def capture_for_provider(
             receipt = json.loads(data)
         except (UnicodeError, ValueError):
             continue
-        if (
-            isinstance(receipt, dict)
-            and type(receipt.get("exit")) is int
-            and receipt.get("stdout_sha256") == hashlib.sha256(stdout).hexdigest()
-            and receipt.get("stderr_sha256") == hashlib.sha256(stderr).hexdigest()
-        ):
+        if isinstance(receipt, dict) and type(receipt.get("exit")) is int:
             statuses.add(receipt["exit"])
     status = str(next(iter(statuses))) if len(statuses) == 1 else "Not recorded"
     return (
@@ -121,6 +117,38 @@ def capture_for_provider(
 def quote(text: str) -> str:
     """Keep the original wording without allowing it to create new headings."""
     return "\n".join("> " + line if line else ">" for line in text.strip().splitlines())
+
+
+def recorded_scope(scope: str) -> str:
+    """Leave experiment limits, without legacy digest bookkeeping."""
+    replacements = {
+        "Binary identity was not independently hashed.": "",
+        "Source hash/registration excerpts": "Source registration excerpts",
+        " with required source/header/archive/build/executable hashes": "",
+        "source/executable digests and ": "",
+        "complete input/executable/stream digests, ": "",
+    }
+    for old, new in replacements.items():
+        scope = scope.replace(old, new)
+    return scope.replace(".. Interpreter/action", ". Interpreter/action")
+
+
+def recorded_channel(channel: str) -> str:
+    """Avoid repeating a whole legacy scope as the input channel."""
+    if not channel.startswith("Only retained case "):
+        return channel
+    match = re.search(r"Interpreter/action facts retained in the measurement: (\{[^}]*\})", channel)
+    if match:
+        facts = json.loads(match.group(1))
+        path, action = facts.get("interpreter_path"), facts.get("invoking_action")
+        fields = []
+        if path:
+            fields.append(f"interpreter path: {path}")
+        if action:
+            fields.append(f"action: {action}")
+        if fields:
+            return "; ".join(fields)
+    return "Not separately recorded"
 
 
 def render(
@@ -155,12 +183,14 @@ def render(
         "## Assumptions\n\nAssumptions were not separately recorded in the retained capture.\n\n"
     )
     for record in records:
-        parts.extend(["Recorded scope and limits:\n\n", quote(record["scope"]), "\n\n"])
+        parts.extend(
+            ["Recorded scope and limits:\n\n", quote(recorded_scope(record["scope"])), "\n\n"]
+        )
     parts.extend(["## Script\n\n", markdown_block(captures[0][1]), "\n## Results\n"])
     for _, _, provider, version, channel, _, stdout, _, stderr, status in captures:
         label = provider.replace("\r", " ").replace("\n", " ")
         version = version.replace("\r", " ").replace("\n", " ")
-        channel = channel.replace("\r", " ").replace("\n", " ").strip()
+        channel = recorded_channel(channel.replace("\r", " ").replace("\n", " ").strip())
         parts.extend(
             [
                 f"\n### {label}\n\n",

@@ -426,7 +426,7 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 ### bigip
 
 - Recorded version: 21.1.0.1
-- Recorded input channel: Only retained case corpus-f5-computed-target, variant native-call-availability-and-dispatch-v1, run nh20261012nativecap1, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Native call capability boundary for this question/context. No rule provider can be selected through an absent native command; source-site idiom and provider semantics remain separate from stock Tcl.; prerequisite version/namespace and absence come from the same job native-call-command-surface record; this is not a portable-original program; authoring input is structured case metadata, not portable original. Interpreter/action facts retained in the measurement: {"interpreter_path": "/usr/bin/tclsh8.5", "interpreter_patchlevel": "8.5.13", "tcltest_version": null, "execution_namespace": "::", "invoking_action": null}. Null means not observed by this receipt. Unsupported applies only to the captured native call invocation in this context. It does not answer the original Tcl oracle input or establish absence of a generic naming feature.
+- Recorded input channel: interpreter path: /usr/bin/tclsh8.5
 - Exit status: Not recorded
 - Standard output:
 

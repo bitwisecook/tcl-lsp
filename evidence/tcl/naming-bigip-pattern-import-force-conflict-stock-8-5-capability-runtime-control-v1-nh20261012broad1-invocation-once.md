@@ -16,7 +16,7 @@ Assumptions were not separately recorded in the retained capture.
 
 Recorded scope and limits:
 
-> Only retained case import-force-conflict, variant capability-runtime-control-v1, run nh20261012broad1, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Force replaces only owned consumer command. Authored/generated source descriptor is the retained case metadata, not an unchanged portable Tcl program. This corpus receipt does not print Tcl patchlevel; see separate cap2 binary-path/version control. Binary identity was not independently hashed.. Interpreter/action facts retained in the measurement: {"interpreter_path": "/usr/bin/tclsh8.5", "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.
+> Only retained case import-force-conflict, variant capability-runtime-control-v1, run nh20261012broad1, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Force replaces only owned consumer command. Authored/generated source descriptor is the retained case metadata, not an unchanged portable Tcl program. This corpus receipt does not print Tcl patchlevel; see separate cap2 binary-path/version control. . Interpreter/action facts retained in the measurement: {"interpreter_path": "/usr/bin/tclsh8.5", "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.
 
 ## Script
 
@@ -113,7 +113,7 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 ### bigip
 
 - Recorded version: 21.1.0.1
-- Recorded input channel: Only retained case import-force-conflict, variant capability-runtime-control-v1, run nh20261012broad1, context stock-8.5; event None, unit None, invocation 'once'. This independently scoped input does not replace an exact portable-input answer or establish other contexts, units, versions, recogniser coverage or source mechanisms. Authored measurement scope: Force replaces only owned consumer command. Authored/generated source descriptor is the retained case metadata, not an unchanged portable Tcl program. This corpus receipt does not print Tcl patchlevel; see separate cap2 binary-path/version control. Binary identity was not independently hashed.. Interpreter/action facts retained in the measurement: {"interpreter_path": "/usr/bin/tclsh8.5", "interpreter_patchlevel": null, "tcltest_version": null, "execution_namespace": null, "invoking_action": null}. Null means not observed by this receipt.
+- Recorded input channel: interpreter path: /usr/bin/tclsh8.5
 - Exit status: Not recorded
 - Standard output:
 

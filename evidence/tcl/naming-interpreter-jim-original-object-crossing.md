@@ -12,7 +12,7 @@ Assumptions were not separately recorded in the retained capture.
 
 Recorded scope and limits:
 
-> One exact ASCII LF source runs in the fresh pinned Jim core/static-extension C API driver without an added outer source envelope. NUL and Unicode are produced at runtime by explicit ASCII backslash-u escapes. The complete original source/request/driver/ELF/compile and process receipts/streams/launcher are retained with required source/header/archive/build/executable hashes. Full separately pinned jim-interp.c and exact source excerpts distinguish source ownership from public equality/results. C8.4–9.1 and BIG-IP are not tested for this Jim extension question; Rust assertions are not executed by publication.
+> One exact ASCII LF source runs in the fresh pinned Jim core/static-extension C API driver without an added outer source envelope. NUL and Unicode are produced at runtime by explicit ASCII backslash-u escapes. The complete original source/request/driver/ELF/compile and process receipts/streams/launcher are retained. Full separately pinned jim-interp.c and exact source excerpts distinguish source ownership from public equality/results. C8.4–9.1 and BIG-IP are not tested for this Jim extension question; Rust assertions are not executed by publication.
 
 ## Script
 

@@ -1016,8 +1016,7 @@ check-tcl-evidence: ## Validate standalone Tcl execution evidence and byte-exact
 	cd $(ROOT) && python3 scripts/dev/check-tcl-evidence.py
 	cd $(ROOT) && python3 -m unittest discover -s scripts/dev -p 'test_tcl_evidence*.py'
 
-check-name-resolution-proofs: ## Optional audit of legacy naming development records
-	cd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py
+check-name-resolution-proofs: check-tcl-evidence ## Compatibility alias for the Tcl evidence check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"

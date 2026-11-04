@@ -115,7 +115,7 @@ distinguish a literal command word `return one` from the Return script. These
 captures establish their measured original scopes, without LSP, F5, Native or
 edit acceptance.
 
-## Source evidence
+## Source context
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all
 35 public checkouts in scope `everything`.
@@ -129,11 +129,12 @@ recogniser accuracy. Generated copies and close derivatives share one family.
 
 The zero-based index below selects the corresponding object in
 [sites.json](sites.json)'s `sites` array. That object retains the full revision,
-file SHA-256, selected-range SHA-256, physical source lines and licence evidence.
+physical source lines and licence information. These source reviews are
+development context, not execution evidence.
 Upstream links are pinned to those revisions. A named reduction measures only
 the stated core operation, even when the source requires a broader framework.
 
-| Source ID / hash index | Pinned source context | Measured reduction and remaining context |
+| Source ID / index | Pinned source context | Measured reduction and remaining context |
 | --- | --- | --- |
 | `corpus-tcltest` / 0 | [tclopt/test/test.test:188–209](https://github.com/georgtree/tclopt/blob/ff9a56074272327f3d5f7a3d589e50d9c2da24a0/test/test.test#L188) — Imported test executes setup/body/cleanup with variable continuity; optimiser handle is used as command head. | `tcltest-shared-lifecycle`: phase variable continuity; optimiser handle/type and full application unmeasured. |
 | `corpus-current-alias` / 1 | [ruff/src/diagram.tcl:75–101](https://github.com/georgtree/ruff/blob/b63da69eed625bc544d1f4da76371e8bd6b02d29/src/diagram.tcl#L75) — Alternative initialisation branches install qualified alias from namespace current; external executable/packages select branch. | `alias-prefix-lifetime`: prefix and alias-token lifetime; CLI/HTTP branch selection unmeasured. |
@@ -157,13 +158,13 @@ the stated core operation, even when the source requires a broader framework.
 
 Seventeen existing Tcl Wiki pages were read. One additional retrieval,
 `forward`, returned HTTP 200 with **Page not found** and supplies no example.
-[wiki-sources.json](wiki-sources.json) retains page HTML SHA-256, retrieval date,
-displayed Updated date and every decoded `<pre>` SHA-256. The first number
+[wiki-sources.json](wiki-sources.json) retains retrieval and displayed Updated
+dates and decoded examples. The first number
 below is the zero-based page object; `pre` numbers select its `examples[].index`.
-Displayed dates are not verified revisions. A prose-only section has the page
-hash as its evidence anchor and no invented example hash.
+Displayed dates are not verified revisions. A prose-only section is source
+context, not a measured Tcl execution.
 
-| Page / hash index | Selected source context | Retained case IDs / unanswered context |
+| Page / index | Selected source context | Retained case IDs / unanswered context |
 | --- | --- | --- |
 | [oo::define](https://wiki.tcl-lang.org/page/oo%3A%3Adefine) / 0 | pre 0–1 | `wiki-oo-3`, `wiki-oo-6..7`: forwards and export reset. |
 | [command prefix](https://wiki.tcl-lang.org/page/command+prefix) / 1 | pre 2, 4–7, 17–18 | `wiki-prefix-1..3`: canonical words, expansion/script distinction, shadowed builder. |
