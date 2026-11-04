@@ -247,7 +247,7 @@ fn query_probe(lsp: &mut Lsp, uri: &str, feature: &str) -> Value {
         "documentSymbols" => lsp.document_symbols(uri),
         "definition" => lsp.definition(uri, 1, 2),
         "references" => lsp.references(uri, 0, 6, true),
-        "signatureHelp" => lsp.signature_help(uri, 1, 12),
+        "signatureHelp" => lsp.signature_help(uri, 1, 11),
         "folding" => lsp.folding_range(uri),
         "selectionRange" => lsp.selection_range(uri, json!([{ "line": 2, "character": 11 }])),
         "documentLinks" => lsp.document_links(uri),

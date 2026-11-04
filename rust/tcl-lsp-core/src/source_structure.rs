@@ -3283,9 +3283,8 @@ mod opaque_script_authoring_tests {
 
     #[test]
     fn retained_opaque_authoring_keeps_source_roles_separate_from_scripts() {
-        use tcl_compiler::registry_invocation::{
-            OriginalSourceScriptPurpose, source_registry_words_in_definition_body_at,
-        };
+        use tcl_compiler::registry_invocation::OriginalSourceScriptPurpose;
+        use tcl_compiler::registry_invocation::source_structure::source_registry_words_in_definition_body_at;
         let (source, cursor) = marked(
             "sslictcl 1\npolicy baseline {\n check bespoke {\n  predicate {\n   se<|>\n  }\n }\n}\n",
         );
