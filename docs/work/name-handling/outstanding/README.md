@@ -10,6 +10,6 @@ Updated 04 November 2026, 04:48 UTC. **Not release-ready.** See the [current sna
 | Autoload |15/15 activated fresh/full vectors pass before reuse; original controls5/7 failures retained, corrected tests unexecuted. Same-survey receipt reuse adopted/reviewed; new controls/vectors/startup/memory acceptance pending. |
 | Hook containment | Current9-case probe confirms adopted fix blocks persistent global RMW state while local updates work. Engine/hook/VM/Jim/alias/read-trace/full suites pending; no whole-sandbox acceptance yet. |
 | Packaging/hosts | Source/output WASI custody fix and four no-build contracts pass; full current native/WASM/WASI/editor/archive production/behavior unexecuted. |
-| Proof/CI | Last proof diagnostic2181errors before parity repair/new changes; no exemptions accepted. Old CI red/incomplete; stale surviving shard unconfirmed, fresh read-only status pending. |
+| Proof/CI | Last proof diagnostic2181errors before parity repair/new changes; no exemptions accepted. Old CI04:47 snapshot8success/21failure/1stale API-active/2skip; surviving shard unconfirmed, no progress after01:51:55. |
 
 Separate VM/BIG-IP/ancillary features are deferred; linked VM/SpecTcl behavior stays in scope. No PR/merge/tag/release exists. Temporary state/process narratives must be removed before merge, retaining oracle evidence.
