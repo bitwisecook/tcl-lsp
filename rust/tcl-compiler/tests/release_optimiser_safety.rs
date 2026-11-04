@@ -42,6 +42,23 @@ fn optimise(source: &str, dialect: &str) -> (String, Vec<tcl_compiler::optimiser
     (text, applied)
 }
 
+fn analyse(source: &str, dialect: &str) -> tcl_compiler::analyser::AnalysisResult {
+    let environment = resolve_environment(dialect);
+    let profile = environment.analyser_profile();
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        environment.default_context_registry(),
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    );
+    let result = tcl_compiler::analyser::Analyser::new()
+        .with_resolved_input(input)
+        .analyse(source, dialect);
+    assert!(result.analysis_context_unavailable.is_none());
+    assert!(result.resolved_input.is_some());
+    result
+}
+
 fn observed(tclsh: &std::path::Path, source: &str) -> tcl_test_support::ScriptOutcome {
     let word = tcl_compiler::codegen::helpers::tcl_list_element(source);
     let script =
@@ -651,13 +668,14 @@ fn issue_2341() {
 
 #[test]
 fn issue_2384() {
-    let control = tcl_compiler::analyser::Analyser::new()
-        .analyse("for {set i 0} {$i < 0} {incr i} {puts never}\n", "tcl8.6");
+    let control = analyse("for {set i 0} {$i < 0} {incr i} {puts never}\n", "tcl8.6");
     assert!(
         control
             .diagnostics
             .iter()
-            .any(|diagnostic| { diagnostic.code == tcl_core_types::DiagCode::W240 })
+            .any(|diagnostic| { diagnostic.code == tcl_core_types::DiagCode::W240 }),
+        "{:?}",
+        control.diagnostics
     );
     for body in [
         "set i 5",
@@ -668,7 +686,7 @@ fn issue_2384() {
     ] {
         let source = format!("for {{set i 0}} {{$i < 3}} {{incr i}} {{{body}}}\nputs $i\n");
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let result = tcl_compiler::analyser::Analyser::new().analyse(&source, dialect);
+            let result = analyse(&source, dialect);
             assert!(
                 result
                     .diagnostics
@@ -676,6 +694,70 @@ fn issue_2384() {
                     .all(|diagnostic| { diagnostic.code != tcl_core_types::DiagCode::W240 }),
                 "{source}: {:?}",
                 result.diagnostics
+            );
+        }
+    }
+}
+
+#[test]
+fn issue_2384_literal_false_loop_is_still_reported() {
+    for source in ["while 0 {puts never}\n", "for {} 0 {} {puts never}\n"] {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let result = analyse(source, dialect);
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W240),
+                "{dialect}: {source}: {:?}",
+                result.diagnostics
+            );
+        }
+    }
+}
+
+#[test]
+fn issue_2384_loop_execution() {
+    for (body, expected) in [
+        ("set i 5", "1 6"),
+        ("set i 100", "1 101"),
+        ("incr i 50", "1 51"),
+        ("set j [incr i 5]", "1 6"),
+        ("foreach i {100} {}", "1 101"),
+    ] {
+        let source = format!(
+            "set count 0\nfor {{set i 0}} {{$i < 3}} {{incr i}} {{incr count; {body}}}\nputs [list $count $i]\n"
+        );
+        let mut engines: Vec<_> = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .filter_map(tcl_test_support::witness_tclsh)
+            .map(|oracle| {
+                (
+                    format!("tcl{}", oracle.version.version_string()),
+                    oracle.path,
+                )
+            })
+            .collect();
+        let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+            Some(tcl_test_support::require_jimsh().expect("required current Jim oracle"))
+        } else {
+            tcl_test_support::locate_jimsh().expect("validated Jim oracle")
+        };
+        if let Some(jim) = jim {
+            engines.push(("jim".to_owned(), jim.path));
+        }
+        for (dialect, binary) in engines {
+            let original = observed(&binary, &source);
+            assert_eq!(
+                String::from_utf8_lossy(&original.stdout),
+                format!("{expected}\n0 {{}}\n"),
+                "{dialect}: {source}"
+            );
+            let (rewritten, _) = optimise(&source, &dialect);
+            assert_eq!(
+                original,
+                observed(&binary, &rewritten),
+                "{dialect}: {rewritten}"
             );
         }
     }

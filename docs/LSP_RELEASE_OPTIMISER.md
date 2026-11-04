@@ -129,3 +129,27 @@ and closed #2218. The verified implementation is
 followup `8f1c0861c` was not recompiled; it is separate from the passing frozen
 three-test implementation proof and the current-Jim execution run. This lane
 performed no external comment or closure action.
+
+
+## Focused follow-up: #2384
+
+The frozen `c47d83bda` test binary fails `issue_2384`'s active W240 control
+for `for {set i 0} {$i < 0} {incr i} {puts never}`. This prevents a claim
+that the earlier header-selection fix is fully verified. The focused harness
+now supplies an explicit `ResolvedAnalysisInput` and checks retained context;
+separate literal-false controls require W240 on all five Tcl profiles and Jim.
+The existing zero-entry assertion has not been removed or weakened.
+
+Thirty-six independent native checks passed: each of the five reported
+counter-jump bodies executes once, and a zero-entry control executes zero times,
+on Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 and current Jim. The new integration
+execution case records exact expected output and compares original and rewritten
+programs using the shared interpreter owner. These new Rust tests are not yet
+compiled or verified. The first compilation was cancelled for the exclusive
+#940 retry after memory exhaustion elsewhere; the subsequent queued wrapper was
+cancelled before acquiring a slot for the coordinator's provider-codegen retry.
+No production change has been made in this follow-up. Evidence is retained in
+`/tmp/lsp-2384-frozen-audit.log`, `/tmp/lsp-2384-native.json` and
+`/tmp/lsp-2384-evidence.json`. Next: compile only the focused three tests when
+the coordinator releases the single compiler slot, then inspect the zero-entry
+control before proposing any further semantic change.
