@@ -23,8 +23,10 @@ source snapshot is frozen. Independent review added agreement between the
 selected native operation and the effective semantic operation; refusal
 fixtures include an actual selected form hiding raw extra effects. The frozen
 child is `/tmp/lsp-940-conditional_list_append.rs`, SHA-256
-`82aa633c03d4dd8f9088162febe9cc7216afd0049284a4ce629543f8f6d6e466`.
-Its four fixed-input Rust tests and compiler integration have not run.
+`ca57e915187da0bd1494bfe220ba75cc71f1f84feb66c6a7c908dd3adc44f474`.
+Its five fixed-input Rust tests and compiler integration have not run. The
+prior List requirement does not certify physical coercion of the existing
+object or justify a new append S100 finding.
 
 The handoff manifest is `/tmp/lsp-940-conditional-list-append-manifest.json`.
 It links pinned C source reviews and four standalone Tcl execution records,
@@ -47,14 +49,22 @@ retain exact nested-body custody and expression conversion effects. The
 source-only expression parser cannot supply Native preparation. No if source
 change is implemented. A separate temporary registry child,
 `/tmp/lsp-940-conditional_list_index.rs` (SHA-256
-`0837425634c23be9eecb5509330397ca5743e5f2385a1aeeb76d986d213236f0`),
+`b8c2e8c06f23814df0ce493fac403a60e4b02a7acbaa9e6423810bad6ebb7cd4`),
 projects one fixed literal index through the shared list/index owners. Unknown
 container bytes remain unknown and numeric-looking elements establish no
 result intrep. Independent review found that the world-barrier query excludes
 only reentrant callbacks; the revised child also requires raw and effective
-explicit empty world/state descriptors. Its five fixed-input controls include
+explicit empty world/state descriptors. Its seven fixed-input controls include
 real registry-clone non-callback write/transition refusals and remain unrun;
-only rustfmt passes. The manifest is
+only rustfmt passes. The current registry prerequisite correction also requires
+the exact raw/effective stock representation effects for both children. The
+index predicate delegates definite ASCII/no-NUL malformed-list counterevidence
+to the shared parser; unknown input and encoding abstain. Actual altered-spec,
+effective-only and hidden-raw controls are prepared. The exact patch and base
+hashes are in `/tmp/lsp-940-list-registry-prerequisites.json`; values owns its
+shared integration. The child event diff was reviewed statically for current
+target ordering, stale provenance and captured literal handling, with no
+concrete finding; no runtime validation is claimed. The manifest is
 `/tmp/lsp-940-conditional-list-index-manifest.json`. The original report still
 requires genuine typed append stores and condition/body coverage alongside
 an active repeated-conversion control; quiet diagnostics alone are not proof.
