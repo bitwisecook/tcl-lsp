@@ -3421,7 +3421,16 @@ mod tests {
         for (body, written) in [
             ("set ::g 1", "::g"),
             ("incr ::counter", "::counter"),
+            ("append ::app x", "::app"),
             ("lappend ::l x", "::l"),
+            ("incr ::incr_array(k)", "::incr_array"),
+            ("append ::append_array(k) x", "::append_array"),
+            ("lappend ::list_array(k) x", "::list_array"),
+            ("global linked; incr linked", "::linked"),
+            (
+                "upvar 0 ::linked_list alias; lappend alias x",
+                "::linked_list",
+            ),
             ("set ::a(k) 1", "::a"),
             ("foreach ::x {1 2} {}", "::x"),
             ("lassign {1 2} ::p q", "::p"),
@@ -3514,6 +3523,70 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn confined_empty_lappend_reads_existing_global_but_cannot_create_one() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .vm_mut()
+            .eval_source("set ::existing {a b}")
+            .expect("setup");
+        engine.confine_stores().expect("confine");
+        let args = [Value::list([]), Value::dict_of::<&str>([])];
+        let read = engine
+            .compile(unit("return [lappend ::existing]"))
+            .expect("compiles");
+        assert_eq!(
+            engine.invoke(&read, &args).expect("reads").as_str(),
+            Some("a b")
+        );
+        let append_read = engine
+            .compile(unit("return [append ::existing]"))
+            .expect("compiles");
+        assert_eq!(
+            engine.invoke(&append_read, &args).expect("reads").as_str(),
+            Some("a b")
+        );
+        let missing = engine.compile(unit("lappend ::missing")).expect("compiles");
+        assert!(matches!(
+            engine.invoke(&missing, &args),
+            Err(EngineError::Script { .. })
+        ));
+        assert!(engine.vm_mut().get_var("::missing").is_none());
+    }
+
+    #[test]
+    fn confined_read_modify_write_does_not_fire_foreign_read_trace() {
+        let mut engine = TclVmEngine::new();
+        engine.vm_mut().eval_source(
+            "set ::reads 0; set ::counter 5; proc observe args {incr ::reads}; trace add variable ::counter read observe",
+        ).expect("setup");
+        engine.confine_stores().expect("confine");
+        let handle = engine.compile(unit("incr ::counter")).expect("compiles");
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        assert!(matches!(
+            engine.invoke(&handle, &arguments),
+            Err(EngineError::Script { .. })
+        ));
+        assert_eq!(
+            engine
+                .vm_mut()
+                .get_var("::reads")
+                .unwrap()
+                .to_str()
+                .as_ref(),
+            "0"
+        );
+        assert_eq!(
+            engine
+                .vm_mut()
+                .get_var("::counter")
+                .unwrap()
+                .to_str()
+                .as_ref(),
+            "5"
+        );
     }
 
     /// `confine_stores` refuses an array's creation and an unset outside the

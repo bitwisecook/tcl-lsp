@@ -260,6 +260,11 @@ function of its declared inputs, never of an earlier call in the same
 pack or of the machine the analysis happens to run on
 ([value-evaluation.md](../compiler/value-evaluation.md) § *Per-evaluation
 state: writes outside the activation are denied*).
+Read-modify-write operations check the actual target before creating a cell or
+running its read callbacks, and recheck the captured target before publication.
+Current activation locals remain writable; links and outside frames refuse.
+A zero-operand update that only reads an existing value remains a read; an
+absent value cannot use that path to create outside state.
 
 **Hot-path budget — measured** (release build, cross-checked against the
 `tclvm` CLI): a VM resolver body costs **28 µs** per invocation against a

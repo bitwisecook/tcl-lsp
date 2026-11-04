@@ -8605,16 +8605,13 @@ impl Vm {
             && self
                 .var_binding_from_bytes(input.root().selected(), start)
                 .is_some_and(|binding| {
-                    binding.owner == VarTableOwner::Frame(start)
-                        && self
-                            .var_table(binding.owner)
-                            .and_then(|table| table.get(&binding.name))
-                            .is_none_or(|id| {
-                                !matches!(
-                                    self.var_arena.get(*id).map(crate::vars::VarCell::state),
-                                    Some(VarState::Link(_) | VarState::NameLink(_))
-                                )
-                            })
+                    matches!(binding.owner, VarTableOwner::Frame(level) | VarTableOwner::CompiledLocal { level, .. } if level == start)
+                        && self.raw_variable_binding(&binding).is_none_or(|id| {
+                            !matches!(
+                                self.var_arena.get(id).map(crate::vars::VarCell::state),
+                                Some(VarState::Link(_) | VarState::NameLink(_))
+                            )
+                        })
                 });
         Ok(!inside)
     }
@@ -22164,12 +22161,18 @@ impl Vm {
         selected: Option<ResolvedVar>,
     ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
         if self.dictionary_variable_containers() {
+            if self.limits.confined_stores && !additions.is_empty() {
+                self.confine_store_bytes(name, self.current_level(), false)?;
+            }
             let current = if let Some(key) = key {
                 self.get_array_elem_bytes_from(self.current_level(), name, key)
             } else {
                 self.get_var_bytes(name)
             };
             let read_only = current.is_some() && additions.is_empty();
+            if !read_only {
+                self.confine_store_bytes(name, self.current_level(), false)?;
+            }
             let value = self.lappend_list_value(current, additions)?;
             if read_only {
                 return self.variable_update_result(value, &Value::empty());
@@ -22181,9 +22184,32 @@ impl Vm {
             };
             return self.variable_update_result(value, &Value::empty());
         }
-        let captured = match selected {
-            Some(resolved) => self.capture_selected_update(name, key, &resolved)?,
-            None => self.capture_update_cell(name, key)?,
+        let captured = if self.limits.confined_stores && additions.is_empty() {
+            let resolved = selected
+                .or_else(|| {
+                    if key.is_some() {
+                        self.resolve_var_parts_from_bytes(name, key, self.current_level())
+                    } else {
+                        self.resolve_var_from_bytes(name, self.current_level())
+                    }
+                })
+                .ok_or_else(|| {
+                    self.variable_access_error_bytes("set", name, "parent namespace doesn't exist")
+                })?;
+            if resolved
+                .id
+                .and_then(|id| self.var_arena.get(id))
+                .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_)))
+            {
+                self.capture_existing_readonly_update(name, key, &resolved)?
+            } else {
+                self.capture_selected_update(name, key, &resolved)?
+            }
+        } else {
+            match selected {
+                Some(resolved) => self.capture_selected_update(name, key, &resolved)?,
+                None => self.capture_update_cell(name, key)?,
+            }
         };
         self.with_variable_operation(&captured.cell, |vm| {
             vm.lappend_captured_cell(name, key, &captured, additions)
@@ -22260,6 +22286,36 @@ impl Vm {
     }
 
     fn capture_selected_update_with_errors(
+        &mut self,
+        name: &[u8],
+        key: Option<&[u8]>,
+        resolved: &ResolvedVar,
+        leave_error_message: bool,
+    ) -> Result<CapturedVariableUpdate, Completion<Value>> {
+        self.confine_store_bytes(name, self.current_level(), false)?;
+        self.capture_update_cell_unchecked(name, key, resolved, leave_error_message)
+    }
+
+    fn capture_existing_readonly_update(
+        &mut self,
+        name: &[u8],
+        key: Option<&[u8]>,
+        resolved: &ResolvedVar,
+    ) -> Result<CapturedVariableUpdate, Completion<Value>> {
+        // Read-only capture cannot create a missing cell.
+        if !resolved
+            .id
+            .and_then(|id| self.var_arena.get(id))
+            .is_some_and(|cell| matches!(cell.state(), Local::Scalar(_)))
+        {
+            return Err(
+                self.refuse_host_command("read-only captured variable is unavailable".into())
+            );
+        }
+        self.capture_update_cell_unchecked(name, key, resolved, true)
+    }
+
+    fn capture_update_cell_unchecked(
         &mut self,
         name: &[u8],
         key: Option<&[u8]>,
@@ -22591,6 +22647,19 @@ impl Vm {
             checked?;
             let cell = &captured.cell;
             let id = cell.id.expect("captured update cell");
+            if self.limits.confined_stores {
+                self.confine_store_bytes(name, self.current_level(), false)?;
+                let current = if key.is_some() {
+                    self.resolve_var_parts_from_bytes(name, key, self.current_level())
+                } else {
+                    self.resolve_var_from_bytes(name, self.current_level())
+                };
+                if current.and_then(|resolved| resolved.id) != Some(id) {
+                    return Err(
+                        self.refuse_host_command("confined captured variable changed".into())
+                    );
+                }
+            }
             let _ = self.var_arena.replace_state(id, Local::Scalar(value));
             scope
                 .check(self)
@@ -22707,6 +22776,9 @@ impl Vm {
             NativeVariableFailureSite as Site, NativeVariableInputForm as Input,
         };
         let (policy, prepared) = self.prepare_increment_read_phase(amount)?;
+        if self.dictionary_variable_containers() {
+            self.confine_store_bytes(name, self.current_level(), false)?;
+        }
         let selected = selected.or_else(|| {
             if key.is_some() {
                 self.resolve_var_parts_from_bytes(name, key, self.current_level())
@@ -33815,6 +33887,30 @@ mod family_b_tests {
             vm.remove_var_trace_bytes(b"k\0z", &["read".into()], b"capture\xff");
             assert!(vm.var_trace_info_bytes(b"k").is_empty());
         }
+    }
+
+    #[test]
+    fn confined_jim_dictionary_lappend_refuses_foreign_write_and_preserves_reads() {
+        let mut vm = Vm::new();
+        let jim = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
+        vm.set_dialect_profile(jim);
+        assert!(vm.dictionary_variable_containers());
+        vm.set_var("::held", Value::string("one")).expect("seed");
+        vm.set_stores_confined(true);
+        assert!(
+            vm.lappend_list_update_bytes(b"::held", None, &[Value::string("two")])
+                .is_err()
+        );
+        assert_eq!(vm.get_var("::held").unwrap().to_str().as_ref(), "one");
+        let read = vm
+            .lappend_list_update_bytes(b"::held", None, &[])
+            .expect("read-only");
+        assert_eq!(read.value.to_str().as_ref(), "one");
+        assert!(
+            vm.lappend_list_update_bytes(b"::missing", None, &[])
+                .is_err()
+        );
+        assert!(vm.get_var("::missing").is_none());
     }
 
     fn variable_link_profiles() -> Vec<&'static tcl_dialect::DialectProfile> {

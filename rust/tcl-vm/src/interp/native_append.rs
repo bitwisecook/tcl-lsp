@@ -233,6 +233,7 @@ impl Vm {
         let leave_error_message =
             original.is_none_or(|(_, purpose)| purpose.leaves_error_message());
         if original.is_none() && self.dictionary_variable_containers() {
+            self.confine_store_bytes(name, self.current_level(), false)?;
             let selected = if key.is_some() {
                 self.resolve_var_parts_from_bytes(name, key, self.current_level())
             } else {
