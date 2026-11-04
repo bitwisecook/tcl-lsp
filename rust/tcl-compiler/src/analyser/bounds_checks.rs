@@ -1797,7 +1797,7 @@ mod tests {
         );
         assert_eq!(
             i230("set n 0\nif {$n} {puts never}\n"),
-            ["Condition '$n' is always false; the alternate branch is unreachable"]
+            ["Condition '$n' is always false; the consequent branch is unreachable"]
         );
     }
 

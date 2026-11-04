@@ -3451,7 +3451,7 @@ is renamed or deleted in this file."
                 } else {
                     format!(
                         "Condition '{}' is always false; \
-                         the alternate branch is unreachable",
+                         the consequent branch is unreachable",
                         branch.condition,
                     )
                 };
