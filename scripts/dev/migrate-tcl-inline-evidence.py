@@ -19,7 +19,9 @@ MANIFEST = ROOT / "docs/design/analysis/name-resolution-proofs/manifest.json"
 
 
 def quote(value: str) -> str:
-    return "\n".join("> " + line if line else ">" for line in value.strip().splitlines())
+    return "\n".join(
+        "> " + line if line else ">" for line in value.strip().splitlines()
+    )
 
 
 def main() -> None:
@@ -48,11 +50,22 @@ def main() -> None:
             script = bytes.fromhex(row["source_hex"])
             stdout = bytes.fromhex(row["stdout_hex"])
             stderr = bytes.fromhex(row["stderr_hex"])
-            for field, expected in (("source", script), ("stdout", stdout), ("stderr", stderr)):
+            for field, expected in (
+                ("source", script),
+                ("stdout", stdout),
+                ("stderr", stderr),
+            ):
                 if (directory / row[field]).read_bytes() != expected:
-                    raise ValueError(f"retained {field} differs from the captured bytes in {mode} row {index}")
-            version = bytes.fromhex(row["version_stdout_hex"]).decode("utf-8").strip() or "Not recorded"
-            group = groups.setdefault(script, {"proofs": {}, "runs": [], "name": row["source"]})
+                    raise ValueError(
+                        f"retained {field} differs from the captured bytes in {mode} row {index}"
+                    )
+            version = (
+                bytes.fromhex(row["version_stdout_hex"]).decode("utf-8").strip()
+                or "Not recorded"
+            )
+            group = groups.setdefault(
+                script, {"proofs": {}, "runs": [], "name": row["source"]}
+            )
             group["proofs"].update(proofs)
             group["runs"].append((mode, version, row, stdout, stderr))
     output = ROOT / "evidence/tcl"
@@ -60,24 +73,39 @@ def main() -> None:
     for script, group in groups.items():
         parts = [
             "# Tcl variable inlining execution\n\n## Question\n\n",
-            ("How do original variable parsing, reaching definitions, callee upvar "
-            "mutation and read observers affect literal single-use variable inlining "
-            "in the LSP? The recorded comparisons ask:\n\n"),
+            (
+                "How do original variable parsing, reaching definitions, callee upvar "
+                "mutation and read observers affect literal single-use variable inlining "
+                "in the LSP? The recorded comparisons ask:\n\n"
+            ),
         ]
         for proof in group["proofs"].values():
-            parts.extend([quote(proof["problem_statement"]), "\n\n", quote(proof["question"]), "\n\n"])
+            parts.extend(
+                [
+                    quote(proof["problem_statement"]),
+                    "\n\n",
+                    quote(proof["question"]),
+                    "\n\n",
+                ]
+            )
         parts.append(
             "This file records one side of the comparison; its result alone does not establish the result of the other script.\n\n"
             "## Assumptions\n\n"
         )
-        for scope in dict.fromkeys(proof["scope"] for proof in group["proofs"].values()):
+        for scope in dict.fromkeys(
+            proof["scope"] for proof in group["proofs"].values()
+        ):
             parts.extend([quote(scope), "\n\n"])
         parts.extend(
             [
-                ("The captures use fresh native processes. Handwritten replacement "
-                "scripts are controls, not output from the Rust refactor. BIG-IP "
-                "was not tested. Other assumptions were not separately recorded.\n\n"),
-                "## Script\n\n", markdown_block(script), "\n## Results\n",
+                (
+                    "The captures use fresh native processes. Handwritten replacement "
+                    "scripts are controls, not output from the Rust refactor. BIG-IP "
+                    "was not tested. Other assumptions were not separately recorded.\n\n"
+                ),
+                "## Script\n\n",
+                markdown_block(script),
+                "\n## Results\n",
             ]
         )
         for mode, version, row, stdout, stderr in group["runs"]:
@@ -93,9 +121,14 @@ def main() -> None:
                     f"- Exit status: {status}\n",
                 ]
             )
-            for field, data in (("Standard output", stdout), ("Standard error", stderr)):
+            for field, data in (
+                ("Standard output", stdout),
+                ("Standard error", stderr),
+            ):
                 if data:
-                    parts.extend([f"- {field}:\n\n", markdown_block(data, "text-visible"), "\n"])
+                    parts.extend(
+                        [f"- {field}:\n\n", markdown_block(data, "text-visible"), "\n"]
+                    )
                 else:
                     parts.append(f"- {field}: empty.\n")
         document = "".join(parts).rstrip() + "\n"

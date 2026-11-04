@@ -1,5 +1,10 @@
 # BIG-IP naming verification
 
+> Record each executed script and its results in a standalone file using the
+> [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+> Historical report and archive references below are development context; they
+> do not require evidence digests or replace the per-script files.
+
 Verify the appliance-specific variable and lexical naming contracts needed by
 Tcl compiler and language-server consumers. Execute the two requests below on
 an actual BIG-IP. Portable C Tcl and Jim results do not establish appliance
@@ -39,8 +44,7 @@ singletons and the five explicitly labelled non-ASCII producer controls.
 continuations and escapes exactly as specified. The source wrappers are ASCII
 with LF line endings; generated binary operands include NUL and non-ASCII
 bytes. Never replace them with text-normalized approximations. Extract the full
-code blocks byte-for-byte, retain source dumps and SHA-256 hashes before and
-after transfer, and hash any separately adapted wrapper. Follow the original
+code blocks byte-for-byte and retain every executed source and adapted wrapper. Follow the original
 getter/inspection order so diagnostics do not prime the tested source object.
 
 ## Traffic and collection
@@ -48,7 +52,7 @@ getter/inspection order so diagnostics do not prime the tested source object.
 Create clients and servers on **dev.bragi0.com**, including loopback testing,
 using any suitable protocol. Every test BIG-IP virtual server must use
 **SNAT automap**. The supplied HTTP wrappers require TCP and HTTP profiles;
-another protocol needs a separately hashed event-valid wrapper that retains the
+another protocol needs a separate event-valid wrapper that retains the
 original tested operands. Prove the real backend path with complete client
 request/response bytes and the server's received peer address and run marker.
 An iRule-generated response alone does not prove backend delivery.
@@ -71,16 +75,8 @@ secrets and unrelated configuration or security-sensitive log content.
 
 ## Deliverables
 
-Write both peer reports beside their request files on **the same `work` branch**.
-Store complete executed source, raw per-context status/stdout/stderr or HTTP/LTM
-capture, decoded rows and a checksummed evidence manifest in a run-specific
-subdirectory of `evidence/`. Record source commit, exact appliance version,
-source/response hashes, context, TMM, row/chunk completeness, deviations and
-unsupported or unreached cases. Keep raw bytes and interpretation distinct.
-Report only measured behavior; script output supplies no native object-header,
-ABI, cache or compiler-hook proof.
-
-Commit and push the reports and evidence to `work`. Return the report commit,
-links to both peer reports and evidence, archive SHA-256 if used, exact appliance
-version, actual TMM/context coverage and any remaining unknowns. Coordinate
-concurrent branch updates normally without overwriting other commits.
+Record one standalone Markdown evidence file per executed script under
+`evidence/tcl/`, with its full question, assumptions, exact script and measured
+results for each context and TMM unit. Record the appliance version and any
+unsupported, unreached or incomplete outcomes. Lab inventories and cleanup
+records are development material. Commit and push the evidence to `work`.

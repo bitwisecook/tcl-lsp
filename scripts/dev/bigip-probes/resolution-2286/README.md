@@ -1,5 +1,9 @@
 # BIG-IP appliance verification for resolution #2286
 
+> For each executed script, use the [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+> Historical bundles and report templates are development material; they do not
+> replace per-script evidence or require content digests.
+
 This handoff measures **real iRule compilation and execution on BIG-IP**. The
 fixtures cover original command and variable names, procedure ownership, scope,
 mutation, traces, and the `static::` namespace across initialization and actual
@@ -50,7 +54,7 @@ A single-TMM result cannot establish multi-TMM locality or broadcast.
 | `irules/*.conf` | Materialized standalone iRules using run identifier `lab2286` |
 | `irules/*.conf.hex` | Full original config-file bytes as hexadecimal |
 | `irules/*.runtime.tcl` | Exact script value evaluated by an optional dynamic probe |
-| `irules/manifest.json` | Object name, source size, SHA-256, line ending and runtime-script bytes/hash |
+| `irules/manifest.json` | Object name, source size, line ending and runtime-script bytes |
 | `irules/rules.tsv` | Exact filename-to-object mapping for the rule-only driver |
 | `appliance-rules.sh` | Collision-checked rule create and ownership-checked rule cleanup |
 | `render-lab.py` | Offline pool/VIP config renderer for exclusive temporary objects |
@@ -70,7 +74,6 @@ From the repository checkout:
 PROBES=scripts/dev/bigip-probes/resolution-2286
 RUN=r2286_lab01
 python3 "$PROBES/generate.py" --run "$RUN" --out /tmp/r2286-fixtures
-sha256sum /tmp/r2286-fixtures/manifest.json
 ```
 
 The generator refuses an existing output directory. It writes UTF-8 bytes
@@ -81,15 +84,14 @@ separate value, not a physical newline. Precomposed `é` is U+00E9, UTF-8
 `c3 a9`; decomposed `é` is U+0065 U+0301, UTF-8 `65 cc 81`. Do not normalize
 those names, convert newline styles, paste through an editor, or retype braces
 and backslashes. Transfer binary file bytes by `scp` or an equivalent exact
-file transfer. Verify SHA-256 on the appliance before loading.
+file transfer. Retain the exact source used by the appliance.
 
 ```sh
 scp -r /tmp/r2286-fixtures bigip-lab:/var/tmp/
 scp "$PROBES/appliance-rules.sh" bigip-lab:/var/tmp/
-ssh bigip-lab 'sha256sum /var/tmp/r2286-fixtures/*.conf /var/tmp/r2286-fixtures/manifest.json'
 ```
 
-Compare each source digest to the manifest. If a transport changes bytes,
+If a transport changes source bytes,
 regenerate/retransfer and retain the mismatched transcript; do not interpret
 that run as the intended source case. `.conf.hex` can reconstruct the exact
 file offline with Python `bytes.fromhex`; avoid a shell command that interprets
@@ -183,7 +185,7 @@ HTTP, TLS, UDP, or another protocol is permitted; choose matching profiles and
 events and record the exact protocol, listener, client and server scripts.
 The supplied fixtures and drivers use HTTP over TCP; their `HTTP_REQUEST`
 probes require an HTTP profile. Additional protocol probes need their own
-event-appropriate iRules and source hashes.
+event-appropriate iRules and source bytes.
 
 Choose a protocol that reaches the operation being measured. Retain the supplied
 TCP+HTTP baseline for `HTTP_REQUEST`/`HTTP_RESPONSE` cases. A raw TCP or UDP
@@ -255,7 +257,6 @@ says not found; permission/connection failures are not absence:
 tmsh list ltm pool /Common/__tcl_lsp_probe_2286_r2286_lab01_pool
 tmsh list ltm virtual /Common/__tcl_lsp_probe_2286_r2286_lab01_vs
 # Continue only when BOTH are explicitly not found.
-sha256sum /var/tmp/r2286-lab.conf
 tmsh load sys config merge file /var/tmp/r2286-lab.conf
 ```
 
@@ -283,7 +284,7 @@ in one batch. The collision/procedure batches specify their single responder.
 
 Use fresh TCP connections. A keepalive connection, a repeated source tuple, or
 many HTTP requests does not imply many TMMs. The traffic driver records the
-actual response header, source tuple, timestamp, raw response and SHA-256 for
+actual response header, source tuple, timestamp, raw response for
 every request:
 
 ```sh
@@ -355,8 +356,7 @@ Use a different filename for every request set; the driver refuses overwriting.
 The same filtering applies to unset and recreate. `static_group` targets are
 strings such as `0:1`; supply that exact string in the query.
 
-Repeat the complete matrix with `global`, keeping its own CMP result and source
-hash. Do not copy static observations into global rows. Ordinary connection
+Repeat the complete matrix with `global`, keeping its own CMP result and source. Do not copy static observations into global rows. Ordinary connection
 locals are measured by `event_frames`, not by assuming event-local assignments
 are ordinary globals. No fixture uses a shared distributed `table` to smuggle
 state across TMMs: introducing one would change the question.
@@ -468,7 +468,7 @@ use a fresh unique run for subsequent cases rather than deleting unrelated state
 For stronger frame/trace coverage, extend a **new isolated generated case** with
 absolute `upvar #0`, `uplevel #0`, nested procedures, array-element local alias,
 namespace frame, `global ::qualified`, and alias retargeting. Keep the full
-original source/hash and native results. Treat a command's presence and each
+original source and native results. Treat a command's presence and each
 subcommand/version syntax as independent: for example support for `trace
 variable` does not prove support for `trace add`, and support for `namespace
 eval` does not prove support for `namespace path`.
@@ -508,7 +508,7 @@ backend events with a Tcl `eval` wrapper.
 ## Physical byte/parser controls
 
 Run `physical_words_lf` and `physical_words_crlf` independently through rule
-load and traffic, with the original appliance file hashes. Each includes:
+load and traffic, retaining the exact appliance files. Each includes:
 
 * A braced word containing an actual backslash followed by the file's physical
   line ending and spaces before `B`.
@@ -578,7 +578,7 @@ or runtime state honestly; residue is a cleanup failure, not a language result.
 The optional `.runtime.tcl` payloads can be run under independently identified
 C Tcl 8.4, 8.5, 8.6, 9.0, 9.1 and current Jim Tcl binaries. Supply an explicit
 wrapper that catches the script's result and records errorCode after the catch.
-Keep engine executable hash/version, original script hash, output and exit
+Keep the recorded interpreter version, original script, output and exit
 status. Do not stub `unknown` or pretend `call`, `when`, or `TMM::*` are ordinary
 Tcl commands. `static::` has F5 semantics only on actual TMM: creating a stock
 Tcl namespace called `static` is a language comparison, not a broadcast model.
@@ -591,38 +591,17 @@ The broader C/Jim matrix cannot erase an appliance-specific result.
 
 ## Evidence bundle and decision criteria
 
-Create the peer Markdown report
-`scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md` **on the same `work`
-branch as this source document**, then commit and push the report and its
-reproducible probe additions to that branch. Preserve the source fixtures and
-record their exact tested commit and hashes. Do not put the report on a separate
-branch. Retain raw evidence in the returned bundle and link its files from the
-Markdown report.
+Create one standalone Markdown file for each executed script under `evidence/tcl/`
+using the current evidence standard, then commit and push to `work`. Include the
+full question, assumptions, exact script and recorded results for every context.
 
-Put the exact **BIG-IP version, build and hotfix** prominently at the top of
-the Markdown report. Include the complete `tmsh show sys version` output,
-platform/VE or hardware, active device and measured TMM roster. Where a build
-or hotfix field is absent, state that explicitly. Every results table must
-identify the appliance version when more than one version is tested. Report
-current observed behavior and coverage limits; avoid implementation history or
-development-process narratives.
-
-Return a compressed evidence directory containing:
-
-* Branch/commit identifier, original generated fixture directory, manifest and
-  both workstation/appliance hashes.
-* Appliance inventory, topology, requested and actual CMP config, active roster,
-  complete object ownership journals and loader outputs/statuses.
-* Traffic JSONL, complete raw HTTP response bytes, per-case coverage summaries,
-  backend transcripts, raw `/var/log/ltm` capture and useful filtered copies.
-* Filled `result-template.json`, per-case first/repeated request distinction,
-  every actual result/error, unsupported load/event surfaces, and unmeasured
-  rows with precise limits.
-* Cleanup commands, their original statuses, exact-object absence proofs,
-  runtime cleanup coverage and explicit residue.
+Record the BIG-IP version, build and hotfix, execution context and reached TMM
+units in each relevant evidence file. Mark missing details as not recorded.
+Retain ownership journals, lab inventories, cleanup records and traffic setup
+as development material; they are not Tcl execution evidence.
 
 For each observation state **what actually ran**, under **which rule owner,
-original source hash, event, CMP mode and actual TMM**. Preserve names and
+original source, event, CMP mode and actual TMM**. Preserve names and
 result/error bytes. A success row requires a reached event and matching input;
 a locality/broadcast row additionally requires the relevant complete roster.
 Unsupported syntax, load rejection, unavailable runtime command, guest error,
@@ -642,15 +621,15 @@ at the shared semantic owner.
 
 The branch handoff is
 [resolution-2286/README.md](https://github.com/bitwisecook/tcl-lsp/blob/work/scripts/dev/bigip-probes/resolution-2286/README.md).
-Record the checked-out commit alongside the original fixture hashes.
+Retain the original fixture bytes.
 
 ```text
-Use https://github.com/bitwisecook/tcl-lsp/blob/work/scripts/dev/bigip-probes/resolution-2286/README.md as the handoff; generate a fresh run, record its work-branch commit, transfer exact fixture bytes and verify manifest SHA-256 on both hosts.
+Use https://github.com/bitwisecook/tcl-lsp/blob/work/scripts/dev/bigip-probes/resolution-2286/README.md as the handoff; generate a fresh run, transfer exact fixture bytes and retain the executed scripts.
 Run only on an exclusive BIG-IP lab; create temporary uniquely named owned objects, never modify production objects or save sys config.
 Record every loader status/warning/rejection separately from actual TMM events; standalone Tcl, CLI and iApp results are comparison controls only.
 Measure static/global initialization and per-TMM write/unset/recreate, cross-rule collisions/load order, F5 calls, scopes, aliases, renames and traces.
 Create clients and servers on dev.bragi0.com using suitable protocols or documented loopback forwarding; every test BIG-IP VIP must use SNAT automap.
 Capture raw /var/log/ltm and protocol bytes, verify the translated backend peer and actual per-case CMP/TMM roster; preserve Unicode and LF/CRLF/backslash controls exactly.
-Write BIGIP_RESULTS.md beside this README on the same work branch, prominently state exact BIG-IP version/build/hotfix, link raw evidence, and commit and push the report there.
+Write one Markdown evidence file per executed script under evidence/tcl, record the full question, assumptions and measured results, and push to work.
 Return the complete raw bundle and honest supported/unsupported/unmeasured matrix; clean only owned exact objects/runtime names and prove cleanup or report residue.
 ```

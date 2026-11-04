@@ -1,5 +1,10 @@
 # BIG-IP original variable operands and callback lifetime
 
+> Record each executed script and its results in a standalone file using the
+> [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+> Historical report and archive references below are development context; they
+> do not require evidence digests or replace the per-script files.
+
 Measure which original variable receiver survives a read callback, unset,
 recreation and a later output assignment. These observations support the shared
 variable-access and trace-lifetime interfaces. C Tcl and Jim captures do not
@@ -19,17 +24,17 @@ do not establish callback lifetime or native object representation.
   testing with any suitable protocol. Every test virtual server requires
   **SNAT automap**. Record VIP, pool/backend path, request/reply bytes and the
   peer address seen by the server. The HTTP wrapper below requires an HTTP
-  profile; use a separately hashed event-valid wrapper for another protocol.
+  profile; use a separate event-valid wrapper for another protocol.
 - Capture `/var/log/ltm` continuously before creation, during traffic and
   through cleanup. Keep complete loader output and actual installed source.
   Record CMP configuration and the TMM roster, then identify reached units
   from each request. Do not infer coverage from request count.
 - Use fresh owned names with an ASCII alphanumeric run identifier. Verify
-  name absence first and source SHA-256 after transfer. Remove only owned
+  name absence first and the actual transferred source. Remove only owned
   objects and retain object-absence proof. Do not restart TMM, change global
   CMP or save global configuration.
 - Preserve load rejections, runtime failures and unsupported commands as
-  observations. Keep every adapted source separately hashed and explain the
+  observations. Keep every adapted source separate and explain the
   exact operand/frame change. A successful standalone `tclsh` run is not an
   appliance measurement. Do not inspect or claim native object headers,
   compiler hooks or ABI from equal script output.
@@ -95,7 +100,7 @@ whether the final read invokes a destroyed registration again, and whether the
 returned list and recreated variable both contain `NEW EXTRA`. Measure the
 appliance outcome; this statement specifies what to compare, not an expected
 BIG-IP answer. If a TMM identity command or top-level procedure is unavailable,
-retain its exact rejection and a separately hashed supported wrapper.
+retain its exact rejection and a separate supported wrapper.
 
 ## Required additional controls
 
@@ -104,7 +109,7 @@ Use the complete original programs in
 and its `active-unset` directory as source references. Keep their full original
 bytes and separately record each appliance wrapper. Replace their final
 `puts $summary` with a recorded result/logging wrapper when stdout is
-unavailable; that is an adaptation, not the original source hash.
+unavailable; that is an adaptation, not the original source.
 
 1. Repeat active read/unset with an array element, an older pending read
    registration, and recursive ordinary read/write. Record callback order and
@@ -134,10 +139,9 @@ unavailable; that is an adaptation, not the original source hash.
 
 ## Result contract
 
-The peer report must contain a case/context/TMM matrix with exact source hashes,
-load result, operation completion/result bytes, callback order/root/index bytes,
-selected receiver discriminators and observed CMP effects. Link complete raw
-logs, installed configurations, traffic captures, evidence manifest and cleanup
-proof. State unsupported and unreached cases explicitly. Conclusions apply
-only to measured input domains, purposes, execution contexts and appliance
-version/build.
+Record one file per executed script under `evidence/tcl/`, including its full
+question, assumptions and exact bytes. For every measured context and TMM unit,
+record the load result, completion/result bytes, callback order and observed CMP
+effects. State unsupported and unreached cases explicitly. Conclusions apply
+only to the measured inputs, contexts and appliance version/build. Cleanup and
+object-ownership records are development material.

@@ -1,8 +1,13 @@
 # BIG-IP name identity and callable lifetime checks
 
+> Record each executed script and its results in a standalone file using the
+> [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+> Historical report and archive references below are development context; they
+> do not require evidence digests or replace the per-script files.
+
 These checks distinguish runtime storage identity and callable lifetime on real BIG-IP. Report measurements without assuming C Tcl, Jim, the simulator, or another BIG-IP version supplies the answer. The reference evidence is [BIGIP_RESULTS.md](BIGIP_RESULTS.md). The implementation needs separate answers for counted value bytes, variable/command keys, lexical variable tokens, and activated procedure allocations.
 
-Work on branch `work`. Write results in the peer file `FOLLOWUP_APPLIANCE_RESULTS.md` in this directory, commit both evidence and results on the same branch, and push. State the exact BIG-IP version, build, edition/hotfix, topology, CMP configuration and actual reached TMM group/unit pairs prominently. Record the source commit and original source SHA-256 for every case.
+Work on branch `work`. Record each executed script and its results under `evidence/tcl/`, commit the evidence and push. State the exact BIG-IP version, build, edition/hotfix, topology, CMP configuration and actual reached TMM group/unit pairs prominently. Record the exact source for every case.
 
 ## Lab and evidence requirements
 
@@ -10,7 +15,7 @@ Use uniquely named disposable rules, folders, partitions and VIPs in the authori
 
 Discover the actual TMM roster. Run name checks on every reachable pair, reporting coverage gaps explicitly. Keep ordinary-global-induced CMP demotion separate from storage sharing. Reuse the available traffic/backend tools where useful. Do not restart TMM, change global CMP, overwrite configuration, save global configuration, or touch unrelated objects. Delete only exact owned names. Record provider config deletion separately from runtime callable retirement; a successful `tmsh delete` does not establish retirement.
 
-Every outcome is initially unmeasured. Retain complete load diagnostics and runtime catch status, message bytes and available error metadata. A rejection is evidence about that source/context only. Do not substitute appliance shell Tcl for TMM or silently edit a rejected source into a successful one. Any repaired source is a new separately hashed case.
+Every outcome is initially unmeasured. Retain complete load diagnostics and runtime catch status, message bytes and available error metadata. A rejection is evidence about that source/context only. Do not substitute appliance shell Tcl for TMM or silently edit a rejected source into a successful one. Any repaired source is a new separate case.
 
 ## Exact runtime variable-name controls
 
@@ -50,7 +55,7 @@ foreach name [list $plain $counted ${prefix}link] {catch {unset $name}}
 set rows
 ```
 
-Repeat with the plain key written last, and with the plain key unset first. Add separately hashed controls for NUL in an **array root** and in an **array index**, preserving the original name/index object when using `set`, `upvar`, `info exists`, `unset` and classic variable traces. Keep root and index results separate: different length conventions can apply. A trace observer must be a uniquely named disposable dynamic Tcl proc and must record actual root/index/operation callback arguments as byte hex; it must not change stock commands. Prove aliasing with different stored values and a mutation/unset discriminator. A successful counted-name round trip alone does not prove distinct keys.
+Repeat with the plain key written last, and with the plain key unset first. Add separate controls for NUL in an **array root** and in an **array index**, preserving the original name/index object when using `set`, `upvar`, `info exists`, `unset` and classic variable traces. Keep root and index results separate: different length conventions can apply. A trace observer must be a uniquely named disposable dynamic Tcl proc and must record actual root/index/operation callback arguments as byte hex; it must not change stock commands. Prove aliasing with different stored values and a mutation/unset discriminator. A successful counted-name round trip alone does not prove distinct keys.
 
 Unicode identity payload:
 
@@ -86,7 +91,7 @@ set rows
 
 The intended characters are U+00E9 (precomposed e-acute) and U+0065 followed by U+0301 (e plus combining acute). They are created with `format %c`, which is a **different producer** from `binary format H* c3a9` and `binary format H* 65cc81`. Run separate raw-bytearray controls with those exact hex sequences. Never equate the producer representations from their display. Preserve `string length`, raw hex and any actual UTF-8 conversion outcome. Repeat in reverse write/delete order. Record inability to construct a character as a producer failure, not name inequality.
 
-In separately hashed cases, construct actual evaluated script values containing unbraced `$name` and braced `${name}` tokens, then `eval` them. Record exact script hex and lexical outcome. This tests the TMM runtime parser, not config-source acceptance. Also test disposable namespace/procedure names with both producers through dynamically constructed `namespace`, `proc`, `rename` and lookup commands, catching each operation. Preserve command lookup and variable lookup separately. Clean only exact created names; avoid a wildcard over stock namespaces.
+In separate cases, construct actual evaluated script values containing unbraced `$name` and braced `${name}` tokens, then `eval` them. Record exact script hex and lexical outcome. This tests the TMM runtime parser, not config-source acceptance. Also test disposable namespace/procedure names with both producers through dynamically constructed `namespace`, `proc`, `rename` and lookup commands, catching each operation. Preserve command lookup and variable lookup separately. Clean only exact created names; avoid a wildcard over stock namespaces.
 
 ## Expression discriminators
 
@@ -115,10 +120,9 @@ Run in TMM first. The existing five-context driver may transport the identical p
 
 ## Materializing the wrapper without byte changes
 
-Keep each name/expression payload in a separate ASCII `.tcl` file. This offline Python generator produces the exact config, source hex and hash. It uses hexadecimal transport so disabled literal command heads inside the payload cannot be mistaken for evidence that the literal loader admitted them. Dynamic execution remains an independent observation.
+Keep each name/expression payload in a separate ASCII `.tcl` file. This offline Python generator produces the exact config, source and payload bytes. It uses hexadecimal transport so disabled literal command heads inside the payload cannot be mistaken for evidence that the literal loader admitted them. Dynamic execution remains an independent observation.
 
 ```python
-import hashlib
 from pathlib import Path
 
 payload = Path("PAYLOAD.tcl").read_bytes()
@@ -140,11 +144,11 @@ body = (
 path = Path(rule + ".conf")
 path.write_bytes(body)
 Path(str(path) + ".hex").write_text(body.hex() + "\n", encoding="ascii")
-print(path, hashlib.sha256(body).hexdigest(), len(body))
-print("payload", hashlib.sha256(payload).hexdigest(), len(payload))
+print(path, len(body))
+print("payload", len(payload))
 ```
 
-The wrapper has literal physical LF line endings and no continuation backslash at end-of-line. Its Python `\n` escapes write LF; its `\"` escapes write ordinary quote bytes. Confirm every transferred config/payload hash on the appliance before load. Retain raw error information if the outer catch fails; HTTP status 200 is merely transport, not success. A failed outer catch makes inner coverage incomplete.
+The wrapper has literal physical LF line endings and no continuation backslash at end-of-line. Its Python `\n` escapes write LF; its `\"` escapes write ordinary quote bytes. Retain the actual transferred config and payload before load. Retain raw error information if the outer catch fails; HTTP status 200 is merely transport, not success. A failed outer catch makes inner coverage incomplete.
 
 ## Activated procedure replacement and original caller cells
 
@@ -172,10 +176,13 @@ proc incarnation {name {suffix NEW_DEFAULT}} {
 
 `namespace current` may require separately transporting these bodies dynamically if the literal loader refuses it; preserve the original rejected body and generate a separate ASCII dynamic command invocation within the same top-level proc. Do not conceal that distinction. The caller's event sets local `cell` to `CALLER_SEED`, catches `call /partition/folder/PROVIDER::incarnation cell`, and returns/logs catch status, full returned value and its local cell after the call. Invoke both one and two actual arguments as separate requests to distinguish formal binding changes.
 
-Measure fresh traffic with OLD activated; after deleting only the provider config; after recreating that same provider name with NEW body/formals; after a failed separately hashed replacement; and after recreating OLD again. Prove every actual responding TMM. Record whether the provider is attached, whether its config object exists, and which old/new body and caller-cell mutation ran. Do not infer callable replacement from a successful config merge or a changed `RULE_INIT` log.
+Measure fresh traffic with OLD activated; after deleting only the provider config; after recreating that same provider name with NEW body/formals; after a failed separate replacement; and after recreating OLD again. Prove every actual responding TMM. Record whether the provider is attached, whether its config object exists, and which old/new body and caller-cell mutation ran. Do not infer callable replacement from a successful config merge or a changed `RULE_INIT` log.
 
 If the isolated lab supports a genuine bounded suspension **inside an entered provider procedure**, compare that already-entered invocation with a fresh invocation after replacement/deletion. Use a documented event-valid mechanism and a disposable backend/client on `dev.bragi0.com` with SNAT automap. Specify the exact primitive and show why the procedure frame is still entered. Holding an HTTP connection after a proc has returned does not test frame retention. Do not block TMM, restart services or improvise an unbounded wait. Mark this control unsupported/unreached if a valid mechanism is unavailable.
 
 ## Results contract
 
-Write `FOLLOWUP_APPLIANCE_RESULTS.md` beside this source document on `work`. Include exact version/build and roster first, source commit, fixture and evidence hashes, per-case loader/runtime verdict, original byte/provenance distinctions, raw paths, cleanup proof and coverage limits. Separate measured conclusions from unresolved alternatives. Include sufficient controls to support or withdraw each identity/lifetime claim. Keep documentation about current contracts and evidence only; do not describe development stages or implementation history.
+Record one Markdown evidence file per executed script under `evidence/tcl/`.
+Include the full question and assumptions, exact script, version/build, reached
+contexts and measured results. State unsupported and unreached cases explicitly.
+Keep cleanup and object-ownership records as development material.

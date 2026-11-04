@@ -1,5 +1,10 @@
 # BIG-IP retained event matrices and scan receivers
 
+> Record each executed script and its results in a standalone file using the
+> [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+> Historical report and archive references below are development context; they
+> do not require evidence digests or replace the per-script files.
+
 Measure complete lexical byte matrices in actual RULE_INIT and CLIENT_ACCEPTED
 contexts, and reach the sequential scan-output receiver after a write callback
 rebinds its second destination. This request concerns compiler naming semantics.
@@ -9,7 +14,7 @@ Use the same **work** branch. Write the peer report
 **EVENT_MATRIX_AND_SCAN_RECEIVER_RESULTS.md** beside this request and commit and
 push the exact source/raw evidence/report to that branch. State the actual
 BIG-IP product, version, build, point release and hotfix at the top. Record the
-source commit and all source/evidence SHA-256 values. Retain existing lexical
+exact executed source. Retain existing lexical
 and lifecycle reports unchanged; their complete and incomplete observations
 keep their original scopes. The reference appliance is BIG-IP 21.1.0.1 build
 0.0.26 Point Release 1, which this run must independently identify.
@@ -33,7 +38,7 @@ breaks, split backslash-continued list construction, dollar signs, braces,
 quotes and escape bytes exactly. `%c 769` must not be rewritten to UTF-8 cc81.
 Do not reencode a binary source or inspect it before the retained eval/getter
 order. No Unicode normalization, replacement characters or source repairs are
-allowed. Hash the complete bodies and loaded configuration before/after transfer.
+allowed. Retain the complete executed bodies and loaded configuration.
 
 The event payload has the original 1,044 rows: 261 cases × two source producers
 × two substitution forms. Its only operand changes replace the four qualified
@@ -69,7 +74,7 @@ Accept an event transcript only if every page succeeds, identities agree,
 sequence 0 through count−1 is complete without conflicts, concatenated hex
 length is exact, decoding produces one envelope and all 1,044 unique
 case/producer/form keys exist. Decode the retained Tcl list with the public
-lexical decoder; retain the complete page-reassembly source/hash. Missing pages, unavailable static/connection
+lexical decoder; retain the complete page-reassembly source. Missing pages, unavailable static/connection
 state, unsupported commands or identity mismatches leave the corresponding
 matrix unknown. Preserve each raw HTTP request/header/body and transport code.
 The reconstructed hex contains the original five-field LBC1 transcript. Write
@@ -485,7 +490,7 @@ when HTTP_REQUEST {
 
 ## Required report and cleanup
 
-Report each build/context/actualunit separately. Include all source hashes,
+Report each build/context/actualunit separately. Include all source bytes,
 loaded configuration, raw statuses, READY markers, page inventory, complete
 reconstructed envelopes and decoded matrices. Keep syntax/error rows and the
 binary-source braced257 missing-cell counterexample; successful construction
@@ -496,14 +501,6 @@ standalone interpreter. These measurements grant no C header, ABI, CPP,
 compiler-hook, allocated namespace or unmeasured context permission.
 
 Remove only owned objects/clients/servers created for the run and verify their
-absence. Retain run-specific raw evidence plus a complete checksummed inventory
-under `evidence/`. Commit and push the peer report, source and evidence to
-**work**. Return the report commit/link, evidence link, archive SHA-256 if used,
-exact appliance version and remaining unknowns.
-
-Expected body hashes:
-
-- `original_payload_sha256`: `af1d6366e57927bc72cd756bf8804e1a1713de958561f30258876603bc120ae9`
-- `adapted_payload_sha256`: `6ea52b6cc900e12c7199530972ed655b9254d8fbf10ab3ad8fd6b09c869be5a2`
-- `event_matrix_sha256`: `8f7ebe6041e5b4931ec2a550bf610f02e57fc9f5213c2eb3869976ac44856e3c`
-- `scan_receiver_sha256`: `f075ddbaa2ab8398a13ed86c033d2986cd715897f59eaed352094e347049cf89`
+absence. Record each executed script and its results in a standalone file under
+`evidence/tcl/`; commit and push to `work`. Return the evidence links, exact
+appliance version and remaining unknowns. Keep cleanup records as development material.

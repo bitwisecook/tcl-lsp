@@ -26,7 +26,9 @@ SCOPES = {
 
 
 def quote(value: str) -> str:
-    return "\n".join("> " + line if line else ">" for line in value.strip().splitlines())
+    return "\n".join(
+        "> " + line if line else ">" for line in value.strip().splitlines()
+    )
 
 
 def main() -> None:
@@ -40,14 +42,20 @@ def main() -> None:
         for provider in proof.get("providers", []):
             if provider.get("status") != "observed":
                 continue
-            refs = [evidence[name] for name in provider.get("evidence", []) if name in evidence]
+            refs = [
+                evidence[name]
+                for name in provider.get("evidence", [])
+                if name in evidence
+            ]
             inputs: dict[str, set[str]] = defaultdict(set)
             for item in refs:
                 path = item.get("path", "")
                 if item.get("role") == "input" and path.endswith(".tcl"):
                     inputs[Path(path).name].add(path)
             for item in refs:
-                if item.get("role") != "provider" or not item.get("path", "").endswith("/receipt.json"):
+                if item.get("role") != "provider" or not item.get("path", "").endswith(
+                    "/receipt.json"
+                ):
                     continue
                 receipt_path = ROOT / item["path"]
                 if not receipt_path.is_file():
@@ -57,47 +65,97 @@ def main() -> None:
                 except (UnicodeError, ValueError):
                     continue
                 command = receipt.get("command") if isinstance(receipt, dict) else None
-                if not isinstance(command, list) or len(command) != 2 or not isinstance(command[-1], str) or not command[-1].endswith(".tcl"):
+                if (
+                    not isinstance(command, list)
+                    or len(command) != 2
+                    or not isinstance(command[-1], str)
+                    or not command[-1].endswith(".tcl")
+                ):
                     continue
                 name = Path(command[-1]).name
                 if len(inputs[name]) != 1:
                     continue
                 source = ROOT / next(iter(inputs[name]))
-                stdout, stderr = receipt_path.parent / "stdout", receipt_path.parent / "stderr"
+                stdout, stderr = (
+                    receipt_path.parent / "stdout",
+                    receipt_path.parent / "stderr",
+                )
                 if not all(path.is_file() for path in (source, stdout, stderr)):
                     continue
                 script = source.read_bytes()
                 if script in existing:
                     continue
-                group = groups.setdefault(script, {"proofs": {}, "captures": {}, "source": source})
+                group = groups.setdefault(
+                    script, {"proofs": {}, "captures": {}, "source": source}
+                )
                 group["proofs"][proof["id"]] = proof
-                group["captures"][str(receipt_path)] = (provider, receipt, stdout.read_bytes(), stderr.read_bytes())
+                group["captures"][str(receipt_path)] = (
+                    provider,
+                    receipt,
+                    stdout.read_bytes(),
+                    stderr.read_bytes(),
+                )
     used: set[str] = set()
     for script, group in groups.items():
         proofs = list(group["proofs"].values())
         parts = ["# Tcl source-file execution evidence\n\n## Question\n\n"]
         for proof in proofs:
-            parts.extend([quote(proof["problem_statement"]), "\n\n", quote(proof["question"]), "\n\n"])
-        parts.append("This is one source in the stated question; it does not by itself establish results for other sources or environments.\n\n## Assumptions\n\n")
+            parts.extend(
+                [
+                    quote(proof["problem_statement"]),
+                    "\n\n",
+                    quote(proof["question"]),
+                    "\n\n",
+                ]
+            )
+        parts.append(
+            "This is one source in the stated question; it does not by itself establish results for other sources or environments.\n\n## Assumptions\n\n"
+        )
         for proof in proofs:
             parts.extend([quote(SCOPES[proof["id"]]), "\n\n"])
-        parts.extend(["Other assumptions were not separately recorded.\n\n## Script\n\n", markdown_block(script), "\n## Results\n"])
-        for index, (provider, receipt, stdout, stderr) in enumerate(group["captures"].values(), 1):
+        parts.extend(
+            [
+                "Other assumptions were not separately recorded.\n\n## Script\n\n",
+                markdown_block(script),
+                "\n## Results\n",
+            ]
+        )
+        for index, (provider, receipt, stdout, stderr) in enumerate(
+            group["captures"].values(), 1
+        ):
             name = str(provider.get("id") or "Not recorded").replace("\n", " ")
-            version = str(receipt.get("reported_version") or provider.get("version") or "Not recorded").replace("\n", " ")
+            version = str(
+                receipt.get("reported_version")
+                or provider.get("version")
+                or "Not recorded"
+            ).replace("\n", " ")
             status = receipt.get("process_exit", receipt.get("exit"))
             status = str(status) if type(status) is int else "Not recorded"
-            parts.extend([f"\n### {name}, run {index}\n\n", f"- Recorded version: {version}\n", "- Recorded input channel: source file passed to the interpreter.\n", f"- Exit status: {status}\n"])
-            for title, data in (("Standard output", stdout), ("Standard error", stderr)):
+            parts.extend(
+                [
+                    f"\n### {name}, run {index}\n\n",
+                    f"- Recorded version: {version}\n",
+                    "- Recorded input channel: source file passed to the interpreter.\n",
+                    f"- Exit status: {status}\n",
+                ]
+            )
+            for title, data in (
+                ("Standard output", stdout),
+                ("Standard error", stderr),
+            ):
                 if data:
-                    parts.extend([f"- {title}:\n\n", markdown_block(data, "text-visible"), "\n"])
+                    parts.extend(
+                        [f"- {title}:\n\n", markdown_block(data, "text-visible"), "\n"]
+                    )
                 else:
                     parts.append(f"- {title}: empty.\n")
         document = "".join(parts).rstrip() + "\n"
         errors = validate_document(document)
         if errors:
             raise ValueError(f"{proofs[0]['id']}: {errors}")
-        base = re.sub(r"[^a-z0-9-]+", "-", f"{proofs[0]['id']}-{group['source'].stem}".lower()).strip("-")
+        base = re.sub(
+            r"[^a-z0-9-]+", "-", f"{proofs[0]['id']}-{group['source'].stem}".lower()
+        ).strip("-")
         slug, index = base, 1
         while slug in used:
             index += 1

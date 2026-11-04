@@ -1,20 +1,25 @@
 # BIG-IP naming across execution contexts
 
+> Record each executed script and its results in a standalone file using the
+> [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+> Historical report and archive references below are development context; they
+> do not require evidence digests or replace the per-script files.
+
 Measure the naming semantics needed by the shared Tcl naming interfaces. A result in one BIG-IP execution context does not establish the same behavior in another. The reference reports are [BIGIP_RESULTS.md](BIGIP_RESULTS.md) and [FOLLOWUP_APPLIANCE_RESULTS.md](FOLLOWUP_APPLIANCE_RESULTS.md). They supply measured TMM HTTP_REQUEST naming controls; the cross-context controls in the follow-up report cover expressions.
 
 Work on branch `work`. Write the peer `CONTEXT_NAMING_RESULTS.md` beside this document, retain the complete sources and raw evidence, commit and push on the same branch. State exact BIG-IP version/build/hotfix and the source commit prominently. Documentation describes measured behavior and current coverage only.
 
 ## Required evidence
 
-- Record exact product/version/build, topology, CMP configuration, actual TMM roster, source commit and every source SHA-256. Keep TMM, tmsh CLI script, iApp implementation, iApp presentation/APL and iCall observations separate.
+- Record exact product/version/build, topology, CMP configuration, actual TMM roster, and actual source for each case. Keep TMM, tmsh CLI script, iApp implementation, iApp presentation/APL and iCall observations separate.
 - Clients and servers may both run on `dev.bragi0.com`, including loopback testing with any suitable protocol. Every test BIG-IP virtual server requires **SNAT automap**. Prove the client/VIP/backend path and backend peer address when forwarding traffic.
-- Capture `/var/log/ltm` continuously from before object creation through cleanup. Retain raw loader output, configurations, request/reply bytes, script output and source/hash verification on the appliance.
+- Capture `/var/log/ltm` continuously from before object creation through cleanup. Retain raw loader output, configurations, request/reply bytes, script output and the actual installed source.
 - Use fresh ASCII alphanumeric run identifiers and exact disposable object names. Record pre-existing-name checks. Delete only owned objects; keep unsuccessful deletion and actual object absence distinct. Do not restart TMM, alter global CMP, save global configuration or touch residual objects from another run.
-- Record successful measurements, load/runtime rejections, unavailable mechanisms and unreached cases separately. Keep every repaired source as a separately hashed case. Do not use standalone `tclsh` as a substitute for a BIG-IP context.
+- Record successful measurements, load/runtime rejections, unavailable mechanisms and unreached cases separately. Keep every repaired source as a separate case. Do not use standalone `tclsh` as a substitute for a BIG-IP context.
 
 ## Exact naming payloads
 
-Generate fresh sources with [generate-followup-controls.py](generate-followup-controls.py). Its required arguments are `--run`, `--out`, `--vip`, `--backend`, `--backend-port`, `--vip-port`; record `--source-commit` explicitly. Choose unused addresses/ports appropriate to the lab. The existing [v6 sources](evidence/r2286_20261006m/fixtures/v6/) show the complete payloads and wrappers, and their manifest records exact bytes and hashes.
+Generate fresh sources with [generate-followup-controls.py](generate-followup-controls.py). Its required arguments are `--run`, `--out`, `--vip`, `--backend`, `--backend-port`, `--vip-port`; record `--source-commit` explicitly. Choose unused addresses/ports appropriate to the lab. The existing [v6 sources](evidence/r2286_20261006m/fixtures/v6/) show the complete payloads and wrappers, and retain the exact script bytes.
 
 Run these complete generated `.tcl` payloads in each supported context:
 
@@ -27,9 +32,9 @@ Run these complete generated `.tcl` payloads in each supported context:
 | `commands_format`, `commands_bytes`, `commands_cross_producer` | How do namespace/proc creation, command lookup, invocation and rename treat the producer-specific spellings? |
 | `lexical_format_unbraced`, `lexical_format_braced`, `lexical_bytes_unbraced`, `lexical_bytes_braced` | Which exact bytes belong to a lexical variable token? |
 
-Preserve each payload byte-for-byte between contexts. Each context wrapper is independently hashed. Generate non-TMM wrappers with [generate-followup-contexts.py](generate-followup-contexts.py), passing `--run`, `--payload`, `--out` and `--source-commit`. Its full `cli.conf`, `iapp.conf`, `iapp-service.conf` and `icall.conf` are the source definitions; use [run-followup-contexts.sh](run-followup-contexts.sh) and the report's reproduction instructions where applicable. An iApp implementation must actually execute; object creation alone is insufficient. An iCall handler must actually deliver the configured event.
+Preserve each payload byte-for-byte between contexts. Keep each context wrapper separately. Generate non-TMM wrappers with [generate-followup-contexts.py](generate-followup-contexts.py), passing `--run`, `--payload`, `--out` and `--source-commit`. Its full `cli.conf`, `iapp.conf`, `iapp-service.conf` and `icall.conf` are the source definitions; use [run-followup-contexts.sh](run-followup-contexts.sh) and the report's reproduction instructions where applicable. An iApp implementation must actually execute; object creation alone is insufficient. An iCall handler must actually deliver the configured event.
 
-The generated payload files are **ASCII, LF-only and contain no literal NUL**. Runtime `binary format H* 0042` creates NUL followed by ASCII `B`; it is not printable backslash-zero. Runtime `c3a9` and `65cc81` create the stated byte sequences. `format %c 233` and `%c 769` are separate producers whose output must be measured, not assumed to be UTF-8. Preserve physical line breaks, braces and backslashes. Transport scripts/configurations without text conversion and verify hashes after transfer.
+The generated payload files are **ASCII, LF-only and contain no literal NUL**. Runtime `binary format H* 0042` creates NUL followed by ASCII `B`; it is not printable backslash-zero. Runtime `c3a9` and `65cc81` create the stated byte sequences. `format %c 233` and `%c 769` are separate producers whose output must be measured, not assumed to be UTF-8. Preserve physical line breaks, braces and backslashes. Transport scripts/configurations without text conversion and retain the actual transferred bytes.
 
 ## Context matrix
 
@@ -50,7 +55,7 @@ when CLIENT_ACCEPTED {
 }
 ```
 
-For RULE_INIT, change only the event name and recorded context label, then hash that distinct full wrapper. If TMM identity commands are unavailable in an event, record their own catch status and emit the remaining observation; retain this as a separately hashed wrapper. For HTTP_REQUEST use the full existing generated wrapper, which supplies response correlation and observed TMM headers.
+For RULE_INIT, change only the event name and recorded context label, then retain that distinct full wrapper. If TMM identity commands are unavailable in an event, record their own catch status and emit the remaining observation; retain this as a separate wrapper. For HTTP_REQUEST use the full existing generated wrapper, which supplies response correlation and observed TMM headers.
 
 ## Clean lexical read discriminator
 
@@ -89,7 +94,7 @@ Retain both returned values and exact generated script bytes. A value beginning 
 
 ## Qualified variable and callback boundaries
 
-Add separately hashed controls using a dynamically created ASCII namespace and two scalar/array roots `::namespace::A` and `::namespace::A` followed by runtime `0042`. Repeat write-order and unset-order discriminators, upvar and trace callbacks. These controls ask whether qualified variable roots share the counted-key behavior measured for unqualified event-local names; they do not imply NUL support in namespace components.
+Add separate controls using a dynamically created ASCII namespace and two scalar/array roots `::namespace::A` and `::namespace::A` followed by runtime `0042`. Repeat write-order and unset-order discriminators, upvar and trace callbacks. These controls ask whether qualified variable roots share the counted-key behavior measured for unqualified event-local names; they do not imply NUL support in namespace components.
 
 Record full original root/index/operation bytes for traces and aliases. Keep the selected cell's identity separate from the alias spelling reported to a callback. Use exact mutation and unset discriminators. Record namespace current/which and command-name inventories only through independently supported commands; command display alone is insufficient to prove slot identity.
 
@@ -155,7 +160,7 @@ when HTTP_REQUEST {
 }
 ```
 
-Also create separately hashed array-root and index controls for those relocated
+Also create separate array-root and index controls for those relocated
 prefixes and multiple-NUL positions, including reversed writes and unsets. The
 payload above does not establish separate-root/index API parsing, qualified
 namespace lookup, callback names or command/formal naming. Record exact original
@@ -163,6 +168,9 @@ bytes, produced bytes and the actual reached context for every added control.
 
 ## Result contract
 
-Write `CONTEXT_NAMING_RESULTS.md` on `work` beside this document. Put exact BIG-IP version/build and reached context/TMM coverage first. Include a matrix of case, context, source hashes, load result, execution catch/result bytes, trace/root/index bytes and conclusion. Link raw evidence, manifests and cleanup/object-absence proof. State unsupported and untested boundaries explicitly, including namespace-component NUL, command-name NUL, suspended entered procedures, cross-blade/HA behavior and reload persistence unless separately measured with an authorized supported mechanism.
-
-The report must support a context- and purpose-specific naming interface. Do not infer a C Tcl/Jim string representation, native object ABI, compiler hook or another context's naming behavior from equal outputs.
+Record one file per executed script under `evidence/tcl/` with the full question,
+assumptions, exact script and observed results for each context and TMM unit.
+Include version/build, load and runtime results, and any trace/root/index values
+needed to interpret the run. State unsupported and untested boundaries explicitly.
+Do not infer another context's behavior or a native object representation from
+equal outputs. Lab inventories and cleanup records are development material.

@@ -1,5 +1,9 @@
 # BIG-IP lexical byte-class execution request
 
+> Record each executed script and its results in a standalone file using the
+> [Tcl execution evidence standard](../../../../docs/design/contracts/tcl-execution-evidence.md).
+> Historical report and archive references below are development context.
+
 Execution branch: **work**. Current reference appliance: **BIG-IP 21.1.0.1,
 build 0.0.26, Point Release 1**. Verify and record the actual version for this
 new run. Status: **requested; no new appliance result is claimed here**.
@@ -52,14 +56,13 @@ conversion or provide TMM parser authority. If source construction refuses,
 
 ## Source integrity and execution plan
 
-1. Use the current `work` commit and record its exact hash, the product/version,
+1. Use the current `work` branch and record the product/version,
    and the context-specific Tcl/package version observations. Keep the full
    generated source as ASCII/LF. Extract code blocks byte-for-byte, retaining
    backslashes and physical line breaks; do not paste through a text converter.
-   Hash the extracted payload, complete iRule, each CLI/iApp/iCall wrapper and
-   the archive before transfer. Verify SHA-256 and byte dumps after transfer
-   and before loading. Record any loader rewrite or refusal rather than repairing
-   the tested source silently. Hash separately any capture-only repair.
+   Retain the exact extracted payload, complete iRule and each CLI/iApp/iCall
+   wrapper as executed. Record any loader rewrite or refusal rather than repairing
+   the tested source silently. Keep any capture-only repair separate.
 2. Use real clients and a real backend service on **dev.bragi0.com**. An existing
    HTTP server is sufficient; first prove its loopback and reachable-interface
    response, then a pool-backed VIP with TCP+HTTP and **SNAT automap**. Keep the
@@ -90,13 +93,13 @@ conversion or provide TMM parser authority. If source construction refuses,
    duplicates, missing/conflicting chunks and complete original LTM lines.
    Never accept a truncated one-line syslog result as a full transcript.
    Keep a finite batch inventory for the initialization and each chosen client:
-   source hash, run/context/TMM/session, observed first/last sequence, declared
-   chunk count, received count, exact reassembled bytes and SHA-256, decoded row
+   exact source, run/context/TMM/session, observed first/last sequence, declared
+   chunk count, received count, exact reassembled bytes, decoded row
    count, and all 1,044 unique case/source-kind/form keys. Verify completeness
    before starting the next client. The original rule hex-encodes its export
    envelope again for logging; native-sized transcripts can require thousands
    of chunks per event even though each line fits the syslog extent. If capture
-   drops or truncates chunks, retain the rows as unknown. A separately hashed
+   drops or truncates chunks, retain the rows as unknown. A separate
    capture-only batching wrapper may suppress duplicate exports or split output
    into bounded batches, with complete begin/end/count/checksum records. Retain
    its full source and verify that the payload, runtime producers, constructed
@@ -104,7 +107,7 @@ conversion or provide TMM parser authority. If source construction refuses,
    tested bytes, drop rows or classify a partial event transcript.
 5. Execute the non-TMM script below as an actual tmsh CLI script, an actual iApp
    **implementation action**, and a delivered/triggered iCall script. Change
-   only the context label in each independently hashed wrapper. Save stdout,
+   only the context label in each separate wrapper. Save stdout,
    stderr, outer status and all row bytes. Object creation alone is insufficient.
    APL is a separate optional row only if actual presentation evaluation and
    returned output can be proved; otherwise mark APL not executed/unsupported.
@@ -114,7 +117,7 @@ conversion or provide TMM parser authority. If source construction refuses,
 ## Common payload (ASCII/LF)
 
 This is the identical payload inside each full event wrapper and the non-TMM
-script. Its exact trailing LF is part of the hash. The native portability smoke
+script. Preserve its exact trailing LF. The native portability smoke
 ran this payload on C Tcl 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and current Jim;
 each emitted 1,044 rows with successful transcript export and no outer stderr.
 That is a portability check, not appliance context evidence. Its record is
@@ -127,7 +130,6 @@ refuses the `%c 769` binary-source construction while its append-built source
 still reaches eval. Keep these source-producer and diagnostic boundaries
 independent in the requested appliance results.
 
-Payload SHA-256: `af1d6366e57927bc72cd756bf8804e1a1713de958561f30258876603bc120ae9`.
 
 ```tcl
 set r2286_lbc_rows {}
@@ -276,10 +278,9 @@ payload token to replace. `RULE_INIT` and `CLIENT_ACCEPTED` contain no HTTP
 commands. HTTP_REQUEST returns a full envelope only at
 `/r2286-lexical-byte-class`; other HTTP paths continue to the real backend.
 Each event independently catches identity queries and records their status.
-The fixed run label is `r2286lex1`; if changing it, hash and retain the entire
+The fixed run label is `r2286lex1`; if changing it, retain the entire
 changed rule before transfer. Do not modify byte construction or eval source.
 
-Full-rule SHA-256: `49b3c8dcd43221031288595afc53f9cc4642fb714e5a57b123b15d3613d91a40`.
 
 ```tcl
 when RULE_INIT {
@@ -912,7 +913,7 @@ puts $r2286_lbc_export
 ## Required returned artifacts and interpretation
 
 Return full version/context/commit records, exact wrapper/payload/archive bytes
-and SHA-256 before and after transfer, loader statuses, raw stdout/stderr, raw
+as executed, loader statuses, raw stdout/stderr, raw
 HTTP headers+bodies, continuous LTM chunks, actual TMM/CMP observations and the
 real backend baseline. For each transcript retain all 1,044 rows and the full
 outer export status. Keep exact `source_build`, `source_scan`, `eval_code`,
