@@ -68,7 +68,7 @@ The source-owner/shimmer gap remains unresolved for #940 and related reports;
 no speculative authority or parser workaround was committed.
 
 
-Naming status at 20:48 UTC: Compiler47 diagnostic builds and passes44/46 semantic controls plus observation; only two corrected Registry-name expectations fail in the captured old ELF. Seven cooperation/cache controls pass. Server53 is compiling fresh-provider, guarded pattern and cooperation repairs. Public variable probe isolates cursor6 versus end-boundary7; original-root affinity correction remains pending. O127 equivalence and original host failures remain unresolved. Tcl evidence-format gate passes1,647 documents/23 tests; full gates, packages and performance remain open. [Current snapshot](work/name-handling/current-state.md) retains exact limits.
+Naming status at 21:22 UTC: **not release-ready**. Compiler47 passes44/46 semantic controls plus observation; two corrected Registry-name expectations await rerun. Server18 builds; early diagnostic passes10/12 including all original autoload controls and cooperation controls. End-cursor still fails and the pattern refusal fixture has an invalid occupancy premise. Parent53 and host run41913996564 are active. Earlier bc3ee host failures identify fixed Native/WASI test compile errors and a Browser OS-thread panic; adopted threadless SpecTcl and real hook controls need execution. O127, full gates, packages and matched performance remain open. [Current snapshot](work/name-handling/current-state.md) retains exact limits.
 
 Baseline compiler lint repair, 19:36 UTC: the two oversized Logical source
 walkers are split into their existing static body/target selection and typed

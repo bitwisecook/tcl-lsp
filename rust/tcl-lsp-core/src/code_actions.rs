@@ -5563,7 +5563,7 @@ mod issued_optimiser_rewrite_currency_tests {
         Optimisation, finalise_optimisations, optimise_unit, optimise_unit_raw,
     };
 
-    fn produced(source: &str) -> (AnalysisResult, Vec<Optimisation>) {
+    fn produced(source: &str, code: DiagCode) -> (AnalysisResult, Vec<Optimisation>) {
         let mut analyser = Analyser::new();
         let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
         let registry = input.borrowed_context_registry().commands();
@@ -5588,7 +5588,7 @@ mod issued_optimiser_rewrite_currency_tests {
         );
         let raw_group: Vec<_> = raw
             .iter()
-            .filter(|member| member.code == DiagCode::O127)
+            .filter(|member| member.code == code)
             .cloned()
             .collect();
         assert_eq!(raw_group.len(), 2);
@@ -5625,8 +5625,102 @@ mod issued_optimiser_rewrite_currency_tests {
 
     #[test]
     fn actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them() {
+        let source = "proc f {flag} {set x 1; if {$flag} {puts $x} else {puts no}}\n";
+        let (analysis, issued) = produced(source, DiagCode::O125);
+        let pair: Vec<_> = issued
+            .into_iter()
+            .filter(|member| member.code == DiagCode::O125)
+            .collect();
+        assert_eq!(pair.len(), 2);
+        assert!(
+            pair.iter()
+                .all(|member| member.original_rewrite_batch().is_some())
+        );
+        let report = apply(
+            pair.iter().cloned().map(Finding::from).collect(),
+            &Policy::unrestricted(),
+        );
+        let current = DiagnosticEditSource::for_analysis(source, &analysis).unwrap();
+        let actions = rewrite_actions(
+            &report,
+            source,
+            range(),
+            &current,
+            &LineIndex::new_lsp(source),
+        );
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].edits.len(), 2);
+        // Equal bytes/input cannot donate Standalone permission into an
+        // independently supplied current source interpretation.
+        let supplied = Analyser::new()
+            .with_resolved_input(analysis.resolved_input.clone().unwrap())
+            .analyse(source, "tcl8.6");
+        let supplied_current = DiagnosticEditSource::for_analysis(source, &supplied).unwrap();
+        assert_eq!(
+            rewrite_actions(
+                &report,
+                source,
+                range(),
+                &supplied_current,
+                &LineIndex::new_lsp(source)
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
+        let partial = apply(
+            vec![Finding::from(pair[0].clone())],
+            &Policy::unrestricted(),
+        );
+        assert_eq!(
+            rewrite_actions(
+                &partial,
+                source,
+                range(),
+                &current,
+                &LineIndex::new_lsp(source)
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
+        let changed = source.replace("puts", "list");
+        let changed_analysis = Analyser::new()
+            .with_resolved_input(analysis.resolved_input.clone().unwrap())
+            .analyse(&changed, "tcl8.6");
+        let changed_current =
+            DiagnosticEditSource::for_analysis(&changed, &changed_analysis).unwrap();
+        assert_eq!(
+            rewrite_actions(
+                &report,
+                &changed,
+                range(),
+                &changed_current,
+                &LineIndex::new_lsp(&changed)
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
+        let mut changed_member = pair[0].clone();
+        changed_member.replacement.push_str("; injected");
+        let changed_report = apply(
+            vec![
+                Finding::from(changed_member),
+                Finding::from(pair[1].clone()),
+            ],
+            &Policy::unrestricted(),
+        );
+        assert_eq!(
+            rewrite_actions(
+                &changed_report,
+                source,
+                range(),
+                &current,
+                &LineIndex::new_lsp(source)
+            ),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
+    }
+
+    #[test]
+    fn o127_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them() {
         let source = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
-        let (analysis, issued) = produced(source);
+        let (analysis, issued) = produced(source, DiagCode::O127);
         let pair: Vec<_> = issued
             .into_iter()
             .filter(|member| member.code == DiagCode::O127)

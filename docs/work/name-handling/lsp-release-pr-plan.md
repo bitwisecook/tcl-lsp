@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE plan; refreshed 4 November 2026, 20:48 UTC. Not release-ready.** [Current state](current-state.md) gives exact sources and limits. Compiler47 diagnostic is44/46 plus observation; two Registry-name fixture corrections await unit rerun. All seven cooperative Compiler controls pass. Server53 is compiling current provider/pattern/cooperation repairs after V16’s27/31 mandatory result. Variable failure is a measured end-cursor affinity gap; correction pending. O127 source rewrite equivalence remains unresolved. Current host runs are active, no pass claimed. Full strict gates, packages and matched performance remain open. No PR or release exists.
+**ACTIVE plan; refreshed 4 November 2026, 21:22 UTC. Not release-ready.** [Current state](current-state.md) gives exact sources and limits. Compiler47 is44/46 plus observation; two narrow expectations await rerun. Server18 builds; early10/12 controls pass including original autoload and cooperation. Cursor-boundary failure remains, and the pattern refusal fixture needs genuine occupancy. Parent53 and current host run41913996564 are active. Threadless wasm32 SpecTcl service and hook controls await validation. O127 remains unresolved with its original tests intact; genuine O125 controls cover generic atomic-group policy/currentness. Full gates, packages and matched performance remain open. No PR or release exists.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an

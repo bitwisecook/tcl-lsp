@@ -1320,11 +1320,42 @@ mod tests {
         assert!(out.text.contains("return 3"), "{}", out.text);
     }
 
+    /// A line-keyed `# noqa` over one member of a real grouped sink must
+    /// withhold both the deletion and insertion (#2149).
+    #[test]
+    fn optimise_under_policy_never_applies_half_a_group() {
+        let mut analyser = Analyser::new();
+        let input = analyser.prepare_analysis_input("tcl8.6").unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let mut policy = PolicyBuilder::new().build();
+        policy.optimiser = OptimiserPolicy::all_on();
+        let marked = "proc f {flag} {set x 1; if {$flag} {\n# noqa: O125\nputs $x} else {puts no}}\n";
+        let out = optimise_under_policy(marked, registry, Some(&input), 1, &policy);
+        assert!(out.text.contains("set x 1"), "{}", out.text);
+        assert!(
+            !out.applied.iter().any(|o| o.code == DiagCode::O125),
+            "{:?}",
+            out.applied
+        );
+        // Positive control: without the directive the pair applies whole.
+        let plain = "proc f {flag} {set x 1; if {$flag} {\nputs $x} else {puts no}}\n";
+        let out = optimise_under_policy(plain, registry, Some(&input), 1, &policy);
+        assert_eq!(
+            out.applied
+                .iter()
+                .filter(|o| o.code == DiagCode::O125)
+                .count(),
+            2,
+            "{:?}",
+            out.applied
+        );
+    }
+
     /// A line-keyed `# noqa` over one member of an O127 pair must not leave
     /// the other applicable: the delete without its inline removes a store
     /// the use site still reads (#2149).
     #[test]
-    fn optimise_under_policy_never_applies_half_a_group() {
+    fn o127_optimise_under_policy_never_applies_half_a_group() {
         let registry = Arc::new(CommandRegistry::build_default());
         let input = test_optimiser_input(&registry, crate::profile_for_dialect("tcl8.6"));
         let mut policy = PolicyBuilder::new().build();
