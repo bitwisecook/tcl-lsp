@@ -253,20 +253,76 @@ mod tests {
     }
 
     #[test]
-    fn closed_cut_survey_refuses_two_genuine_child_interpretations() {
+    fn closed_cut_survey_keeps_exact_child_owner_and_unique_membership() {
         let source = "source child.tcl; proc run {} {helper}";
         let child_source = "proc helper {} {return VALUE}";
         with_cut(source, child_source, |prefix, child, survey| {
-            let other = Analyser::new()
+            let load =
+                crate::registry_invocation::source_structure::original_project_source_load_at(
+                    source, prefix, 0,
+                )
+                .unwrap();
+            let continuation = load.conditional_continuation(prefix, child).unwrap();
+            let foreign = Analyser::new()
                 .analyse_with_source_point_entry(child_source, "tcl8.6", survey.point)
                 .unwrap();
-            assert!(survey.point.matches_child_analysis(&other));
-            assert!(other.original_completed_command_world().is_none());
+            assert!(survey.point.matches_child_analysis(&foreign));
+            assert!(continuation.matches_child_analysis(child));
+            assert!(!continuation.matches_child_analysis(&foreign));
+            assert_eq!(child.resolved_input, foreign.resolved_input);
+            assert_eq!(child.body_lexer_config, foreign.body_lexer_config);
+            assert!(child.original_completed_command_world().is_none());
+            assert!(foreign.original_completed_command_world().is_none());
+            let captured = survey
+                .outcome
+                .single_source_cut_survey(prefix, &[child, &foreign, survey.suffix_analysis()])
+                .expect("foreign point-compatible input cannot replace the retained child");
+            assert!(std::ptr::eq(captured.child_analysis(), child));
+            assert!(std::ptr::eq(
+                captured.suffix_analysis(),
+                survey.suffix_analysis()
+            ));
+            let declaration = child.original_procedure_declarations().next().unwrap();
+            let publication = captured
+                .closed_child_procedure_publication(declaration)
+                .expect("same retained child declaration under the genuine Normal outcome");
+            assert!(publication.is_for_analysis(child));
+            assert!(!publication.is_for_analysis(&foreign));
             assert!(
                 survey
                     .outcome
-                    .single_source_cut_survey(prefix, &[child, &other, survey.suffix_analysis()],)
-                    .is_none()
+                    .single_source_cut_survey(prefix, &[&foreign, survey.suffix_analysis()],)
+                    .is_none(),
+                "point compatibility alone cannot fill the missing child owner",
+            );
+            let retained = child.clone();
+            assert!(!std::ptr::eq(child, &retained));
+            assert!(continuation.matches_child_analysis(&retained));
+            let child_owner = child
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref()
+                .original_analysis_owner()
+                .unwrap();
+            let retained_owner = retained
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref()
+                .original_analysis_owner()
+                .unwrap();
+            let foreign_owner = foreign
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref()
+                .original_analysis_owner()
+                .unwrap();
+            assert!(std::sync::Arc::ptr_eq(child_owner, retained_owner));
+            assert!(!std::sync::Arc::ptr_eq(child_owner, foreign_owner));
+            assert!(
+                survey.outcome.single_source_cut_survey(
+                    prefix, &[child, &retained, survey.suffix_analysis()],
+                ).is_none(),
+                "two eligible retained captures remain ambiguous membership",
             );
         });
     }
