@@ -314,7 +314,7 @@ impl<'a> IndexLoader<'a> {
         let layout = self.with_schema(
             projection.elements_if_projected(),
             WordOrigin::LoaderValue,
-            |selected| selected.authored_source_file_layout_abstention(),
+            authored_invalid_file_layout,
         )??;
         Some(OriginalIndexFilenameInvalidLayout {
             projection,
@@ -675,6 +675,13 @@ impl<'a> IndexLoader<'a> {
             .resolved()?;
         Some(project(&selected))
     }
+}
+
+// Keep the invocation borrow independent of its context and word lifetimes.
+fn authored_invalid_file_layout(
+    invocation: &ResolvedInvocation<'_, '_>,
+) -> Option<tcl_registry::source_file::AuthoredSourceFileLayoutAbstention> {
+    invocation.authored_source_file_layout_abstention()
 }
 
 fn literal(word: &NativeWord) -> Option<Vec<u8>> {
