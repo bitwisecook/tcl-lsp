@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 02:20 UTC. This is the active snapshot. Older results retain their original sources and receipts in git; they do not certify the current candidate.
+Updated 04 November 2026, 02:45 UTC. This is the active snapshot. Older results retain their original sources and receipts in git; they do not certify the current candidate.
 
 ## Scope and release verdict
 
@@ -8,14 +8,14 @@ Updated 04 November 2026, 02:20 UTC. This is the active snapshot. Older results 
 
 The checkout is `/workspace/tcl-lsp-partial`, branch `work`, a shallow clone of configured origin `https://github.com/bitwisecook/tcl-lsp.git`. The user approved reviewed code/status pushes before green tests. No PR, merge to `rust`, tag or release has been created.
 
-The publisher fetches remote `work`, checks ancestry, safely fast-forwards new remote commits, commits only its status heartbeat and pushes reviewed HEAD every five minutes. It neither commits product WIP nor force-pushes. Last inspected success: `2026-11-04T02:15:57.636547+00:00`, `29a478cd284860b7f5f3b5ab54bcd2a6dd02185a`. [repository-sync.json](repository-sync.json) records actual subsequent checkpoints, not tests. Real earlier cadence gaps at18:30–19:03 and22:42–23:01 on3November remain gaps; the latter remote divergence was reviewed and merged as `ec079dd0666b28f93209b8eea98d1f86e07f6600`.
+The publisher fetches remote `work`, checks ancestry, safely fast-forwards new remote commits, commits only its status heartbeat and pushes reviewed HEAD every five minutes. It neither commits product WIP nor force-pushes. Last inspected success: `2026-11-04T02:40:57.689118+00:00`, `1c3c766cea255ec4b32f8aa724d4541b68950b82`.636547+00:00`, `29a478cd284860b7f5f3b5ab54bcd2a6dd02185a`. [repository-sync.json](repository-sync.json) records actual subsequent checkpoints, not tests. Real earlier cadence gaps at18:30–19:03 and22:42–23:01 on3November remain gaps; the latter remote divergence was reviewed and merged as `ec079dd0666b28f93209b8eea98d1f86e07f6600`.
 
 ## Adopted current source
 
 - Closed source children enter through the existing admitted disk publisher before an inherited interpretation is captured (`dfd609048`, test assertion correction `b605b8eef`). Physical SourceFile/admission identity, current parent cut, changed/deleted withdrawal and unsaved buffers retain their owners.
 - Definition-only partial suffix navigation (`18742cb29`) follows a successful private experiment. Every relevant incomplete scope must supply an actually issued cursor-owning region; unique target and uncertainty guards still apply. Scope completion, references, rename and command-world gates are unchanged. Missing normal completion is never manufactured.
 - Standalone autoload schema abstention (`fe925d8f7`) retains exact whole source/input/settings/purpose and full-consumer route checks. The new authored command-table-mutation guard (`90782b1ca`) only withdraws that proof. No blanket None-skip, fake dir value, barrier weakening or partial AnalysisResult is used.
-- Server lint helper extraction is adopted with the actual retained registry Arc (`3d1b206de`, `449b59013`). Current all-target Clippy rerun is in progress; no current lint pass is claimed.
+- Server lint helper extraction is adopted with the actual retained registry Arc (`3d1b206de`, `449b59013`). Latest all-target Clippy reaches server tests and fails9 test-only findings; a reviewed private style patch is pending. No complete lint pass is claimed.
 - Primary-version fixture purpose is corrected (`675d440da`): explicit15.0.0 requires W135,21.1.0 clears it, neither declares targets or emits W150. Store/input/currentness assertions remain. Formatter fixture now explicitly requests single-command body expansion (`22db36ad1`), preserving its output assertions and production defaults.
 - Hosted web CI frees unused Android/.NET SDK space before dependency/cache restore (`86dfba725`). Syntax/structural checks pass; hosted capacity recovery remains unobserved.
 
@@ -76,9 +76,9 @@ Validation for this sweep:
 | Work | Current action and missing acceptance |
 | --- | --- |
 | Root integration | Current-source unsuppressed all-target lint, native rebuild and actual startup/wire checks, unit reruns, state/publication, required gates and packaging. Single Cargo build job/owned target; V5 two-job OOM is preserved as a resource failure, not a test result. |
-| Hover, Sol6.1 with Terra6.1 review | Candidate stays private. Earlier drafts would mask baseline puts/set/env/class/factory documentation; new source-only paths and typed applicability are being checked before adoption. Ordinary no-source factory providers must remain reachable. Full final-main procedural hover, nested regions and actual protocol cohort remain open. |
+| Hover, Sol6.1 with Terra6.1 review | Reviewed successor adopted as `c1cec1199`, correcting earlier private regressions and preserving positive-applicability routing. Fresh native4068 builds; unchanged15 plus targeted wire controls are now running, with no result claimed yet. Full final-main procedural hover and nested source regions remain open. |
 | Autoload, Sol6.1 | Investigating a separate typed no-contribution proof for unavailable filename argument grammar, especially8.4 source encoding. Existing fallback assertion remains until new proof and adversarial controls justify evolution. No source-name string dispatch or runtime/dir fabrication. |
-| Core navigation fixture, Sol6.1 | Preserve original prior-puts debt as explicit negative; choose a verified debt-free Unicode positive without changing production uncertainty rules. Private/unexecuted fixture correction. |
+| Core navigation fixture, Sol6.1 | Preserve original prior-puts debt as explicit negative; choose a verified debt-free Unicode positive without changing production uncertainty rules. Fixture/prose correction adopted as `ad4567bd9`; its extracted public-API module passes3 tests across5 releases, while current Main Cargo rerun remains pending. |
 | Broader LSP stack | Source-reference coverage, complete cross-file/editor/WASM/WASI behavior, command rename coverage, computed Native producer positives, compatibility hooks and other inherited gate failures remain open. |
 
 The narrowed policy-only diagnostic receipt repair passes its V10 direct/drain currentness control; enabled semantics still requires authentic input. Opaque authoring remains inert-source advice, not execution/body/frame authority. Readonly tests distinguish reported text from actual producer values; positive computed Native producer coverage remains open.
@@ -100,6 +100,10 @@ No final-current passing `make rust-check`, `make prep-pr`, global proof/drift, 
 3. Rerun current units/CI and complete required compatibility, reference/edit coverage, host, performance and packaging gates. Keep baseline failures and missing inventories explicit.
 4. Prepare the reduced PR to rust only after required acceptance. Before merge remove temporary state/process ledgers repository-wide per AGENTS while preserving reproducible source/oracle evidence. Development pushes imply no merge/tag/release publication.
 
-The3November external-reporter sweep and #2505 residual are in [issues.md](issues.md#external-reporter-issue-sweep--3-november-2026). Its targeted results remain bound to their original base/rebased sources. VS Code repaint and intermittent TclOO references still need actual host acceptance.
+The3November external-reporter sweep and source-specific #2505 correction are in [issues.md](issues.md#external-reporter-issue-sweep--3-november-2026). Its targeted results remain bound to their original base/rebased sources. VS Code repaint and intermittent TclOO references still need actual host acceptance.
 
 Private drafts remain local; the earlier rejection of exporting unadopted private archives was not bypassed. Reviewed source/status pushes are authorised. Verified compressed artifact restoration receipts include `v10-elf-preservation.json`, `suffix-experiment-elf-preservation.json` and `inactive-autoload-probe-preservation.json` in `/workspace/tmp/lsp-merged-cohort/`. Earlier agent Main writes were restored before source resync and not compiled. No new full worktree copy or unreviewed archive upload is authorised. [Outstanding work](outstanding/README.md) mirrors this snapshot.
+
+Latest adopted hover `c1cec1199` and Core style `2f6ebdfb1` compile in fresh native server `4068c4bf2c50cdad9b31b1f27d15b75f65984c8adcfad1c0e94ab0dd7510fc77`, Cargo fresh:false/all-features, source/prior-generated unchanged. Receipt `/workspace/tmp/lsp-merged-cohort/server-hover-current-after.json.gz`; no functional/host/startup pass yet. Latest Clippy `/workspace/tmp/lsp-merged-cohort/source-cohort-clippy-v6-result.json` fails9 server test findings with source seals matched. Reviewed test-only patch stays private until the native protocol/source seals finish.
+
+Remote work commits `4d0f25b47`/`240be4501` were reviewed and merged as `a3c1d8a76`, including brace-fold document geometry and #2505 fixture coverage. Their source-specific reported checks are not a merged acceptance result. Publication missed the02:30 checkpoint on divergence, then resumed successfully at02:35:57; this remains a real cadence interruption. No force push occurred. The current native build includes those remote production changes.
