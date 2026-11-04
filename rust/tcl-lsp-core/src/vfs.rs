@@ -91,7 +91,7 @@
 //!
 //! `docs/design/contracts/lsp-source-store.md` is the full contract.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -859,12 +859,13 @@ impl SourceStore for NativeStore {
 /// guaranteed to round-trip through `Uri::to_file_path` on every platform. A
 /// host that registers content by URI can therefore always find it again.
 ///
-/// Directories are implicit: a path is a directory exactly when some stored
-/// file is under it, which is enough for [`SourceStore::read_dir`] and
-/// [`SourceStore::is_dir`] and avoids the host having to declare a tree.
+/// Files imply parent directories. Hosts can also admit genuinely empty
+/// directories through [`SourceStore::create_dir_all`]. This namespace mutation
+/// supplies no source-file census or completeness claim.
 #[derive(Debug)]
 pub struct MemoryStore {
     files: Mutex<HashMap<PathBuf, Vec<u8>>>,
+    directories: Mutex<HashSet<PathBuf>>,
     aliases: Arc<UriAliases>,
     session_id: u64,
     source_revision: AtomicU64,
@@ -875,6 +876,7 @@ impl Default for MemoryStore {
     fn default() -> Self {
         Self {
             files: Mutex::new(HashMap::new()),
+            directories: Mutex::new(HashSet::new()),
             aliases: Arc::new(UriAliases::default()),
             session_id: NEXT_MEMORY_STORE_SESSION.fetch_add(1, Ordering::Relaxed),
             source_revision: AtomicU64::new(0),
@@ -890,12 +892,58 @@ impl MemoryStore {
         Self::default()
     }
 
-    /// Add or replace a file's bytes.
+    /// Add or replace a file's bytes. A namespace conflict leaves the store
+    /// unchanged; callers requiring the error use [`Self::try_upsert`].
     pub fn upsert(&self, path: impl Into<PathBuf>, contents: impl Into<Vec<u8>>) {
+        let _ = self.try_upsert(path, contents);
+    }
+
+    /// Add file bytes without replacing a directory or traversing a file.
+    ///
+    /// # Errors
+    /// A conflicting file/directory namespace is left completely unchanged.
+    pub fn try_upsert(
+        &self,
+        path: impl Into<PathBuf>,
+        contents: impl Into<Vec<u8>>,
+    ) -> io::Result<()> {
         let path = path.into();
+        let contents = contents.into();
         let mut files = Self::lock(&self.files);
-        files.insert(path, contents.into());
+        let directories = Self::lock(&self.directories);
+        Self::check_file_slot(&files, &directories, &path)?;
+        files.insert(path, contents);
         self.source_revision.fetch_add(1, Ordering::Release);
+        Ok(())
+    }
+
+    fn check_file_slot(
+        files: &HashMap<PathBuf, Vec<u8>>,
+        directories: &HashSet<PathBuf>,
+        path: &Path,
+    ) -> io::Result<()> {
+        if directories.contains(path)
+            || files
+                .keys()
+                .any(|stored| stored != path && stored.starts_with(path))
+            || directories.iter().any(|stored| stored.starts_with(path))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::IsADirectory,
+                "file path conflicts with a directory",
+            ));
+        }
+        if path
+            .ancestors()
+            .skip(1)
+            .any(|parent| files.contains_key(parent))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::NotADirectory,
+                "file parent is a stored file",
+            ));
+        }
+        Ok(())
     }
 
     /// Add or replace a file's bytes, and record `uri` as another name for it.
@@ -912,15 +960,34 @@ impl MemoryStore {
         path: impl Into<PathBuf>,
         contents: impl Into<Vec<u8>>,
     ) {
+        let _ = self.try_upsert_uri_aliases(original_aliases, path, contents);
+    }
+
+    /// Commit bytes and the complete URI binding atomically.
+    ///
+    /// # Errors
+    /// A namespace conflict changes neither aliases, bytes nor census revision.
+    pub fn try_upsert_uri_aliases(
+        &self,
+        original_aliases: &[&str],
+        path: impl Into<PathBuf>,
+        contents: impl Into<Vec<u8>>,
+    ) -> io::Result<()> {
         let path = path.into();
+        let contents = contents.into();
         let mut names: Vec<String> = original_aliases
             .iter()
             .map(|uri| (*uri).to_owned())
             .collect();
         names.sort();
         names.dedup();
+        // Mapping, namespace and revision commit under aliases -> files ->
+        // directories, matching source publication's existing lock order.
+        let mut aliases = Self::lock(&self.aliases);
+        let mut files = Self::lock(&self.files);
+        let directories = Self::lock(&self.directories);
+        Self::check_file_slot(&files, &directories, &path)?;
         if !names.is_empty() {
-            let mut aliases = Self::lock(&self.aliases);
             let retained = aliases
                 .get(&names[0])
                 .filter(|binding| {
@@ -948,9 +1015,9 @@ impl MemoryStore {
                 aliases.insert(name, Arc::clone(&binding));
             }
         }
-        let mut files = Self::lock(&self.files);
-        files.insert(path, contents.into());
+        files.insert(path, contents);
         self.source_revision.fetch_add(1, Ordering::Release);
+        Ok(())
     }
 
     /// Forget a file. Returns whether anything was stored under `path`.
@@ -1251,20 +1318,31 @@ impl SourceStore for MemoryStore {
 
     fn read_dir(&self, path: &Path) -> io::Result<Vec<DirEntry>> {
         let files = Self::lock(&self.files);
+        if files.contains_key(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotADirectory,
+                "stored path is a file",
+            ));
+        }
+        let directories = Self::lock(&self.directories);
         let mut seen: HashMap<PathBuf, bool> = HashMap::new();
-        for stored in files.keys() {
+        for (stored, explicit_directory) in files
+            .keys()
+            .map(|path| (path, false))
+            .chain(directories.iter().map(|path| (path, true)))
+        {
             let Ok(rest) = stored.strip_prefix(path) else {
                 continue;
             };
             let mut parts = rest.components();
             let Some(first) = parts.next() else { continue };
             let child = path.join(first.as_os_str());
-            let is_dir = parts.next().is_some();
+            let is_dir = explicit_directory || parts.next().is_some();
             seen.entry(child)
                 .and_modify(|d| *d = *d || is_dir)
                 .or_insert(is_dir);
         }
-        if seen.is_empty() && !files.keys().any(|stored| stored.starts_with(path)) {
+        if seen.is_empty() && !directories.contains(path) {
             return Err(Self::not_found(path));
         }
         Ok(seen
@@ -1285,7 +1363,9 @@ impl SourceStore for MemoryStore {
                 len: bytes.len() as u64,
             });
         }
-        if files.keys().any(|stored| stored.starts_with(path)) {
+        if Self::lock(&self.directories).contains(path)
+            || files.keys().any(|stored| stored.starts_with(path))
+        {
             return Ok(Metadata {
                 is_dir: true,
                 len: 0,
@@ -1295,13 +1375,34 @@ impl SourceStore for MemoryStore {
     }
 
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
-        self.upsert(path, contents.to_vec());
-        Ok(())
+        self.try_upsert(path, contents.to_vec())
     }
 
-    fn create_dir_all(&self, _path: &Path) -> io::Result<()> {
-        // Directories are implied by the files under them, so there is nothing
-        // to create and nothing that can fail.
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        // Namespace mutation and census revision capture both lock files first.
+        // Check all conflicts before admitting any directory or parent.
+        let files = Self::lock(&self.files);
+        for ancestor in path.ancestors() {
+            if files.contains_key(ancestor) {
+                let kind = if ancestor == path {
+                    io::ErrorKind::AlreadyExists
+                } else {
+                    io::ErrorKind::NotADirectory
+                };
+                return Err(io::Error::new(
+                    kind,
+                    "directory conflicts with a stored file",
+                ));
+            }
+        }
+        let mut directories = Self::lock(&self.directories);
+        let mut changed = false;
+        for directory in path.ancestors().filter(|path| !path.as_os_str().is_empty()) {
+            changed |= directories.insert(directory.to_path_buf());
+        }
+        if changed {
+            self.source_revision.fetch_add(1, Ordering::Release);
+        }
         Ok(())
     }
 }
@@ -1384,6 +1485,151 @@ mod tests {
         );
         assert!(store.remove_uri("file:///w/a.tcl"));
         assert!(!store.exists(Path::new("/w/a.tcl")));
+    }
+
+    #[test]
+    fn explicit_empty_directories_do_not_supply_files_or_census_authority() {
+        let store = MemoryStore::new();
+        let root = Path::new("/empty");
+        assert_eq!(
+            store.read_dir(root).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        store.create_dir_all(root).unwrap();
+        assert!(store.is_dir(root));
+        assert!(!store.is_file(root));
+        assert!(store.read_dir(root).unwrap().is_empty());
+        assert_eq!(store.len(), 0);
+        assert!(matches!(
+            store.workspace_source_inventory(root),
+            WorkspaceSourceInventoryObservation::Missing { .. }
+        ));
+        store.set_workspace_source_inventory(
+            root,
+            "empty-source-selection",
+            WorkspaceSourceInventoryCompleteness::Complete,
+        );
+        store.create_dir_all(root).unwrap();
+        assert!(
+            store
+                .workspace_source_inventory(root)
+                .admits_complete_inventory()
+        );
+        store.create_dir_all(Path::new("/empty/nested")).unwrap();
+        assert!(matches!(
+            store.workspace_source_inventory(root),
+            WorkspaceSourceInventoryObservation::Stale { .. }
+        ));
+        assert!(
+            store
+                .read_dir(Path::new("/empty/nested"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn explicit_and_implicit_directories_share_the_actual_listing() {
+        let store = MemoryStore::new();
+        store.create_dir_all(Path::new("/w/empty/nested")).unwrap();
+        store.upsert("/w/code/a.tcl", b"source".to_vec());
+        let mut entries = store.read_dir(Path::new("/w")).unwrap();
+        entries.sort_by(|left, right| left.path.cmp(&right.path));
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| (entry.path.as_path(), entry.is_dir, entry.is_file))
+                .collect::<Vec<_>>(),
+            vec![
+                (Path::new("/w/code"), true, false),
+                (Path::new("/w/empty"), true, false)
+            ]
+        );
+        assert!(store.is_dir(Path::new("/w/empty/nested")));
+        assert!(store.remove(Path::new("/w/code/a.tcl")));
+        assert!(!store.exists(Path::new("/w/code")));
+        assert!(store.is_dir(Path::new("/w/empty")));
+    }
+
+    #[test]
+    fn directory_file_conflicts_leave_namespace_and_census_unchanged() {
+        let store = MemoryStore::new();
+        store.upsert("/w/file", b"source".to_vec());
+        store.set_workspace_source_inventory(
+            "/w",
+            "one-file",
+            WorkspaceSourceInventoryCompleteness::Complete,
+        );
+        assert_eq!(
+            store
+                .create_dir_all(Path::new("/w/file"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(
+            store
+                .create_dir_all(Path::new("/w/file/nested"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotADirectory
+        );
+        assert_eq!(
+            store.read_dir(Path::new("/w/file")).unwrap_err().kind(),
+            std::io::ErrorKind::NotADirectory
+        );
+        assert!(!store.exists(Path::new("/w/file/nested")));
+        assert_eq!(store.read(Path::new("/w/file")).unwrap(), b"source");
+        assert!(
+            store
+                .workspace_source_inventory(Path::new("/w"))
+                .admits_complete_inventory()
+        );
+    }
+
+    #[test]
+    fn reverse_file_conflicts_preserve_aliases_bytes_and_census() {
+        let store = MemoryStore::new();
+        store.create_dir_all(Path::new("/w/d/nested")).unwrap();
+        store.upsert_uri("file:///original", "/w/original", b"ORIGINAL".to_vec());
+        store.upsert("/w/file", b"FILE".to_vec());
+        let selected = store.document_uri_path("file:///original").unwrap();
+        store.set_workspace_source_inventory(
+            "/w",
+            "original-files",
+            WorkspaceSourceInventoryCompleteness::Complete,
+        );
+        for path in ["/w/d", "/w", "/w/file/child"] {
+            assert!(
+                store.try_upsert(path, b"REFUSED".to_vec()).is_err(),
+                "{path}"
+            );
+            assert!(store.write(Path::new(path), b"REFUSED").is_err(), "{path}");
+            assert!(
+                store
+                    .try_upsert_uri_aliases(
+                        &["file:///original", "file:///new"],
+                        path,
+                        b"REFUSED".to_vec()
+                    )
+                    .is_err(),
+                "{path}"
+            );
+        }
+        store.upsert("/w/d", b"REFUSED".to_vec());
+        store.upsert_uri("file:///new", "/w/d", b"REFUSED".to_vec());
+        store.validate_document_uri_path(&selected).unwrap();
+        assert!(store.path_for_uri("file:///new").is_none());
+        assert_eq!(store.read(Path::new("/w/original")).unwrap(), b"ORIGINAL");
+        assert_eq!(store.read(Path::new("/w/file")).unwrap(), b"FILE");
+        assert!(store.is_dir(Path::new("/w/d")));
+        assert!(store.is_dir(Path::new("/w/d/nested")));
+        assert!(!store.exists(Path::new("/w/file/child")));
+        assert!(
+            store
+                .workspace_source_inventory(Path::new("/w"))
+                .admits_complete_inventory()
+        );
     }
 
     #[test]

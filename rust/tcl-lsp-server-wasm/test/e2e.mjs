@@ -489,6 +489,16 @@ async function workspaceSession(wasmBindgen) {
 async function primedShippedPacksSession(wasmBindgen) {
     const session = new Session(wasmBindgen.LspWorker);
 
+    check(
+        "the host admits the primed session's empty workspace directory",
+        session.worker.vfs_create_directory(PRIMED_ROOT) === true && session.worker.vfs_len() === 0,
+    );
+    check(
+        "directory admission refuses an invalid original URI without adding source files",
+        session.worker.vfs_create_directory(`${PRIMED_ROOT}/%00invalid`) === false
+            && session.worker.vfs_len() === 0,
+    );
+
     const names = (await readdir(SHIPPED_SPECS)).filter((name) => name.endsWith(".tclspec")).sort();
     check(
         "the shipped spec packs are on disk to prime",

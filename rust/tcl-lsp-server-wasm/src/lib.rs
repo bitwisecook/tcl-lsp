@@ -200,16 +200,30 @@ impl LspWorker {
                 // client's requests, retained as an explicit alias of this
                 // actual registered virtual path, never decoded back into it.
                 let canonical = tcl_lsp_server::uri_norm::canonical_uri_string(uri);
-                self.store.upsert_uri_aliases(
+                if let Err(error) = self.store.try_upsert_uri_aliases(
                     &[uri, canonical.as_ref()],
                     selected.path().to_path_buf(),
                     bytes,
-                );
+                ) {
+                    web_log(&format!(
+                        "tcl-lsp: refused virtual source URI {uri}: {error}"
+                    ));
+                }
             }
             Err(error) => web_log(&format!(
                 "tcl-lsp: refused virtual source URI {uri}: {error}"
             )),
         }
+    }
+
+    /// Admit an explicitly declared virtual directory, including an empty root.
+    /// Uses the same checked URI/path owner as file upserts; this supplies no
+    /// source bytes, file-inventory receipt or completeness assertion.
+    pub fn vfs_create_directory(&self, uri: &str) -> bool {
+        let Ok(selected) = self.store.document_uri_path(uri) else {
+            return false;
+        };
+        self.store.create_dir_all(selected.path()).is_ok()
     }
 
     /// Record a host's result for one root-scoped source census. The selection
@@ -284,8 +298,9 @@ impl LspWorker {
             return false;
         }
         let path = std::path::Path::new(vfs::VIRTUAL_PACK_MOUNT).join(name);
-        self.store.upsert(path, text.as_bytes().to_vec());
-        true
+        self.store
+            .try_upsert(path, text.as_bytes().to_vec())
+            .is_ok()
     }
 
     /// The store path prefix [`Self::vfs_upsert_spec_pack`] writes under, for a
