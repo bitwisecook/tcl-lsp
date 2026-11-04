@@ -437,6 +437,80 @@ fn a_pack_reload_asks_the_client_to_re_pull_semantic_tokens() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// Changing a pack's argument role changes an already open document's tokens.
+#[test]
+fn changing_a_pack_body_role_refreshes_open_document_tokens() {
+    let root = workspace("changed-body-role");
+    let pack = root.join(".tcl-lsp/mylib.tclspec");
+    write(&pack, MYLIB_PACK);
+    let source = "mylib::with_var counter {\n    set counter 1\n}\n";
+    let doc = root.join("app.tcl");
+    write(&doc, source);
+    let uri = file_uri(&doc);
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    await_pack_named(&mut lsp, "mylib");
+    lsp.open_ready(&uri, source);
+    let legend: Vec<String> =
+        lsp.initialize_result()["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"]
+            .as_array()
+            .expect("semantic-token legend")
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToOwned::to_owned)
+            .collect();
+    let is_inner_command = |lsp: &mut Lsp| {
+        decode_semantic_tokens(&lsp.semantic_tokens_settled(&uri))
+            .iter()
+            .any(|token| {
+                token.line == 1
+                    && token.char == 4
+                    && token.length == 3
+                    && legend[usize::try_from(token.ttype).unwrap()] == "function"
+            })
+    };
+    assert!(
+        is_inner_command(&mut lsp),
+        "Body must tokenise the nested command"
+    );
+    let cursor = lsp.server_request_cursor();
+    write(
+        &pack,
+        &MYLIB_PACK.replace("arg 1 -role Body", "arg 1 -role Value"),
+    );
+    notify_pack_changed(&mut lsp, &pack, CHANGED);
+    assert!(
+        lsp.try_await_server_request(
+            "workspace/semanticTokens/refresh",
+            std::time::Duration::from_secs(30),
+            cursor,
+        )
+        .is_some(),
+        "changing the role must request token refresh"
+    );
+    assert!(
+        !is_inner_command(&mut lsp),
+        "Value must leave the braced data opaque"
+    );
+
+    let cursor = lsp.server_request_cursor();
+    write(&pack, MYLIB_PACK);
+    notify_pack_changed(&mut lsp, &pack, CHANGED);
+    assert!(
+        lsp.try_await_server_request(
+            "workspace/semanticTokens/refresh",
+            std::time::Duration::from_secs(30),
+            cursor,
+        )
+        .is_some(),
+        "restoring the role must request token refresh"
+    );
+    assert!(
+        is_inner_command(&mut lsp),
+        "restored Body must tokenise the nested command"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// Load notices land as diagnostics **on the pack file**, at the line the
 /// author wrote — and clear when the author fixes them.
 #[test]
