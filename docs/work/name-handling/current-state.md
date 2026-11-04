@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 16:58 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
+Updated 04 November 2026, 17:17 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
 
 ## Scope and release verdict
 
@@ -71,7 +71,9 @@ Old [CI41749944578](https://github.com/bitwisecook/tcl-lsp/actions/runs/41749944
 
 ## Latest host and validation results
 
-Fresh Compiler first-refusal diagnostic V3 builds successfully in 405.854 seconds and is running 21 exact controls. The first three results are: Browser-cut positive fails at its original assertion, namespace/release positive passes, and unknown/mutation/dynamic negatives pass. The real trace records a missing prior source continuation and final unavailable advice horizon; a fix is not yet established. Source-card, memo and Boolean controls remain pending in this run. `/workspace/tmp/lsp-merged-cohort/autoload-first-refusal-diagnostic-current-v3/` retains the executable inventory, captured inputs and per-control output. The runner checks source bytes, file membership, dependencies, generated files and executable bytes; symlink topology and undiscovered dynamic inputs are explicitly outside its claim. Final restoration and aggregate verdict are still pending.
+The fresh Compiler diagnostic V3 completes after a successful 405.854-second build: 16/21 controls pass. Five fail: the Browser-cut autoload positive, Logical namespace shadowing, the used-parameter W214 regression, and two new Logical-card controls. Cold/warm and shifted memo comparisons, direct for-condition references and all three Boolean completion/short-circuit controls pass. Both temporary source overlays restore exactly; captured byte/dependency/generated/executable checks pass, while later Main drift makes current-source acceptance false. `/workspace/tmp/lsp-merged-cohort/autoload-first-refusal-diagnostic-current-v3/result.json.gz` retains the actual result. Existing child-guard tracing emitted large logs, so these timings carry no performance claim. Symlink topology and undiscovered dynamic inputs remain outside this bounded diagnostic.
+
+Small public probes against that captured normal Compiler graph build and run successfully with unchanged enumerated pins. They show that the original card fixture produces a Named procedure and no Logical card; the missing-namespace fixture genuinely issues a card and joins successfully. The fixture-only correction is adopted with every assertion retained. A separately reviewed one-line Named-body repair reattaches the exact retained binding to reconstructed tokens before the existing site/recipe guards. That fix is adopted but not yet retested; the whole/cold/warm W214 obligation remains open. Probe receipts are under `/tmp/terra-logical-body-{public,card-public}-actual-v1/`. Core V13 is rebuilding fresh after the affected Core package was cleaned; its 23 semantic controls and observation are pending.
 
 Manual host run [41859243999](https://github.com/bitwisecook/tcl-lsp/actions/runs/41859243999), exact source `b06734318768fdef9dcfef7b0109beb7db97544c`, has a completed failing Browser job 126676253361: 40/41 checks pass in both original and diagnostic runs. The only failure is original autoload request id 4 returning null. Workspace-symbol, sourced sibling, genuine empty-directory priming, isolated rename/UTF16/revision changes, opaque abstention and mixed-workspace incomplete-coverage refusal pass. This source predates hostV7. Raw log: `/tmp/autoload-baseline-alias-trace-combined/browser-job-126676253361.raw.json`.
 
