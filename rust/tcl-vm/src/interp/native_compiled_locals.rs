@@ -762,11 +762,17 @@ mod tests {
         vm.store_captured_update(name.as_bytes(), None, &captured, Value::string("UPDATED"))
             .unwrap();
         assert_eq!(
-            vm.read_compiled_variable_result(0, None).unwrap().to_str(),
+            vm.read_compiled_variable_result(0, None)
+                .unwrap()
+                .to_str()
+                .as_ref(),
             "FIRST"
         );
         assert_eq!(
-            vm.read_compiled_variable_result(1, None).unwrap().to_str(),
+            vm.read_compiled_variable_result(1, None)
+                .unwrap()
+                .to_str()
+                .as_ref(),
             "UPDATED"
         );
         vm.set_stores_confined(false);
@@ -789,7 +795,7 @@ mod tests {
                 .to_str()
                 .contains("stores are confined to the activation")
         );
-        assert_eq!(vm.get_var("::outside").unwrap().to_str(), "GLOBAL");
+        assert_eq!(vm.get_var("::outside").unwrap().to_str().as_ref(), "GLOBAL");
         assert!(vm.refused_completion().is_none());
     }
 

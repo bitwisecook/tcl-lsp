@@ -87,6 +87,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W150", "warning", "W150: Not available across the project's declared version-...", true),
         DiagnosticDef("W151", "warning", "W151: Numeral changes meaning or validity across the proje...", true),
         DiagnosticDef("W152", "warning", "W152: A registry-declared option relation is unmet", true),
+        DiagnosticDef("W153", "warning", "W153: A valid # tcl-lsp: stub directive is outside a stubs...", true),
         DiagnosticDef("W200", "warning", "W200: Unsigned (u) suffix on a binary format/binary scan f...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W202", "warning", "W202: binary format/binary scan field letter requires a ne...", true),

@@ -1468,6 +1468,7 @@ pub fn scan_source_for_stubs(
 
 /// Parse inline stubs and retain valid directives discarded outside a block.
 /// Comment positions come from the lexer, not from the directive grammar.
+#[must_use]
 pub fn scan_source_for_stubs_with_outside(
     source: &str,
     config: tcl_lexer::LexerConfig,
@@ -1507,10 +1508,9 @@ pub fn scan_source_for_stubs_with_outside(
             if after_prefix != body
                 && (parse_expr_stub(after_prefix).is_some()
                     || parse_command_stub(after_prefix, span).is_some())
+                && let Ok(line) = u32::try_from(line_number)
             {
-                if let Ok(line) = u32::try_from(line_number) {
-                    outside_candidates.push((line, span));
-                }
+                outside_candidates.push((line, span));
             }
             continue;
         }
@@ -2323,6 +2323,7 @@ pub fn document_stub_declarations(
 }
 
 /// The same declaration scan, including discarded authored directive spans.
+#[must_use]
 pub fn document_stub_declarations_with_outside(
     source: &str,
     file_path: Option<&str>,

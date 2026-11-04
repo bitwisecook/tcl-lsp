@@ -4,7 +4,7 @@
   "private": true,
   "description": "TypeScript front-end for the tcl-lsp command-registry spec studio.",
   "license": "AGPL-3.0-or-later",
-  "packageManager": "npm@12.2.0",
+  "packageManager": "npm@12.2.1",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",

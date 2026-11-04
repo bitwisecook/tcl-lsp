@@ -108,7 +108,8 @@ fn assert_native_grammar(interpreter: &std::path::Path, jim: bool) {
         } else {
             assert!(
                 completion.starts_with("0 "),
-                "{interpreter:?} {source}: {output}"
+                "{} {source}: {output}",
+                interpreter.display()
             );
         }
     }
