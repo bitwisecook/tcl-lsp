@@ -1,14 +1,20 @@
 {
-  "checked_at": "2026-11-04T05:55:57.599191+00:00",
+  "checked_at": "2026-11-04T06:00:57.576160+00:00",
   "branch": "work",
-  "head_before_status_commit": "e9fe22704b625b449cd4b90a124b9a8be1c52766",
-  "remote_head_at_fetch": "3a13344e715fe20b7c0b261e8405fb1a0a9097ad",
-  "sync": "local commits pending publication; remote ancestor verified",
+  "head_before_status_commit": "0ca98365c088b36df7dc672112acdcd1996d33b3",
+  "remote_head_at_fetch": "0ca98365c088b36df7dc672112acdcd1996d33b3",
+  "sync": "no new remote commits",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
   "manual_status_sha256": "386fb776557a9a7e6075cfe1a27ea038e68d306756348dfdcc46dc5eca11bc1d",
-  "working_tree_at_check": [],
+  "working_tree_at_check": [
+    " M docs/design/analysis/name-resolution-proofs/corpus-inventory.json",
+    " M docs/design/analysis/name-resolution-proofs/list-original-grouped-stride-and-command-result-getters.md",
+    " M docs/design/analysis/name-resolution-proofs/manifest.json",
+    "?? docs/design/analysis/name-resolution-proofs/derived-public-projections/",
+    "?? scripts/dev/check-runtime651-public-projection.py"
+  ],
   "ci_note": "This heartbeat does not poll or certify CI. Exact workflow sources and outcomes are recorded in the timestamped manual snapshot.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
 }
