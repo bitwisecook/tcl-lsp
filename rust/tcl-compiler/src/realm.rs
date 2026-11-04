@@ -1753,7 +1753,7 @@ mod tests {
         );
         assert_eq!(
             map.resolve("::format", inside),
-            RealmBinding::Command("::format")
+            RealmBinding::Command("format")
         );
     }
 
