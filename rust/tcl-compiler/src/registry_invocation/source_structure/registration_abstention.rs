@@ -50,8 +50,8 @@ impl OriginalSourceRegistryContext {
         {
             return None;
         }
-        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
-            .authored_name_policy()?;
+        let dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+        let policy = dialect.authored_name_policy()?;
         if !matches!(
             policy.recipe(),
             tcl_syntax::naming::NativeNameProtocol::C(_)
@@ -99,7 +99,11 @@ impl OriginalSourceRegistryContext {
                 continue;
             };
             let closed = schema.with_source_schema(context, |selected| {
-                selected.authored_source_argument_roles().1
+                // Authored mutation metadata only withdraws this source proof;
+                // it supplies no committed command effect or runtime result.
+                let (effects, _) = selected.authored_source_effects_and_state_transitions(dialect);
+                !effects.legacy().command_table_mutation
+                    && selected.authored_source_argument_roles().1
                     && selected.authored_source_retains_callback() == Some(false)
                     && selected.semantics.procedure_definition.is_none()
                     && selected.authored_source_procedure_arguments().is_none()
