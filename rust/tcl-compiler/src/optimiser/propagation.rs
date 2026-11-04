@@ -3054,8 +3054,25 @@ fn visit_string_interpolation_cmd_subs(
         let Some(prefix) = inside.get(last..start) else {
             return;
         };
-        out.push_str(prefix);
-        out.push_str(&result);
+        let mut next = out.clone();
+        next.push_str(prefix);
+        let selected_escapes = [ctx.lexer_config().escapes];
+        let escapes = if ctx
+            .dialect
+            .and_then(|profile| profile.runtime_version())
+            .is_some()
+        {
+            selected_escapes.as_slice()
+        } else {
+            tcl_dialect::EscapeSyntax::ALL
+        };
+        if !escapes.iter().all(|escapes| {
+            interpolation_splice_preserves_escapes(&next, &result, &inside[end..], *escapes)
+        }) {
+            continue;
+        }
+        next.push_str(&result);
+        out = next;
         last = end;
         folded_any = true;
     }
@@ -3069,6 +3086,23 @@ fn visit_string_interpolation_cmd_subs(
         rewrite_span,
         format!("\"{out}\""),
     ));
+}
+
+/// Substitution boundaries terminate variable-width escapes. Keep that boundary
+/// unless joining the literal fragments has the same shared-decoder result.
+fn interpolation_splice_preserves_escapes(
+    prefix: &str,
+    result: &str,
+    suffix: &str,
+    escapes: tcl_dialect::EscapeSyntax,
+) -> bool {
+    let joined = format!("{prefix}{result}{suffix}");
+    let expected = format!(
+        "{}{result}{}",
+        tcl_syntax::backslash::decode_in(prefix, escapes),
+        tcl_syntax::backslash::decode_in(suffix, escapes),
+    );
+    tcl_syntax::backslash::decode_in(&joined, escapes) == expected
 }
 
 fn visit_simple_var_word(

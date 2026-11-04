@@ -15596,14 +15596,17 @@ impl Backend {
         if self.edit_order.served() >= target {
             return;
         }
-        if crate::rt::timeout(EDIT_BARRIER_STALL_WARN, self.edit_order.settled_to(target))
-            .await
-            .is_ok()
-        {
-            return;
-        }
-        self.report_edit_barrier_stall(target).await;
-        self.edit_order.settled_to(target).await;
+        crate::transport_liveness::await_outside_request_admission(async {
+            if crate::rt::timeout(EDIT_BARRIER_STALL_WARN, self.edit_order.settled_to(target))
+                .await
+                .is_ok()
+            {
+                return;
+            }
+            self.report_edit_barrier_stall(target).await;
+            self.edit_order.settled_to(target).await;
+        })
+        .await;
     }
 
     /// Announce that the document-sync barrier has stopped advancing.

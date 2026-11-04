@@ -1429,6 +1429,7 @@ mod tests {
             .find(|l| l.range.start_line == 7)
             .expect("CalculateAxisPosition lens");
         assert_eq!(target.command_title, "1 reference", "{lenses:?}");
+        assert_lens_matches_references(src, 7);
     }
 
     #[test]

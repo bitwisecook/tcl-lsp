@@ -167,9 +167,7 @@ impl SecurityFloor {
             shipped.native_lowering.is_some(),
             shipped.native_lowering_windows,
         );
-        // The rest of the codegen and dispatch axis. Command-level values
-        // only, like the two hooks above: the same fields inside a
-        // `SubCommand` or a form are not restored here.
+        // The command-level codegen and dispatch axis.
         take_shipped(&mut spec.lowering_hook, shipped.lowering_hook);
         take_shipped(&mut spec.analyser_hook, shipped.analyser_hook);
         take_shipped(&mut spec.semantic_operation, shipped.semantic_operation);
@@ -181,9 +179,107 @@ impl SecurityFloor {
         if !shipped.runtime_backing.is_none() {
             spec.runtime_backing = shipped.runtime_backing;
         }
+        // A resolved invocation can take its dispatch identity from a
+        // subcommand or a command form. Keep the shipped stamp at those
+        // levels too; restoring only the parent leaves the common call path
+        // open to an override that replaces (or removes) the selected row.
+        if !shipped.subcommands.is_empty() {
+            let subcommands: Vec<_> = spec
+                .subcommands
+                .iter()
+                .map(|sub| {
+                    let mut sub = sub.clone();
+                    if let Some(shipped_sub) = shipped.subcommand(sub.name) {
+                        apply_subcommand_floor(&mut sub, shipped_sub);
+                    }
+                    sub
+                })
+                .collect();
+            spec.subcommands = Box::leak(subcommands.into_boxed_slice());
+        }
+        if !shipped.command_forms.is_empty() {
+            let forms: Vec<_> = spec
+                .command_forms
+                .iter()
+                .map(|form| {
+                    let mut form = *form;
+                    if let Some(shipped_form) = shipped
+                        .command_forms
+                        .iter()
+                        .find(|candidate| same_form_route(&form, candidate))
+                    {
+                        apply_form_floor(&mut form, shipped_form);
+                    }
+                    form
+                })
+                .collect();
+            spec.command_forms = Box::leak(forms.into_boxed_slice());
+        }
         spec.callback_taint_inputs =
             union_leaked(spec.callback_taint_inputs, shipped.callback_taint_inputs);
     }
+}
+
+/// Keep compiler and dispatch identity on a matching shipped subcommand.
+fn apply_subcommand_floor(target: &mut crate::SubCommand, shipped: &crate::SubCommand) {
+    take_shipped(&mut target.lowering_hook, shipped.lowering_hook);
+    take_shipped(&mut target.codegen_hook, shipped.codegen_hook);
+    take_shipped_windows(
+        &mut target.codegen_hook_windows,
+        shipped.codegen_hook.is_some(),
+        shipped.codegen_hook_windows,
+    );
+    take_shipped(&mut target.inline_codegen_hook, shipped.inline_codegen_hook);
+    take_shipped_windows(
+        &mut target.inline_codegen_hook_windows,
+        shipped.inline_codegen_hook.is_some(),
+        shipped.inline_codegen_hook_windows,
+    );
+    take_shipped(&mut target.analyser_hook, shipped.analyser_hook);
+    take_shipped(&mut target.semantic_operation, shipped.semantic_operation);
+    take_shipped_windows(
+        &mut target.semantic_operation_windows,
+        shipped.semantic_operation.is_some(),
+        shipped.semantic_operation_windows,
+    );
+    take_shipped(&mut target.state_transitions, shipped.state_transitions);
+    if !shipped.subcommand_forms.is_empty() {
+        let forms: Vec<_> = target
+            .subcommand_forms
+            .iter()
+            .map(|form| {
+                let mut form = *form;
+                if let Some(shipped_form) = shipped
+                    .subcommand_forms
+                    .iter()
+                    .find(|candidate| same_form_route(&form, candidate))
+                {
+                    apply_form_floor(&mut form, shipped_form);
+                }
+                form
+            })
+            .collect();
+        target.subcommand_forms = Box::leak(forms.into_boxed_slice());
+    }
+}
+
+/// The compiler-facing fields a form can override.
+fn apply_form_floor(target: &mut crate::CommandForm, shipped: &crate::CommandForm) {
+    take_shipped(&mut target.lowering_hook, shipped.lowering_hook);
+    take_shipped(&mut target.codegen_hook, shipped.codegen_hook);
+    take_shipped(&mut target.semantic_operation, shipped.semantic_operation);
+    take_shipped(&mut target.state_transitions, shipped.state_transitions);
+}
+
+/// Match a form by the invocation route it describes, not its display name.
+/// A changed arity may still overlap a shipped call shape, which retains the
+/// shipped operation for that route. Forms without a literal selector are
+/// distinguished by their arity and inherited surface.
+fn same_form_route(left: &crate::CommandForm, right: &crate::CommandForm) -> bool {
+    left.literal_argument_prefix == right.literal_argument_prefix
+        && left.surface == right.surface
+        && left.arity.min <= right.arity.max
+        && right.arity.min <= left.arity.max
 }
 
 /// The shipped value wins wherever the shipped command has one.

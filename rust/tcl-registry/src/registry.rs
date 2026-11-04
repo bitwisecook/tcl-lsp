@@ -3317,21 +3317,24 @@ impl CommandRegistry {
     }
 
     /// The single spec-selection rule (§5.3, D6): among the specs of one
-    /// name visible under `dialect`, pick the **most specific** — a
-    /// dialect-scoped spec beats a catch-all (`surface: None`), a spec
-    /// offered by a nearer core point of the query beats one offered only
-    /// by a farther one (a document's own family over its ancestry
-    /// anchor), a narrower surface beats a wider one, and among equals the
-    /// *last-registered* spec wins, so curated pack overrides keep beating
-    /// the data they shadow. `get_for_surface`, the iRules event
-    /// cross-product, and (via `ProfileQueries::resolve_command`) the CLI
-    /// snapshot all resolve through this one rule.
+    /// name visible under `dialect`, pick an admitted pack declaration before
+    /// a shipped row, then the **most specific** surface — a dialect-scoped
+    /// spec beats a catch-all (`surface: None`), a spec offered by a nearer
+    /// core point of the query beats one offered only by a farther one (a
+    /// document's own family over its ancestry anchor), a narrower surface
+    /// beats a wider one, and among equals the last-registered spec wins.
+    /// This lets a catch-all `-override` keep the collision policy it declared
+    /// without weakening selection among the shipped variants it replaces.
+    /// `get_for_surface`, the iRules event cross-product, and (via
+    /// `ProfileQueries::resolve_command`) the CLI snapshot all resolve through
+    /// this one rule.
     fn best_visible(
         &self,
         specs: &[&'static CommandSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&'static CommandSpec> {
         let mut best: Option<(usize, &CommandSpec)> = None;
+        let mut best_is_pack = false;
         // Breadth only breaks a tie between two scoped candidates. Most names
         // have one visible spec, so calculating it before a tie is known
         // repeatedly walks their authored availability windows for no effect.
@@ -3352,10 +3355,21 @@ impl CommandRegistry {
             if !self.spec_visible(spec, dialect) {
                 continue;
             }
+            let candidate_is_pack = self.pack_origin(spec).is_some();
             let Some((best_index, best_spec)) = best else {
                 best = Some((index, spec));
+                best_is_pack = candidate_is_pack;
                 continue;
             };
+            if candidate_is_pack != best_is_pack {
+                if candidate_is_pack {
+                    best = Some((index, spec));
+                    best_is_pack = true;
+                    best_breadth = None;
+                    best_nearness = None;
+                }
+                continue;
+            }
             match (best_spec.surface, spec.surface) {
                 (None, Some(_)) => {
                     best = Some((index, spec));

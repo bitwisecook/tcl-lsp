@@ -581,7 +581,7 @@ impl Analyser {
         let formats = Self::original_format_templates(Some(&original));
         self.emit_binary_field_version_gates(&formats);
         self.record_dsl_format_sites(cmd_name, &formats);
-        self.emit_w121_invalid_subnet_mask(&arguments, &argument_tokens);
+        self.emit_w121_invalid_subnet_mask(&arguments, &argument_tokens, Some(&original));
         self.emit_w127_closed_value_args(Some(&original));
         self.emit_w127_closed_option_values(Some(&original));
         self.emit_w146_literal_argument_validation(Some(&original));

@@ -227,6 +227,130 @@ fn a_workspace_override_cannot_swap_the_runtime_backing() {
 }
 
 #[test]
+fn a_workspace_override_cannot_swap_a_subcommand_lowering_hook() {
+    let kept = shipped("tcl8.6", "array")
+        .subcommand("for")
+        .expect("array for is shipped")
+        .lowering_hook;
+    assert_eq!(kept, Some(LoweringHookId::ArrayFor));
+    let spec = overridden(
+        "subcommand-lowering-hook",
+        "tcl8.6",
+        "array",
+        "subcommand for { lowering_hook -native If }",
+    );
+    assert_eq!(
+        spec.subcommand("for").and_then(|sub| sub.lowering_hook),
+        kept,
+        "an override cannot select the lowering for a shipped subcommand"
+    );
+}
+
+#[test]
+fn a_workspace_override_cannot_drop_a_subcommand_intrinsic() {
+    let kept = shipped("tcl8.6", "string")
+        .subcommand("length")
+        .expect("string length is shipped")
+        .semantic_operation;
+    assert!(matches!(kept, Some(SemanticOperationId::Intrinsic(_))));
+    let spec = overridden(
+        "subcommand-intrinsic",
+        "tcl8.6",
+        "string",
+        "subcommand length { arity 1 }",
+    );
+    assert_eq!(
+        spec.subcommand("length")
+            .and_then(|sub| sub.semantic_operation),
+        kept,
+        "an override cannot remove the operation for a shipped subcommand"
+    );
+}
+
+#[test]
+fn a_workspace_override_cannot_swap_a_form_lowering_hook() {
+    let kept = shipped("tcl8.6", "incr")
+        .command_forms
+        .iter()
+        .find(|form| form.name == "implicit")
+        .expect("incr's implicit form is shipped")
+        .lowering_hook;
+    assert_eq!(kept, Some(LoweringHookId::Incr));
+    let spec = overridden(
+        "form-lowering-hook",
+        "tcl8.6",
+        "incr",
+        "refine implicit { lowering_hook -native If }",
+    );
+    let form = spec
+        .command_forms
+        .iter()
+        .find(|form| form.name == "implicit")
+        .expect("the pack's form remains installed");
+    assert_eq!(
+        form.lowering_hook, kept,
+        "an override cannot select the lowering for a shipped form"
+    );
+}
+
+#[test]
+fn a_renamed_form_on_the_same_route_keeps_the_shipped_lowering_hook() {
+    let kept = shipped("tcl8.6", "incr")
+        .command_forms
+        .iter()
+        .find(|form| form.name == "implicit")
+        .expect("incr's implicit form is shipped")
+        .lowering_hook;
+    let spec = overridden(
+        "form-renamed-route",
+        "tcl8.6",
+        "incr",
+        "refine renamed { arity 1 lowering_hook -native If }",
+    );
+    let form = spec
+        .command_forms
+        .iter()
+        .find(|form| form.name == "renamed")
+        .expect("the pack's renamed form remains installed");
+    assert_eq!(
+        form.lowering_hook, kept,
+        "a display-name change cannot replace the compiler identity for the same invocation route"
+    );
+}
+
+#[test]
+fn the_floor_leaves_removed_and_new_invocation_routes_as_declared() {
+    let removed = overridden("form-removed", "tcl8.6", "incr", "");
+    assert!(
+        removed.command_forms.is_empty(),
+        "the pack removed its forms"
+    );
+
+    let added = overridden(
+        "form-added",
+        "tcl8.6",
+        "incr",
+        "refine added { arity 3 lowering_hook -native If }",
+    );
+    let form = added
+        .command_forms
+        .iter()
+        .find(|form| form.name == "added")
+        .expect("the new route remains installed");
+    assert_eq!(
+        form.lowering_hook,
+        Some(LoweringHookId::If),
+        "a route with no shipped invocation counterpart keeps its declared hook"
+    );
+
+    let removed_subcommand = overridden("subcommand-removed", "tcl8.6", "array", "");
+    assert!(
+        removed_subcommand.subcommands.is_empty(),
+        "the pack removed its subcommands"
+    );
+}
+
+#[test]
 fn a_new_command_keeps_the_backing_it_declares() {
     use tcl_registry::RuntimeBacking;
 

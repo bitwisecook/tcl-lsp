@@ -45,7 +45,6 @@ program, the example says so.
 
 | Issue | Program | The rule it breaks |
 |---|---|---|
-| [#2143](https://github.com/bitwisecook/tcl-lsp/issues/2143) | § W102: `Configure port 8080 …` then `puts [port ignored]` | a procedure a factory materialises is a command the analyser knows: its W214 is anchored at the factory call, as it should be, but the call to it is W123 |
 | [#2439](https://github.com/bitwisecook/tcl-lsp/issues/2439) | § O110, O111, O116, the proc-level summaries, *Completion paths* (under `--dialect tcl8.4`), W201, and the literal-only option checks | `tcl opt`'s summary lists the rewrites it applied; it lists O100 and O102 forwards the text does not carry |
 | [#2440](https://github.com/bitwisecook/tcl-lsp/issues/2440) | § W121: `set m 255.0.255.0` inside `when CLIENT_ACCEPTED { … }` | a finding is anchored once, at a span that holds what it reports; W121 reports the literal mask again at the enclosing body's `{` |
 | [#2441](https://github.com/bitwisecook/tcl-lsp/issues/2441) | § *Bounded-loop enumeration*: `foreach x {} {}` then `puts $x` | a read of a place the existence rung holds unbound is a read before set: I230 decides `[info exists x]` there from the fact, and W210 does not report the read |
@@ -1197,7 +1196,7 @@ proc Configure {name default description} {
     proc $name {x} [subst -nocommands {return $default}]
 }
 Configure port 8080 {the port}       ;# W214 on `x` of proc `::port`, anchored at this call
-puts [port ignored]                  ;# W123: the analyser does not know the procedure the factory makes (#2143)
+puts [port ignored]                  ;# no W123: the analyser retains the installed command
 ```
 
 `subst -nocommands {hello $name}` is `hello world` and `port ignored` is
@@ -1208,8 +1207,8 @@ unreadable call answers every kind. The factory specialisation reads the
 same answer from the template-word plan (`literal_template_plan`): a
 braced `-nocommands` template materialises the child `::port`, whose W214
 is anchored at the `Configure` call, since the child has no span of its
-own. The analyser does not know the command the factory materialises, so
-the call `port ignored` is W123
+own. The analyser retains the command installed by the factory, so the call
+`port ignored` does not produce W123
 ([#2143](https://github.com/bitwisecook/tcl-lsp/issues/2143)).
 
 ### S100, S101, S102, S103, S110 · representation

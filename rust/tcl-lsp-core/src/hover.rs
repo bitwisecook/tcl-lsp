@@ -1008,26 +1008,6 @@ fn original_embedded_operand(
     std::str::from_utf8(words.arguments.get(argument)?.literal_bytes()?).ok()
 }
 
-/// The format-string hovers: when the cursor sits on the format-string
-/// argument of a known format-bearing command, render a table of the
-/// specifiers it contains.  Covers `clock format` / `clock scan`, `format` /
-/// `scan`, `binary format` / `binary scan`, and `regsub`'s subspec.
-#[cfg(test)]
-#[allow(dead_code)]
-fn format_string_hover(source: &str, line: u32, character: u32) -> Option<Hover> {
-    if let Some(text) = clock_format_string_at_position(source, line, character) {
-        return Some(Hover::markdown(clock_format_hover_text(&text)));
-    }
-    if let Some(text) = sprintf_format_string_at_position(source, line, character) {
-        return Some(Hover::markdown(sprintf_format_hover_text(&text)));
-    }
-    if let Some(ctx) = binary_format_context_at_position(source, line, character) {
-        return Some(Hover::markdown(binary_format_hover_text(&ctx)));
-    }
-    let text = regsub_subspec_at_position(source, line, character)?;
-    Some(Hover::markdown(regsub_hover_text(&text)))
-}
-
 /// [`hover`] resolving prefix-abbreviated subcommands and option / special-
 /// variable availability against a specific dialect profile, so e.g.
 /// `info class def` hovers `definition` under 8.6 but nothing (ambiguous
@@ -1929,59 +1909,6 @@ fn sprintf_format_hover_text(text: &str) -> String {
     parts.join("\n")
 }
 
-/// Detect when the cursor sits on a `format` / `scan`
-/// format-string argument and return the literal text.
-/// `format <fmtString> ?arg arg ...?` — the first arg is the
-/// format.  Single-line context only.
-#[cfg(test)]
-fn sprintf_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let tokens: Vec<&str> = line_text.split_whitespace().collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    if tokens[0] != "format" && tokens[0] != "scan" {
-        return None;
-    }
-    string_literal_with_percent_at(line_text, character)
-}
-
-/// Find a `"..."` or `{...}` literal that contains `character`
-/// AND has at least one `%` in it.  Helper shared between
-/// `clock_format_string_at_position` and
-/// `sprintf_format_string_at_position`.
-#[cfg(test)]
-fn string_literal_with_percent_at(line_text: &str, character: u32) -> Option<String> {
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let mut i = 0;
-    while i < chars.len() {
-        let opener = chars[i];
-        let closer = match opener {
-            '"' => '"',
-            '{' => '}',
-            _ => {
-                i += 1;
-                continue;
-            }
-        };
-        let start = i + 1;
-        let mut end = start;
-        while end < chars.len() && chars[end] != closer {
-            end += 1;
-        }
-        if start <= col && col <= end {
-            let literal: String = chars[start..end].iter().collect();
-            if literal.contains('%') {
-                return Some(literal);
-            }
-            return None;
-        }
-        i = end + 1;
-    }
-    None
-}
-
 /// `binary format` / `binary scan` specifier table.
 const BINARY_SPEC_DESC: &[(char, &str)] = &[
     ('a', "Byte string, padded with nulls"),
@@ -2347,134 +2274,6 @@ fn center(s: &str, width: usize) -> String {
     out
 }
 
-/// Detect when the cursor sits on a `binary format` /
-/// `binary scan` format-string argument and capture the
-/// surrounding command's argument list.  Returns the format
-/// text plus the `format`/`scan` subcommand and the trailing
-/// argument tokens (best-effort, single-line).
-#[cfg(test)]
-fn binary_format_context_at_position(
-    source: &str,
-    line: u32,
-    character: u32,
-) -> Option<BinaryContext> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let tokens: Vec<&str> = line_text.split_whitespace().collect();
-    if tokens.len() < 3 {
-        return None;
-    }
-    if tokens[0] != "binary" || (tokens[1] != "format" && tokens[1] != "scan") {
-        return None;
-    }
-    let subcmd = tokens[1].to_string();
-    // The format string is argv[2] for `format`, argv[3] for `scan`.  It is
-    // usually a braced/quoted literal, but a bare word (`binary format c2s …`)
-    // is just as valid — fall back to the whitespace-token at the cursor when
-    // it sits at the format-arg index.
-    let fmt_idx = if subcmd == "scan" { 3 } else { 2 };
-    let text = string_literal_at(line_text, character).or_else(|| {
-        word_token_at(line_text, character)
-            .filter(|(idx, _)| *idx == fmt_idx)
-            .map(|(_, w)| w)
-    })?;
-    // `binary format FORMAT VAL ...`   — format is argv[2]
-    // `binary scan STRING FORMAT VAR ...` — format is argv[3]
-    let skip = if subcmd == "scan" { 4 } else { 3 };
-    let args = binary_trailing_args(line_text, skip);
-    Some(BinaryContext { text, subcmd, args })
-}
-
-/// Return `(token_index, token_text)` for the whitespace-delimited token that
-/// contains `character` (UTF-16 column), or `None` when the cursor is on
-/// whitespace / past the end.
-#[cfg(test)]
-fn word_token_at(line_text: &str, character: u32) -> Option<(usize, String)> {
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let mut idx = 0;
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i].is_whitespace() {
-            i += 1;
-            continue;
-        }
-        let start = i;
-        while i < chars.len() && !chars[i].is_whitespace() {
-            i += 1;
-        }
-        if start <= col && col <= i {
-            return Some((idx, chars[start..i].iter().collect()));
-        }
-        idx += 1;
-    }
-    None
-}
-
-/// Recover the trailing argument tokens (variable names for
-/// `scan`, value expressions for `format`) that follow the
-/// format-string argument.  Skips over braced / quoted literal
-/// groupings so the format string itself doesn't bleed into
-/// the args list — `binary format {a4 i} val` correctly yields
-/// `["val"]` rather than `["{a4", "i}", "val"]`.  The first
-/// `skip` argv positions (incl. the format string itself) are
-/// dropped.
-#[cfg(test)]
-fn binary_trailing_args(line_text: &str, skip: usize) -> Vec<String> {
-    let chars: Vec<char> = line_text.chars().collect();
-    let mut tokens: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i].is_whitespace() {
-            i += 1;
-            continue;
-        }
-        let mut token = String::new();
-        match chars[i] {
-            '{' => {
-                let mut depth = 1;
-                i += 1;
-                token.push('{');
-                while i < chars.len() && depth > 0 {
-                    if chars[i] == '{' {
-                        depth += 1;
-                    } else if chars[i] == '}' {
-                        depth -= 1;
-                    }
-                    token.push(chars[i]);
-                    i += 1;
-                }
-            }
-            '"' => {
-                let mut escaped = false;
-                i += 1;
-                token.push('"');
-                while i < chars.len() {
-                    let c = chars[i];
-                    token.push(c);
-                    i += 1;
-                    if escaped {
-                        escaped = false;
-                        continue;
-                    }
-                    if c == '\\' {
-                        escaped = true;
-                    } else if c == '"' {
-                        break;
-                    }
-                }
-            }
-            _ => {
-                while i < chars.len() && !chars[i].is_whitespace() {
-                    token.push(chars[i]);
-                    i += 1;
-                }
-            }
-        }
-        tokens.push(token);
-    }
-    tokens.into_iter().skip(skip).collect()
-}
-
 /// `regsub` backref description table.
 fn regsub_backref_desc(c: char) -> Option<&'static str> {
     match c {
@@ -2534,85 +2333,6 @@ fn regsub_hover_text(text: &str) -> String {
         }
     }
     parts.join("\n")
-}
-
-/// Detect when the cursor sits on the substitution-spec
-/// argument of a `regsub` invocation and return the literal
-/// text.  `regsub ?switches? exp string subSpec ?varName?`
-/// — `subSpec` is the 4th positional arg (after switches).
-/// Single-line only.
-#[cfg(test)]
-fn regsub_subspec_at_position(source: &str, line: u32, character: u32) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let tokens: Vec<&str> = line_text.split_whitespace().collect();
-    if tokens.is_empty() || tokens[0] != "regsub" {
-        return None;
-    }
-    // The substitution spec contains backslash sequences,
-    // typically as a quoted or braced literal.  Any literal
-    // string containing `\\<digit-or-&>` overlapping the cursor
-    // counts as the subspec — a loose detection that does not
-    // do precise arg-position resolution.
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let mut i = 0;
-    while i < chars.len() {
-        let opener = chars[i];
-        let closer = match opener {
-            '"' => '"',
-            '{' => '}',
-            _ => {
-                i += 1;
-                continue;
-            }
-        };
-        let start = i + 1;
-        let mut end = start;
-        while end < chars.len() && chars[end] != closer {
-            end += 1;
-        }
-        if start <= col && col <= end {
-            let literal: String = chars[start..end].iter().collect();
-            if scan_regsub_backrefs(&literal).is_empty() {
-                return None;
-            }
-            return Some(literal);
-        }
-        i = end + 1;
-    }
-    None
-}
-
-/// Helper: find any `"..."` / `{...}` literal containing the
-/// cursor.  Shared between hover providers that need
-/// literal-context detection but don't care whether the
-/// literal contains `%`.
-#[cfg(test)]
-fn string_literal_at(line_text: &str, character: u32) -> Option<String> {
-    let chars: Vec<char> = line_text.chars().collect();
-    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
-    let mut i = 0;
-    while i < chars.len() {
-        let opener = chars[i];
-        let closer = match opener {
-            '"' => '"',
-            '{' => '}',
-            _ => {
-                i += 1;
-                continue;
-            }
-        };
-        let start = i + 1;
-        let mut end = start;
-        while end < chars.len() && chars[end] != closer {
-            end += 1;
-        }
-        if start <= col && col <= end {
-            return Some(chars[start..end].iter().collect());
-        }
-        i = end + 1;
-    }
-    None
 }
 
 /// Glob metacharacter descriptions.
@@ -2707,33 +2427,6 @@ fn glob_hover_text(text: &str) -> String {
         }
     }
     parts.join("\n")
-}
-
-/// Detect when the cursor sits on a glob pattern.  Recognises
-/// `string match <pat> ...`, `glob <pat>...`, and `lsearch
-/// -glob <pat> ...` — three common entry points for glob
-/// matching in Tcl.  Single-line only.
-#[cfg(test)]
-#[allow(dead_code)]
-fn glob_pattern_at_position(source: &str, line: u32, character: u32) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let tokens: Vec<&str> = line_text.split_whitespace().collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let is_glob_command = matches!(tokens[0], "glob")
-        || (tokens.len() >= 2 && tokens[0] == "string" && tokens[1] == "match")
-        || (tokens.len() >= 2 && tokens[0] == "lsearch" && tokens.contains(&"-glob"));
-    if !is_glob_command {
-        return None;
-    }
-    let literal = string_literal_at(line_text, character)?;
-    // Require at least one glob metacharacter or `\` escape so
-    // we don't fire on literal strings.
-    if !literal.chars().any(|c| matches!(c, '*' | '?' | '[' | '\\')) {
-        return None;
-    }
-    Some(literal)
 }
 
 /// Regex metacharacter descriptions.
@@ -3032,31 +2725,6 @@ fn regex_hover_text(text: &str) -> String {
     parts.join("\n")
 }
 
-/// Detect when the cursor sits on a regex pattern.
-/// Recognises `regexp <pat> ...`, `regsub <pat> ...` (the
-/// pattern arg, not the subspec), and `lsearch -regexp <pat>
-/// ...`.  Single-line only.
-#[cfg(test)]
-#[allow(dead_code)]
-fn regex_pattern_at_position(source: &str, line: u32, character: u32) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    let tokens: Vec<&str> = line_text.split_whitespace().collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let is_regex_command = matches!(tokens[0], "regexp" | "regsub")
-        || (tokens.len() >= 2 && tokens[0] == "lsearch" && tokens.contains(&"-regexp"));
-    if !is_regex_command {
-        return None;
-    }
-    let literal = string_literal_at(line_text, character)?;
-    // An explicit `regexp` / `regsub` / `lsearch -regexp` pattern argument
-    // hovers even with no metacharacters — `regex_hover_text` renders the
-    // "Literal string (no metacharacters)" note.  (The `regsub` replacement
-    // spec is handled by the earlier `regsub_subspec_at_position` branch.)
-    Some(literal)
-}
-
 /// Format hover markdown for an IPv4 / IPv6 literal at the
 /// cursor's word.
 ///
@@ -3140,28 +2808,6 @@ fn classify_ipv6(addr: std::net::Ipv6Addr) -> &'static str {
     } else {
         "Global unicast"
     }
-}
-
-/// Detect when the cursor sits on a `clock format` /
-/// `clock scan` format-string argument and return the
-/// literal text.  Single-line only — multi-line literals
-/// are not handled.
-#[cfg(test)]
-fn clock_format_string_at_position(source: &str, line: u32, character: u32) -> Option<String> {
-    let line_text = source.split('\n').nth(line as usize)?;
-    // Tokenise the line on whitespace — the first two tokens
-    // must be `clock format` or `clock scan` for the hover to
-    // fire.  This is the same single-line context detection
-    // used by `signature_help` / `completion`; multi-line
-    // command segments are not handled.
-    let tokens: Vec<&str> = line_text.split_whitespace().collect();
-    if tokens.len() < 3 {
-        return None;
-    }
-    if tokens[0] != "clock" || (tokens[1] != "format" && tokens[1] != "scan") {
-        return None;
-    }
-    string_literal_with_percent_at(line_text, character)
 }
 
 /// The `[start, end)` char-index bounds of the bare Tcl word around `col`
@@ -5802,29 +5448,6 @@ mod tests {
     }
 
     #[test]
-    fn clock_format_string_at_position_detects_braced_literal() {
-        let src = "clock format $time -format {%Y-%m-%d}\n";
-        // Cursor inside the `{...}` literal.
-        let found = clock_format_string_at_position(src, 0, 30);
-        assert_eq!(found.as_deref(), Some("%Y-%m-%d"));
-    }
-
-    #[test]
-    fn clock_format_string_at_position_detects_quoted_literal() {
-        let src = "clock format $time -format \"%Y\"\n";
-        // Cursor inside the `"..."` literal.
-        let found = clock_format_string_at_position(src, 0, 30);
-        assert_eq!(found.as_deref(), Some("%Y"));
-    }
-
-    #[test]
-    fn clock_format_string_at_position_skips_non_clock_commands() {
-        let src = "puts \"%Y\"\n";
-        let found = clock_format_string_at_position(src, 0, 7);
-        assert!(found.is_none(), "{found:?}");
-    }
-
-    #[test]
     fn hover_fires_for_clock_format_specifier() {
         let src = "clock format $time -format {%Y-%m-%d}\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
@@ -5836,6 +5459,25 @@ mod tests {
             "expected clock hover, got: {value}",
             value = h.value,
         );
+    }
+
+    #[test]
+    fn quoted_format_words_use_the_production_hover_path() {
+        for (source, needle, expected) in [
+            (
+                "clock format $time -format \"%Y\"\n",
+                "%Y",
+                "Clock format string",
+            ),
+            ("format \"%d\" 42\n", "%d", "Format string"),
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .analyse(source, "tcl8.6")
+                .clone();
+            let column = u32::try_from(source.find(needle).expect("format word")).unwrap();
+            let hover = hover(source, 0, column, &analysis, None).expect("format hover");
+            assert!(hover.value.contains(expected), "{source:?}: {hover:?}");
+        }
     }
 
     #[test]
@@ -6048,27 +5690,6 @@ mod tests {
     }
 
     #[test]
-    fn sprintf_format_string_at_position_detects_braced_literal() {
-        let src = "format {%d items} $count\n";
-        let found = sprintf_format_string_at_position(src, 0, 10);
-        assert_eq!(found.as_deref(), Some("%d items"));
-    }
-
-    #[test]
-    fn sprintf_format_string_at_position_detects_quoted_literal() {
-        let src = "format \"%d\" 42\n";
-        let found = sprintf_format_string_at_position(src, 0, 9);
-        assert_eq!(found.as_deref(), Some("%d"));
-    }
-
-    #[test]
-    fn sprintf_format_string_at_position_skips_non_format_commands() {
-        let src = "puts \"%d\"\n";
-        let found = sprintf_format_string_at_position(src, 0, 7);
-        assert!(found.is_none(), "{found:?}");
-    }
-
-    #[test]
     fn hover_fires_for_sprintf_specifier() {
         let src = "format {%d items} $count\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
@@ -6191,32 +5812,25 @@ mod tests {
     }
 
     #[test]
-    fn binary_format_context_at_position_detects_braced_literal() {
-        let src = "binary format {a4 i} val\n";
-        let ctx = binary_format_context_at_position(src, 0, 17).expect("found ctx");
-        assert_eq!(ctx.text, "a4 i");
-        assert_eq!(ctx.subcmd, "format");
-        assert_eq!(ctx.args, vec!["val"]);
-    }
-
-    #[test]
-    fn binary_format_context_extracts_scan_var_names() {
-        // Quoted format string with two trailing var names — the
-        // hover should pick up both as the scan target labels.
-        let src = "binary scan $buf \"cI\" byte word\n";
-        let ctx = binary_format_context_at_position(src, 0, 19).expect("found ctx");
-        assert_eq!(ctx.text, "cI");
-        assert_eq!(ctx.subcmd, "scan");
-        assert_eq!(ctx.args, vec!["byte", "word"]);
-    }
-
-    #[test]
     fn hover_fires_for_binary_specifier() {
         let src = "binary format {a4 i} val\n";
         let mut a = tcl_compiler::analyser::Analyser::new();
         let analysis = a.analyse(src, "tcl8.6").clone();
         let h = hover(src, 0, 17, &analysis, None).expect("hover");
         assert!(h.value.contains("binary format"), "{}", h.value);
+    }
+
+    #[test]
+    fn binary_scan_hover_uses_variable_names_from_parsed_words() {
+        let source = "binary scan $buf \"cI\" byte word\n";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        let column = u32::try_from(source.find("cI").expect("format word")).unwrap();
+        let hover = hover(source, 0, column, &analysis, None).expect("binary scan hover");
+        assert!(hover.value.contains("binary scan"), "{hover:?}");
+        assert!(hover.value.contains("byte"), "{hover:?}");
+        assert!(hover.value.contains("word"), "{hover:?}");
     }
 
     #[test]
@@ -6378,14 +5992,6 @@ mod tests {
     fn regsub_hover_handles_no_backrefs() {
         let text = regsub_hover_text("plain text");
         assert!(text.contains("No backreferences found"), "{text}");
-    }
-
-    #[test]
-    fn regsub_subspec_at_position_finds_subspec_literal() {
-        let src = "regsub foo bar {\\1-baz} out\n";
-        // Cursor inside the subspec literal.
-        let found = regsub_subspec_at_position(src, 0, 18);
-        assert_eq!(found.as_deref(), Some("\\1-baz"));
     }
 
     #[test]

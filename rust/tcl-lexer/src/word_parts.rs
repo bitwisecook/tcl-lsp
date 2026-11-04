@@ -1549,7 +1549,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/substitution-counted-template-completions.md
         // The C v6 array-index control runs its command with outer commands
         // disabled. JimExpandDictSugar separately selects JIM_NONE.
-        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let config = LexerConfig::for_dialect(dialect);
             let flags = SubstFlags {
                 cmds: false,
