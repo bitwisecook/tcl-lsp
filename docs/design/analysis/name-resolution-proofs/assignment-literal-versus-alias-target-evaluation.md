@@ -120,7 +120,7 @@ No appliance comparison for these exact source contexts.
 
 ## Source inspection
 
-tcl8.5 8.5.19, revision `Pinned release source / exact original full-file SHA-256`, `generic/tclCompCmds.c`, function `TclCompileLassignCmd`, lines 2477–2571. Retained reference `tcl8.5-compiler-source`.
+tcl8.5 8.5.19, revision `Pinned release source`, `generic/tclCompCmds.c`, function `TclCompileLassignCmd`, lines 2477–2571. Retained reference `tcl8.5-compiler-source`.
 
 ```text
 TclCompileLassignCmd(
@@ -221,7 +221,7 @@ TclCompileLassignCmd(
 
 ```
 
-tcl8.6 8.6.18, revision `Pinned release source / exact original full-file SHA-256`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 968–1051. Retained reference `tcl8.6-compiler-source`.
+tcl8.6 8.6.18, revision `Pinned release source`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 968–1051. Retained reference `tcl8.6-compiler-source`.
 
 ```text
 TclCompileLassignCmd(
@@ -311,7 +311,7 @@ TclCompileLassignCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `Pinned release source / exact original full-file SHA-256`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 953–1035. Retained reference `tcl9.0-compiler-source`.
+tcl9.0 9.0.4, revision `Pinned release source`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 953–1035. Retained reference `tcl9.0-compiler-source`.
 
 ```text
 TclCompileLassignCmd(
@@ -400,7 +400,7 @@ TclCompileLassignCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned release source / exact original full-file SHA-256`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 996–1079. Retained reference `tcl9.1-compiler-source`.
+tcl9.1 9.1.0, revision `Pinned release source`, `generic/tclCompCmdsGR.c`, function `TclCompileLassignCmd`, lines 996–1079. Retained reference `tcl9.1-compiler-source`.
 
 ```text
 TclCompileLassignCmd(

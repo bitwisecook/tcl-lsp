@@ -17395,4 +17395,4 @@ A named test is a coverage binding, not a claim that it executed.
 
 ## Replay
 
-Compare exact pinned release definitions and full-file SHA-256 values. No compiled guest or current Rust execution is implied.
+Compare the retained release definitions. No compiled guest or current Rust execution is implied.

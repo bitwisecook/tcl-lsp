@@ -46,7 +46,7 @@ This exact original-object C9.1 probe has no observation for this provider.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (original build/source association; probe does not query runtime patchlevel). Build: Exact original source/header/library/executable SHA-256 map in receipt; compiler command/status0 retained, compiler version not recorded.. Channel: compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated. Dialect: tcl9.1.
+Status: `observed`. Version: 9.1.0 (original build/source association; probe does not query runtime patchlevel). Build: Original source and build references in receipt; compiler command/status0 retained, compiler version not recorded.. Channel: compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated. Dialect: tcl9.1.
 
 Original full rows are opaque-0 RAW none and opaque-1 RAW none. Compile/process status0, empty stderr, no timeout; original TCL_LIBRARY is recorded. Each helper fails the process if an original definition/configure invocation is not code0.
 

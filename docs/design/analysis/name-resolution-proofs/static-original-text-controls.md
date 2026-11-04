@@ -109,7 +109,7 @@ No appliance capture is attached to these exact fresh-source scripts.
 
 ## Source inspection
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimParserGetTokenObj`, lines 2087–2111. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `31a91b47ddf67147dfb8ef80db497dc8bd3c1f1bf2c31d09da6e8f59ec3cc976`; evidence `jim-source-2087`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimParserGetTokenObj`, lines 2087–2111. Reference `jim-source-2087`.
 
 ```c
 static Jim_Obj *JimParserGetTokenObj(Jim_Interp *interp, struct JimParserCtx *pc)
@@ -139,7 +139,7 @@ static Jim_Obj *JimParserGetTokenObj(Jim_Interp *interp, struct JimParserCtx *pc
 }
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `Jim_NewStringObjNoAlloc`, lines 2549–2558. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `293970b4f9c4577f796359cdd82ecc72db4f1b8a658cd0f4ea7ddddb271edb60`; evidence `jim-source-2549`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `Jim_NewStringObjNoAlloc`, lines 2549–2558. Reference `jim-source-2549`.
 
 ```c
 Jim_Obj *Jim_NewStringObjNoAlloc(Jim_Interp *interp, char *s, int len)
@@ -154,7 +154,7 @@ Jim_Obj *Jim_NewStringObjNoAlloc(Jim_Interp *interp, char *s, int len)
 
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimSubstOneToken`, lines 11256–11269. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `22d884776010882e019ee91f9a113fc37edaece0915053e89da40fb139178305`; evidence `jim-source-11256`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimSubstOneToken`, lines 11256–11269. Reference `jim-source-11256`.
 
 ```c
 static int JimSubstOneToken(Jim_Interp *interp, const ScriptToken *token, Jim_Obj **objPtrPtr)
@@ -173,7 +173,7 @@ static int JimSubstOneToken(Jim_Interp *interp, const ScriptToken *token, Jim_Ob
         case JIM_TT_DICTSUGAR:
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `Jim_EvalObj Text fast path`, lines 11663–11679. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `256ef9fd75fdf6354d3ce9460e741006673d80554b353639ee2ead54514635c9`; evidence `jim-source-11663`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `Jim_EvalObj Text fast path`, lines 11663–11679. Reference `jim-source-11663`.
 
 ```c
                 if (wordtokens < 0) {
@@ -195,7 +195,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c
                         wordObjPtr = Jim_GetVariable(interp, token[i].objPtr, JIM_ERRMSG);
 ```
 
-jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimInterpolateTokens text rendering and copy`, lines 11343–11400. Full-source SHA-256 `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`; snippet SHA-256 `996055d8c3bebda098ffcab8933ffca0fb30cc6edab3ed1ea0ee29d4506e22e7`; evidence `jim-source-11343`.
+jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c`, function `JimInterpolateTokens text rendering and copy`, lines 11343–11400. Reference `jim-source-11343`.
 
 ```c
                     error_action = "continue";

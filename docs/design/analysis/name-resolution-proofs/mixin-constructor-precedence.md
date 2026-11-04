@@ -32,7 +32,7 @@ One-level TclOO superclass or single mixin, ASCII names and bodies, CLI file-scr
 
 ## Evidence and reconfirmation
 
-The [exact source](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl), [provider receipt](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/receipt.json) and peer stream files retain the complete invocation. The receipt binds the exact source SHA-256 `b772996e165014327448be749f825ec35be0c6c18056bb23956ebb8e74dc889b`, executable hashes, input channel, exit status and stream hashes. Each process exits 0 with empty stderr.
+The [exact source](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl), [provider receipt](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/receipt.json) and peer stream files retain the complete invocation. The receipt records the input channel, exit status and streams. Each process exits 0 with empty stderr.
 
 Run `tclsh rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl` using the exact intended provider executable. Compare the complete raw streams and executable hash to the receipt. This is file-script input; it supplies no counted native EvalEx or document-decoding comparison.
 

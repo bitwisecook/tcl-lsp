@@ -106,7 +106,7 @@ No appliance observation for this question.
 
 ## Source inspection
 
-tcl8.4 8.4.20: `TclCompileSetCmd` in `generic/tclCompCmds.c`, lines 2585–2684; full-file SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; excerpt SHA-256 `a67197c79da42a0467050b5fdb76930a8d8b502ef2e8ca68d787b4ad45a3a76f`; evidence `e0`.
+tcl8.4 8.4.20: `TclCompileSetCmd` in `generic/tclCompCmds.c`, lines 2585–2684; reference `e0`.
 
 ```c
 TclCompileSetCmd(interp, parsePtr, envPtr)
@@ -211,7 +211,7 @@ TclCompileSetCmd(interp, parsePtr, envPtr)
 }
 ```
 
-tcl8.4 8.4.20: `TclPushVarName` in `generic/tclCompCmds.c`, lines 3225–3464; full-file SHA-256 `38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214`; excerpt SHA-256 `b9fd87d654b758367c00fbd16fe8394e91c5f95dedc6b681d9ba699468b45107`; evidence `e1`.
+tcl8.4 8.4.20: `TclPushVarName` in `generic/tclCompCmds.c`, lines 3225–3464; reference `e1`.
 
 ```c
 TclPushVarName(interp, varTokenPtr, envPtr, flags, localIndexPtr,
@@ -456,7 +456,7 @@ TclPushVarName(interp, varTokenPtr, envPtr, flags, localIndexPtr,
 }
 ```
 
-tcl8.4 8.4.20: `TclCompileTokens` in `generic/tclCompile.c`, lines 1519–1809; full-file SHA-256 `0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8`; excerpt SHA-256 `28cc01627a3f5190822bbbf9a864d45696cb8727a2cfbf3def2c7f09da492afa`; evidence `e2`.
+tcl8.4 8.4.20: `TclCompileTokens` in `generic/tclCompile.c`, lines 1519–1809; reference `e2`.
 
 ```c
 TclCompileTokens(interp, tokenPtr, count, envPtr)
@@ -752,7 +752,7 @@ TclCompileTokens(interp, tokenPtr, count, envPtr)
 }
 ```
 
-tcl8.4 8.4.20: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 2237–2307; full-file SHA-256 `0bc55b283d6cb62a4298d4dc30e050b587d5d1b4e7f145e4f644e237dd7639f8`; excerpt SHA-256 `c719316f477c7007c60b313b7ca0b00b12bf22372981a3819bdbf232eb3dde79`; evidence `e3`.
+tcl8.4 8.4.20: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 2237–2307; reference `e3`.
 
 ```c
 TclFindCompiledLocal(name, nameBytes, create, flags, procPtr)
@@ -828,7 +828,7 @@ TclFindCompiledLocal(name, nameBytes, create, flags, procPtr)
 }
 ```
 
-tcl8.5 8.5.19: `TclCompileSetCmd` in `generic/tclCompCmds.c`, lines 3328–3404; full-file SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; excerpt SHA-256 `ef1e582aeeed894fe50713e0f8ce8a99a06c94f2466e1f94cd9f4e1c5d849dcf`; evidence `e4`.
+tcl8.5 8.5.19: `TclCompileSetCmd` in `generic/tclCompCmds.c`, lines 3328–3404; reference `e4`.
 
 ```c
 TclCompileSetCmd(
@@ -910,7 +910,7 @@ TclCompileSetCmd(
 }
 ```
 
-tcl8.5 8.5.19: `PushVarName` in `generic/tclCompCmds.c`, lines 4774–4984; full-file SHA-256 `117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414`; excerpt SHA-256 `93765f759ed489263582d7d4f2b86f58fab7e0a7cf1232323fb9dcef835c0210`; evidence `e5`.
+tcl8.5 8.5.19: `PushVarName` in `generic/tclCompCmds.c`, lines 4774–4984; reference `e5`.
 
 ```c
 PushVarName(
@@ -1126,7 +1126,7 @@ PushVarName(
 }
 ```
 
-tcl8.5 8.5.19: `TclCompileTokens` in `generic/tclCompile.c`, lines 1660–1921; full-file SHA-256 `8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988`; excerpt SHA-256 `f6f5b99e924c9008a95360d1e7a247721f85fbd997611560b5fe350837a4a3a5`; evidence `e6`.
+tcl8.5 8.5.19: `TclCompileTokens` in `generic/tclCompile.c`, lines 1660–1921; reference `e6`.
 
 ```c
 TclCompileTokens(
@@ -1393,7 +1393,7 @@ TclCompileTokens(
 }
 ```
 
-tcl8.5 8.5.19: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 2286–2354; full-file SHA-256 `8c2ec76dbbe697201bcad79f9e32c0c1db23faf7ca01eb19e08f3ea9e68dd988`; excerpt SHA-256 `917731c247b97d3ce1ec4f6331879334c90f0eb0d1cc37c9ec2194b5954c00ff`; evidence `e7`.
+tcl8.5 8.5.19: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 2286–2354; reference `e7`.
 
 ```c
 TclFindCompiledLocal(
@@ -1467,7 +1467,7 @@ TclFindCompiledLocal(
 }
 ```
 
-tcl8.6 8.6.18: `TclCompileSetCmd` in `generic/tclCompCmdsSZ.c`, lines 125–197; full-file SHA-256 `b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942`; excerpt SHA-256 `ec6366d9632f55a840c255b1cb09270653daeba0155e462257ef175f3b0e84e9`; evidence `e8`.
+tcl8.6 8.6.18: `TclCompileSetCmd` in `generic/tclCompCmdsSZ.c`, lines 125–197; reference `e8`.
 
 ```c
 TclCompileSetCmd(
@@ -1545,7 +1545,7 @@ TclCompileSetCmd(
 }
 ```
 
-tcl8.6 8.6.18: `TclPushVarName` in `generic/tclCompCmds.c`, lines 3387–3591; full-file SHA-256 `c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e`; excerpt SHA-256 `414e0c602ecd47ea0909bc2af3016540dd61de38a199e3512377e4b06a328fba`; evidence `e9`.
+tcl8.6 8.6.18: `TclPushVarName` in `generic/tclCompCmds.c`, lines 3387–3591; reference `e9`.
 
 ```c
 TclPushVarName(
@@ -1755,7 +1755,7 @@ TclPushVarName(
 }
 ```
 
-tcl8.6 8.6.18: `TclCompileTokens` in `generic/tclCompile.c`, lines 2355–2550; full-file SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; excerpt SHA-256 `0ac0749c57f793286af6437c49c109c4146287f3bb34658926e5802980819dd7`; evidence `e10`.
+tcl8.6 8.6.18: `TclCompileTokens` in `generic/tclCompile.c`, lines 2355–2550; reference `e10`.
 
 ```c
 TclCompileTokens(
@@ -1956,7 +1956,7 @@ TclCompileTokens(
 }
 ```
 
-tcl8.6 8.6.18: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 2933–3028; full-file SHA-256 `d1a494975cb56b8850804669e17fb7c5aacc1d70de505ea661f59ca365ab45c8`; excerpt SHA-256 `b4c836c0f9b9e6e7cf8515b2d2b32b4ab04e6442a41ef69a02ef5ded83dc134f`; evidence `e11`.
+tcl8.6 8.6.18: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 2933–3028; reference `e11`.
 
 ```c
 TclFindCompiledLocal(
@@ -2057,7 +2057,7 @@ TclFindCompiledLocal(
 }
 ```
 
-tcl9.0 9.0.4: `TclCompileSetCmd` in `generic/tclCompCmdsSZ.c`, lines 124–195; full-file SHA-256 `55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac`; excerpt SHA-256 `34baed7dde71e469973938c03e11e8b92217cd3cf56e7430109715edb6e61098`; evidence `e12`.
+tcl9.0 9.0.4: `TclCompileSetCmd` in `generic/tclCompCmdsSZ.c`, lines 124–195; reference `e12`.
 
 ```c
 TclCompileSetCmd(
@@ -2134,7 +2134,7 @@ TclCompileSetCmd(
 }
 ```
 
-tcl9.0 9.0.4: `TclPushVarName` in `generic/tclCompCmds.c`, lines 3488–3694; full-file SHA-256 `9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a`; excerpt SHA-256 `26b20fe759673164bffb8c6201656258f3eba27f3200c3d7fadf21af5e6b5d30`; evidence `e13`.
+tcl9.0 9.0.4: `TclPushVarName` in `generic/tclCompCmds.c`, lines 3488–3694; reference `e13`.
 
 ```c
 TclPushVarName(
@@ -2346,7 +2346,7 @@ TclPushVarName(
 }
 ```
 
-tcl9.0 9.0.4: `TclCompileTokens` in `generic/tclCompile.c`, lines 2416–2610; full-file SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; excerpt SHA-256 `2f8084251e4df3b7d823a494d9d8b1e7b38ec050a58ca905efab16dd0b52ed33`; evidence `e14`.
+tcl9.0 9.0.4: `TclCompileTokens` in `generic/tclCompile.c`, lines 2416–2610; reference `e14`.
 
 ```c
 TclCompileTokens(
@@ -2546,7 +2546,7 @@ TclCompileTokens(
 }
 ```
 
-tcl9.0 9.0.4: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 3020–3115; full-file SHA-256 `51b709e7bf2c1f25bb7b3ab371c7dcbd6cf6d2bce509931397303cb770ee21f3`; excerpt SHA-256 `a87ffe2b6f62282e8c4c51da0e7e6b045d3470c4c40c9e44ceef8a3519f4f347`; evidence `e15`.
+tcl9.0 9.0.4: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 3020–3115; reference `e15`.
 
 ```c
 TclFindCompiledLocal(
@@ -2647,7 +2647,7 @@ TclFindCompiledLocal(
 }
 ```
 
-tcl9.1 9.1.0: `TclCompileSetCmd` in `generic/tclCompCmdsSZ.c`, lines 136–212; full-file SHA-256 `931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a`; excerpt SHA-256 `9ab577969f25ab94cd5720caff9bc0e85081472c78b0ac071eb24d2475cf41bf`; evidence `e16`.
+tcl9.1 9.1.0: `TclCompileSetCmd` in `generic/tclCompCmdsSZ.c`, lines 136–212; reference `e16`.
 
 ```c
 TclCompileSetCmd(
@@ -2729,7 +2729,7 @@ TclCompileSetCmd(
 }
 ```
 
-tcl9.1 9.1.0: `TclPushVarName` in `generic/tclCompile.c`, lines 4919–5117; full-file SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; excerpt SHA-256 `8c671c78715232e3ba32aa25ded0482b4c4b7644f96bb23d5eceab79c589ea45`; evidence `e17`.
+tcl9.1 9.1.0: `TclPushVarName` in `generic/tclCompile.c`, lines 4919–5117; reference `e17`.
 
 ```c
 TclPushVarName(
@@ -2933,7 +2933,7 @@ TclPushVarName(
 }
 ```
 
-tcl9.1 9.1.0: `TclCompileTokens` in `generic/tclCompile.c`, lines 2739–2927; full-file SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; excerpt SHA-256 `0192854ccad7c779a5db78f6ab91a9c47d6edcf50c2ffd889e0384ffab8ee5ba`; evidence `e18`.
+tcl9.1 9.1.0: `TclCompileTokens` in `generic/tclCompile.c`, lines 2739–2927; reference `e18`.
 
 ```c
 TclCompileTokens(
@@ -3127,7 +3127,7 @@ TclCompileTokens(
 }
 ```
 
-tcl9.1 9.1.0: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 3337–3433; full-file SHA-256 `941eaa2c57e4d7d5266134c5b713dca5218d29eea951c89a0676c14b8260eb4f`; excerpt SHA-256 `49bb8900d55b9cd0c4bec628d60e387147c71948cac15462778a850635653ab2`; evidence `e19`.
+tcl9.1 9.1.0: `TclFindCompiledLocal` in `generic/tclCompile.c`, lines 3337–3433; reference `e19`.
 
 ```c
 TclFindCompiledLocal(

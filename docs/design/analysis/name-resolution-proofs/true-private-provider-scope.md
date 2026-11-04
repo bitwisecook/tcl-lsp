@@ -109,7 +109,7 @@ No appliance observation for this exact method argv or private caller question.
 
 ## Source inspection
 
-tcl9.0 9.0.4, revision `Pinned Tcl 9.0.4 release source, retained full-file SHA-256`, `generic/tclOOCall.c`, function `AddInstancePrivateToCallContext / AddSimpleChainToCallContext`, lines 839–950. Retained reference `tcl9.0-scope-source`.
+tcl9.0 9.0.4, revision `Pinned Tcl 9.0.4 release source`, `generic/tclOOCall.c`, function `AddInstancePrivateToCallContext / AddSimpleChainToCallContext`, lines 839–950. Retained reference `tcl9.0-scope-source`.
 
 ```text
 AddInstancePrivateToCallContext(
@@ -226,7 +226,7 @@ AddSimpleChainToCallContext(
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0 release source, retained full-file SHA-256`, `generic/tclOOCall.c`, function `AddInstancePrivateToCallContext / AddSimpleChainToCallContext`, lines 860–969. Retained reference `tcl9.1-scope-source`.
+tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0 release source`, `generic/tclOOCall.c`, function `AddInstancePrivateToCallContext / AddSimpleChainToCallContext`, lines 860–969. Retained reference `tcl9.1-scope-source`.
 
 ```text
 AddInstancePrivateToCallContext(

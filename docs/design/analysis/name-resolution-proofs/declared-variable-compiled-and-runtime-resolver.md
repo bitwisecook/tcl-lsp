@@ -94,7 +94,7 @@ No appliance observation for this exact counted TclOO resolver question.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `Pinned Tcl 8.6.18 release source, retained full-file SHA-256`, `generic/tclOOMethod.c`, function `ProcedureMethodVarResolver / ProcedureMethodCompiledVarConnect / ProcedureMethodCompiledVarResolver`, lines 914–1075. Retained reference `tcl8.6-resolver-source`.
+tcl8.6 8.6.18, revision `Pinned Tcl 8.6.18 release source`, `generic/tclOOMethod.c`, function `ProcedureMethodVarResolver / ProcedureMethodCompiledVarConnect / ProcedureMethodCompiledVarResolver`, lines 914–1075. Retained reference `tcl8.6-resolver-source`.
 
 ```text
 ProcedureMethodVarResolver(
@@ -262,7 +262,7 @@ ProcedureMethodCompiledVarResolver(
 
 ```
 
-tcl9.0 9.0.4, revision `Pinned Tcl 9.0.4 release source, retained full-file SHA-256`, `generic/tclOOMethod.c`, function `ProcedureMethodVarResolver / ProcedureMethodCompiledVarConnect / ProcedureMethodCompiledVarResolver`, lines 1067–1247. Retained reference `tcl9.0-resolver-source`.
+tcl9.0 9.0.4, revision `Pinned Tcl 9.0.4 release source`, `generic/tclOOMethod.c`, function `ProcedureMethodVarResolver / ProcedureMethodCompiledVarConnect / ProcedureMethodCompiledVarResolver`, lines 1067–1247. Retained reference `tcl9.0-resolver-source`.
 
 ```text
 ProcedureMethodVarResolver(
@@ -449,7 +449,7 @@ ProcedureMethodCompiledVarResolver(
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0 release source, retained full-file SHA-256`, `generic/tclOOMethod.c`, function `ProcedureMethodVarResolver / ProcedureMethodCompiledVarConnect / ProcedureMethodCompiledVarResolver / GetRealVarName`, lines 1095–1310. Retained reference `tcl9.1-resolver-source`.
+tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0 release source`, `generic/tclOOMethod.c`, function `ProcedureMethodVarResolver / ProcedureMethodCompiledVarConnect / ProcedureMethodCompiledVarResolver / GetRealVarName`, lines 1095–1310. Retained reference `tcl9.1-resolver-source`.
 
 ```text
 GetRealVarName(

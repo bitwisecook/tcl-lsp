@@ -110,7 +110,7 @@ No appliance observation for this exact method argv or private caller question.
 
 ## Source inspection
 
-tcl8.6 8.6.18, revision `Pinned Tcl 8.6.18 release source, retained full-file SHA-256`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 1572–1616. Retained reference `tcl8.6-method-source`.
+tcl8.6 8.6.18, revision `Pinned Tcl 8.6.18 release source`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 1572–1616. Retained reference `tcl8.6-method-source`.
 
 ```text
 TclOODefineMethodObjCmd(
@@ -161,7 +161,7 @@ TclOODefineMethodObjCmd(
 
 ```
 
-tcl9.0 9.0.4, revision `Pinned Tcl 9.0.4 release source, retained full-file SHA-256`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2309–2393. Retained reference `tcl9.0-method-source`.
+tcl9.0 9.0.4, revision `Pinned Tcl 9.0.4 release source`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2309–2393. Retained reference `tcl9.0-method-source`.
 
 ```text
 TclOODefineMethodObjCmd(
@@ -252,7 +252,7 @@ TclOODefineMethodObjCmd(
 
 ```
 
-tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0 release source, retained full-file SHA-256`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2271–2352. Retained reference `tcl9.1-method-source`.
+tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0 release source`, `generic/tclOODefineCmds.c`, function `TclOODefineMethodObjCmd`, lines 2271–2352. Retained reference `tcl9.1-method-source`.
 
 ```text
 TclOODefineMethodObjCmd(

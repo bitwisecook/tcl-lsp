@@ -16,7 +16,7 @@ All C releases return the child for star and an empty untyped result for the neg
 
 ## Scope
 
-Five C builds each create ::raw-FF and its ::child-FD namespace via native APIs. Original Tcl_NewStringObj parent/pattern argv reaches namespace children with flags0. Result primary is sampled before the counted string getter. Complete original four-row streams are reconstructed only by exact original log SHA256 agreement. No native refcount, return-option, allocator, Jim or BIG-IP observation.
+Five C builds each create ::raw-FF and its ::child-FD namespace via native APIs. Original Tcl_NewStringObj parent/pattern argv reaches namespace children with flags0. Result primary is sampled before the counted string getter. The retained projection contains four reconstructed rows per build. No native refcount, return-option, allocator, Jim or BIG-IP observation.
 
 ## Provider answers
 

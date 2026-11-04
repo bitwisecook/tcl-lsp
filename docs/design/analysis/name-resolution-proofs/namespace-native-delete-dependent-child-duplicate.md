@@ -16,7 +16,7 @@ All five C releases return code0 with empty result; A and child are absent, B re
 
 ## Scope
 
-Eight original C object-vector deletion controls per release, flags0, each in a fresh interpreter. Exact guest code/result are printed before namespace-existence and callback-count observers. Setup uses native namespaces/command delete callbacks or release-selected ASCII unset trace syntax. Original raw-zero String and pure ByteArray inputs are independently manufactured. All40 complete original JSONL rows are recovered by agreement with recorded original log SHA256. No return-options, namespace-name cache, allocator/reference-count or Jim/BIG-IP claim.
+Eight original C object-vector deletion controls per release, flags0, each in a fresh interpreter. Exact guest code/result are printed before namespace-existence and callback-count observers. Setup uses native namespaces/command delete callbacks or release-selected ASCII unset trace syntax. Original raw-zero String and pure ByteArray inputs are independently manufactured. The retained JSONL contains 40 complete original rows. No return-options, namespace-name cache, allocator/reference-count or Jim/BIG-IP claim.
 
 ## Provider answers
 
