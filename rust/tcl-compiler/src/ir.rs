@@ -3853,7 +3853,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             bindings.installed_procedure_body_units(),
-            [] as [crate::command_binding::generated_procedures::SourceInstalledProcedureBody; 0]
+            [] as [crate::command_binding::SourceInstalledProcedureBody; 0]
         );
         let mut stale = module.clone();
         stale

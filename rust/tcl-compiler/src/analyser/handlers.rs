@@ -14686,7 +14686,7 @@ mod tests {
                 u32,
                 tcl_lexer::Span,
                 tcl_lexer::Span,
-                crate::registry_invocation::declaration_assistance::DeclarationVariableAliasPurpose
+                crate::registry_invocation::DeclarationVariableAliasPurpose
             ); 0]
         );
 

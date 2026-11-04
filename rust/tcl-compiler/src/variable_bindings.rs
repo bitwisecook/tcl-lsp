@@ -4669,7 +4669,7 @@ mod tests {
                 registry,
                 Some(&other_tail),
             );
-            assert_eq!(state.trace_registrations.get(&key).unwrap(), []);
+            assert_eq!(state.trace_registrations.get(&key).unwrap().len(), 0);
             assert!(!state.traced.contains(&key));
             assert!(stored.input().is_current(&state));
             let mut missing = state.clone();

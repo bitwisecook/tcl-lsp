@@ -2894,19 +2894,13 @@ mod exact_cell_diagnostic_tests {
         ));
         assert_eq!(
             collect_existence_guards(&unavailable, &registry, config),
-            [] as [(
-                crate::var_resolve::cell_key::VariableCellKey,
-                crate::cfg::BlockId
-            ); 0]
+            [] as [(crate::var_resolve::VariableCellKey, crate::cfg::BlockId); 0]
         );
         let mut missing = original.clone();
         missing.source_metadata_input = None;
         assert_eq!(
             collect_existence_guards(&missing, &registry, config),
-            [] as [(
-                crate::var_resolve::cell_key::VariableCellKey,
-                crate::cfg::BlockId
-            ); 0]
+            [] as [(crate::var_resolve::VariableCellKey, crate::cfg::BlockId); 0]
         );
         let mut foreign = original.clone();
         foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
@@ -2917,10 +2911,7 @@ mod exact_cell_diagnostic_tests {
         ));
         assert_eq!(
             collect_existence_guards(&foreign, &registry, config),
-            [] as [(
-                crate::var_resolve::cell_key::VariableCellKey,
-                crate::cfg::BlockId
-            ); 0]
+            [] as [(crate::var_resolve::VariableCellKey, crate::cfg::BlockId); 0]
         );
     }
 

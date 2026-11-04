@@ -2834,7 +2834,7 @@ mod original_dict_name_tests {
         else {
             panic!("original nonmutating dictionary dispatch")
         };
-        assert_eq!(defs, []);
+        assert_eq!(defs.len(), 0);
         assert!(!reads_own_defs && !safe_on_uninit);
     }
 
@@ -2843,7 +2843,7 @@ mod original_dict_name_tests {
         let module = module("dict set $receiver key VALUE");
         let statement = &module.top_level.statements[0];
         match statement {
-            Statement::Call { defs, .. } => assert_eq!(defs, []),
+            Statement::Call { defs, .. } => assert_eq!(defs.len(), 0),
             Statement::Barrier { .. } => {}
             _ => panic!("original dynamic dictionary dispatch"),
         }

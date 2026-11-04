@@ -1340,7 +1340,7 @@ mod tests {
             );
             assert_ne!(
                 words.source_script_bodies(input.borrowed_context_registry()),
-                [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
+                [] as [crate::registry_invocation::OriginalSourceScriptBody; 0]
             );
             assert!(words_at(source, &analysis, "puts $x").is_some());
             assert!(!words.operands_preserve_source_lookup());
@@ -1473,7 +1473,7 @@ mod tests {
             );
             assert_ne!(
                 words.source_script_bodies(input.borrowed_context_registry()),
-                [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
+                [] as [crate::registry_invocation::OriginalSourceScriptBody; 0]
             );
             assert!(!words.operands_preserve_source_lookup());
             assert!(words_at(&format!("{source} "), &analysis, fragment).is_none());
@@ -1565,7 +1565,7 @@ mod tests {
                     .unwrap()
                     .context_registry()
             ),
-            [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
+            [] as [crate::registry_invocation::OriginalSourceScriptBody; 0]
         );
         assert!(words_at(cooked, &cooked_analysis, r"puts\u0020inner").is_none());
         for source in [

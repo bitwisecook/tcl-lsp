@@ -3124,7 +3124,7 @@ mod tests {
                 if nested { &["a{b}c"][..] } else { &["a{b"][..] }
             );
             assert_eq!(values("$arr($k)").argument_components(0), &["arr", "k"]);
-            assert_eq!(values("${arr($k)}").argument_components(0), []);
+            assert_eq!(values("${arr($k)}").argument_components(0), [] as [&str; 0]);
             assert_eq!(
                 values("[set $café]").argument_components(0),
                 if unicode {
@@ -3228,10 +3228,10 @@ mod tests {
             &registry,
         );
         assert!(changed.argument(0).is_none());
-        assert_eq!(changed.argument_components(0), []);
+        assert_eq!(changed.argument_components(0), [] as [&str; 0]);
         let literal = lexical_reference_values("{$old}", &["old"], config);
         assert!(literal.argument(0).is_none());
-        assert_eq!(literal.argument_components(0), []);
+        assert_eq!(literal.argument_components(0), [] as [&str; 0]);
     }
 
     #[test]

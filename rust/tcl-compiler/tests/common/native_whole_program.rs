@@ -35,7 +35,10 @@ pub(super) fn native_whole_program_fixture(program: &str) -> NativeWholeProgramF
             entry: &tcl_runtime_api::NativeCompilationEntry,
         ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
             assert_eq!(target.source.bytes(), self.original.as_bytes());
-            assert_eq!(target.namespace.as_segments(), []);
+            assert_eq!(
+                target.namespace.as_segments(),
+                [] as [tcl_runtime_api::NameBytes; 0]
+            );
             *self.entry.borrow_mut() = Some(entry.clone());
             self.compile("")
         }

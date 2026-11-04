@@ -19,7 +19,7 @@ fn jim_top_namespace_owns_the_original_context_empty_object() {
             .native_object_identity(),
         identity
     );
-    assert_eq!(vm.ns_name_bytes(ROOT_NS).as_bytes(), []);
+    assert_eq!(vm.ns_name_bytes(ROOT_NS).as_bytes(), [] as [u8; 0]);
     let NativeNamespaceAddress::Jim { object, .. } = vm
         .namespace_address_from_native_bytes(ROOT_NS, b"n\0z")
         .unwrap()

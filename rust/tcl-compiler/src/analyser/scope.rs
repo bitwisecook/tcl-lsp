@@ -5629,7 +5629,7 @@ info exists ::N::v\uD800";
                     .original_name_input()
                     .original_static_list_container()
                     .expect("authentic ParamList ancestry");
-                assert_ne!(container.ordinals(), []);
+                assert_ne!(container.ordinals(), [] as [usize; 0]);
                 assert!(
                     analysis.original_variable_rename_is_complete(declaration.symbol()),
                     "{profile}: complete original naming occurrences"

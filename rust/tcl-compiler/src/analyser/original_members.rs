@@ -2928,7 +2928,7 @@ mod tests {
                 .original_properties
                 .properties(MemberSide::ClassObject)
                 .unwrap(),
-            [] as [&crate::analyser::types::original_properties::OriginalSourcePropertyMetadata; 0]
+            [] as [&crate::analyser::types::OriginalSourcePropertyMetadata; 0]
         );
         assert!(properties.iter().all(
             |property| property.declaration().name_input().source_image()
@@ -2965,7 +2965,7 @@ mod tests {
                     .original_members
                     .methods(MemberSide::ClassObject)
                     .unwrap(),
-                [] as [crate::analyser::types::original_members::OriginalSourceMethodMetadata; 0]
+                [] as [crate::analyser::types::OriginalSourceMethodMetadata; 0]
             );
             assert_eq!(
                 classes[0]

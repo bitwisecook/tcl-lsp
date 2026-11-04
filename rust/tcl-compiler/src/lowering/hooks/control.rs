@@ -506,7 +506,7 @@ mod tests {
                 .body;
             assert_eq!(
                 body.implicit_math_invocations,
-                [] as [crate::command_binding::math_occurrence::SourceMathInvocation; 0]
+                [] as [crate::command_binding::SourceMathInvocation; 0]
             );
             // Reached preparation precedes the missing-variable failure; it
             // supplies neither a normal result nor admission of the Return.

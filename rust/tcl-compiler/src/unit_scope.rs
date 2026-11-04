@@ -5934,7 +5934,7 @@ mod tests {
         else {
             unreachable!()
         };
-        assert_ne!(arguments, []);
+        assert_ne!(arguments.len(), 0);
         changed_arguments.clear();
         assert!(
             binding

@@ -2104,7 +2104,7 @@ mod tests {
             if entered {
                 assert_eq!(
                     ir.future_call_sites,
-                    [] as [crate::command_binding::future_bodies::SourceFutureCallSite; 0]
+                    [] as [crate::command_binding::SourceFutureCallSite; 0]
                 );
                 assert!(ir.body_units.is_empty());
                 assert!(ir.methods.is_empty());
@@ -2163,7 +2163,7 @@ mod tests {
                 assert!(tokens.evaluated_body().is_none());
                 assert_eq!(
                     ir.future_call_sites,
-                    [] as [crate::command_binding::future_bodies::SourceFutureCallSite; 0]
+                    [] as [crate::command_binding::SourceFutureCallSite; 0]
                 );
                 assert!(ir.methods.is_empty());
             }

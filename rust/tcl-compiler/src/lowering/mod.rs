@@ -11124,8 +11124,8 @@ mod tests {
             panic!("missing original/context ownership must retain a generic call");
         };
         assert!(canonical_command.is_none());
-        assert_eq!(defs, []);
-        assert_eq!(reads, []);
+        assert_eq!(defs.len(), 0);
+        assert_eq!(reads.len(), 0);
         assert_eq!(
             lowerer.advisory_method_instance_names(&statement),
             vec!["local", "${dynamic}"]

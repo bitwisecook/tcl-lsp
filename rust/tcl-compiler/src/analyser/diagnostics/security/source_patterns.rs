@@ -529,7 +529,7 @@ mod tests {
                 panic!("proven original pattern")
             };
             assert_eq!(subject.supplemental_literals(), &[(0, "(a+)+".to_owned())]);
-            assert_eq!(subject.list_element_path(), []);
+            assert_eq!(subject.list_element_path(), [] as [usize; 0]);
         }
         for source in [
             "proc f {p} {regexp $p literal}",

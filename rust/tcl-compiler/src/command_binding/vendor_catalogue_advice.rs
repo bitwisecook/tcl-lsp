@@ -639,7 +639,7 @@ mod tests {
                 blocked, &analysis
             )
             .unwrap(),
-            [] as [crate::registry_invocation::source_remote_first_operand::OriginalSourceRemoteFirstOperandAssociation; 0]
+            [] as [crate::registry_invocation::OriginalSourceRemoteFirstOperandAssociation; 0]
         );
     }
 
