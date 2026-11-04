@@ -30272,7 +30272,7 @@ impl Backend {
         };
         let store = Arc::clone(&self.store);
         let selected_path = path.clone();
-        let (text, _) = match crate::rt::spawn_blocking(move || store.read_source(&path)).await {
+        let bytes = match crate::rt::spawn_blocking(move || store.read(&path)).await {
             Ok(Ok(source)) => source,
             Ok(Err(cause))
                 if Self::source_read_is_absent(self.store.as_ref(), &selected_path, &cause) =>
@@ -30288,12 +30288,12 @@ impl Backend {
             }
             Err(_) => return Err(DocumentSourceUnavailable::Worker { uri: uri.clone() }),
         };
+        let (text, decode_report) = tcl_lsp_core::source_decode::decode_source(&bytes);
         admission.check_for(uri, self.store.as_ref())?;
-        Ok(Some(
-            DocumentState::new(text, String::new())
-                .with_path_admission(admission)
-                .normalised_for_analysis(),
-        ))
+        let mut document = DocumentState::new(text, String::new()).with_path_admission(admission);
+        document.decode_report = Some(decode_report);
+        document.saved_source_bytes = Some(bytes.into());
+        Ok(Some(document.normalised_for_analysis()))
     }
 
     /// The `workspace/symbol` matches contributed by **open** documents the
@@ -65338,6 +65338,37 @@ proc p {} {
             vfs::SourceStore::with_current_document_paths(&vfs::NativeStore, selected, publish)
         }
 
+        fn with_current_source_inputs(
+            &self,
+            mappings: &[&vfs::SourceUriPath],
+            documents: &[(&vfs::SourceUriPath, &[u8])],
+            paths: &[(&vfs::SourcePathOrigin, &[u8])],
+            publish: &mut dyn FnMut(),
+        ) -> Result<(), vfs::SourceUriPathUnavailable> {
+            if !paths.is_empty() {
+                return Err(vfs::SourceUriPathUnavailable::ProviderUnavailable);
+            }
+            for selected in mappings
+                .iter()
+                .copied()
+                .chain(documents.iter().map(|(selected, _)| *selected))
+            {
+                self.validate_document_uri_path(selected)?;
+            }
+            let contents = self
+                .contents
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if documents
+                .iter()
+                .any(|(_, expected)| contents.as_slice() != *expected)
+            {
+                return Err(vfs::SourceUriPathUnavailable::SourceImageUnavailable);
+            }
+            publish();
+            Ok(())
+        }
+
         fn read(&self, _path: &Path) -> std::io::Result<Vec<u8>> {
             use std::sync::atomic::Ordering;
 
@@ -70205,7 +70236,7 @@ mod closed_document_source_context_tests {
         let mut bytes = "# 😀\rputs \u{fffd}\rputs ".as_bytes().to_vec();
         bytes.extend_from_slice(b"\xff\r");
         let (decoded, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
-        store.upsert_uri(uri.as_str(), "/actual/decode.tcl", bytes);
+        store.upsert_uri(uri.as_str(), "/actual/decode.tcl", bytes.clone());
         let mut backend = tests::test_backend();
         backend.state_mut_for_test().store = store;
         for readiness in [DocumentReadiness::Indexed, DocumentReadiness::Salsa] {
@@ -70236,6 +70267,18 @@ mod closed_document_source_context_tests {
             .unwrap()
             .unwrap();
         assert_eq!(document.decode_report, Some(report));
+        let symbols_document = backend
+            .closed_workspace_symbol_source(&uri)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(symbols_document.raw(), decoded);
+        assert_eq!(symbols_document.text, document.text);
+        assert_eq!(symbols_document.decode_report, Some(report));
+        assert_eq!(
+            symbols_document.saved_source_bytes.as_deref(),
+            Some(bytes.as_slice())
+        );
         let non_text_uri = Uri::from_str("file:///utf16.tcl").unwrap();
         let store = Arc::new(vfs::MemoryStore::new());
         store.upsert_uri(

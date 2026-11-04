@@ -557,11 +557,24 @@ index still reports the captured document revision, and the selected
 Open-document snapshots are also checked against the live document revision,
 raw source bytes, dialect and any retained provider admission at that final
 boundary. Host-reported file rows require that admission; in-memory URI rows and
-the Native provider keep their existing document-snapshot/index-revision path.
+the Native provider retain their independent document and index checks.
 A missing Logical source owner, changed URI mapping, changed open document or
 changed indexed revision leaves the candidate unavailable instead of applying
-its old span to different bytes. The provider callback protects the selected
-URI/path mapping; it does not lock external filesystem contents after the read.
+its old span to different bytes.
+
+Closed-source reads retain the selected saved bytes and actual decoder report
+before source normalisation. Final input, document and index checks select the
+rows that remain available; only those rows contribute saved images to the
+joint provider lease. A row already withdrawn by these checks cannot suppress
+an independently current row merely because its saved bytes also changed.
+
+The provider authenticates every selected mapping and saved image through one
+bounded synchronous publication. `MemoryStore` holds mappings and byte contents
+through that callback. Native/WASI reobserve the expected bytes immediately
+before it; they do not exclude external filesystem writers. If a selected
+saved image changed without an index or input update that withdrew its row,
+the joint lease refuses the whole answer. It does not publish a partial answer
+based on a separate, racy byte check. The next query captures sources again.
 
 Native declaration rows keep their existing `OriginalIndexedSourceLocation`
 validation against the actual current analysis. The Logical owner supports only
