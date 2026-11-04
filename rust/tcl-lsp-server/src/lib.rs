@@ -1237,6 +1237,18 @@ impl ReadonlyDeclarationLocation {
     }
 }
 
+/// Observations that can require reissuing a failed readonly autoload query.
+/// They confer no header, lookup, completion or source-currentness authority.
+struct AutoloadQueryObservation {
+    request: core_definition::OriginalAutoloadRequest,
+    inputs_epoch: u64,
+    factory_generation: u64,
+    sidecar: Arc<fresh_analysis_cache::SidecarRevision>,
+    sidecar_published: bool,
+    resolver_revision: u64,
+    unpublished_providers: Vec<String>,
+}
+
 struct LibraryPublicationSource {
     uri: Uri,
     document: DocumentState,
@@ -18230,18 +18242,152 @@ impl Backend {
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
     async fn compute_definition(&self, uri: &Uri, pos: Position) -> jsonrpc::Result<Vec<Location>> {
-        let source_epoch = self.diag_inputs_epoch();
-        let source_generation = self.live_publication_uri_generation(uri);
-        let Some(doc) = self.read_document(uri).await? else {
-            return Ok(Vec::new());
+        for _ in 0..3 {
+            let source_epoch = self.diag_inputs_epoch();
+            let source_generation = self.live_publication_uri_generation(uri);
+            let factory_generation = *self.class_factory_generation.read().await;
+            let sidecar = self
+                .fresh_analysis_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .revision();
+            let sidecar_published = sidecar.is_published_current();
+            let Some(doc) = self.read_document(uri).await? else {
+                return Ok(Vec::new());
+            };
+            if let Some(locations) = self.ilx_definition(uri, &doc, pos).await? {
+                return Ok(locations);
+            }
+            let analysis = self
+                .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
+                .await?;
+            let observation = if !analysis.allows_lexical_declaration_advice() {
+                if let Some(request) = core_definition::original_autoload_request_at(
+                    &doc.text,
+                    &analysis,
+                    pos.line,
+                    pos.character,
+                ) {
+                    let resolver = self.package_resolver.read().await;
+                    let resolver_revision = resolver.revision();
+                    let candidates = request.files(&resolver);
+                    drop(resolver);
+                    let libraries = self.autoloaded_library_uris.lock().await;
+                    let unpublished_providers = candidates
+                        .iter()
+                        .filter_map(|file| canonical_file_uri(file))
+                        .map(|uri| uri.as_str().to_owned())
+                        .filter(|uri| !libraries.contains(uri))
+                        .collect();
+                    Some(AutoloadQueryObservation {
+                        request,
+                        inputs_epoch: source_epoch,
+                        factory_generation,
+                        sidecar,
+                        sidecar_published,
+                        resolver_revision,
+                        unpublished_providers,
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let locations = self
+                .compute_definition_for_snapshot(
+                    uri,
+                    pos,
+                    &doc,
+                    &analysis,
+                    (source_epoch, source_generation),
+                )
+                .await?;
+            if !locations.is_empty() {
+                return Ok(locations);
+            }
+            let Some(observation) = observation else {
+                return Ok(locations);
+            };
+            if !self
+                .autoload_query_requires_recapture(uri, &doc, pos, source_generation, &observation)
+                .await?
+            {
+                return Ok(locations);
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    async fn autoload_query_requires_recapture(
+        &self,
+        uri: &Uri,
+        document: &DocumentState,
+        position: Position,
+        generation: u64,
+        observation: &AutoloadQueryObservation,
+    ) -> DocumentSourceResult<bool> {
+        if self
+            .class_type_source(uri, document.clone(), generation)
+            .await
+            .is_none()
+        {
+            return Ok(false);
+        }
+        let Some(current) = self.read_document(uri).await? else {
+            return Ok(false);
         };
-        // An iRulesLX method word is answered here, in full.
-        if let Some(locations) = self.ilx_definition(uri, &doc, pos).await? {
-            return Ok(locations);
+        if current.text != document.text
+            || current.revision != document.revision
+            || current.version != document.version
+            || current.dialect != document.dialect
+            || current.saved_source_bytes != document.saved_source_bytes
+            || self.live_publication_uri_generation(uri) != generation
+        {
+            return Ok(false);
         }
         let analysis = self
-            .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
+            .analysis_for(uri, current.text.clone(), current.dialect)
             .await?;
+        let Some(request) = core_definition::original_autoload_request_at(
+            &current.text,
+            &analysis,
+            position.line,
+            position.character,
+        ) else {
+            return Ok(false);
+        };
+        let sidecar_current = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_current(&observation.sidecar);
+        let libraries = self.autoloaded_library_uris.lock().await;
+        let providers_published = observation
+            .unpublished_providers
+            .iter()
+            .any(|uri| libraries.contains(uri));
+        drop(libraries);
+        let inputs_epoch = self.diag_inputs_epoch();
+        let factory_generation = *self.class_factory_generation.read().await;
+        let resolver_revision = self.package_resolver.read().await.revision();
+        Ok(request != observation.request
+            || inputs_epoch != observation.inputs_epoch
+            || factory_generation != observation.factory_generation
+            || !sidecar_current
+            || observation.sidecar.is_published_current() != observation.sidecar_published
+            || resolver_revision != observation.resolver_revision
+            || providers_published)
+    }
+
+    async fn compute_definition_for_snapshot(
+        &self,
+        uri: &Uri,
+        pos: Position,
+        doc: &DocumentState,
+        analysis: &Arc<AnalysisResult>,
+        (source_epoch, source_generation): (u64, u64),
+    ) -> jsonrpc::Result<Vec<Location>> {
         // The cross-document fallback should only fire when the cursor
         // sits on a command head (a call site), matching what the
         // in-document provider resolves.  Compute that here, while
@@ -18249,7 +18395,7 @@ impl Backend {
         // below).  Without this gate, an argument word that happens to
         // collide with a sibling proc/class name produces a
         // false-positive go-to-definition jump.
-        let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
+        let on_command_head = position_is_command_head(&doc.text, pos, analysis, &doc.line_index);
         // A namespace-name argument is answered here, in full, and never
         // reaches the tiers below.  Two reasons: the position is
         // *definitive* (a proc or class of the same
@@ -18257,13 +18403,13 @@ impl Backend {
         // local and workspace declaring blocks — reopening a namespace
         // extends the same namespace, so a local block does not make a
         // sibling document's block any less of a definition.
-        if let Some(symbol) = Self::original_namespace_symbol(&doc.text, &analysis, pos) {
+        if let Some(symbol) = Self::original_namespace_symbol(&doc.text, analysis, pos) {
             if analysis.resolved_input.as_ref().is_some_and(
                 tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
             ) {
                 return Ok(Box::pin(self.logical_namespace_locations_for_snapshot(
                     (uri.clone(), doc.clone(), source_generation),
-                    &analysis,
+                    analysis,
                     pos,
                     source_epoch,
                     LogicalNamespaceLocationsPurpose::Definitions,
@@ -18271,21 +18417,21 @@ impl Backend {
                 .await?);
             }
             return Ok(self
-                .original_namespace_locations(uri, &doc.text, &analysis, &symbol, true, true)
+                .original_namespace_locations(uri, &doc.text, analysis, &symbol, true, true)
                 .await?);
         }
-        if Self::original_namespace_cursor_retained(&doc.text, &analysis, pos) {
+        if Self::original_namespace_cursor_retained(&doc.text, analysis, pos) {
             return Ok(Vec::new());
         }
-        if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
+        if let Some(cell) = Self::namespace_cell(&doc.text, analysis, pos) {
             return Ok(self
-                .namespace_declaration_locations(uri, &doc.text, &analysis, &cell)
+                .namespace_declaration_locations(uri, &doc.text, analysis, &cell)
                 .await?);
         }
         if let std::ops::ControlFlow::Break(locations) =
             Box::pin(self.original_method_locations_for_snapshot(
                 (uri.clone(), doc.clone(), source_generation),
-                &analysis,
+                analysis,
                 pos,
                 source_epoch,
             ))
@@ -18294,7 +18440,7 @@ impl Backend {
             return Ok(locations);
         }
         let text = doc.text.clone();
-        let analysis_worker = Arc::clone(&analysis);
+        let analysis_worker = Arc::clone(analysis);
         // The whole-program export view the in-document tier needs to decide
         // whether a `namespace import -force` really deleted this file's own
         // command of the name.  Snapshotted under the
@@ -18331,7 +18477,7 @@ impl Backend {
             // cross-file tier resolves through, and abstains (answers
             // "not suppressed") without positive suppression evidence.
             if self
-                .class_side_dispatch_suppressed(&doc.text, &analysis, pos)
+                .class_side_dispatch_suppressed(&doc.text, analysis, pos)
                 .await
             {
                 return Ok(Vec::new());
@@ -18346,8 +18492,8 @@ impl Backend {
         }
         self.definition_workspace_fallback(
             uri,
-            &doc,
-            &analysis,
+            doc,
+            analysis,
             pos,
             (source_epoch, source_generation),
             on_command_head,
@@ -72057,6 +72203,80 @@ mod closed_scan_input_custody {
         .await;
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn autoload_definition_recaptures_the_whole_query_after_input_publication() {
+        let fixture = Fixture::new(1).await;
+        let caller = Uri::from_file_path(fixture.root.join("caller.tcl")).unwrap();
+        let source = "p\n";
+        fixture
+            .backend
+            .documents
+            .lock("autoload-recapture-fixture")
+            .await
+            .insert(
+                caller.clone(),
+                DocumentState::new(source.to_owned(), "tcl8.6".to_owned()),
+            );
+        fixture
+            .backend
+            .db_set_source(&caller, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let analysis = fixture
+            .backend
+            .analysis_for(&caller, Arc::from(source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        fixture
+            .backend
+            .workspace_index
+            .write()
+            .await
+            .replace_document(caller.as_str(), &analysis);
+        fixture.backend.package_resolver.write().await.add_original_tcl_index(
+            "# Tcl autoload index file, version 2.0\nset auto_index(p) [list source [file join $dir source.tcl]]\n",
+            &fixture.root, &|_| true);
+        let querying = {
+            let backend = fixture.backend.clone();
+            let caller = caller.clone();
+            tokio::spawn(async move {
+                backend
+                    .compute_definition(&caller, Position::new(0, 0))
+                    .await
+                    .unwrap()
+            })
+        };
+        tokio::time::timeout(Duration::from_secs(5), fixture.store.started.notified())
+            .await
+            .unwrap();
+        fixture.backend.invalidate_diag_inputs();
+        fixture.resume.send(()).unwrap();
+        let locations = tokio::time::timeout(Duration::from_secs(10), querying)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            locations.len(),
+            1,
+            "the first query must reissue its original owner after the input publication"
+        );
+        assert_eq!(locations[0].uri, fixture.uri);
+        assert_eq!(locations[0].range.start.line, 0);
+        // The provider's actual source still owns the target after recapture.
+        std::fs::write(
+            fixture.root.join("source.tcl"),
+            "proc replaced_header {} {}\n",
+        )
+        .unwrap();
+        assert!(
+            fixture
+                .backend
+                .compute_definition(&caller, Position::new(0, 0))
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
     #[tokio::test]
     async fn closed_document_readers_share_actual_saved_read_instrumentation() {
         let fixture = Fixture::new(0).await;

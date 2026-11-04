@@ -497,3 +497,10 @@ job without losing its own PR coverage, so the producing job uploads an artifact
 and the attaching job — which does depend on `create-release` — signs it. The
 release path needs only the wasip1 target and binaryen; the pinned wasmtime
 download stays gated on the test path, so it cannot fail a tag build.
+
+A Native autoload definition query can publish its provider while its original
+caller analysis is being replaced. An empty answer retries the complete query
+at most three times, only while the caller source and publication remain current
+and a genuine autoload request observes an owner, input or provider publication
+change. Each attempt reacquires its own analysis and repeats the existing lookup
+and source checks; a stable refusal or replaced caller does not acquire a retry.
