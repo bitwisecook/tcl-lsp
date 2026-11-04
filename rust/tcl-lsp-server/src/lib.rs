@@ -29872,28 +29872,6 @@ impl Backend {
         }
     }
 
-    /// Publish every pack's load notices — plus the `collisions` the caller
-    /// computed against the plain registry — as diagnostics on the pack file
-    /// they came from, and clear the ones a previous load left on files that
-    /// are now clean.
-    ///
-    /// A notice is not a compile error — the pack loaded, minus the thing the
-    /// notice names — so this is the natural surface for it: the author sees
-    /// "unknown property `arty` dropped" on the line they typed it, in the
-    /// editor they typed it in, exactly as they would a diagnostic on Tcl code.
-    ///
-    /// # An *open* pack file
-    ///
-    /// `.tclspec` is in `TCL_SOURCE_EXTENSIONS` (a pack is one Tcl script), so
-    /// an open pack buffer is also an analysed document, and `publishDiagnostics`
-    /// replaces a URI's whole set. So this is not a second publisher: it hands
-    /// the notices to [`DiagnosticPublisher::set_pack_notices`], which unions
-    /// them into every set published for that URI — the push path, the fast
-    /// tier, and the pull cache alike. A URI nobody has open is then published
-    /// straight from here (its analysed layer is empty, so the union is the
-    /// notices); an open one is rescheduled instead, so the set that lands
-    /// carries the analyser's findings *and* the loader's rather than
-    /// whichever producer ran last.
     /// Opt-in captured notice evidence before URI/source publication filters.
     /// This reports no URI admission, live source currency or release verdict.
     async fn trace_raw_pack_notices(
@@ -29947,6 +29925,28 @@ impl Backend {
         }
     }
 
+    /// Publish every pack's load notices — plus the `collisions` the caller
+    /// computed against the plain registry — as diagnostics on the pack file
+    /// they came from, and clear the ones a previous load left on files that
+    /// are now clean.
+    ///
+    /// A notice is not a compile error — the pack loaded, minus the thing the
+    /// notice names — so this is the natural surface for it: the author sees
+    /// "unknown property `arty` dropped" on the line they typed it, in the
+    /// editor they typed it in, exactly as they would a diagnostic on Tcl code.
+    ///
+    /// # An *open* pack file
+    ///
+    /// `.tclspec` is in `TCL_SOURCE_EXTENSIONS` (a pack is one Tcl script), so
+    /// an open pack buffer is also an analysed document, and `publishDiagnostics`
+    /// replaces a URI's whole set. So this is not a second publisher: it hands
+    /// the notices to [`DiagnosticPublisher::set_pack_notices`], which unions
+    /// them into every set published for that URI — the push path, the fast
+    /// tier, and the pull cache alike. A URI nobody has open is then published
+    /// straight from here (its analysed layer is empty, so the union is the
+    /// notices); an open one is rescheduled instead, so the set that lands
+    /// carries the analyser's findings *and* the loader's rather than
+    /// whichever producer ran last.
     async fn publish_spec_pack_notices(
         &self,
         packs: &Arc<tcl_spectcl::PackSet>,
