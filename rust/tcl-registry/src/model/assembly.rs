@@ -96,8 +96,46 @@ pub(crate) fn universe() -> &'static CommandRegistry {
 /// index — the last-registered-wins tiebreak, as in the old multimap.
 struct SpecEntry {
     spec: &'static CommandSpec,
+    lowered: Arc<LoweredSpec>,
+}
+
+/// A spec's runtime declarations and their applicability breadth.
+struct LoweredSpec {
     declarations: SmallVec<[SurfaceDeclaration; 2]>,
     breadth: u32,
+}
+
+/// [`declarations_for_spec`] for `spec`, lowered once per process.
+///
+/// Lowering is a pure function of a `'static` spec, and every generation
+/// assembles the whole store: without this, each context assembly lowered
+/// every spec in it again — the version-set parsing and allocation that made
+/// assembly a tenth of an analysis. A spec is never freed, so its address
+/// names it for the life of the process.
+fn lowered(spec: &'static CommandSpec) -> Arc<LoweredSpec> {
+    static LOWERED: OnceLock<std::sync::RwLock<FxHashMap<usize, Arc<LoweredSpec>>>> =
+        OnceLock::new();
+    let memo = LOWERED.get_or_init(Default::default);
+    let key = std::ptr::from_ref(spec).addr();
+    if let Some(hit) = memo
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&key)
+    {
+        return Arc::clone(hit);
+    }
+    let declarations = declarations_for_spec(spec);
+    let breadth = specificity_breadth(&declarations);
+    let entry = Arc::new(LoweredSpec {
+        declarations,
+        breadth,
+    });
+    Arc::clone(
+        memo.write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(key)
+            .or_insert(entry),
+    )
 }
 
 /// One assembled, `Arc`-owned registry generation for a resolved context
@@ -150,8 +188,8 @@ impl ContextRegistry {
         for name in names {
             let mut admitted: Vec<SpecEntry> = Vec::new();
             for spec in commands.specs(name) {
-                let declarations = declarations_for_spec(spec);
-                let in_world = declarations.iter().any(|declaration| {
+                let lowered = lowered(spec);
+                let in_world = lowered.declarations.iter().any(|declaration| {
                     context.provider_active(&declaration.provider)
                         && context.predicate_passes(&declaration.predicate)
                         // Q6: an ancestor row reaching a reimplementing
@@ -162,12 +200,7 @@ impl ContextRegistry {
                         && context.inherited_surface_admits(name, &declaration.provider)
                 });
                 if in_world {
-                    let breadth = specificity_breadth(&declarations);
-                    admitted.push(SpecEntry {
-                        spec,
-                        declarations,
-                        breadth,
-                    });
+                    admitted.push(SpecEntry { spec, lowered });
                 }
             }
             if !admitted.is_empty() {
@@ -291,14 +324,21 @@ impl ContextRegistry {
             .enumerate()
             .filter(|(_, entry)| {
                 entry
+                    .lowered
                     .declarations
                     .iter()
                     .any(|declaration| self.context.admits_for_selection(declaration))
             })
-            .max_by_key(|&(index, entry)| (Reverse(nearness(entry)), Reverse(entry.breadth), index))
+            .max_by_key(|&(index, entry)| {
+                (
+                    Reverse(nearness(entry)),
+                    Reverse(entry.lowered.breadth),
+                    index,
+                )
+            })
             .map(|(_, entry)| entry)?;
         self.context
-            .is_available(&winner.declarations)
+            .is_available(&winner.lowered.declarations)
             .then_some(winner.spec)
     }
 

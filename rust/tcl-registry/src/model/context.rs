@@ -917,14 +917,14 @@ impl ResolvedContext {
     ) -> Option<&'static CommandSpec> {
         let query = self.authoring_query().with_realm(realm);
         let selected = registry.get_for_surface(name, Some(query));
-        if selected.is_none() && std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+        if selected.is_none() && crate::trace_deferred_writes_any() {
             eprintln!(
                 "TCL_LSP_TRACE_METADATA_AVAILABILITY stage=get_for_surface head={name:?} context={self:p} query={query:?}"
             );
         }
         selected.filter(|spec| {
             if !self.spec_available_after_surface(spec) {
-                if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+                if crate::trace_deferred_writes_any() {
                     eprintln!(
                         "TCL_LSP_TRACE_METADATA_AVAILABILITY stage=spec_available head={name:?} canonical={:?} context={self:p} query={query:?}",
                         spec.name,
@@ -933,7 +933,7 @@ impl ResolvedContext {
                 return false;
             }
             let admitted = self.roster_admits(spec, &query);
-            if !admitted && std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+            if !admitted && crate::trace_deferred_writes_any() {
                 eprintln!(
                     "TCL_LSP_TRACE_METADATA_AVAILABILITY stage=roster head={name:?} canonical={:?} context={self:p} query={query:?}",
                     spec.name,

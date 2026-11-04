@@ -146,6 +146,11 @@ pub struct EvalOptions {
     /// file. It is not part of the snapshot identity for exactly that reason:
     /// the two routes cannot produce different answers.
     pub static_fast_path: bool,
+    /// Whether `command` declarations are evaluated. `false` loads a pack's
+    /// **manifest** — its environments, extension routes, ambient packages,
+    /// rosters and special variables — and skips every command body, which is
+    /// nearly all of a vendor library's text (`crate::demand`).
+    pub commands: bool,
 }
 
 impl Default for EvalOptions {
@@ -155,6 +160,7 @@ impl Default for EvalOptions {
             trust: WorkspaceTrust::Trusted,
             config: PackEvalConfig::default(),
             static_fast_path: true,
+            commands: true,
         }
     }
 }
@@ -178,6 +184,8 @@ pub struct EvalSnapshotKey {
     /// for a workspace pack, trusted for every other tier, so an untrusted
     /// workspace's snapshot never answers for a trusted one's.
     pub trust: WorkspaceTrust,
+    /// [`EvalOptions::commands`]: a manifest is not the pack.
+    pub commands: bool,
 }
 
 /// The snapshot cache key for one source under one set of options.
@@ -189,6 +197,7 @@ pub fn eval_snapshot_key(source: &str, options: &EvalOptions) -> EvalSnapshotKey
         loader_eval_version: LOADER_EVAL_VERSION,
         tier: options.tier,
         trust: options.tier.trust_under(options.trust),
+        commands: options.commands,
     }
 }
 
@@ -758,6 +767,8 @@ struct DeclaredSupport {
 /// Everything the evaluation stages before replay.
 #[derive(Default)]
 struct State {
+    /// [`EvalOptions::commands`] is off: `command` declarations stage nothing.
+    skip_commands: bool,
     pack_nodes: Vec<PackNode>,
     /// Open capture scopes, innermost last, each with its collected nodes.
     scopes: Vec<(ScopeKind, Vec<Node>)>,
@@ -1088,6 +1099,9 @@ fn command_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
             let mut st = state.borrow_mut();
             let stmt = st.captured("command", args, line);
             st.push_node(Node::Row(stmt));
+            return Ok(None);
+        }
+        if state.borrow().skip_commands {
             return Ok(None);
         }
         let name = args.first().cloned().unwrap_or_default();
@@ -1658,6 +1672,9 @@ fn drive_static(
                 stage_speclib(drive.reborrow(), state, &args, stmt.line)?;
             }
             "command" if at_pack => {
+                if state.borrow().skip_commands {
+                    continue;
+                }
                 let name = stmt.word_text(1).to_owned();
                 let overrides = stmt.words.iter().any(|w| w.text == "-override");
                 let Some(body) = stmt.words.iter().skip(2).find(|w| w.braced) else {
@@ -1878,13 +1895,13 @@ pub fn evaluate_pack_in(
     // large pack's load time. Nothing about the answer changes: the same
     // staging, through the same `drive_static`, into the same replay.
     if options.static_fast_path
-        && let Some(state) = drive_file_statically(source, include.clone())
+        && let Some(state) = drive_file_statically(source, include.clone(), options.commands)
     {
         let hash = pack_content_hash(root, &state.included);
         return with_content_hash(replay(state, options), hash);
     }
 
-    let state = new_state(source, include);
+    let state = new_state(source, include, options.commands);
     let mut vocabulary: Vec<(&str, WordHandler)> = Vec::with_capacity(ROW_WORDS.len() + 5);
     for &word in ROW_WORDS {
         vocabulary.push((word, row_handler(word, &state)));
@@ -1970,10 +1987,15 @@ fn with_content_hash(mut pack: Pack, hash: u64) -> Pack {
 }
 
 /// The staging state one load starts from.
-fn new_state(source: &str, include: Option<Rc<super::IncludeContext>>) -> Rc<RefCell<State>> {
+fn new_state(
+    source: &str,
+    include: Option<Rc<super::IncludeContext>>,
+    commands: bool,
+) -> Rc<RefCell<State>> {
     let state = Rc::new(RefCell::new(State::default()));
     {
         let mut st = state.borrow_mut();
+        st.skip_commands = !commands;
         st.verbatim = VerbatimIndex::of(source);
         st.include = include;
         st.include_stack = vec![content_hash(source)];
@@ -1998,6 +2020,7 @@ fn new_state(source: &str, include: Option<Rc<super::IncludeContext>>) -> Rc<Ref
 fn drive_file_statically(
     source: &str,
     include: Option<Rc<super::IncludeContext>>,
+    commands: bool,
 ) -> Option<State> {
     // The capture layer segments leniently; an incomplete script (an unclosed
     // brace, bracket or quote) is a real evaluation failure the interpreter
@@ -2011,7 +2034,7 @@ fn drive_file_statically(
     ) {
         return None;
     }
-    let state = new_state(source, include);
+    let state = new_state(source, include, commands);
     // `FileBom::Skip`: this is the file entry point, so a leading mark is a
     // prologue rather than part of the first word.
     let top = pack_statements(source);
@@ -2475,7 +2498,7 @@ mod original_head_namespace_tests {
     fn static_speclib_body_folds_brace_continuations_like_interpreter() {
         let source =
             "speclib demo 2.0 {command demo {hover -summary {before\\\n  after}; arity 1}}";
-        assert!(drive_file_statically(source, None).is_some());
+        assert!(drive_file_statically(source, None, true).is_some());
         let static_pack = evaluate_pack_in(source, &EvalOptions::default(), None);
         let interpreter_pack = evaluate_pack_in(
             source,
@@ -2496,7 +2519,8 @@ mod original_head_namespace_tests {
         assert!(
             drive_file_statically(
                 "speclib demo 2.0 {set name demo; command $name {arity 1}}",
-                None
+                None,
+                true,
             )
             .is_none()
         );

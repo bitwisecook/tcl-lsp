@@ -6096,6 +6096,7 @@ dependencies = [
  "tcl-registry",
  "tcl-runtime",
  "tcl-runtime-api",
+ "tcl-spec-studio",
  "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",

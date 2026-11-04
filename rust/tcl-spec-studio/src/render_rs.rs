@@ -1148,6 +1148,18 @@ fn option_value_expr(value: &Value, inner: &str) -> Option<String> {
     let arity = &value["arity"];
     let arity_expr = match as_str(&arity["kind"]) {
         "Fixed" => Some(format!("OptionArity::Fixed({})", as_u64(&arity["n"]))),
+        "OptionalOneOf" => Some(format!(
+            "OptionArity::OptionalOneOf(&[{}])",
+            arity["values"]
+                .as_array()
+                .map(|values| values
+                    .iter()
+                    .map(|v| format!("{:?}", as_str(v)))
+                    .collect::<Vec<_>>()
+                    .join(", "))
+                .unwrap_or_default()
+        )),
+        "OptionalNotOption" => Some("OptionArity::OptionalNotOption".to_owned()),
         // The hook is a function pointer, so seeding cannot recover it — but
         // the author can type it, and then it renders like any other arity.
         // Empty still falls through to the TODO below.

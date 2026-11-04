@@ -231,7 +231,7 @@ pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectPro
         .map(|name| {
             crate::environment::known_profile_for_dialect(name)
                 .or_else(|| {
-                    crate::cli_packs();
+                    crate::cli_packs(name);
                     crate::environment::known_profile_for_dialect(name)
                 })
                 .ok_or_else(|| {

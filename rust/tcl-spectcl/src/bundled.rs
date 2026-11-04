@@ -56,7 +56,7 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 
 use tcl_dialect::DialectProfile;
 use tcl_dialect::model::WorkspaceTrust;
@@ -402,13 +402,28 @@ fn resolve_packs(bundled_dir: Option<PathBuf>) -> PackSet {
 /// ([`bundled_dir`](crate::discovery::bundled_dir)) exactly as before;
 /// falls back to [`load_embedded`] only when there is none at all — see
 /// "The embedded fallback" above.
+///
+/// A bundled pack no recorded dialect needs is held manifest-only
+/// ([`crate::demand`]); the set is rebuilt when the demand widens, which
+/// happens at most once per deferrable pack, so the superseded sets this
+/// leaks are bounded by the bundled tier's size.
 #[must_use]
 pub fn packs() -> &'static PackSet {
-    static PACKS: OnceLock<PackSet> = OnceLock::new();
-    PACKS.get_or_init(|| {
-        crate::core_surfaces::ensure();
-        resolve_packs(crate::discovery::bundled_dir())
-    })
+    static PACKS: std::sync::Mutex<Option<(u64, &'static PackSet)>> = std::sync::Mutex::new(None);
+    let generation = crate::demand::generation();
+    let mut held = PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((loaded, packs)) = *held
+        && loaded == generation
+    {
+        return packs;
+    }
+    crate::core_surfaces::ensure();
+    let packs: &'static PackSet =
+        Box::leak(Box::new(resolve_packs(crate::discovery::bundled_dir())));
+    *held = Some((generation, packs));
+    packs
 }
 
 /// The workspace's loaded pack set, when a consumer has published one.
@@ -494,6 +509,7 @@ pub fn active_registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
 /// `report_timing`.
 #[must_use]
 pub fn registry_for_profile(profile: &'static DialectProfile) -> Arc<CommandRegistry> {
+    crate::demand::note_dialect(profile.name);
     crate::install::registry_with_packs(profile, packs())
 }
 
@@ -501,6 +517,7 @@ pub fn registry_for_profile(profile: &'static DialectProfile) -> Arc<CommandRegi
 /// [`tcl_registry::registry_for_dialect`].
 #[must_use]
 pub fn registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
+    crate::demand::note_dialect(dialect);
     registry_for_profile(crate::environment::profile_for_dialect(dialect))
 }
 

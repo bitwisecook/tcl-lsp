@@ -2803,7 +2803,9 @@ pub fn leading_option_word_count_for_arguments(
             crate::hover::OptionValue::Takes(value) => match value.arity {
                 crate::hover::OptionArity::One => 1,
                 crate::hover::OptionArity::Fixed(width) => usize::from(width),
-                crate::hover::OptionArity::Hook(_) => {
+                crate::hover::OptionArity::OptionalOneOf(_)
+                | crate::hover::OptionArity::OptionalNotOption
+                | crate::hover::OptionArity::Hook(_) => {
                     option.value_word_count_for_arguments(args, index)?
                 }
             },

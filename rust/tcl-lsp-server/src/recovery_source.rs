@@ -14,7 +14,6 @@ use super::{
     NonAsciiMode, PackageResolver, Path, PathBuf, PreparedCompletenessInput,
     ResourceAnalyserInputs, RwLock, SalsaAnalysisCtx, TrackedRwLock, core_workspace_index,
     defined_original_commands_from_analysis, provider_source, report_analysis_worker_panic,
-    with_pack_hooks,
 };
 use provider_source::{ProviderCaptureInputs, ProviderSourceUnavailable};
 use tcl_compiler::analyser::ResolvedAnalysisInput;
@@ -119,19 +118,17 @@ pub(super) async fn compute_recovery_analysis(
     });
     let text = ctx.text.to_owned();
     let dialect = ctx.dialect;
-    let preview = match crate::rt::spawn_blocking(move || {
-        with_pack_hooks(|| match checked_input {
-            Ok(input) => analyser
-                .with_resolved_input(input.as_ref().clone())
-                .structure_only()
-                .analyse(&text, dialect.name),
-            Err(miss) => {
-                let mut refused = AnalysisResult::default();
-                dialect.name.clone_into(&mut refused.dialect);
-                refused.analysis_context_unavailable = Some(miss);
-                refused
-            }
-        })
+    let preview = match crate::rt::spawn_blocking(move || match checked_input {
+        Ok(input) => analyser
+            .with_resolved_input(input.as_ref().clone())
+            .structure_only()
+            .analyse(&text, dialect.name),
+        Err(miss) => {
+            let mut refused = AnalysisResult::default();
+            dialect.name.clone_into(&mut refused.dialect);
+            refused.analysis_context_unavailable = Some(miss);
+            refused
+        }
     })
     .await
     {
@@ -155,7 +152,7 @@ pub(super) async fn compute_recovery_analysis(
         .to_file_path()
         .map(|path| path.display().to_string());
     match crate::rt::spawn_blocking(move || {
-        with_pack_hooks(|| {
+        {
             let mut analysis =
                 Backend::recovery_analyser(disabled, mode, widened.names, packs, resource)
                     .with_file_path(path)
@@ -167,7 +164,7 @@ pub(super) async fn compute_recovery_analysis(
             // issue bindings, original source words or a Native body entry.
             analysis.has_dynamic_providers |= widened.incomplete;
             Arc::new(analysis)
-        })
+        }
     })
     .await
     {
@@ -226,7 +223,7 @@ pub(super) async fn widen_recovery_extra_commands(
         .await;
     let resolver = ctx.package_resolver.read().await;
     let (commands, providers, incomplete) =
-        with_pack_hooks(|| package_recovery_names(&resolver, &sources, analysis, input, &roots));
+        package_recovery_names(&resolver, &sources, analysis, input, &roots);
     // Compare the newly projected source names too: reporting factory inputs
     // may change without changing a provider's text or availability context.
     let mut command_key: Vec<_> = commands.iter().cloned().collect();

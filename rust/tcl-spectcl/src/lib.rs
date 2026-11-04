@@ -67,9 +67,12 @@
 
 pub mod backing;
 pub mod bundled;
+#[rustfmt::skip]
+pub mod bundled_manifest;
 pub mod cache;
 pub mod catalogue;
 pub mod core_surfaces;
+pub mod demand;
 pub mod dialect_conversion;
 pub mod discovery;
 pub mod environment;

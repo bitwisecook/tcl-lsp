@@ -2441,6 +2441,24 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
                 row.push("-arity".to_owned());
                 row.push(format!("{{Fixed {}}}", arity["n"].as_u64().unwrap_or(0)));
             }
+            "OptionalOneOf" => {
+                let values: Option<Vec<String>> = arity["values"]
+                    .as_array()
+                    .map_or(Some(Vec::new()), |values| {
+                        values.iter().map(|v| word(str_of(v))).collect()
+                    });
+                match values {
+                    Some(values) if !values.is_empty() => {
+                        row.push("-arity".to_owned());
+                        row.push(format!("{{OptionalOneOf {}}}", values.join(" ")));
+                    }
+                    _ => lost = true,
+                }
+            }
+            "OptionalNotOption" => {
+                row.push("-arity".to_owned());
+                row.push("OptionalNotOption".to_owned());
+            }
             "Hook" => {
                 row.push("-arity-hook".to_owned());
                 row.push("-native".to_owned());

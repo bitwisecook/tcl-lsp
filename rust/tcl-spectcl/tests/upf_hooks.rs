@@ -16,16 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Every executable hook body the shipped UPF pack declares, run on the
-//! production host (`tclvm_host`, the `TclVM` engine) through the production
-//! plan (`hooks::plan_for` over the bundled `specs/` set), each with the
-//! answers its body is written to give.
+//! The shipped UPF pack's optional option values and its one executable hook
+//! body, each held to the answers it is written to give.
 //!
-//! `specs/upf.tclspec` carries seventeen bodies: sixteen option-arity hooks
-//! (`-arity-hook`) and the `define_power_model` argument-role resolver. The
-//! corpus gate asks only for one successful invocation per hooked pack, so a
-//! body that silently abstains would pass it; here every declared slot is
-//! exercised and must answer, not merely install.
+//! `specs/upf.tclspec` states sixteen optional option values as data
+//! (`-arity {OptionalOneOf TRUE FALSE}`, `-arity OptionalNotOption`), which
+//! the registry answers without a VM, and carries one body: the
+//! `define_power_model` argument-role resolver, run here on the production
+//! host (`tclvm_host`) through the production plan (`hooks::plan_for` over
+//! the bundled `specs/` set). The corpus gate asks only for one successful
+//! invocation per hooked pack, so a body that silently abstains would pass
+//! it; here the declared slot is exercised and must answer.
 
 use std::path::PathBuf;
 
@@ -107,57 +108,64 @@ fn invoke(
     )
 }
 
-fn consumed(words: usize) -> HookAnswer {
-    HookAnswer::Consume {
-        words,
-        invalid: None,
-    }
-}
-
-/// Every option-arity body consumes its optional value exactly when the
-/// value is there, and leaves a following option or the end of the call
-/// alone. Fifteen bodies take an optional `TRUE|FALSE`; `-feedthrough`
-/// (`set_port_attributes`) takes an optional name, i.e. any word that does
-/// not start with `-`.
+/// Every optional option value is consumed exactly when it is there, and a
+/// following option or the end of the call is left alone. Fifteen options
+/// take an optional `TRUE|FALSE`; `-feedthrough` (`set_port_attributes`)
+/// takes an optional name, i.e. any word that does not start with `-`.
 #[test]
-fn every_upf_option_arity_hook_consumes_exactly_its_optional_value() {
-    let host = tclvm_host();
-    let hooks = upf_hooks(&host);
-    let options: Vec<_> = hooks
-        .iter()
-        .filter(|(program, _)| program.family == HookFamily::OptionArity)
-        .collect();
-    assert_eq!(
-        options.len(),
-        16,
-        "the pack declares sixteen -arity-hook bodies"
-    );
+fn every_upf_optional_option_value_is_consumed_exactly_when_present() {
+    use tcl_registry::hover::{OptionArity, OptionValue};
 
-    for (program, slot) in options {
-        let HookOwner::Option { option, .. } = &program.owner else {
-            panic!(
-                "an option-arity hook hangs off an option: {:?}",
-                program.owner
-            );
+    let set = tcl_spectcl::bundled::load_from(&repo_root().join("specs"));
+    let upf = set
+        .packs
+        .iter()
+        .find(|pack| pack.name == "upf")
+        .expect("the bundled UPF pack");
+    let options: Vec<_> = upf
+        .commands
+        .iter()
+        .flat_map(|command| {
+            command
+                .spec
+                .options
+                .iter()
+                .map(move |option| (command.spec.name, option))
+        })
+        .filter(|(_, option)| {
+            matches!(
+                option.value,
+                OptionValue::Takes(arg)
+                    if matches!(arg.arity, OptionArity::OptionalOneOf(_) | OptionArity::OptionalNotOption)
+            )
+        })
+        .collect();
+    assert_eq!(options.len(), 16, "sixteen optional option values");
+
+    for (command, spec) in options {
+        let option = spec.name;
+        let OptionValue::Takes(arg) = spec.value else {
+            unreachable!("filtered to valued options");
         };
-        let option = option.as_str();
-        let name_valued = program.body.contains("string match");
-        let cases: &[(&[&str], usize)] = if name_valued {
-            &[
+        let cases: &[(&[&str], usize)] = match arg.arity {
+            OptionArity::OptionalNotOption => &[
                 (&[option, "feed1"], 1),
                 (&["obj", option, "feed1", "-unconnected"], 1),
                 (&[option, "-unconnected"], 0),
                 (&[option], 0),
-            ]
-        } else {
-            &[
-                (&[option, "TRUE"], 1),
-                (&[option, "FALSE"], 1),
-                (&["obj", option, "FALSE", "-x"], 1),
-                (&[option, "maybe"], 0),
-                (&[option, "-elements"], 0),
-                (&[option], 0),
-            ]
+            ],
+            OptionArity::OptionalOneOf(values) => {
+                assert_eq!(values, ["TRUE", "FALSE"], "{command} {option}");
+                &[
+                    (&[option, "TRUE"], 1),
+                    (&[option, "FALSE"], 1),
+                    (&["obj", option, "FALSE", "-x"], 1),
+                    (&[option, "maybe"], 0),
+                    (&[option, "-elements"], 0),
+                    (&[option], 0),
+                ]
+            }
+            _ => unreachable!("filtered to optional arities"),
         };
         for (words, expected) in cases {
             let index = words
@@ -165,10 +173,9 @@ fn every_upf_option_arity_hook_consumes_exactly_its_optional_value() {
                 .position(|word| *word == option)
                 .expect("option word");
             assert_eq!(
-                invoke(&host, *slot, words, Some(index)),
-                consumed(*expected),
-                "{} {option}: {words:?}",
-                program.command
+                spec.value_word_count(words, index),
+                *expected,
+                "{command} {option}: {words:?}"
             );
         }
     }
@@ -203,9 +210,5 @@ fn the_define_power_model_resolver_marks_the_trailing_body() {
         HookAnswer::Roles(vec![(3, ArgRole::Body)])
     );
     assert_eq!(invoke(&host, *slot, &["model"], None), HookAnswer::Abstain);
-    assert_eq!(
-        hooks.len(),
-        17,
-        "sixteen option-arity hooks and one resolver"
-    );
+    assert_eq!(hooks.len(), 1, "the resolver is the pack's only body");
 }

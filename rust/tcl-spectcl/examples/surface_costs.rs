@@ -114,25 +114,71 @@ fn resolve_costs(dialect: &str) {
     );
 }
 
+/// The native surfaces against their `SpecTcl` renderings
+/// (`equivalence/`, `cargo xtask gen-equivalence-packs`): the same commands,
+/// compiled in versus evaluated.
+fn equivalence_costs() {
+    timed("native: CommandRegistry::build_default", || {
+        black_box(tcl_registry::registry::CommandRegistry::build_default());
+    });
+    for (dialect, file) in [
+        ("tcl8.6", "equivalent_tcl8_6.tclspec"),
+        ("f5-irules", "equivalent_f5_irules.tclspec"),
+    ] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("equivalence")
+            .join(file);
+        let Ok(source) = std::fs::read_to_string(&path) else {
+            println!("{file}: missing — run `cargo xtask gen-equivalence-packs`");
+            continue;
+        };
+        let native = tcl_lsp_core::environment_for_dialect(dialect)
+            .default_context_registry()
+            .visible_command_names()
+            .len();
+        let pack = timed(&format!("SpecTcl {dialect}: evaluate pack"), || {
+            tcl_spectcl::evaluate_pack(&source)
+        });
+        if pack.commands.len() != native {
+            println!(
+                "  stale: {} pack commands against {native} native — run `cargo xtask \
+                 gen-equivalence-packs`",
+                pack.commands.len()
+            );
+        }
+    }
+}
+
 fn main() {
+    tcl_spectcl::demand::enable();
     println!("{:<44} {:>13} {:>12}", "phase", "wall", "rss growth");
     timed(
         "core_surfaces::ensure (Jim seed)",
         tcl_spectcl::core_surfaces::ensure,
     );
-    let packs = timed(
-        "bundled::load_embedded (8 EDA packs)",
-        tcl_spectcl::bundled::load_embedded,
-    );
+    timed("bundled::load_embedded (no demand: manifests)", || {
+        black_box(tcl_spectcl::bundled::load_embedded());
+    });
     timed("bundled::packs (process-wide set)", || {
         black_box(tcl_spectcl::bundled::packs());
     });
-    for dialect in ["tcl8.6", "jim", "xilinx-eda-tcl"] {
+    for dialect in ["tcl8.6", "jim"] {
         timed(&format!("first registry_for_dialect({dialect})"), || {
             black_box(tcl_spectcl::bundled::registry_for_dialect(dialect));
         });
     }
-    timed("hooks::publish", || tcl_spectcl::hooks::publish(&packs));
+    timed("demand: first xilinx-eda-tcl registry", || {
+        black_box(tcl_spectcl::bundled::registry_for_dialect("xilinx-eda-tcl"));
+    });
+    let packs = tcl_spectcl::bundled::packs();
+    timed("hooks::publish (UPF now loaded)", || {
+        tcl_spectcl::hooks::publish(packs);
+    });
+    timed("evaluator_generation on a fresh thread", || {
+        std::thread::spawn(|| black_box(tcl_registry::pack_hooks::evaluator_generation()))
+            .join()
+            .expect("generation thread");
+    });
     for n in 1..=2 {
         timed(&format!("ensure_thread_host on fresh thread #{n}"), || {
             std::thread::spawn(tcl_spectcl::hooks::ensure_thread_host)
@@ -141,15 +187,12 @@ fn main() {
         });
     }
     timed(
-        "ensure_thread_host again on main thread",
-        tcl_spectcl::hooks::ensure_thread_host,
-    );
-    timed(
         "ensure_thread_host warm (main thread)",
         tcl_spectcl::hooks::ensure_thread_host,
     );
     for dialect in ["tcl8.6", "jim"] {
         resolve_costs(dialect);
     }
+    equivalence_costs();
     println!("final rss {} KiB", resident_kib());
 }

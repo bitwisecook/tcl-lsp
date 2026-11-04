@@ -1217,6 +1217,33 @@ pub fn set_installer(installer: fn()) {
     let _ = INSTALLER.set(installer);
 }
 
+/// What the installer would do on this thread if it ran now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PendingHost {
+    /// The thread's host is current: nothing to do.
+    Current,
+    /// The published plan is empty: the installer would clear the host.
+    Cleared,
+    /// The installer would build a host for published plan `0`.
+    Plan(u64),
+}
+
+static PENDING: OnceLock<fn() -> PendingHost> = OnceLock::new();
+
+/// Register how to ask what the installer would do, without doing it.
+/// Idempotent; the first registration wins.
+///
+/// [`evaluator_generation`] names the evaluators an analysis starting now
+/// runs with. Building a host to learn that costs a VM bootstrap per pack per
+/// thread, paid by every analysis whether or not it ever reaches a hook; the
+/// generation a host built from a plan would carry is already known.
+pub fn set_pending_host(pending: fn() -> PendingHost) {
+    if external_evaluators_blocked() {
+        return;
+    }
+    let _ = PENDING.set(pending);
+}
+
 /// The next generation no state has had. Process-wide, so a generation
 /// minted on one thread is never minted again on another.
 static NEXT_GENERATION: AtomicU32 = AtomicU32::new(1);
@@ -1339,7 +1366,17 @@ pub fn advance_evaluator_epoch() {
 #[must_use]
 pub fn evaluator_generation() -> EvaluatorGeneration {
     if ANY_HOST.load(Ordering::Relaxed) || INSTALLER.get().is_some() {
-        ensure_host();
+        let direct = HOST.with(|slot| slot.borrow().is_some()) && !FROM_PLAN.with(Cell::get);
+        if !direct && !external_evaluators_blocked() {
+            match PENDING.get().map(|pending| pending()) {
+                Some(PendingHost::Current) => {}
+                Some(PendingHost::Cleared) => return EvaluatorGeneration::NO_HOST,
+                Some(PendingHost::Plan(plan)) => return plan_generation(plan),
+                None => {
+                    ensure_host();
+                }
+            }
+        }
     }
     GENERATION.with(Cell::get)
 }

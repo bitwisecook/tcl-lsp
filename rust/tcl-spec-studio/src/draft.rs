@@ -465,6 +465,10 @@ fn option_arity(value: OptionArity) -> (Value, bool) {
     match value {
         OptionArity::One => (json!({ "kind": "One" }), true),
         OptionArity::Fixed(n) => (json!({ "kind": "Fixed", "n": n }), true),
+        OptionArity::OptionalOneOf(values) => {
+            (json!({ "kind": "OptionalOneOf", "values": values }), true)
+        }
+        OptionArity::OptionalNotOption => (json!({ "kind": "OptionalNotOption" }), true),
         // The hook is a function pointer: the *shape* round-trips, but the
         // expression that produced it does not. `hook` is the slot the author
         // fills in under the option's editor; it seeds empty, and the option

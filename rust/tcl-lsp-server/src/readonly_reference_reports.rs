@@ -4,9 +4,7 @@
 
 //! Reporting-only source reference locations and their independent coverage.
 
-use super::{
-    Backend, DocumentPathAdmission, DocumentSourceResult, LibraryPublicationSource, with_pack_hooks,
-};
+use super::{Backend, DocumentPathAdmission, DocumentSourceResult, LibraryPublicationSource};
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use tcl_compiler::analyser::{AnalysisResult, ResolvedAnalysisInput};
@@ -648,9 +646,7 @@ impl Backend {
                 diagnostic.record("source.retained_publication_mismatch", &[]);
                 return Ok(None);
             }
-            let Ok(input) =
-                with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, config))
-            else {
+            let Ok(input) = tcl_lsp_db::document_analysis_input(&*db, file, config) else {
                 diagnostic.record("source.analysis_input_unavailable", &[]);
                 return Ok(None);
             };
@@ -2825,10 +2821,8 @@ impl OriginalReadonlyReferenceDocument {
             )
             && diagnostic.check(
                 "lease.db.analysis_input",
-                with_pack_hooks(|| {
-                    tcl_lsp_db::document_analysis_input(state.db, self.file, self.config)
-                })
-                .is_ok_and(|input| input.as_ref() == self.input.as_ref()),
+                { tcl_lsp_db::document_analysis_input(state.db, self.file, self.config) }
+                    .is_ok_and(|input| input.as_ref() == self.input.as_ref()),
             )
     }
 }
@@ -3117,7 +3111,7 @@ impl ReadonlySourceDocument {
             && self.file.text(db).as_str() == self.source.as_ref()
             && self.file.external_call_sites(db) == &self.external_call_sites
             && self.file.dialect(db) == &self.publication.document.dialect
-            && with_pack_hooks(|| tcl_lsp_db::document_analysis_input(db, self.file, self.config))
+            && tcl_lsp_db::document_analysis_input(db, self.file, self.config)
                 .is_ok_and(|input| input.as_ref() == self.input.as_ref())
     }
 }

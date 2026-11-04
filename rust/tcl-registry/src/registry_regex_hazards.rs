@@ -140,7 +140,9 @@ fn consume_option(prefix: Prefix, option: &OptionSpec, count: usize) -> Option<O
         OptionValue::Takes(argument) => match argument.arity {
             OptionArity::One => 1,
             OptionArity::Fixed(width) => usize::from(width),
-            OptionArity::Hook(_) => return None,
+            OptionArity::OptionalOneOf(_)
+            | OptionArity::OptionalNotOption
+            | OptionArity::Hook(_) => return None,
         },
     };
     let index = prefix.index.checked_add(1 + width)?;

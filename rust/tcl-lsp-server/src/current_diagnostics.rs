@@ -28,7 +28,7 @@ use super::{
     compute_base_analysis, compute_deep_diagnostic_report, core_workspace_index,
     f5_model_document_report, is_apl_source, jsonrpc, longest_folder_match,
     next_pull_diag_result_id, proposal_diagnostics, provider_source, rewrite_wire,
-    sha256_digest_hex, with_pack_hooks,
+    sha256_digest_hex,
 };
 #[cfg(test)]
 use super::{
@@ -585,7 +585,7 @@ impl DiagInputs {
             {
                 None
             } else {
-                with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, job.config)).ok()
+                tcl_lsp_db::document_analysis_input(&*db, file, job.config).ok()
             }
         } else {
             None
@@ -1760,7 +1760,7 @@ impl Backend {
         if file.text(&*db) != tcl_lexer::normalise_lone_cr(source).as_ref() {
             return Err(DiagnosticUnavailable::Stale);
         }
-        let input = with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, config))
+        let input = tcl_lsp_db::document_analysis_input(&*db, file, config)
             .map_err(|_| DiagnosticUnavailable::Context)?;
         Ok(CurrentDiagnosticInput {
             file,

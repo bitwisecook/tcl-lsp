@@ -36,7 +36,9 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-arity",
         value: OptionValue::value("{Fixed N}"),
-        detail: "static value-word count (`One` is the default)",
+        detail: "static value-word count (`One` is the default); `{OptionalOneOf V …}` \
+                 takes a value word only when it is one of the literals, `OptionalNotOption` \
+                 only when it does not begin with `-`",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {

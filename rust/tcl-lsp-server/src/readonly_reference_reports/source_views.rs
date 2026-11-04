@@ -255,10 +255,8 @@ impl OriginalSourceViewDraft {
             && physical.file.text(state.db).as_str() == physical.source.as_ref()
             && physical.file.dialect(state.db) == &physical.publication.document.dialect
             && physical.config.diagnostic_report_configuration(state.db) == physical.configuration
-            && super::with_pack_hooks(|| {
-                tcl_lsp_db::document_analysis_input(state.db, physical.file, physical.config)
-            })
-            .is_ok_and(|input| input.as_ref() == physical.input.as_ref())
+            && { tcl_lsp_db::document_analysis_input(state.db, physical.file, physical.config) }
+                .is_ok_and(|input| input.as_ref() == physical.input.as_ref())
             && producer.uri_generation_matches(state)
             && producer.matches_input_state(state, epoch, factory)
             && self.matches_producer()

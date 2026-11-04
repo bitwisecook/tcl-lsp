@@ -611,6 +611,32 @@ fn load_sources_unpublished_inner(
     // Keyed from the bytes, before anything is parsed: the key must describe
     // the input, not what the loader made of it.
     let mut key = set_key(&sources, trust);
+    // A bundled pack no open environment needs yet loads manifest-only
+    // (`crate::demand`). What is deferred is part of what the set holds, so
+    // it is part of the key: widening the demand re-keys and reinstalls.
+    let deferred: Vec<bool> = sources
+        .iter()
+        .map(|(file, source)| {
+            file.tier == Tier::Bundled
+                && file
+                    .path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| crate::demand::deferred(name, source).is_some())
+        })
+        .collect();
+    if deferred.contains(&true) {
+        let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+        hasher.update(&key.to_le_bytes());
+        for (index, _) in deferred
+            .iter()
+            .enumerate()
+            .filter(|(_, deferred)| **deferred)
+        {
+            hasher.update(&(index as u64).to_le_bytes());
+        }
+        key = hasher.digest().max(1);
+    }
     // What the load reads beside the packs — the package files their
     // `-package-source` backings name — is input too.
     let mut provisioned = xxhash_rust::xxh3::Xxh3::new();
@@ -621,7 +647,7 @@ fn load_sources_unpublished_inner(
     // merge below consumes these `Pack`s rather than re-reading the source.
     let mut by_name: BTreeMap<String, Vec<(PackFile, Pack)>> = BTreeMap::new();
     let mut load_errors = Vec::new();
-    for (file, source) in sources {
+    for ((file, source), deferred) in sources.into_iter().zip(deferred) {
         let file_trust = file.tier.trust_under(trust);
         // The resolver is lazy: helper/computed include invocations receive
         // the same actual provider even when no direct source row names it.
@@ -656,11 +682,12 @@ fn load_sources_unpublished_inner(
                     Err(error)
                 })
             };
-            let pack = crate::cache::evaluate_pack_including(
+            let pack = crate::cache::evaluate_pack_including_with(
                 &source,
                 file.tier,
                 file_trust,
                 &std::rc::Rc::new(context),
+                !deferred,
             );
             for observation in observations.borrow_mut().drain(..) {
                 // The same images that were evaluated feed both content key
@@ -878,7 +905,7 @@ fn say_pack_text_backings(merged: &MergedPack, notices: &mut Vec<PackNotice>) {
 /// every user's Problems panel, for something that cannot happen.
 ///
 /// So two claims collide only when some profile would install both, which
-/// [`could_collide`] asks exactly.
+/// [`PackageAdmission::could_collide`] asks exactly.
 ///
 /// # Two shipped packs layering on purpose is not a collision either
 ///
@@ -916,6 +943,7 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
     // the one `install_into` would have let win, since both walk packs in the
     // same order.
     let mut claimed: BTreeMap<&'static str, Vec<Claim>> = BTreeMap::new();
+    let mut admission = PackageAdmission::default();
 
     for pack in packs {
         for command in &pack.commands {
@@ -927,10 +955,9 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
                 tier: pack.tier,
             };
             let standing = claimed.entry(command.spec.name).or_default();
-            let Some(idx) = standing
-                .iter()
-                .position(|prior| could_collide(prior.package, command.spec.required_package))
-            else {
+            let Some(idx) = standing.iter().position(|prior| {
+                admission.could_collide(prior.package, command.spec.required_package)
+            }) else {
                 // Nothing standing is ever live in the same registry as this
                 // one, so it shadows nothing and nothing shadows it: it joins
                 // the standing set rather than replacing it.
@@ -997,16 +1024,45 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
 /// vendors never do, which is why the six shipped loadables can all declare a
 /// `report_timing` without shadowing each other.
 ///
-/// Identical requirements short-circuit to `true` — the common case, and one
-/// no profile sweep could disagree with.
-fn could_collide(a: Option<&'static str>, b: Option<&'static str>) -> bool {
-    if a == b {
-        return true;
+/// Each distinct requirement's admission across the profiles is computed once
+/// per load: assembling a profile's document context is the expensive part,
+/// and a pack set names only a handful of packages across thousands of
+/// commands.
+#[derive(Default)]
+struct PackageAdmission {
+    contexts: Vec<&'static tcl_registry::model::ResolvedContext>,
+    by_package: rustc_hash::FxHashMap<Option<&'static str>, Vec<bool>>,
+}
+
+impl PackageAdmission {
+    fn admitted(&mut self, package: Option<&'static str>) -> &[bool] {
+        if self.contexts.is_empty() {
+            self.contexts = tcl_dialect::DialectProfile::all()
+                .iter()
+                .map(|profile| {
+                    tcl_registry::model::ingress::static_document_context_for_profile(profile)
+                })
+                .collect();
+        }
+        let contexts = &self.contexts;
+        self.by_package.entry(package).or_insert_with(|| {
+            contexts
+                .iter()
+                .map(|context| context.required_package_available(package))
+                .collect()
+        })
     }
-    tcl_dialect::DialectProfile::all().iter().any(|profile| {
-        let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
-        context.required_package_available(a) && context.required_package_available(b)
-    })
+
+    /// Identical requirements short-circuit to `true` — the common case, and
+    /// one no profile sweep could disagree with.
+    fn could_collide(&mut self, a: Option<&'static str>, b: Option<&'static str>) -> bool {
+        if a == b {
+            return true;
+        }
+        let first = self.admitted(a).to_vec();
+        let second = self.admitted(b);
+        first.iter().zip(second).any(|(x, y)| *x && *y)
+    }
 }
 
 /// Report every `file_extension` two different packs both claim.

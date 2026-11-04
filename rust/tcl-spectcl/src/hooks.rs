@@ -618,6 +618,8 @@ fn bind_option(options: &mut [OptionSpec], name: &str, slot: HookSlot) {
 /// the one state [`ensure_thread_host`] answers with a single relaxed load.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 static PUBLISHED: Mutex<Option<Arc<HookPlan>>> = Mutex::new(None);
+/// Whether the plan at [`GENERATION`] is empty, readable without the lock.
+static PUBLISHED_EMPTY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 thread_local! {
     /// The generation this thread's installed host was built from.
@@ -644,6 +646,7 @@ pub fn publish(packs: &PackSet) {
         // zero so an unaccelerated process never pays for the check.
         return;
     }
+    PUBLISHED_EMPTY.store(plan.is_empty(), Ordering::Release);
     *published = Some(plan);
     GENERATION.fetch_add(1, Ordering::Release);
     // A new plan is new evaluators for every thread that serves it: a memo
@@ -655,6 +658,22 @@ pub fn publish(packs: &PackSet) {
     // a host becomes worth building at all; idempotent, so repeated reloads
     // cost one `OnceLock` read.
     pack_hooks::set_installer(ensure_thread_host);
+    pack_hooks::set_pending_host(pending_thread_host);
+}
+
+/// What [`ensure_thread_host`] would do on this thread, without building
+/// anything: the generation question compilation asks on every unit does not
+/// need a VM, only the hook calls do.
+fn pending_thread_host() -> pack_hooks::PendingHost {
+    let generation = GENERATION.load(Ordering::Acquire);
+    if generation == 0 || INSTALLED.with(std::cell::Cell::get) == generation {
+        return pack_hooks::PendingHost::Current;
+    }
+    if PUBLISHED_EMPTY.load(Ordering::Acquire) {
+        pack_hooks::PendingHost::Cleared
+    } else {
+        pack_hooks::PendingHost::Plan(generation)
+    }
 }
 
 /// Give this thread a hook host for the published plan, if it does not have

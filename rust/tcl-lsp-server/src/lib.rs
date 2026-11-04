@@ -5518,9 +5518,8 @@ async fn prepare_base_completeness_input(
     let (supplied, packs, resource) = {
         let db = ctx.db.lock().await;
         (
-            ctx.file.map(|file| {
-                with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, ctx.config))
-            }),
+            ctx.file
+                .map(|file| tcl_lsp_db::document_analysis_input(&*db, file, ctx.config)),
             ctx.config.spec_pack_key(&*db),
             ResourceAnalyserInputs::from_db_config(ctx.config, &*db),
         )
@@ -5538,11 +5537,11 @@ async fn prepare_base_completeness_input(
                     .to_file_path()
                     .map(|path| path.display().to_string()),
             );
-    let input = with_pack_hooks(|| {
+    let input = {
         analyser
             .prepare_analysis_input(ctx.dialect.name)
             .map(Arc::new)
-    });
+    };
     PreparedCompletenessInput {
         checked_input: input,
         untracked_analyser: Some(analyser),
@@ -5589,31 +5588,10 @@ async fn report_analysis_worker_panic(
     client.log_message(MessageType::ERROR, message).await;
 }
 
-/// Run `work` on this worker thread with the workspace's `SpecTcl` hook host
-/// installed.
-///
-/// A pack's `const_fold` / `arg_role_resolver` / … body runs on a sandboxed VM,
-/// and a VM is not `Send`, so the host that owns one is **per thread**
-/// (`tcl_registry::pack_hooks`: "a thread with no host installed abstains").
-/// Analysis and optimisation run on `spawn_blocking` workers, and the pool
-/// hands work to whichever thread is free, so the host cannot be installed
-/// where the packs are loaded — [`Backend::reload_spec_packs`] publishes the
-/// plan and this builds a thread's host from it the first time that thread does
-/// analysis, and again after a pack edit changes the plan.
-///
-/// The cost with no packs loaded — the overwhelmingly common case — is one
-/// relaxed atomic load, which is why this can sit at the top of every worker
-/// closure that reaches the registry's hook fields rather than being threaded
-/// through their inputs.
-fn with_pack_hooks<R>(work: impl FnOnce() -> R) -> R {
-    tcl_spectcl::hooks::ensure_thread_host();
-    work()
-}
-
 /// Take the process's evaluator epoch into the query database.
 ///
 /// The memoised lattices are shared by every worker while each worker's hook
-/// host is its own ([`with_pack_hooks`]), so a hook quarantined on whichever
+/// host is its own (built on its first hook dispatch), so a hook quarantined on whichever
 /// worker ran it changes what an analysis there would answer without changing
 /// anything a query reads, and a plan [`Backend::reload_spec_packs`]
 /// publishes reaches the workers before the pack key it installs reaches the
@@ -5739,7 +5717,7 @@ async fn compute_base_analysis_with_read_cancellations(
         let cancellations = cancellations.cloned();
         let worker_cancellations = cancellations.clone();
         match crate::rt::spawn_blocking(move || {
-            with_pack_hooks(|| {
+            {
                 salsa::Cancelled::catch(|| {
                     tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                 })
@@ -5747,7 +5725,7 @@ async fn compute_base_analysis_with_read_cancellations(
                     diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason);
                 })
                 .ok()
-            })
+            }
         })
         .await
         {
@@ -5780,13 +5758,13 @@ async fn compute_base_analysis_with_read_cancellations(
             return ControlFlow::Break(true);
         };
         let analysis = crate::rt::spawn_blocking(move || {
-            with_pack_hooks(|| {
+            {
                 Arc::new(
                     analyser
                         .with_resolved_input(input.as_ref().clone())
                         .analyse(&a_text, a_dialect.name),
                 )
-            })
+            }
         })
         .await
         .unwrap_or_default();
@@ -5927,17 +5905,15 @@ async fn compute_compiler_diags_with_read_cancellations(
         let cancellations = cancellations.cloned();
         let worker_cancellations = cancellations.clone();
         match crate::rt::spawn_blocking(move || {
-            with_pack_hooks(|| {
-                let diagnostics = salsa::Cancelled::catch(|| {
-                    tcl_lsp_db::compiler_check_diagnostics_if_available(&*snapshot, file, config)
-                })
-                .inspect_err(|reason| {
-                    diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason);
-                })
-                .ok();
-                report_overlay_misses();
-                diagnostics
+            let diagnostics = salsa::Cancelled::catch(|| {
+                tcl_lsp_db::compiler_check_diagnostics_if_available(&*snapshot, file, config)
             })
+            .inspect_err(|reason| {
+                diagnostic_read_cancellation::observe(worker_cancellations.as_ref(), reason);
+            })
+            .ok();
+            report_overlay_misses();
+            diagnostics
         })
         .await
         {
@@ -5965,7 +5941,7 @@ async fn compute_compiler_diags_with_read_cancellations(
         let c_generic = generic_variable_patterns.map(<[String]>::to_vec);
         ControlFlow::Continue(Some(
             crate::rt::spawn_blocking(move || {
-                with_pack_hooks(|| {
+                {
                     Arc::new(
                         tcl_lsp_db::compiler_check_diagnostics_uncached_from_analysis(
                             &c_text,
@@ -5977,7 +5953,7 @@ async fn compute_compiler_diags_with_read_cancellations(
                             None,
                         ),
                     )
-                })
+                }
             })
             .await
             .unwrap_or_else(|_| unavailable_compiler_diagnostics()),
@@ -9583,6 +9559,9 @@ enum ReloadTrigger {
     /// pack's hook bodies start or stop running. The pack-set key mixes the
     /// state, so the reload re-installs even though no file moved.
     Trust,
+    /// A document's environment needs a bundled pack that loaded
+    /// manifest-only ([`tcl_spectcl::demand`]), so it now loads in full.
+    Demand,
 }
 
 /// The workspace's published pack set, stamped with the reload generation that
@@ -13592,8 +13571,8 @@ impl Backend {
             // Publish the hook plan *before* the new pack set becomes
             // visible, and under the same lock: slots are allocated once,
             // here, for the whole process, and each worker thread builds
-            // its own sandboxed host from the plan the first time it runs
-            // analysis (`with_pack_hooks`).  A `HookHost` owns VM
+            // its own sandboxed host from the plan the first time it
+            // dispatches a hook.  A `HookHost` owns VM
             // instances, which are not `Send`, so this cannot install
             // anything itself — it records what to install.  Publishing
             // after the swap would leave a window in which a query sees
@@ -24328,7 +24307,6 @@ impl Backend {
             source_receipt.as_deref(),
         );
         let value = crate::rt::spawn_blocking(move || {
-            tcl_spectcl::hooks::ensure_thread_host();
             // A command the user invoked reads no whole-document gate:
             // `features.diagnostics` turns off the published squiggles, not
             // the rewrite asked for — `tcl opt`'s rule.
@@ -27912,6 +27890,7 @@ impl Backend {
     /// re-enters the same cache the salsa query reads, so this is a change of
     /// ownership, not of identity.
     async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
+        self.note_pack_demand(dialect);
         let packs = self.spec_packs().await;
         if !packs.is_empty() {
             return tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
@@ -27927,6 +27906,29 @@ impl Backend {
                 .default_context_registry()
                 .commands(),
         )
+    }
+
+    /// Record that a document in `dialect` is open and, when that is the first
+    /// to need a bundled pack held manifest-only, load it in full and
+    /// re-analyse the open documents — off this request, which answers with
+    /// the set it already has.
+    fn note_pack_demand(&self, dialect: &str) {
+        if !tcl_spectcl::demand::note_dialect(dialect) {
+            return;
+        }
+        let backend = self.clone();
+        crate::rt::spawn(async move {
+            match backend.reload_spec_packs(ReloadTrigger::Demand).await {
+                Ok(true) => backend.reschedule_all_open_documents().await,
+                Ok(false) => {}
+                Err(error) => {
+                    backend
+                        .client
+                        .log_message(MessageType::WARNING, error.to_string())
+                        .await;
+                }
+            }
+        });
     }
 
     /// `tclLsp.specPacks` and what discovery made of it, for
@@ -33954,6 +33956,9 @@ impl LanguageServer for Backend {
         // part of what it is analysed against either way, so they are in
         // before the client can send one.
         tcl_spectcl::core_surfaces::ensure();
+        // Bundled vendor packs load manifest-only until an open document's
+        // environment needs one (`Backend::note_pack_demand`).
+        tcl_spectcl::demand::enable();
         self.apply_workspace_folders(&params).await;
         self.apply_initialization_options(&params).await;
         // Push is the sole diagnostics channel by default: pull is opt-in and

@@ -46,6 +46,7 @@ rustc_lexer = "=0.1.0"
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-spectcl = { path = "../tcl-spectcl" }
+tcl-spec-studio = { path = "../tcl-spec-studio" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-compiler = { path = "../tcl-compiler" }

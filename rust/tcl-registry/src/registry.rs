@@ -1021,7 +1021,7 @@ struct RegistrySemanticKeyData {
     fingerprint: u64,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct RegistrySnapshotKey {
     commands: Vec<(&'static str, Vec<usize>)>,
     overlays: Vec<usize>,
@@ -8810,7 +8810,7 @@ impl CommandRegistry {
             self.get_for_surface(name, dialect)
         };
         let Some(spec) = spec else {
-            if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+            if crate::trace_deferred_writes_any() {
                 eprintln!(
                     "TCL_LSP_TRACE_METADATA_REGISTRY head={name:?} query={dialect:?} unresolved=UnknownLiteralHead"
                 );
@@ -19744,6 +19744,18 @@ mod registry_snapshot_tests {
         data.fingerprint = first.0.semantic_key.0.fingerprint;
         second_data.semantic_key = RegistrySemanticKey(Arc::new(data));
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn independently_built_equal_stores_share_one_semantic_key() {
+        let first = CommandRegistry::build_default().snapshot();
+        let second = CommandRegistry::build_default().snapshot();
+        assert!(!Arc::ptr_eq(&first.0, &second.0));
+        assert!(Arc::ptr_eq(
+            &first.semantic_key().0,
+            &second.semantic_key().0
+        ));
+        assert_eq!(first, second);
     }
 }
 

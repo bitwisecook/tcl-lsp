@@ -270,7 +270,8 @@ impl<'a> InvocationMetadataContext<'a> {
     }
     pub(crate) fn matches_registry(self, commands: &CommandRegistry) -> bool {
         self.actual_commands.is_none_or(|actual| {
-            actual.snapshot().semantic_key() == commands.snapshot().semantic_key()
+            std::ptr::eq(actual, commands)
+                || actual.snapshot().semantic_key() == commands.snapshot().semantic_key()
         })
     }
 }

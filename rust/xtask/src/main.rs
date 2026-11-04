@@ -103,6 +103,8 @@ mod gen_editor_configs;
 mod gen_editor_dialects;
 mod gen_editor_settings;
 mod gen_environment_docs;
+mod gen_bundled_manifests;
+mod gen_equivalence_packs;
 mod gen_irule_test_data;
 mod gen_jetbrains;
 mod gen_tmlanguage_keywords;
@@ -253,6 +255,24 @@ enum Command {
     GenBundledEnvironments {
         /// Verify the committed seed is in sync with the packs instead of
         /// rewriting it; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Precompile which bundled packs may load manifest-only, and the
+    /// packages that make each wanted (`rust/tcl-spectcl/src/bundled_manifest.rs`).
+    GenBundledManifests {
+        /// Verify the committed table matches `specs/` instead of rewriting
+        /// it; exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Render the native Tcl 8.6 and iRules surfaces as `SpecTcl` packs under
+    /// `rust/tcl-spectcl/equivalence/`, for like-for-like benchmarks.
+    GenEquivalencePacks {
+        /// Verify the committed packs match the native surfaces instead of
+        /// rewriting them; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -569,6 +589,8 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
         Command::GenEditorExtensions { check } => editor_extensions::run(check),
         Command::GenBundledEnvironments { check } => gen_bundled_environments::run(check),
+        Command::GenBundledManifests { check } => gen_bundled_manifests::run(check),
+        Command::GenEquivalencePacks { check } => gen_equivalence_packs::run(check),
         Command::GenEditorConfigs { check } => gen_editor_configs::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
         Command::GenEnvironmentDocs { check } => gen_environment_docs::run(check),

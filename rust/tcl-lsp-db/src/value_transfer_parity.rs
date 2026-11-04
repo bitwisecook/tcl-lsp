@@ -510,10 +510,9 @@ fn a_pack_edit_invalidates_the_lattice() {
 }
 
 /// A pool thread whose host was built from a superseded plan answers with
-/// the new plan. The server builds a thread's host where a worker closure
-/// asks for it (`with_pack_hooks`), but several queries reaching the unit —
-/// the semantic-token and handle queries among them — run on a pool thread
-/// without that call. Here this thread builds its host under the first
+/// the new plan. A thread builds its host on its first hook dispatch, and
+/// queries reaching the unit — the semantic-token and handle queries among
+/// them — run on whichever pool thread is free. Here this thread builds its host under the first
 /// plan, a reload elsewhere publishes an edited pack without touching this
 /// thread, and the next query re-keyed to the new pack must fold through
 /// the new body: a thread that kept its old host computed the re-keyed

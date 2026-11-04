@@ -355,7 +355,7 @@ command connect_supply_set {
     option -exclude_elements -takes exclude_list \
            -detail {The list of instances to exclude from the effective_element_list.}
     option -transitive -takes boolean -values {TRUE FALSE} -closed \
-           -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+           -arity {OptionalOneOf TRUE FALSE} \
            -detail {Whether the connection is transitive, defaulting to TRUE both when the option is omitted and when it is given without a value.}
 
     form Default {connect_supply_set supply_set_ref ?-connect {supply_function pg_type_list}...? ?-elements element_list? ?-exclude_elements exclude_list? ?-transitive ?TRUE|FALSE??}
@@ -882,7 +882,7 @@ command find_objects {
     ;# present without a value means TRUE -- a shape the option row cannot spell,
     ;# so it is written as an ordinary value option with a closed value set.
     option -transitive -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Searches the scope and its entire descendant subtree, stopping at leaf cells, defaulting to FALSE when absent and to TRUE when given without a value.}
     option -regexp \
         -detail {Enables support for regular expressions in the specified search pattern.}
@@ -1192,16 +1192,16 @@ command set_design_attributes {
     ;# FALSE, present without a value means TRUE -- a shape the option row cannot
     ;# spell, so each is written as a value option over the closed TRUE/FALSE set.
     option -is_soft_macro -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Marks the attributed models or elements as soft macros, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_soft_macro value}.}
     option -is_hard_macro -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Marks the attributed models or elements as hard macros, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_hard_macro value}.}
     option -is_refinable_macro -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Marks the attributed models or elements as refinable macros, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_refinable_macro value}.}
     option -is_power_aware_model -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Marks the attributed models or elements as power aware models, defaulting to FALSE when absent and to TRUE when given without a value, equivalently to -attribute {UPF_is_power_aware_model value}.}
     option -switch_cell_type -takes switch_cell_type -values {coarse_grain fine_grain} -closed \
         -detail {Identifies the switch cell type of the model, equivalently to -attribute {UPF_switch_cell_type value}.}
@@ -1264,7 +1264,7 @@ command set_equivalent {
     option -function_only \
         -detail {Specifies that the supplies are functionally equivalent rather than electrically equivalent.}
     option -interchangeable -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Specifies whether the functionally equivalent supplies are interchangeable, defaulting to TRUE both when the option is absent and when it is given without a value (only with -function_only).}
     option -nets -takes supply_net_name_list \
         -detail {A list of supply port and/or supply net names that are equivalent.}
@@ -1300,10 +1300,10 @@ command set_isolation {
     option -sink -takes sink_ref \
         -detail {The name of a supply set or power domain on the receiving side, where a domain name denotes the primary supply of that domain.}
     option -diff_supply_only -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Indicates whether ports connected to other ports with the same supply should be isolated, defaulting to TRUE both when the option is absent and when it is given without a value.}
     option -use_functional_equivalence -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Indicates whether to consider supply set equivalence irrespective of interchangeability, defaulting to TRUE both when the option is absent and when it is given without a value.}
     option -applies_to -takes direction -values {inputs outputs both} -closed \
         -detail {A filter that restricts the strategy to apply to ports based on their direction with respect to the domain.}
@@ -1398,7 +1398,7 @@ command set_level_shifter {
     option -sink -takes sink_ref \
         -detail {The name of a supply set or power domain on the receiving side, where a domain name denotes the primary supply of that domain.}
     option -use_functional_equivalence -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Indicates whether to consider supply set equivalence irrespective of interchangeability, defaulting to TRUE both when the option is absent and when it is given without a value.}
     option -applies_to -takes direction -values {inputs outputs both} -closed \
         -detail {A filter that restricts the strategy to apply to ports based on their direction with respect to the domain.}
@@ -1512,7 +1512,7 @@ command set_port_attributes {
     option -related_bias_ports -takes supply_port_name_list \
         -detail {The bias ports for the attributed port, equivalent to -attribute with the UPF_related_bias_ports attribute (only with -related_power_port and -related_ground_port).}
     option -feedthrough -takes feedthrough_name \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {$i < [llength $words] && ![string match -* [lindex $words $i]]} { consume 1 } else { consume 0 } } \
+        -arity OptionalNotOption \
         -detail {Indicates that the specified ports are connected together internally to form a feedthrough, equivalent to -attribute with the UPF_feedthrough attribute, and the name may be omitted.}
     option -unconnected \
         -detail {Indicates that the specified ports are not connected at all internally, equivalent to -attribute with UPF_unconnected set to TRUE.}
@@ -1557,7 +1557,7 @@ command set_repeater {
     option -sink -takes sink_ref \
         -detail {The name of a supply set or power domain on the receiving side, where a domain name denotes the primary supply of that domain.}
     option -use_functional_equivalence -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Indicates whether to consider supply set equivalence irrespective of interchangeability, defaulting to TRUE both when the option is absent and when it is given without a value.}
     option -applies_to -takes direction -values {inputs outputs both} -closed \
         -detail {A filter that restricts the strategy to apply to ports based on their direction with respect to the domain.}
@@ -1666,7 +1666,7 @@ command set_retention_elements {
     option -retention_purpose -takes retention_purpose -values {required optional} -closed \
         -detail {The intended retention use of retention_list_name; the default is required.}
     option -transitive -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value (deprecated).}
 
     form Default {set_retention_elements retention_list_name -elements element_list ?-applies_to required|optional|not_required|not_optional? ?-exclude_elements exclude_list? ?-retention_purpose required|optional? ?-transitive ?TRUE|FALSE??}
@@ -1765,7 +1765,7 @@ command sim_assertion_control {
     option -type -takes type -values {reset suspend kill} -closed \
         -detail {The type of assertion control; the default is reset.}
     option -transitive -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value.}
 
     option_conflict {-controlling_domain -control_expr}
@@ -1795,7 +1795,7 @@ command sim_corruption_control {
     option -model -takes model_name -detail {The HDL model to which the command will apply.}
     option -domain -takes domain_name -detail {The domain in which the command will apply.}
     option -transitive -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value.}
 
     form Default {sim_corruption_control -type real|integer|seq|comb|port|process ?-elements element_list? ?-exclude_elements exclude_list? ?-model model_name? ?-domain domain_name? ?-transitive ?TRUE|FALSE??}
@@ -1825,7 +1825,7 @@ command sim_replay_control {
     option -controlling_domain -takes domain_name \
         -detail {The domain whose primary supply set's simstate controls when the initial block is replayed, defaulting to the domain containing each initial block.}
     option -transitive -takes boolean -values {TRUE FALSE} -closed \
-        -arity-hook {words ctx} { set i [dict get $ctx option-value-start]; if {[lindex $words $i] in {TRUE FALSE}} { consume 1 } else { consume 0 } } \
+        -arity {OptionalOneOf TRUE FALSE} \
         -detail {Apply the command to the specified scope or to that scope and all dependent subtrees, defaulting to TRUE both when the option is omitted and when it is given without a value.}
 
     form Default {sim_replay_control ?-elements element_list? ?-exclude_elements exclude_list? ?-model model_name? ?-domain domain_name? ?-controlling_domain domain_name? ?-transitive ?TRUE|FALSE??}

@@ -315,10 +315,17 @@ pub fn evaluate_pack_cached(source: &str, tier: Tier, trust: WorkspaceTrust) -> 
     pack
 }
 
-/// Evaluate with the actual include provider on every call. The finished-pack
-/// cache cannot describe included inputs, but the segmentation memo is keyed
-/// by each fragment's own text, line and BOM. It never skips provider reads or
-/// evaluation when an included file changes.
+/// Evaluate with the actual include provider. The finished-pack cache cannot
+/// describe included inputs, so a load that resolved an include is never
+/// memoised and never skips provider reads or evaluation when an included file
+/// changes; the segmentation memo is keyed by each fragment's own text, line
+/// and BOM.
+///
+/// A load that resolved no include read nothing but its source: evaluation is
+/// deterministic and sandboxed, so the same source under the same identity
+/// resolves no include again, and its finished pack is memoised exactly as
+/// [`evaluate_pack_cached`] memoises one. Every bundled pack is such a load,
+/// so a reload, and a second consumer in the same process, reuse it.
 #[must_use]
 pub fn evaluate_pack_including(
     source: &str,
@@ -326,14 +333,39 @@ pub fn evaluate_pack_including(
     trust: WorkspaceTrust,
     include: &Rc<IncludeContext>,
 ) -> Pack {
-    let options = options_for(tier, trust);
+    evaluate_pack_including_with(source, tier, trust, include, true)
+}
+
+/// [`evaluate_pack_including`], evaluating `command` declarations only when
+/// `commands` is set ([`crate::loader::EvalOptions::commands`]). A manifest
+/// and the full pack are memoised apart.
+#[must_use]
+pub fn evaluate_pack_including_with(
+    source: &str,
+    tier: Tier,
+    trust: WorkspaceTrust,
+    include: &Rc<IncludeContext>,
+    commands: bool,
+) -> Pack {
+    let options = EvalOptions {
+        commands,
+        ..options_for(tier, trust)
+    };
     if disabled() {
         return crate::loader::evaluate_pack_in(source, &options, Some(Rc::clone(include)));
     }
     let key = eval_snapshot_key(source, &options);
-    through_disk(&key, || {
+    if let Some(hit) = snapshot_get(&key) {
+        return hit;
+    }
+    let reads_before = include.reads();
+    let pack = through_disk(&key, || {
         crate::loader::evaluate_pack_in(source, &options, Some(Rc::clone(include)))
-    })
+    });
+    if include.reads() == reads_before && !pack.target_dependent {
+        snapshot_put(key, &pack);
+    }
+    pack
 }
 
 /// Run `load` with this identity's on-disk entry seeded as the segmentation

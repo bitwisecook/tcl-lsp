@@ -65,7 +65,7 @@ pub use output::{
 pub fn registry_for_dialect(
     dialect: &str,
 ) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
-    tcl_spectcl::install::registry_for_dialect_with_packs(dialect, cli_packs())
+    tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &cli_packs(dialect))
 }
 
 /// The discovered loadables' content identity, for
@@ -83,29 +83,44 @@ pub fn registry_for_dialect(
 /// back to the plain profile.
 #[must_use]
 pub fn spec_pack_key(dialect: &str) -> u64 {
-    let packs = cli_packs();
-    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, packs);
+    let packs = cli_packs(dialect);
+    let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
     packs.key
 }
 
-/// Discover the CLI process's workspace once, rooted at its current directory.
-fn cli_packs() -> &'static tcl_spectcl::PackSet {
-    static PACKS: std::sync::OnceLock<tcl_spectcl::PackSet> = std::sync::OnceLock::new();
-    PACKS.get_or_init(|| {
-        let workspace_roots = std::env::current_dir().into_iter().collect();
-        let files = tcl_spectcl::discover(&tcl_spectcl::DiscoveryOptions {
-            workspace_roots,
-            ..tcl_spectcl::DiscoveryOptions::default()
-        });
-        let packs = tcl_spectcl::bundled::load_discovered(&files);
-        // Pack commands and their typed behaviour are one publication. Hook
-        // dispatch consults the process-wide plan, while explorer consumers
-        // consult the active pack set; publish both before exposing `packs`.
-        tcl_spectcl::hooks::publish(&packs);
-        tcl_spectcl::hooks::ensure_thread_host();
-        tcl_spectcl::bundled::set_active(Some(std::sync::Arc::new(packs.clone())));
-        packs
-    })
+/// The CLI process's packs, discovered from its current directory, with every
+/// bundled pack a dialect asked for so far evaluated in full.
+///
+/// A bundled vendor library loads manifest-only until a document needs it
+/// ([`tcl_spectcl::demand`]), so the set is reloaded when `dialect` widens the
+/// demand; a pack already evaluated comes back from the snapshot memo.
+fn cli_packs(dialect: &str) -> std::sync::Arc<tcl_spectcl::PackSet> {
+    static PACKS: std::sync::Mutex<Option<(u64, std::sync::Arc<tcl_spectcl::PackSet>)>> =
+        std::sync::Mutex::new(None);
+    tcl_spectcl::demand::enable();
+    tcl_spectcl::demand::note_dialect(dialect);
+    let generation = tcl_spectcl::demand::generation();
+    let mut held = PACKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((loaded, packs)) = held.as_ref()
+        && *loaded == generation
+    {
+        return std::sync::Arc::clone(packs);
+    }
+    let workspace_roots = std::env::current_dir().into_iter().collect();
+    let files = tcl_spectcl::discover(&tcl_spectcl::DiscoveryOptions {
+        workspace_roots,
+        ..tcl_spectcl::DiscoveryOptions::default()
+    });
+    let packs = std::sync::Arc::new(tcl_spectcl::bundled::load_discovered(&files));
+    // Pack commands and their typed behaviour are one publication. Hook
+    // dispatch consults the process-wide plan, while explorer consumers
+    // consult the active pack set; publish both before exposing `packs`.
+    tcl_spectcl::hooks::publish(&packs);
+    tcl_spectcl::bundled::set_active(Some(std::sync::Arc::clone(&packs)));
+    *held = Some((generation, std::sync::Arc::clone(&packs)));
+    packs
 }
 
 /// Result alias for fallible CLI-support operations.

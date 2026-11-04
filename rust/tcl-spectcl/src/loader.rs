@@ -1977,6 +1977,9 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
 /// search path the discovery layer already walks.
 pub struct IncludeContext {
     resolver: IncludeResolver,
+    /// How many times an evaluation has asked the resolver. A load that never
+    /// asked depends on its source alone, so its result can be memoised.
+    reads: std::cell::Cell<u32>,
 }
 
 /// The resolver an [`IncludeContext`] wraps: include name in, source text
@@ -2002,7 +2005,13 @@ impl IncludeContext {
     pub fn new(resolver: impl Fn(&str) -> Result<String, String> + 'static) -> Self {
         Self {
             resolver: Box::new(resolver),
+            reads: std::cell::Cell::new(0),
         }
+    }
+
+    /// How many includes evaluations through this context have resolved.
+    pub(crate) fn reads(&self) -> u32 {
+        self.reads.get()
     }
 
     /// The file-system context for a pack at `path`: an include name
@@ -2047,6 +2056,7 @@ impl IncludeContext {
     }
 
     fn resolve(&self, name: &str) -> Result<String, String> {
+        self.reads.set(self.reads.get().saturating_add(1));
         (self.resolver)(name)
     }
 }
@@ -4320,6 +4330,12 @@ fn option_row(
                     }
                     Some((head, rest)) if head == "One" && rest.is_empty() => {
                         entry.arity = OptionArity::One;
+                    }
+                    Some((head, rest)) if head == "OptionalOneOf" && !rest.is_empty() => {
+                        entry.arity = OptionArity::OptionalOneOf(leak_strs(rest));
+                    }
+                    Some((head, rest)) if head == "OptionalNotOption" && rest.is_empty() => {
+                        entry.arity = OptionArity::OptionalNotOption;
                     }
                     _ => log.say(
                         stmt.line,

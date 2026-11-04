@@ -5112,7 +5112,7 @@ fn trace_callback_selection(
     tokens: &CommandTokens,
     invocation: &ResolvedStatementInvocation,
 ) {
-    if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+    if tcl_registry::trace_deferred_writes_any() {
         eprintln!(
             "TCL_LSP_TRACE_METADATA_CALLBACK route={route} source_offset={:?} written_head={:?} canonical={:?} context={:p}",
             tokens
@@ -5301,7 +5301,7 @@ impl ResolvedStatementInvocation {
                 );
             let selected = resolution.resolved();
             if selected.is_none()
-                && std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some()
+                && tcl_registry::trace_deferred_writes_any()
             {
                 eprintln!(
                     "TCL_LSP_TRACE_METADATA_SCHEMA head={:?} canonical={:?} realm={realm:?} context={:p} unresolved={:?}",
@@ -9497,7 +9497,7 @@ fn resolve_registry_words_in_realm_with_metadata_context_and_case(
             realm,
         );
     if let Some(resolved) = resolution.resolved() {
-        if std::env::var_os("TCL_LSP_TRACE_DEFERRED_WRITES_ANY").is_some() {
+        if tcl_registry::trace_deferred_writes_any() {
             eprintln!(
                 "TCL_LSP_TRACE_METADATA_SELECTION head={:?} canonical={:?} realm={realm:?} context={:?} query={:?}",
                 invocation.head_literal(),

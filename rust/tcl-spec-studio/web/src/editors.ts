@@ -512,13 +512,21 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       const words = el("select", {}, [
         el("option", { value: "One", text: "one" }),
         el("option", { value: "Fixed", text: "fixed count" }),
+        el("option", { value: "OptionalOneOf", text: "optional, one of" }),
+        el("option", { value: "OptionalNotOption", text: "optional, unless -dashed" }),
         el("option", { value: "Hook", text: "computed (hook)" }),
       ]);
       const arityKind = asString(arity.kind);
-      words.value = arityKind === "Fixed" || arityKind === "Hook" ? arityKind : "One";
+      words.value = ["Fixed", "OptionalOneOf", "OptionalNotOption", "Hook"].includes(arityKind)
+        ? arityKind
+        : "One";
       words.addEventListener("change", () => {
         if (words.value === "Fixed") {
           patchValue({ arity: { kind: "Fixed", n: asNumber(arity.n) ?? 2 } });
+        } else if (words.value === "OptionalOneOf") {
+          patchValue({ arity: { kind: "OptionalOneOf", values: arity.values ?? [] } });
+        } else if (words.value === "OptionalNotOption") {
+          patchValue({ arity: { kind: "OptionalNotOption" } });
         } else if (words.value === "Hook") {
           // Preserve any expression already typed when toggling back and forth.
           patchValue({ arity: { kind: "Hook", hook: arity.hook ?? null } });
@@ -546,6 +554,25 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
                 "n",
                 numberInput(asNumber(arity.n), (n) =>
                   patchValue({ arity: { kind: "Fixed", n: n ?? 1 } }),
+                ),
+              )
+            : null,
+          arityKind === "OptionalOneOf"
+            ? labelled(
+                "values",
+                textInput(
+                  (Array.isArray(arity.values) ? arity.values : []).map(String).join(" "),
+                  (t) =>
+                    patchValue(
+                      {
+                        arity: {
+                          kind: "OptionalOneOf",
+                          values: t.split(/\s+/).filter((v) => v !== ""),
+                        },
+                      },
+                      false,
+                    ),
+                  { size: 16, placeholder: "TRUE FALSE" },
                 ),
               )
             : null,

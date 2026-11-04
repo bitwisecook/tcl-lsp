@@ -1442,8 +1442,7 @@ mod sidecar_publication_tests {
         let config = backend.resolved_db_config(uri).await;
         let file = *backend.db_files.lock().await.get(uri).unwrap();
         let db = backend.db.lock().await;
-        let input =
-            crate::with_pack_hooks(|| tcl_lsp_db::document_analysis_input(&*db, file, config));
+        let input = tcl_lsp_db::document_analysis_input(&*db, file, config);
         if unavailable {
             let miss = input.expect_err("the actual selected overlay was not installed");
             assert_eq!(miss.overlay, u64::MAX);

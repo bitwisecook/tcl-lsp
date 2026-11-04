@@ -215,6 +215,12 @@ pub enum OptionArity {
     One,
     /// A fixed number of values (`-rect x1 y1 x2 y2` → `Fixed(4)`).
     Fixed(u8),
+    /// An optional value word taken only when it is one of these literals
+    /// (UPF `-transitive ?TRUE|FALSE?`); otherwise the option is a flag.
+    OptionalOneOf(&'static [&'static str]),
+    /// An optional value word taken unless it is absent or begins with `-`
+    /// (UPF `-feedthrough ?name?`).
+    OptionalNotOption,
     /// Word count (and validity) computed from the remaining args — an
     /// arity or a value-content constraint the static shapes above can't
     /// express: "consume everything to `--`/end" (a resolver returning
@@ -794,7 +800,10 @@ impl OptionSpec {
             OptionValue::Flag => None,
             OptionValue::Takes(arg) => match arg.arity {
                 OptionArity::Hook(f) => Some(f),
-                OptionArity::One | OptionArity::Fixed(_) => None,
+                OptionArity::One
+                | OptionArity::Fixed(_)
+                | OptionArity::OptionalOneOf(_)
+                | OptionArity::OptionalNotOption => None,
             },
         }
     }
@@ -816,6 +825,14 @@ impl OptionSpec {
         let want = match arg.arity {
             OptionArity::One => 1,
             OptionArity::Fixed(n) => usize::from(n),
+            OptionArity::OptionalOneOf(values) => usize::from(
+                args.get(start)
+                    .is_some_and(|word| values.contains(&word.as_ref())),
+            ),
+            OptionArity::OptionalNotOption => usize::from(
+                args.get(start)
+                    .is_some_and(|word| !word.as_ref().starts_with('-')),
+            ),
             OptionArity::Hook(resolve) => {
                 let owned: Vec<&str> = args.iter().map(S::as_ref).collect();
                 resolve(&owned, start).words
@@ -854,7 +871,9 @@ impl OptionSpec {
         let want = match arg.arity {
             OptionArity::One => 1,
             OptionArity::Fixed(n) => usize::from(n),
-            OptionArity::Hook(_) => {
+            OptionArity::OptionalOneOf(_)
+            | OptionArity::OptionalNotOption
+            | OptionArity::Hook(_) => {
                 return Some(self.value_word_count(&args.literal_values()?, flag_idx));
             }
         };
