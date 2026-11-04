@@ -473,6 +473,8 @@ Jim inventory obtains the genuine private `namespace info` callable by actual lo
 
 [Original package requirement values](package-requirement-word-values/README.md) retain C5 static word decoding, literal extra braces/quotes and dynamic errors; Jim reports vsatisfies unsupported. Conditional source advice gains no actual package/loader/Native completion.
 
+The [exact IMAP4 core-package header](../lsp-2243-package-provision/README.md) retains C5/current-Jim outcomes, provided-package loader bypass and external/forgotten-package command mutations. These observations establish no initial compiler provision, Native package state or diagnostic read coverage.
+
 [Original discovery list data](tcllibpath-list-data/README.md) preserves complete spaces/braces/quotes/empty elements, release-dependent escapes and malformed-list outcomes. C installation discovery requires strict full-list agreement across supported C grammars before selecting an installation; Jim observations and actual TCLLIBPATH startup/filesystem effects remain separate.
 
 The [original expression comparison capture](../refactor-expression-equality-20261015/README.md) distinguishes numeric equality from string equality/exact matching while retaining literal operator and sigil data. Separate [scalar-expression fixtures](../scalar-expression-fixtures-20261015/README.md) and [fixed nonnumeric literals](../nonnumeric-expression-literals-20261015/README.md) preserve the original bare-word refusals, configured name grammar and GET comparisons before fixture corrections. Original outcomes do not establish Rust, F5, frame or transformation/edit equivalence.
