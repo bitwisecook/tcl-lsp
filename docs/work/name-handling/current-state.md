@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 4 November 2026, 18:56 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
+Updated 4 November 2026, 19:12 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
 
 ## Scope, ownership and release verdict
 
@@ -8,13 +8,15 @@ Updated 4 November 2026, 18:56 UTC. Results apply only to recorded source, input
 
 Main is the shallow `/workspace/tcl-lsp-partial` checkout on `work`, origin `https://github.com/bitwisecook/tcl-lsp.git`. Root owns Main, scratch `/tmp/optimiser-settings-work`, shared target and builds. Five-minute development syncs may precede green tests: fetch, normally merge clean changes, push without force or WIP adoption; conflicts require review. Issue-sweep integration is not naming acceptance.
 
-Publication last succeeded at 2026-11-04T18:53:02.027592+00:00, head `fcf507632253a1ae86a898a995e3988e09d45086`; earlier interruptions remain in `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release has been created.
+Publication last succeeded at 2026-11-04T19:02:58.516781+00:00, head `01d5066047381e44ca9cc8028fdc9f3b415b923f`; exact ongoing sync outcomes are in `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. No PR, merge to `rust`, tag or release has been created.
 
 ## Current execution and failures
 
 Normal-source Compiler34 v2 completes after a successful fresh build: **30/34 controls pass**. All autoload/prefix/channel controls, W214 used-parameter, body/card ownership, memo and Boolean controls pass. Four Logical namespace controls fail; exact schema observation identifies an inherited coarse interpreter-policy effect rejected by the source transfer. A reviewed source-only coverage correction is adopted but untested, preserving SCRIPT and independent policy effects and ordinary Native facts. Captured source/dependency/generated/executable checks pass; later Main drift makes current-Main acceptance false. `compiler-channel-namespace-current-v2/result.json.gz`. The first attempt's locked-resolution refusal remains recorded; synchronizing the xtask workspace manifest corrected it without changing Cargo.lock or disabling --locked.
 
-Core27 is compiling current normal source with the original 23 controls plus three regex-hover controls and variable definition. Known unknown-writer and all workspace manifests are presealed; no overlays. The regex fallback is adopted after a public probe proved current pattern metadata existed but method abstention stopped hover; actual new Core behavior is not yet verified. `/tmp/lsp-regex-current-public-probe-v1/receipt.json`; `core-current-normal-27/`.
+Core27 builds successfully in 4 minutes 30 seconds and is running its 27 normal-source controls. Two tests fail at an obsolete assertion that Logical namespace ingress has no source point; a separate actual public probe confirms genuine parent/child ownership, Logical input, no completed world and no conditional continuation for namespace and root controls. A reviewed fixture correction retains the Native/edit refusals and now requires these facts; the corrected unit controls have not run. Both autoload-header controls and their provider/effect guards pass in the active captured run. Regex and variable-definition controls are still pending. `/tmp/logical-coverage-core27-public-v1/receipt.json`; `core-current-normal-27/`.
+
+A public probe against Core27's actual Compiler library confirms the source-policy correction now retains the namespace body and resolves its local `format` to `::n::format`. The later global lookup remains unknown. The reviewed correction now authenticates the exact current Logical source allocation rather than rejecting every allocation; its positive and negative unit controls remain uncompiled/unexecuted. `/tmp/logical-namespace-core27-public-v1/receipt.json`.
 
 Receipt paths below are relative to `/workspace/tmp/lsp-merged-cohort/` unless absolute. Captured pins do not seal topology or undiscovered runtime/toolchain inputs.
 
@@ -31,7 +33,7 @@ Receipt paths below are relative to `/workspace/tmp/lsp-merged-cohort/` unless a
 
 Publication/recapture, immutable-survey reuse, conditional-purpose bridge, symbol ownership and normalization repairs are adopted; prior passes do not validate later source. Require/unknown-call preludes lose lookup authority; bare autoload/package observations differ. Original-sequence autoload remains unresolved.
 
-Named-body binding, assertion-preserving card-fixture and deferred-autoload prefix transport repairs are adopted **but untested**. Transport copies only exact parent prefix inventory under source-advice purpose, no ordinary effects/execution receipts. Whole/cold/warm W214 and earlier channel uncertainty remain open. Probes distinguish the original Named fixture from a genuinely issued Logical card: `/tmp/terra-logical-body-{public,card-public}-actual-v1/receipt.json`. The reviewed Logical namespace source-flow/activation and narrow Return continuation repair is now adopted but uncompiled and unexecuted. The channel-observer extension is also adopted: its four residual conditions remain unresolved, and its readonly definition Location is only a conditional SOURCE-header association. It supplies no runtime binding, ordinary lookup, symbol publication, reference census or edit authority.
+Named-body binding, card-fixture and deferred-autoload prefix transport repairs pass the relevant Compiler34 controls. The transport copies only exact parent prefix inventory under source-advice purpose, without ordinary execution receipts. Compiler34 also passes whole/cold/warm W214 and genuine Logical-card controls. The remaining namespace continuation correction still needs actual execution. Channel advice retains four unresolved conditions; its readonly definition Location is only a conditional SOURCE-header association, with no runtime binding, ordinary lookup, symbol publication, reference census or edit authority.
 
 Names-only parameter metadata (`5ca4b7dde`) grants no live-frame/strict body authority. Current UI/provider and native two-file edit validation remain open. Preserve captured bindings, authored-random guards and genuine C8.4/F5/Jim issuers.
 
@@ -39,7 +41,9 @@ Budgets stay unchanged: loop 50 needs 305 commands against cap 200; default 250 
 
 ## Hosts and packaging
 
-New host run [41877790468](https://github.com/bitwisecook/tcl-lsp/actions/runs/41877790468), selected by push `5c0ba57f8075a153750bfc4ee038c5676d4ac491`, now has terminal Browser and WASI jobs while Native remains active in the last observed snapshot. Browser passes 40/41 twice, with only autoload null. WASI fails before runtime on the trace’s deprecated atomic API under warnings-as-errors; no new module or lifecycle/CPU observation was produced. The reviewed trace API fix is adopted but awaits a real WASI build; missing module/receipt now records no-runtime explicitly and cannot execute stale artifacts. `/tmp/lsp-ci-5c0b-job-126741986{682,734}.raw.json` and `/tmp/wasi-5c0b-126741986682/artifact/`. Prior run 41871981409 on `b0ff26539172f34f9590916f1e77e8d02d4a1a45` fails all three builds before tests on Explorer's Arc/realm mismatch. Integrated `33cf8caf26` needs the new host run. Old logs: `/tmp/lsp-ci-b0ff-job-126721330{423,490,785}.log`.
+Latest host run [41888267930](https://github.com/bitwisecook/tcl-lsp/actions/runs/41888267930), exact `de5f708a5ebb8c35c62c36c747ea94cf86660898`, includes channel advice and trace API corrections. Browser builds and passes 40/41 twice; autoload definition id 4 remains null. Its staged VS Code web smoke checks pass narrowly. Native remains active; WASI build/exercise fails, with capture active and logs unavailable in the inspected snapshot, so its cause and lifecycle result are not established. `/tmp/spectcl-lsp-stack-ci-41888267930/browser.decoded.log`; `/tmp/native-ci-41888267930-triage/`.
+
+Earlier run [41877790468](https://github.com/bitwisecook/tcl-lsp/actions/runs/41877790468), exact `5c0ba57f8075a153750bfc4ee038c5676d4ac491`, has Browser 40/41 twice and a WASI compile failure on deprecated trace atomic API before runtime; no module/lifecycle observation was produced. Missing module/receipt handling now explicitly refuses stale runtime artifacts. `/tmp/lsp-ci-5c0b-job-126741986{682,734}.raw.json`. Prior b0ff run fails all three builds on the integrated Explorer Arc mismatch; no host pass is inferred from the source repair.
 
 Completed Browser/WASI results remain **old-source evidence**, manual run [41859243999](https://github.com/bitwisecook/tcl-lsp/actions/runs/41859243999), exact `b06734318768fdef9dcfef7b0109beb7db97544c`:
 
@@ -76,7 +80,7 @@ Historical executable archives/receipts remain; approved normal caches may be re
 ## Next actions
 
 1. Retest the Jim ownership fix and complete the new host run; retain the old RMW failure and all confinement guards.
-2. Test adopted Named/card/prefix repairs, diagnose Core recipe/provider and Compiler namespace/W214 failures, test adopted Logical flow and review the private channel extension. Obtain a fully presealed current cohort; Core13's diagnostic cannot supply it.
+2. Finish Core27; retest corrected namespace fixtures and source-allocation continuation. Diagnose the Server/Browser autoload failure despite passing Compiler/Core controls. Core13's post-build diagnostic cannot supply prebuild acceptance.
 3. Complete current Server/host/edit/lifecycle, full gates, packages and matched release performance. Keep truthful five-minute syncs. Open the PR only after readiness; do not merge or release.
 
 [Outstanding work](outstanding/README.md) mirrors this snapshot. Separate issue-sweep observations remain in [issues.md](issues.md#external-reporter-issue-sweep--3-november-2026).
