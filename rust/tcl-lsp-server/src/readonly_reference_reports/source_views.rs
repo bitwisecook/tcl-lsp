@@ -1411,6 +1411,7 @@ impl OriginalSourceViewWorkState {
             association_owners: self.association_owners,
             ids: self.membership.into_iter().collect(),
             complete,
+            partial_definition: None,
             completion,
             eligibility: HashSet::new(),
             conditional_obligations: self.conditional_obligations,
@@ -1440,6 +1441,11 @@ enum SourceViewWork {
 
 /// Host membership of one bounded exact source-view reconciliation. Kernel
 /// conditional outcomes remain separate from physical/Native completion.
+#[derive(Clone, Copy)]
+enum PartialDefinitionReason {
+    UnfinishedSuffixWithoutFurtherCut,
+}
+
 struct OriginalSourceRootScope {
     root: Option<OriginalSourceViewId>,
     root_uri: Uri,
@@ -1447,6 +1453,7 @@ struct OriginalSourceRootScope {
     association_owners: Vec<OriginalSourceViewAssociation>,
     ids: Vec<OriginalSourceViewId>,
     complete: bool,
+    partial_definition: Option<PartialDefinitionReason>,
     completion: Option<OriginalSourceViewCompletion>,
     eligibility: HashSet<Uri>,
     conditional_obligations: bool,
@@ -1464,6 +1471,7 @@ impl OriginalSourceRootScope {
             association_owners: Vec::new(),
             ids: Vec::new(),
             complete: false,
+            partial_definition: None,
             completion: None,
             eligibility: HashSet::new(),
             conditional_obligations: false,
@@ -1541,6 +1549,7 @@ impl OriginalCommandSourceWorldCapture {
 struct OriginalSourceScopeProjection {
     ids: Vec<OriginalSourceViewId>,
     revision: u64,
+    partial_definition_groups: Vec<Vec<OriginalSourceViewId>>,
 }
 
 impl OriginalSourceViewSettlement {
@@ -1558,8 +1567,38 @@ impl OriginalSourceViewSettlement {
         if references.is_some() {
             self.positive_reference_projection(uri)
         } else {
-            self.projection(uri, false)
+            self.definition_projection(uri)
         }
+    }
+
+    fn definition_projection(&self, uri: &Uri) -> Option<OriginalSourceScopeProjection> {
+        let required = self
+            .scopes
+            .iter()
+            .filter(|scope| scope.required.contains(uri))
+            .collect::<Vec<_>>();
+        (!required.is_empty()
+            && required
+                .iter()
+                .all(|scope| scope.complete || scope.partial_definition.is_some()))
+        .then_some(())?;
+        let mut ids = Vec::new();
+        let mut partial_definition_groups = Vec::new();
+        for scope in required {
+            if !scope.complete {
+                partial_definition_groups.push(scope.ids.clone());
+            }
+            for id in &scope.ids {
+                if !ids.contains(id) {
+                    ids.push(*id);
+                }
+            }
+        }
+        (!ids.is_empty()).then_some(OriginalSourceScopeProjection {
+            ids,
+            revision: self.revision,
+            partial_definition_groups,
+        })
     }
 
     /// Positive references require the selected dependency scopes to close,
@@ -1587,6 +1626,7 @@ impl OriginalSourceViewSettlement {
         (!ids.is_empty()).then_some(OriginalSourceScopeProjection {
             ids,
             revision: self.revision,
+            partial_definition_groups: Vec::new(),
         })
     }
 
@@ -1613,6 +1653,7 @@ impl OriginalSourceViewSettlement {
         (!ids.is_empty()).then_some(OriginalSourceScopeProjection {
             ids,
             revision: self.revision,
+            partial_definition_groups: Vec::new(),
         })
     }
 }
@@ -1899,9 +1940,12 @@ impl Backend {
             };
             let mut changed = false;
             for scope in &mut reconciliation.scopes {
-                if scope.complete && !scope.eligibility.is_subset(&completed) {
-                    scope.complete = false;
-                    changed = true;
+                if !scope.eligibility.is_subset(&completed) {
+                    if scope.complete {
+                        scope.complete = false;
+                        changed = true;
+                    }
+                    scope.partial_definition = None;
                 }
             }
             if !changed {
@@ -2705,7 +2749,15 @@ impl Backend {
                 }
                 SourceViewWork::AfterRegion { work, region } => {
                     let Some(Some(completed)) = state.finished.get(&region.id) else {
-                        return Ok(state.finish_scope(root_id, root_uri, false));
+                        let eligible = matches!(state.finished.get(&region.id), Some(None))
+                            && state.tasks.is_empty()
+                            && state.unknown.is_empty()
+                            && !state.conditional_obligations
+                            && work.parent.id == root_id;
+                        let mut scope = state.finish_scope(root_id, root_uri, false);
+                        scope.partial_definition = eligible
+                            .then_some(PartialDefinitionReason::UnfinishedSuffixWithoutFurtherCut);
+                        return Ok(scope);
                     };
                     let Some(completion) = work.completion_through_region(completed) else {
                         return Ok(state.finish_scope(root_id, root_uri, false));
@@ -3317,6 +3369,7 @@ impl Backend {
             return Ok(std::ops::ControlFlow::Break(None));
         };
         let aggregate_complete = settlement.aggregate_complete();
+        let partial_definition_groups = ids.partial_definition_groups.clone();
         let uri = uri.clone();
         let computed = self
             .compute_original_source_views(&ids, move |views| {
@@ -3326,6 +3379,7 @@ impl Backend {
                     position,
                     references,
                     aggregate_complete,
+                    &partial_definition_groups,
                 ))
             })
             .await?;
@@ -3354,6 +3408,7 @@ impl Backend {
         position: tower_lsp_server::ls_types::Position,
         references: Option<bool>,
         aggregate_complete: bool,
+        partial_definition_groups: &[Vec<OriginalSourceViewId>],
     ) -> Option<HostNavigationRoute> {
         let selected_views = views
             .iter()
@@ -3378,11 +3433,30 @@ impl Backend {
             source,
         );
 
-        for publication in tcl_lsp_core::original_source_views::cursor_publications(
+        let selected_publications = tcl_lsp_core::original_source_views::cursor_publications(
             uri.as_str(),
             offset,
             &inventory,
-        )? {
+        )?;
+        for group in partial_definition_groups {
+            let selected = views
+                .iter()
+                .zip(&inventory)
+                .filter(|(view, row)| {
+                    group.contains(&view.id) && selected_publications.contains(row.publication)
+                })
+                .collect::<Vec<_>>();
+            if selected.is_empty()
+                || selected.iter().any(|(_, row)| {
+                    row.region.is_none()
+                        || tcl_lsp_core::original_source_views::region_owns_cursor(row, offset)
+                            != Some(true)
+                })
+            {
+                return None;
+            }
+        }
+        for publication in selected_publications {
             let selected =
                 tcl_lsp_core::original_source_views::prepare(&publication, offset, &inventory);
             let selected = selected?;
@@ -3764,6 +3838,89 @@ mod completed_world_owner_controls {
                 && location.range.start.character == start
                 && location.range.end.character == end));
         }
+    }
+
+    #[tokio::test]
+    async fn unfinished_suffix_definition_uses_only_its_owned_region() {
+        let (fixture, backend) = reference_fixture(
+            true,
+            "proc main {} {helper}\nmain\n",
+            "proc helper {} {return 8}\n",
+        )
+        .await;
+        let settlement = backend
+            .refresh_original_source_view_graph()
+            .await
+            .unwrap()
+            .unwrap();
+        let scope = settlement
+            .scopes
+            .iter()
+            .find(|scope| scope.root_uri == fixture.main)
+            .unwrap();
+        assert!(!scope.complete);
+        assert!(scope.partial_definition.is_some());
+        assert!(settlement.projection(&fixture.main, false).is_none());
+        assert!(
+            settlement
+                .positive_reference_projection(&fixture.main)
+                .is_none()
+        );
+        let position = tower_lsp_server::ls_types::Position {
+            line: 1,
+            character: 15,
+        };
+        let result = backend
+            .original_source_view_navigation_route(&fixture.main, position, None)
+            .await
+            .unwrap();
+        let std::ops::ControlFlow::Break(Some(locations)) = result else {
+            panic!("definition unavailable")
+        };
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].uri, fixture.host);
+        assert_eq!(locations[0].range.start.line, 0);
+        assert_eq!(locations[0].range.start.character, 5);
+        assert!(matches!(
+            backend
+                .original_source_view_navigation_route(&fixture.main, position, Some(true))
+                .await
+                .unwrap(),
+            std::ops::ControlFlow::Break(None)
+        ));
+        // A cursor on the source prefix is not owned by the issued suffix.
+        let prefix = tower_lsp_server::ls_types::Position {
+            line: 0,
+            character: 0,
+        };
+        assert!(matches!(
+            backend
+                .original_source_view_navigation_route(&fixture.main, prefix, None)
+                .await
+                .unwrap(),
+            std::ops::ControlFlow::Break(None)
+        ));
+    }
+
+    #[tokio::test]
+    async fn unfinished_suffix_definition_rejects_unknown_body_mutation() {
+        let (fixture, backend) = reference_fixture(
+            true,
+            "proc main {} {opaque; helper}\nmain\n",
+            "proc helper {} {return 8}\n",
+        )
+        .await;
+        let position = tower_lsp_server::ls_types::Position {
+            line: 1,
+            character: 23,
+        };
+        assert!(matches!(
+            backend
+                .original_source_view_navigation_route(&fixture.main, position, None)
+                .await
+                .unwrap(),
+            std::ops::ControlFlow::Break(None)
+        ));
     }
 
     #[tokio::test]

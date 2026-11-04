@@ -147,7 +147,9 @@ fn target(
     selected.next().is_none().then_some(first)
 }
 
-fn region_owns_cursor(owner: &OriginalSourceViewDocument<'_>, offset: u32) -> Option<bool> {
+/// Whether this exact current region owns the cursor through a retained command or call.
+#[must_use]
+pub fn region_owns_cursor(owner: &OriginalSourceViewDocument<'_>, offset: u32) -> Option<bool> {
     owner.current()?;
     let region = owner.region?;
     let analysis = owner.document.analysis;
