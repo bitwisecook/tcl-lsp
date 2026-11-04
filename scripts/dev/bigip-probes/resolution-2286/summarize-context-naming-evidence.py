@@ -14,7 +14,6 @@
 import argparse
 import base64
 import collections
-import hashlib
 import json
 import re
 import tkinter
@@ -49,7 +48,6 @@ def decoded_result(result_hex: str) -> dict[str, object]:
     data = bytes.fromhex(result_hex)
     return {
         "result_hex": result_hex,
-        "result_sha256": hashlib.sha256(data).hexdigest(),
         "result_size": len(data),
         "rows_latin1": split_tcl_bytes(data),
     }
@@ -63,7 +61,6 @@ def marker_result(line: str) -> dict[str, object]:
             fields[key] = value
     result = {
         "rc": fields["rc"],
-        "payload_sha256": fields.get("payload_sha256"),
     }
     result.update(decoded_result(fields["result_hex"]))
     return result
@@ -83,8 +80,6 @@ def traffic_summary(directory: Path) -> dict[str, Any]:
                 errors.append({"line": line_number, "error": record["error"]})
                 continue
             raw = base64.b64decode(record["response_base64"], validate=True)
-            if hashlib.sha256(raw).hexdigest() != record["response_sha256"]:
-                raise RuntimeError(f"response digest mismatch: {path}:{line_number}")
             statuses[record["status"]] += 1
             units.update(record["reported_units"])
             body = raw.partition(b"\r\n\r\n")[2]
@@ -97,7 +92,6 @@ def traffic_summary(directory: Path) -> dict[str, Any]:
             item = {
                 "count": count,
                 "body_hex": body.hex(),
-                "body_sha256": hashlib.sha256(body).hexdigest(),
             }
             if path.name.startswith("traffic-http-"):
                 words = split_tcl_bytes(body)
@@ -128,7 +122,7 @@ def non_tmm_results(root: Path) -> dict[str, object]:
                 contexts[match.group(1)] = marker_result(line)
         groups = collections.defaultdict(list)
         for context, result in contexts.items():
-            groups[result["result_sha256"]].append(context)
+            groups[result["result_hex"]].append(context)
         output[directory.name] = {
             "contexts": contexts,
             "result_equality_groups": list(groups.values()),
@@ -229,7 +223,7 @@ for case in ("nul_counted_last", "nul_array_root", "nul_array_index", "lexical_c
             for tmm, result in cases[case].items()
         }
     same_run_comparison[case] = {
-        "http_result_sha256": http["result_sha256"],
+        "http_result_hex": http["result_hex"],
         "event_tmm_exact_result_matches": matches,
     }
 

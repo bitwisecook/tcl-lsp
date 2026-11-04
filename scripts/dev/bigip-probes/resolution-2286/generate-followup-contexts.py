@@ -12,7 +12,6 @@
 """Transport one exact follow-up payload into non-TMM BIG-IP Tcl contexts."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -41,7 +40,7 @@ def body(context: str, emit: str) -> str:
     return f"""set payload [binary format H* {payload_hex}]
 set rc [catch {{eval $payload}} result]
 binary scan $result H* result_hex
-{emit} "R2286FOLLOWUP|{args.run}|{context}|payload_sha256={hashlib.sha256(payload).hexdigest()}|rc=$rc|result_hex=$result_hex"
+{emit} "R2286FOLLOWUP|{args.run}|{context}|rc=$rc|result_hex=$result_hex"
 """
 
 
@@ -90,7 +89,6 @@ manifest = {
     "payload": {
         "file": args.payload.name,
         "size": len(payload),
-        "sha256": hashlib.sha256(payload).hexdigest(),
         "hex": payload_hex,
         "ascii": payload.isascii(),
         "contains_nul": b"\x00" in payload,
@@ -101,9 +99,7 @@ manifest = {
 for name, text in files.items():
     data = text.encode("ascii")
     (args.out / name).write_bytes(data)
-    manifest["fixtures"].append(
-        {"file": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-    )
+    manifest["fixtures"].append({"file": name, "size": len(data)})
 (args.out / "payload.tcl").write_bytes(payload)
 (args.out / "manifest.json").write_text(
     json.dumps(manifest, indent=2) + "\n", encoding="ascii"

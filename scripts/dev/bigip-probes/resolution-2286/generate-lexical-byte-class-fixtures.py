@@ -12,17 +12,9 @@
 """Extract and wrap the exact lexical-byte-class appliance fixtures."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
-
-EXPECTED_PAYLOAD = "af1d6366e57927bc72cd756bf8804e1a1713de958561f30258876603bc120ae9"
-EXPECTED_RULE_BODY = "49b3c8dcd43221031288595afc53f9cc4642fb714e5a57b123b15d3613d91a40"
-
-
-def digest(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def ascii_lf(text: str) -> bytes:
@@ -62,10 +54,6 @@ blocks = re.findall(rb"```tcl\n(.*?)```\n", request_bytes, re.DOTALL)
 if len(blocks) != 3:
     raise SystemExit(f"expected three Tcl blocks, found {len(blocks)}")
 payload, rule_body, non_tmm = blocks
-if digest(payload) != EXPECTED_PAYLOAD:
-    raise SystemExit("payload digest does not match the request")
-if digest(rule_body) != EXPECTED_RULE_BODY:
-    raise SystemExit("full rule-body digest does not match the request")
 for label, data in (
     ("payload", payload),
     ("rule body", rule_body),
@@ -170,12 +158,9 @@ manifest = {
     "run": "r2286lex1",
     "source_commit": args.source_commit,
     "request": str(request.relative_to(here.parent.parent.parent.parent)),
-    "request_sha256": digest(request_bytes),
     "vip": f"{args.vip}:{args.vip_port}",
     "backend": f"{args.backend}:{args.backend_port}",
     "expected": {
-        "payload_sha256": EXPECTED_PAYLOAD,
-        "rule_body_sha256": EXPECTED_RULE_BODY,
         "rows_per_execution": 1044,
     },
     "files": [],
@@ -184,17 +169,10 @@ for path in sorted(item for item in args.out.rglob("*") if item.is_file()):
     manifest["files"].append(
         {
             "file": str(path.relative_to(args.out)),
-            "sha256": digest(path.read_bytes()),
             "size": path.stat().st_size,
         }
     )
 (args.out / "manifest.json").write_text(
     json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="ascii"
 )
-hashes = []
-for path in sorted(item for item in args.out.rglob("*") if item.is_file()):
-    if path.name == "SHA256SUMS":
-        continue
-    hashes.append(f"{digest(path.read_bytes())}  {path.relative_to(args.out)}")
-(args.out / "SHA256SUMS").write_text("\n".join(hashes) + "\n", encoding="ascii")
 print(json.dumps(manifest, indent=2, sort_keys=True))

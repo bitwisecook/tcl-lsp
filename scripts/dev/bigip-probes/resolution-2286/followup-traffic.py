@@ -14,7 +14,6 @@
 import argparse
 import base64
 import collections
-import hashlib
 import json
 import socket
 import time
@@ -80,7 +79,6 @@ with args.out.open("x", encoding="utf-8") as output:
                     if len(response) > 1_048_576:
                         raise RuntimeError("response exceeds 1 MiB evidence cap")
             raw = bytes(response)
-            record["response_sha256"] = hashlib.sha256(raw).hexdigest()
             record["response_base64"] = base64.b64encode(raw).decode("ascii")
             headers = raw.partition(b"\r\n\r\n")[0].split(b"\r\n")
             record["status"] = headers[0].decode("latin1") if headers else ""

@@ -12,16 +12,11 @@
 """Generate exact-byte BIG-IP name-identity and callable-lifetime controls."""
 
 import argparse
-import hashlib
 import ipaddress
 import json
 import re
 import subprocess
 from pathlib import Path
-
-
-def sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def ascii_lf(text: str) -> bytes:
@@ -100,7 +95,6 @@ def write_file(name: str, data: bytes, kind: str, case: str) -> None:
         {
             "case": case,
             "file": name,
-            "sha256": sha256(data),
             "size": len(data),
             "ascii": data.isascii(),
             "contains_nul": b"\x00" in data,

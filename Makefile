@@ -661,13 +661,8 @@ PY_FILES = $(shell git -C $(ROOT) ls-files '*.py' \
 	':(exclude,glob)experiments/**/*.py' \
 	':(exclude,glob)docs/**/*.py')
 
-# Work-only evidence tooling whose exact bytes are pinned by retained receipts:
-# the proof-source-currency receipts under experiments/name-handling record the
-# index merger's SHA-256, and resolution-2286's CURRENT_TRANSPORT_SHA256SUMS
-# records the follow-up control generator's. Editing them for typing would
-# invalidate those receipts, and this evidence stays on `work` rather than
-# entering the PR to `rust` (user decision 2026-10-21T12:05Z). ruff still lints
-# them; only the type checkers skip them.
+# These legacy development tools remain excluded from type checking while their
+# historical workflows are retired. Ruff still lints them.
 PY_TYPECHECK_EXCLUDED = scripts/dev/update-name-resolution-proof-index.py \
 	scripts/dev/bigip-probes/resolution-2286/generate-followup-controls.py
 PY_TYPECHECK_FILES = $(filter-out $(PY_TYPECHECK_EXCLUDED),$(PY_FILES))

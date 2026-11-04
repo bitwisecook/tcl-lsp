@@ -2,7 +2,6 @@
 """Produce exact original iRule source bytes without appliance access."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -58,7 +57,6 @@ def main():
             "case": case,
             "object": "/Common/" + name,
             "file": filename,
-            "sha256": hashlib.sha256(data).hexdigest(),
             "size": len(data),
             "line_endings": ending,
             "purpose": purpose,
@@ -67,7 +65,6 @@ def main():
             raw = payload.encode("utf-8")
             record.update(
                 runtime_script_utf8_hex=raw.hex(),
-                runtime_script_sha256=hashlib.sha256(raw).hexdigest(),
             )
             (args.out / (case + ".runtime.tcl")).write_bytes(raw)
         records.append(record)
@@ -164,7 +161,7 @@ when HTTP_REQUEST {{
             (args.out / (record["file"] + ".hex")).write_text(
                 data.hex() + "\n", encoding="ascii"
             )
-            record["sha256"] = hashlib.sha256(data).hexdigest()
+
             record["size"] = len(data)
 
     # Same static key, independent rule ownership and load order, with no responder conflict.

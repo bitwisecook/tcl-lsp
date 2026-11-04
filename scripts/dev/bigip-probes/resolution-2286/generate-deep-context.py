@@ -12,7 +12,6 @@
 """Generate byte-controlled parser probes for five BIG-IP Tcl contexts."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -148,9 +147,7 @@ for case, category, data in cases:
 for name, text in files.items():
     data = text.encode("ascii")
     (args.out / name).write_bytes(data)
-    manifest["fixtures"].append(
-        {"file": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-    )
+    manifest["fixtures"].append({"file": name, "size": len(data)})
 (args.out / "manifest.json").write_text(
     json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
 )

@@ -2,7 +2,6 @@
 """Render disposable lab pool/VIP objects; never connects to BIG-IP."""
 
 import argparse
-import hashlib
 import ipaddress
 import json
 import re
@@ -73,7 +72,6 @@ print(
         {
             "pool": pool,
             "virtual": virtual,
-            "sha256": hashlib.sha256(a.out.read_bytes()).hexdigest(),
             "required_precondition": "prove BOTH exact objects absent; no production attachment or config save",
         },
         indent=2,

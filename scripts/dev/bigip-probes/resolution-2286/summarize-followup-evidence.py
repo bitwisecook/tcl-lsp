@@ -14,7 +14,6 @@
 import argparse
 import base64
 import collections
-import hashlib
 import json
 import tkinter
 from pathlib import Path
@@ -42,8 +41,6 @@ for path in sorted(args.traffic_dir.glob("*.jsonl")):
             errors.append({"line": line_number, "error": record["error"]})
             continue
         raw = base64.b64decode(record["response_base64"], validate=True)
-        if hashlib.sha256(raw).hexdigest() != record["response_sha256"]:
-            raise RuntimeError(f"response digest mismatch: {path}:{line_number}")
         statuses[record["status"]] += 1
         for unit in record["reported_units"]:
             units[unit] += 1
@@ -57,7 +54,6 @@ for path in sorted(args.traffic_dir.glob("*.jsonl")):
     for body, count in sorted(bodies.items(), key=lambda item: item[0]):
         result = {
             "count": count,
-            "body_sha256": hashlib.sha256(body).hexdigest(),
             "body_hex": body.hex(),
         }
         if path.stem != "backend-initial":

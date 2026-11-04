@@ -12,7 +12,6 @@
 """Generate isolated iRule procedure, folder, partition, and Unicode controls."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -72,7 +71,6 @@ def main():
                 "case": case,
                 "object": object_name,
                 "file": filename,
-                "sha256": hashlib.sha256(data).hexdigest(),
                 "size": len(data),
                 "purpose": purpose,
             }

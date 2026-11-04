@@ -12,7 +12,6 @@
 """Render Common and temporary-partition SNAT-automap procedure test VIPs."""
 
 import argparse
-import hashlib
 import ipaddress
 import json
 import re
@@ -82,7 +81,6 @@ print(
             "common_node": common_node,
             "partition_pool": partition_pool,
             "partition_virtual": partition_virtual,
-            "sha256": hashlib.sha256(text).hexdigest(),
             "snat": "automap on both virtual servers",
         },
         indent=2,

@@ -377,7 +377,7 @@ tmsh modify ltm virtual /R2286_r2286x/__tcl_lsp_2286_r2286x_vs \
 ```
 
 The committed decoder command lines are fully specified by `--help`.
-`summarize-context-naming-evidence.py` verifies raw response hashes,
+`summarize-context-naming-evidence.py` reads the retained response bytes,
 reconstructs chunked event results, preserves embedded NUL in JSON, and emits
 context equality groups. `summarize-counted-boundaries.py` verifies and decodes
 the exact-source repair plus the root/index boundary traffic.

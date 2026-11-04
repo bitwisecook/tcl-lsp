@@ -12,7 +12,6 @@
 """Generate an ASCII-only exact-name runtime cleanup iRule for a probe run."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -109,7 +108,7 @@ when HTTP_REQUEST {{
     filename = "runtime_cleanup_ascii.conf"
     (args.out / filename).write_bytes(body)
     (args.out / f"{filename}.hex").write_text(body.hex() + "\n", encoding="ascii")
-    digest = hashlib.sha256(body).hexdigest()
+
     manifest = {
         "run": args.run,
         "kind": "additional_ascii_runtime_cleanup",
@@ -118,7 +117,6 @@ when HTTP_REQUEST {{
                 "case": "runtime_cleanup_ascii",
                 "object": object_name,
                 "file": filename,
-                "sha256": digest,
                 "size": len(body),
                 "line_endings": "lf",
             }

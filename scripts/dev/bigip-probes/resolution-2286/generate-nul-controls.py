@@ -12,7 +12,6 @@
 """Generate isolated literal and dynamically materialized embedded-NUL controls."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -40,7 +39,6 @@ def main() -> None:
                 "case": case,
                 "object": object_name,
                 "file": filename,
-                "sha256": hashlib.sha256(data).hexdigest(),
                 "size": len(data),
                 "line_endings": "lf",
                 "purpose": purpose,

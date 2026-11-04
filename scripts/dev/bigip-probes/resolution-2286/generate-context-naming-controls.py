@@ -12,16 +12,11 @@
 """Generate exact-byte fixtures for CONTEXT_NAMING_CHECKS.md."""
 
 import argparse
-import hashlib
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
-
-
-def digest(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def ascii_lf(text: str) -> bytes:
@@ -545,7 +540,6 @@ def write_http_wrapper(case: str, payload: bytes) -> dict[str, object]:
     (additional / f"{case}.conf.hex").write_text(data.hex() + "\n", encoding="ascii")
     return {
         "file": str(path.relative_to(args.out)),
-        "sha256": digest(data),
         "size": len(data),
     }
 
@@ -556,14 +550,12 @@ http_wrappers = [
 http_wrappers.append(
     {
         "file": "additional/counted_input_boundaries.conf",
-        "sha256": digest(counted_input_rule),
         "size": len(counted_input_rule),
     }
 )
 http_wrappers.append(
     {
         "file": "additional/counted_input_capture.conf",
-        "sha256": digest(counted_capture_rule),
         "size": len(counted_capture_rule),
     }
 )
@@ -602,7 +594,6 @@ for event in ("CLIENT_ACCEPTED", "RULE_INIT"):
                 "event": event,
                 "case": case,
                 "file": f"events/{name}",
-                "sha256": digest(data),
                 "size": len(data),
             }
         )
@@ -632,7 +623,6 @@ for index, case in enumerate(all_cases, start=1):
         {
             "case": case,
             "context_run": context_run,
-            "payload_sha256": context_manifest["payload"]["sha256"],
             "fixtures": context_manifest["fixtures"],
         }
     )
@@ -654,7 +644,7 @@ def emit_lifecycle_rows(context: str) -> str:
             f"""set payload [binary format H* {payload.hex()}]
 set rc [catch {{eval $payload}} result]
 binary scan $result H* result_hex
-puts "R2286NAMES|{args.run}|{context}|{case}|payload_sha256={digest(payload)}|rc=$rc|result_hex=$result_hex"
+puts "R2286NAMES|{args.run}|{context}|{case}|rc=$rc|result_hex=$result_hex"
 """
         )
     return "".join(rows)
@@ -714,7 +704,7 @@ apl_config = ascii_lf(
             set payload [binary format H* {apl_payload.hex()}]
             set rc [catch {{eval $payload}} result]
             binary scan $result H* result_hex
-            puts "R2286NAMES|{args.run}|IAppPresentationTclCallback|lexical_clean|payload_sha256={digest(apl_payload)}|rc=$rc|result_hex=$result_hex"
+            puts "R2286NAMES|{args.run}|IAppPresentationTclCallback|lexical_clean|rc=$rc|result_hex=$result_hex"
             return [list [list "$rc:$result_hex" "$rc:$result_hex"]]
           }}
         }}
@@ -741,7 +731,6 @@ for case in all_cases:
         {
             "case": case,
             "file": str(path.relative_to(args.out)),
-            "sha256": digest(data),
             "size": len(data),
             "ascii": data.isascii(),
             "contains_nul": b"\x00" in data,
@@ -752,7 +741,6 @@ payload_rows.append(
     {
         "case": "counted_input_boundaries",
         "file": "additional/counted_input_boundaries.tcl",
-        "sha256": digest(counted_input_data),
         "size": len(counted_input_data),
         "ascii": counted_input_data.isascii(),
         "contains_nul": b"\x00" in counted_input_data,
@@ -763,7 +751,6 @@ payload_rows.append(
     {
         "case": "counted_input_capture",
         "file": "additional/counted_input_capture.tcl",
-        "sha256": digest(counted_capture_data),
         "size": len(counted_capture_data),
         "ascii": counted_capture_data.isascii(),
         "contains_nul": b"\x00" in counted_capture_data,
@@ -776,7 +763,6 @@ manifest = {
     "source_commit": args.source_commit,
     "vip": f"{args.vip}:{args.vip_port}",
     "backend": f"{args.backend}:{args.backend_port}",
-    "base_manifest_sha256": digest((base / "manifest.json").read_bytes()),
     "payloads": payload_rows,
     "http_wrappers": http_wrappers,
     "event_wrappers": event_wrappers,
@@ -784,24 +770,20 @@ manifest = {
     "icall_lifecycles": [
         {
             "file": "icall-lifecycles/periodic.conf",
-            "sha256": digest(periodic),
             "size": len(periodic),
         },
         {
             "file": "icall-lifecycles/perpetual.conf",
-            "sha256": digest(perpetual),
             "size": len(perpetual),
         },
     ],
     "apl": [
         {
             "file": "apl/template.conf",
-            "sha256": digest(apl_config),
             "size": len(apl_config),
         },
         {
             "file": "apl/service.conf",
-            "sha256": digest(apl_service_config),
             "size": len(apl_service_config),
         },
     ],
@@ -809,10 +791,4 @@ manifest = {
 (args.out / "manifest.json").write_text(
     json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="ascii"
 )
-hashes = []
-for path in sorted(item for item in args.out.rglob("*") if item.is_file()):
-    if path.name == "SHA256SUMS":
-        continue
-    hashes.append(f"{digest(path.read_bytes())}  {path.relative_to(args.out)}")
-(args.out / "SHA256SUMS").write_text("\n".join(hashes) + "\n", encoding="ascii")
 print(json.dumps(manifest, indent=2, sort_keys=True))

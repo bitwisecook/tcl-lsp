@@ -17,7 +17,6 @@
 """Generate isolated BIG-IP loader controls for Unicode and physical lines."""
 
 import argparse
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -49,7 +48,6 @@ def main():
                 "case": case,
                 "object": object_name,
                 "file": filename,
-                "sha256": hashlib.sha256(data).hexdigest(),
                 "size": len(data),
                 "line_endings": line_endings,
                 "purpose": purpose,

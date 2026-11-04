@@ -12,7 +12,6 @@
 """Bounded lab-only HTTP receiver for a single BIG-IP evidence archive."""
 
 import argparse
-import hashlib
 import json
 import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -43,7 +42,6 @@ class Handler(BaseHTTPRequestHandler):
         if not 1 <= length <= 256 * 1024 * 1024:
             self.send_error(413)
             return
-        digest = hashlib.sha256()
         remaining = length
         with destination.open("xb") as output:
             while remaining:
@@ -53,14 +51,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_error(400)
                     return
                 output.write(chunk)
-                digest.update(chunk)
                 remaining -= len(chunk)
-        body = (
-            json.dumps(
-                {"name": args.name, "size": length, "sha256": digest.hexdigest()}
-            )
-            + "\n"
-        ).encode()
+        body = (json.dumps({"name": args.name, "size": length}) + "\n").encode()
         self.send_response(201)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))

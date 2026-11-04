@@ -12,15 +12,10 @@
 """Generate exact-source and event-adapted variable-lifecycle fixtures."""
 
 import argparse
-import hashlib
 import json
 import re
 import shutil
 from pathlib import Path
-
-
-def digest(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def ascii_lf(text: str) -> bytes:
@@ -137,8 +132,6 @@ def retain_and_adapt(label: str, source: Path, *, event_trace: bool = False) -> 
         {
             "case": label,
             "source": str(source.relative_to(repo)),
-            "source_sha256": digest(original),
-            "adapted_sha256": digest(event),
             "event_trace_adaptation": event_trace,
         }
     )
@@ -193,8 +186,6 @@ for label, payload in custom_payloads.items():
         {
             "case": label,
             "source": "generated event-frame control",
-            "source_sha256": digest(payload),
-            "adapted_sha256": digest(payload),
             "event_trace_adaptation": True,
         }
     )
@@ -408,9 +399,6 @@ ltm virtual {common}_global_vs {{
 manifest = {
     "run": run,
     "source_commit": args.source_commit,
-    "request_sha256": digest(request.read_bytes()),
-    "request_block_sha256": digest(request_body),
-    "main_body_sha256": digest(main_body),
     "vip": f"{args.vip}:{args.vip_port}",
     "global_vip": f"{args.vip}:{args.global_vip_port}",
     "backend": f"{args.backend}:{args.backend_port}",
@@ -421,17 +409,10 @@ for path in sorted(item for item in args.out.rglob("*") if item.is_file()):
     manifest["files"].append(
         {
             "file": str(path.relative_to(args.out)),
-            "sha256": digest(path.read_bytes()),
             "size": path.stat().st_size,
         }
     )
 (args.out / "manifest.json").write_text(
     json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="ascii"
 )
-hashes = []
-for path in sorted(item for item in args.out.rglob("*") if item.is_file()):
-    if path.name == "SHA256SUMS":
-        continue
-    hashes.append(f"{digest(path.read_bytes())}  {path.relative_to(args.out)}")
-(args.out / "SHA256SUMS").write_text("\n".join(hashes) + "\n", encoding="ascii")
 print(json.dumps(manifest, indent=2, sort_keys=True))
