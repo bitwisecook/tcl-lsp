@@ -1,5 +1,7 @@
 # BIG-IP lexical byte-class results
 
+> This historical summary is development material. The captured execution has not yet been migrated to the per-script evidence format.
+
 These are measured results for the complete 1,044-row matrix requested by
 [`LEXICAL_BYTE_CLASS_CHECKS.md`](LEXICAL_BYTE_CLASS_CHECKS.md). The complete
 matrix was recovered from real TMM HTTP_REQUEST execution, an actual tmsh CLI
@@ -43,36 +45,16 @@ and
 ## Byte provenance and load
 
 The generator extracted all three Tcl blocks directly from the request
-Markdown and refused unexpected hashes. Source was ASCII/LF and contained no
+Markdown. Source was ASCII/LF and contained no
 literal NUL or non-ASCII configuration byte. Every tested NUL/non-ASCII value
 was produced at runtime. `%c` results, binary-produced bytes, source scans and
 post-eval UTF-8 diagnostics remain distinct fields in every retained row.
 
-| Item | SHA-256 | Bytes |
-| --- | --- | ---: |
-| Common payload | `af1d6366e57927bc72cd756bf8804e1a1713de958561f30258876603bc120ae9` | 7,698 |
-| Complete supplied iRule body | `49b3c8dcd43221031288595afc53f9cc4642fb714e5a57b123b15d3613d91a40` | 27,379 |
-| Full iRule configuration | `da70a3b4486699dbf283f19c4db22077bf0f181c3c269c398c78e4a960e96ed8` | 27,429 |
-| tmsh CLI wrapper | `81a7dc66e3800cc8f629e064e78ff85d7601fd840fe753e9557f3ce8b837a181` | 8,234 |
-| iApp wrapper | `d532685039d99d976e7b2fe3134e839e065ffaec52fa5b9d73f50d2c1505221d` | 8,335 |
-| iCall wrapper | `5d2d3989a36bbb58899ae413e0faba9ce72b56053eda64c5e6c54880610926e4` | 8,441 |
-| Executed fixture archive | `d67e6c917a224468ec18d4a07eda37d660cefa90f792b050095a236de3da9547` | retained |
-| Executed fixture manifest | `bd2ad1e4bd24adf5611e02dfa4ba9872bc9c52b0bd04bf4ba4b4f5f27c701253` | retained |
-
-The appliance-side verification and full source tree are
-[`r2286lex1-v2-sha256-check.txt`](evidence/r2286_20261007vllex/appliance/r2286lex1-v2-sha256-check.txt)
-and
+The retained source tree is
 [`r2286lex1-fixtures-v2`](evidence/r2286_20261007vllex/appliance/r2286lex1-fixtures-v2/).
-
-One provenance field is explicitly not authoritative: the executed v2
-manifest's caller-supplied `source_commit` string is
-`88198d83da0a239036da06386846699195f30220`, while the measured worktree HEAD
-was `88198d83d3ef944670d7a1f24a3ada1b11187f69`. A fresh generation at the
-measured HEAD differs only in `manifest.json`; every payload, wrapper and lab
-file in `SHA256SUMS` is byte-identical. The request Markdown hash is
-`c8d1fcd88e14d8b2a61901b7250ee6c5b28cafc4db17c51ec231cd385e64595e`.
-The source-byte hashes above, rather than the incorrect free-form manifest
-field, close fixture provenance.
+Its caller-supplied source commit differs from the measured worktree HEAD; the
+recorded script and results, rather than that field, determine the scope of the
+observation.
 
 The exact iRule loaded with status 0 and twelve warnings of the form:
 
@@ -103,17 +85,16 @@ No extra heavy connections were used to manufacture multi-TMM coverage. The
 identity map, virtual status and four response headers are retained as raw
 evidence.
 
-| Context | Actual execution | Complete rows | Raw export SHA-256 | Decoded matrix SHA-256 |
-| --- | --- | ---: | --- | --- |
-| TMM HTTP_REQUEST | four bounded connections, all actual `0:0`; authoritative response body identical | 1,044 unique keys | `bedfc0132b718a2817282f22a8543230728acf0442f05c78b15d244a69e97e29` | `9673c3a3f3c25e7e4e4393f8cb20c7934fed79daaf2537453f33320ddc887042` |
-| tmsh CLI | `tmsh run cli script`; status 0, empty stderr | 1,044 unique keys | `38256d70d919ca5633c3d503d29338fbc44bdb81f42daf4ef573aa8c8751d8ec` | `d709338fec0ae6828ec479a6d747d245844549c2a0918bda9fc9121ae9c62e8f` |
-| iApp implementation | `tmsh create sys application service ... template ...`; actual action output isolated by scriptd byte offsets | 1,044 unique keys | `e241c18d855afefe5f5e43d6eef88f6dfd43d37b9f236ccd174e5f88250e08e4` | `335b51575c8159bc4b896a8543d29d953413dae918593c4712fa8bc36cce1d01` |
-| triggered iCall | handler loaded, event delivered by `generate sys icall event`; status 0 | 1,044 unique keys | `67cf7eb75f769b33cea9743523e7509cac565b3ad0974b3103be8f8d81d59df8` | `408169a9163e4db5e649a840c9112ae344f783634dfff85b8563f2515994c052` |
-| APL | not executed; no presentation evaluator/output mechanism was established | unknown | none | none |
+| Context | Actual execution | Complete rows |
+| --- | --- | ---: |
+| TMM HTTP_REQUEST | four bounded connections, all actual `0:0`; authoritative response body identical | 1,044 unique keys |
+| tmsh CLI | `tmsh run cli script`; status 0, empty stderr | 1,044 unique keys |
+| iApp implementation | `tmsh create sys application service ... template ...`; actual action output isolated by scriptd byte offsets | 1,044 unique keys |
+| triggered iCall | handler loaded, event delivered by `generate sys icall event`; status 0 | 1,044 unique keys |
+| APL | not executed; no presentation evaluator/output mechanism was established | unknown |
 
 After removing only context and identity columns, the tmsh, iApp and iCall
-matrices are byte-identical with SHA-256
-`04adeb7097ef5d22db36ab3dbc0294b1027e60f84ec20100e0f9eda0186cd78f`.
+matrices are byte-identical.
 The TMM matrix differs.
 
 The complete row-level results—not a sample—are
@@ -213,7 +194,6 @@ connection beyond the request's four-connection limit was generated.
 ```sh
 python3 generate-lexical-byte-class-fixtures.py \
   --out /tmp/r2286lex1-fixtures --source-commit 88198d83d3ef944670d7a1f24a3ada1b11187f69
-(cd /tmp/r2286lex1-fixtures && sha256sum -c SHA256SUMS)
 tmsh load sys config merge file sources/identity.conf
 tmsh load sys config merge file sources/lab.conf
 tmsh load sys config merge file sources/irule.conf
@@ -244,9 +224,7 @@ tmsh generate sys icall event name R2286LEX1_LBC
 ## Evidence and cleanup
 
 The retained evidence bundle is
-[`evidence/r2286_20261007vllex`](evidence/r2286_20261007vllex/), with 860
-files inventoried in
-[`SHA256SUMS`](evidence/r2286_20261007vllex/SHA256SUMS). The continuous raw LTM
+[`evidence/r2286_20261007vllex`](evidence/r2286_20261007vllex/). The continuous raw LTM
 capture is
 [`ltm-continuous.log`](evidence/r2286_20261007vllex/appliance/ltm-continuous.log).
 Exact requests, headers, bodies and backend observations are under
