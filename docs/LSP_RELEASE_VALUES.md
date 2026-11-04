@@ -251,3 +251,50 @@ positive controls silent. The reported #940, #2498, #2500 and #2504 cases
 remained quiet, so the candidate does not establish a fix. The owner route
 requires additional tracing; no candidate production changes have been
 committed. Native execution and Normal-completion proof paths were not changed.
+
+## Authored source authority follow-up
+
+At `1da87f395`, the actual full-pipeline #940 fixture retained the
+`AuthoredSimulation` purpose for the affected loop-body commands. The existing
+resolved-handler, owned-body, original-declaration and inline-control selectors
+all declined those sites before the authored static-word gate. The top-level
+`foreach` children had no deferred procedure-body entry; the proc control's
+conditional invocation did not own the declared frame. These refusals were
+observed with bounded boolean traces and unchanged source hashes.
+
+The source-registry query still found conditional schemas at the original
+sites. Top-level loop children were catalogue `Conditional` facts; the proc
+control's `SourceTransitions` retained `UnavailableActualLookup`,
+`UnknownEarlierMutation`, and conditional procedure/body/namespace
+applicability, with two to six uncertain earlier operations. These are not
+closed handler or Normal-result proofs. An analysis-only experiment that
+required exact original owner, source, config, registry, original words and
+Native Execution purpose did not restore the genuine S102 or S100 controls and
+was withdrawn. It did not alter Native execution or Normal receipts.
+
+A shadowing control renames `lappend`, installs a no-op procedure under that
+name, and runs the conditional append loop. Tcl 8.4–9.1 and Jim 0.84 all leave
+`ys` empty. A source spelling or conditional catalogue role therefore cannot
+alone prove a list write. No source-owner or warning-suppression change was
+committed as a fix.
+
+A follow-up source-catalogue probe retained stronger detail for those
+obligations: each top-level loop-body source schema carried
+`UnknownCurrentLookup`, `UnknownLookupCoordinates`, and an `UnretainedHolder`
+for its original head. The proc control retained unavailable actual lookup,
+unknown earlier mutations, and conditional body/namespace applicability.
+The existing `declaration_flow` source-only graph is a possible home for a
+future obligation-preserving diagnostic projection; its current root-script
+selection and representation transfer do not yet provide this proof. No
+conditional source fact was promoted to a handler, Normal result or SSA fact.
+
+```tcl
+rename lappend saved_lappend
+proc lappend args {return}
+set ys {}
+foreach pt {{1 2} {3 4} {5 6}} {
+    set y [lindex $pt 1]
+    if {$y > 2} {lappend ys $y}
+}
+puts [list [info patchlevel] $ys]
+```
