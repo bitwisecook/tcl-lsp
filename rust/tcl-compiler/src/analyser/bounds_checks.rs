@@ -576,7 +576,30 @@ pub(crate) fn loop_termination_candidate(
     if args.len() <= shape.body || arg_tokens.len() <= shape.body {
         return None;
     }
-    let may_exit = body_may_exit(args[shape.body].as_str(), registry, lexer_config);
+    let texts: Vec<_> = args.iter().map(String::as_str).collect();
+    let scripts = surface
+        .filter(|surface| surface.declares(cmd_name))
+        .map_or_else(
+            || registry.argument_indices(cmd_name, &texts, tcl_registry::ArgRole::Body),
+            |surface| surface.arg_indices_for_role(cmd_name, &texts, tcl_registry::ArgRole::Body),
+        );
+    let may_exit = scripts
+        .into_iter()
+        .chain(std::iter::once(shape.body))
+        .any(|index| {
+            let Some((text, token)) = args.get(index).zip(arg_tokens.get(index)) else {
+                return true;
+            };
+            if !matches!(token.kind, TokenType::Str | TokenType::Esc) {
+                return true;
+            }
+            tcl_syntax::word_rules::standalone_static_word_fragment_value(
+                text,
+                token.kind == TokenType::Str,
+                lexer_config,
+            )
+            .is_none_or(|script| body_may_exit(&script, registry, lexer_config))
+        });
     let words = plan_words(cmd_name, args, registry);
     let counter = words
         .as_ref()
