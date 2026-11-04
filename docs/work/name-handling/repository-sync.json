@@ -1,22 +1,14 @@
 {
-  "checked_at": "2026-11-04T06:35:57.585794+00:00",
+  "checked_at": "2026-11-04T06:40:57.494942+00:00",
   "branch": "work",
-  "head_before_status_commit": "aca63203d4acb6b9f304e61e8218f374da2f87f9",
-  "remote_head_at_fetch": "aca63203d4acb6b9f304e61e8218f374da2f87f9",
-  "sync": "no new remote commits",
+  "head_before_status_commit": "11f6f339c31e088a50ca0b8316b568bc9c5ca118",
+  "remote_head_at_fetch": "ab22848ceab419d6570dc370b7f7d36e46ec8d2b",
+  "sync": "local commits pending publication; remote ancestor verified",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "ac0570faab7227d71731ca664de67ff8d9042d85accb3d9f96239b3dd5ee78c5",
-  "working_tree_at_check": [
-    " M docs/design/analysis/name-resolution-proofs/README.md",
-    " M docs/design/analysis/name-resolution-proofs/corpus-inventory.json",
-    " M rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs",
-    " M rust/tcl-lsp-server-wasm/test/e2e.mjs",
-    "?? docs/design/analysis/name-resolution-proofs/derived-public-projections/authored-fixture-source-contract.json",
-    "?? docs/design/analysis/name-resolution-proofs/derived-public-projections/authored-fixture-source-review.json",
-    "?? scripts/dev/check-authored-fixture-source-review.py"
-  ],
+  "manual_status_sha256": "f56389bf9551177a75eeb97601d695ae9a6688c9e1bc39d3e163019590b9b8c4",
+  "working_tree_at_check": [],
   "ci_note": "This heartbeat does not poll or certify CI. Exact workflow sources and outcomes are recorded in the timestamped manual snapshot.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
 }
