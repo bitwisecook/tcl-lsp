@@ -40,6 +40,7 @@ mod current_diagnostics;
 mod diagnostic_read_cancellation;
 mod workspace_diagnostic_sources;
 use workspace_diagnostic_sources::WorkspaceDiagnosticSources;
+pub mod analysis_cooperation;
 mod document_transform;
 mod fresh_analysis_cache;
 mod package_source;
@@ -1369,6 +1370,41 @@ impl FreshAnalysisDriver {
             analyser_inputs_epoch: self.analyser_inputs_epoch,
             class_factory_generation: self.class_factory_generation,
         })
+    }
+    fn analyse_controlled(
+        self: Box<Self>,
+        text: &str,
+        dialect: &str,
+        control: tcl_compiler::analysis_control::AnalysisControl,
+    ) -> Result<
+        DocumentSourceResult<FreshAnalysisSeed>,
+        tcl_compiler::analysis_control::AnalysisInterrupted,
+    > {
+        if let Err(error) = self
+            .path_admission
+            .check_current(self.source_store.as_ref())
+        {
+            return Ok(Err(error));
+        }
+        let text = tcl_lexer::normalise_lone_cr(text);
+        let Self {
+            path_admission,
+            source_store,
+            analyser,
+            analyser_inputs_epoch,
+            class_factory_generation,
+            ..
+        } = *self;
+        let analysis = analyser.try_analyse_owned(&text, dialect, None, control)?;
+        if let Err(error) = path_admission.check_current(source_store.as_ref()) {
+            return Ok(Err(error));
+        }
+        Ok(Ok(FreshAnalysisSeed {
+            path_admission,
+            analysis: Arc::new(analysis),
+            analyser_inputs_epoch,
+            class_factory_generation,
+        }))
     }
 }
 
@@ -9785,6 +9821,7 @@ enum DiskRemovalPolicy<'a> {
 #[derive(Clone)]
 pub struct Backend {
     state: Arc<BackendState>,
+    analysis_cooperation: Option<Arc<analysis_cooperation::AnalysisCooperation>>,
 }
 
 impl std::ops::Deref for Backend {
@@ -11611,7 +11648,18 @@ impl Backend {
     fn from_state(state: BackendState) -> Self {
         Self {
             state: Arc::new(state),
+            analysis_cooperation: None,
         }
+    }
+
+    /// Attach the actual transport scheduling owner before sharing this backend.
+    #[must_use]
+    pub fn with_analysis_cooperation(
+        mut self,
+        cooperation: Arc<analysis_cooperation::AnalysisCooperation>,
+    ) -> Self {
+        self.analysis_cooperation = Some(cooperation);
+        self
     }
 
     #[cfg(test)]
@@ -15066,9 +15114,32 @@ impl Backend {
                 let original_uri = uri.clone();
                 let source = Arc::clone(&text);
                 let dialect = dialect.clone();
-                crate::rt::spawn_blocking(move || driver.analyse(&source, &dialect, None))
+                if let Some(cooperation) = &self.analysis_cooperation {
+                    let ticket = cooperation.ticket();
+                    let control = cooperation.control();
+                    let attempt = crate::rt::spawn_blocking(move || {
+                        driver.analyse_controlled(&source, &dialect, control)
+                    })
                     .await
-                    .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })??
+                    .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })?;
+                    match attempt {
+                        Ok(seed) => seed?,
+                        Err(_) => {
+                            if cooperation.wait_after(ticket).await
+                                == analysis_cooperation::TransportProgress::Stopped
+                            {
+                                // The driver owns terminal completion. No warning,
+                                // empty analysis or cache/index result is published.
+                                return std::future::pending().await;
+                            }
+                            continue;
+                        }
+                    }
+                } else {
+                    crate::rt::spawn_blocking(move || driver.analyse(&source, &dialect, None))
+                        .await
+                        .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })??
+                }
             };
             seed.path_admission.check_for(uri, self.store.as_ref())?;
             if !self.fresh_index_generation_is_current(&seed).await {
@@ -72236,4 +72307,81 @@ fn coalesce_conditional_variable_edits(
         ),
         new_text: replacement,
     })
+}
+
+#[cfg(test)]
+mod cooperative_fresh_analysis_tests {
+    use super::*;
+    use futures::FutureExt as _;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn an_interrupted_fresh_seed_is_not_returned_or_published_after_stop() {
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let signal = Arc::clone(&entered);
+        let cooperation = Arc::new(analysis_cooperation::AnalysisCooperation::new(move || {
+            signal.notify_one();
+            true
+        }));
+        let backend = tests::test_backend().with_analysis_cooperation(Arc::clone(&cooperation));
+        let uri: Uri = "file:///interrupted-analysis.tcl".parse().unwrap();
+        let source: Arc<str> = Arc::from("proc p {x} {return $x}\np 1\n");
+        let pending = backend.fresh_analysis_seed(&uri, source, "tcl8.6".to_owned());
+        tokio::pin!(pending);
+        tokio::select! {
+            _ = pending.as_mut() => panic!("interrupted analysis returned a result"),
+            () = entered.notified() => {}
+        }
+        cooperation.stop();
+        assert!(pending.as_mut().now_or_never().is_none());
+        assert_eq!(backend.fresh_analysis_cache.lock().unwrap().len(), 0);
+        assert!(backend.pull_diag_cache.lock().await.is_empty());
+        assert!(
+            !backend
+                .workspace_index
+                .read()
+                .await
+                .contains_document(uri.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn drained_incomplete_input_retries_and_quiet_analysis_completes_with_its_full_result() {
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let ready = Arc::new(AtomicBool::new(true));
+        let probes = Arc::new(AtomicUsize::new(0));
+        let signal = Arc::clone(&entered);
+        let queued = Arc::clone(&ready);
+        let counted = Arc::clone(&probes);
+        let cooperation = Arc::new(analysis_cooperation::AnalysisCooperation::new(move || {
+            counted.fetch_add(1, Ordering::Relaxed);
+            let ready = queued.load(Ordering::Acquire);
+            if ready {
+                signal.notify_one();
+            }
+            ready
+        }));
+        let backend = tests::test_backend().with_analysis_cooperation(Arc::clone(&cooperation));
+        let uri: Uri = "file:///resumed-analysis.tcl".parse().unwrap();
+        let source: Arc<str> = Arc::from("proc quiet_complete {x} {return $x}\nquiet_complete 1\n");
+        let pending = backend.fresh_analysis_seed(&uri, Arc::clone(&source), "tcl8.6".to_owned());
+        tokio::pin!(pending);
+        tokio::select! {
+            _ = pending.as_mut() => panic!("analysis ignored ready input"),
+            () = entered.notified() => {}
+        }
+        assert_eq!(backend.fresh_analysis_cache.lock().unwrap().len(), 0);
+        ready.store(false, Ordering::Release);
+        cooperation.drained_incomplete();
+        let seed = pending.await.unwrap();
+        assert!(tcl_compiler::source_graph::current_analysis(&source, &seed.analysis).is_some());
+        assert!(seed.analysis.all_procs.contains_key("::quiet_complete"));
+        assert!(probes.load(Ordering::Relaxed) > 1);
+        let cached = backend
+            .fresh_analysis_seed(&uri, source, "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&seed.analysis, &cached.analysis));
+        assert_eq!(backend.fresh_analysis_cache.lock().unwrap().len(), 1);
+    }
 }

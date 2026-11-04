@@ -291,6 +291,10 @@ pub(super) fn lookup(key: &SourceAnalysisCacheKey) -> Option<SourceCommandBindin
 }
 
 pub(super) fn retain(key: SourceAnalysisCacheKey, bindings: &mut SourceCommandBindings) {
+    // A controlled partial interpretation never enters either root or point history.
+    if crate::analysis_control::interrupted() {
+        return;
+    }
     if bindings.points.len() > MAX_POINTS {
         return;
     }
@@ -364,6 +368,110 @@ mod tests {
             registry,
             options,
         )
+    }
+
+    #[test]
+    fn ignoring_an_inner_stop_cannot_allow_outer_semantic_cache_retention() {
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        let (source, config, registry, options) = inputs();
+        let frame = VariableExecutionFrame::Global;
+        let key = SourceAnalysisCacheKey::at_entry(
+            &source,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
+        let outer = crate::analysis_control::run(
+            crate::analysis_control::AnalysisControl::new(|_| false),
+            || {
+                let nested = crate::analysis_control::run(
+                    crate::analysis_control::AnalysisControl::new(|_| true),
+                    || {
+                        crate::analysis_control::checkpoint(
+                            crate::analysis_control::AnalysisCheckpoint::Command,
+                        );
+                    },
+                );
+                assert!(nested.is_err());
+                let mut partial = SourceCommandBindings::default();
+                retain(key.clone(), &mut partial);
+                assert!(lookup(&key).is_none());
+            },
+        );
+        assert!(outer.is_err());
+        assert!(lookup(&key).is_none());
+    }
+
+    #[test]
+    fn nested_control_cannot_retain_under_an_interrupted_outer_owner() {
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        let (source, config, registry, options) = inputs();
+        let frame = VariableExecutionFrame::Global;
+        let key = SourceAnalysisCacheKey::at_entry(
+            &source,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
+        let outer = crate::analysis_control::run(
+            crate::analysis_control::AnalysisControl::new(|_| true),
+            || {
+                assert!(crate::analysis_control::checkpoint(
+                    crate::analysis_control::AnalysisCheckpoint::Command
+                ));
+                let nested = crate::analysis_control::run(
+                    crate::analysis_control::AnalysisControl::new(|_| false),
+                    || {
+                        let mut partial = SourceCommandBindings::default();
+                        retain(key.clone(), &mut partial);
+                    },
+                );
+                assert!(nested.is_err());
+                assert!(lookup(&key).is_none());
+            },
+        );
+        assert!(outer.is_err());
+        assert!(lookup(&key).is_none());
+    }
+
+    #[test]
+    fn interrupted_source_walk_cannot_retain_a_semantic_cache_entry() {
+        CACHE.with(|cache| cache.borrow_mut().clear());
+        let (source, config, registry, options) = inputs();
+        let frame = VariableExecutionFrame::Global;
+        let key = SourceAnalysisCacheKey::at_entry(
+            &source,
+            &frame,
+            config,
+            registry,
+            options,
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        )
+        .unwrap();
+        let interrupted = crate::analysis_control::run(
+            crate::analysis_control::AnalysisControl::new(|at| {
+                at == crate::analysis_control::AnalysisCheckpoint::Command
+            }),
+            || {
+                SourceCommandBindings::analyse_image_in_frame_with_options(
+                    &source, &frame, config, registry, options,
+                )
+            },
+        );
+        assert!(interrupted.is_err());
+        assert!(lookup(&key).is_none());
+        let complete = SourceCommandBindings::analyse_image_in_frame_with_options(
+            &source, &frame, config, registry, options,
+        );
+        assert!(lookup(&key).is_some());
+        drop(complete);
+        CACHE.with(|cache| cache.borrow_mut().clear());
     }
 
     #[test]

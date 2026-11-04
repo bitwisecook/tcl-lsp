@@ -50,6 +50,20 @@ impl Decoder {
         self.buffer.len()
     }
 
+    /// Whether the driver can advance the decoder without another stdin read.
+    /// A malformed complete header is also ready: routing must drop it.
+    pub fn has_ready_frame(&self) -> bool {
+        let Some((header_end, header_len)) = find_header_end(&self.buffer) else {
+            return false;
+        };
+        let Some(length) = content_length(&self.buffer[..header_end]) else {
+            return true;
+        };
+        (header_end + header_len)
+            .checked_add(length)
+            .is_none_or(|end| self.buffer.len() >= end)
+    }
+
     /// Take the next complete message, if the buffer holds one.
     ///
     /// Returns `None` when the buffer holds only part of a frame — the caller
@@ -366,5 +380,29 @@ mod tests {
         decoder.push(b"Content-Length: 9\r\n\r\n{}");
         assert!(decoder.next_message().is_none());
         assert!(decoder.buffered() > 0);
+    }
+}
+
+#[cfg(test)]
+mod readiness_tests {
+    use super::{Decoder, encode};
+    #[test]
+    fn decoder_readiness_distinguishes_partial_body_and_already_buffered_next_frame() {
+        let first = encode("first");
+        let second = encode("exit");
+        let mut decoder = Decoder::new();
+        decoder.push(&first[..first.len() - 1]);
+        assert!(!decoder.has_ready_frame());
+        decoder.push(&first[first.len() - 1..]);
+        decoder.push(&second);
+        assert!(decoder.has_ready_frame());
+        assert_eq!(decoder.next_message().unwrap().unwrap(), "first");
+        assert!(decoder.has_ready_frame());
+        assert_eq!(decoder.next_message().unwrap().unwrap(), "exit");
+        assert!(!decoder.has_ready_frame());
+        decoder.push(b"Broken: header\r\n\r\n");
+        assert!(decoder.has_ready_frame());
+        assert!(decoder.next_message().unwrap().is_err());
+        assert!(!decoder.has_ready_frame());
     }
 }

@@ -113,8 +113,22 @@ fn main() {
         // WASI preopens make `std::fs` real, so the server reads closed files
         // from the host filesystem exactly as the native binary does.
         let store: Arc<dyn vfs::SourceStore> = Arc::new(vfs::NativeStore);
-        let (service, socket) = LspService::new(move |client| Backend::with_store(client, store));
-        driver::Driver::new(service, socket).run().await
+        let cooperation = Arc::new(
+            tcl_lsp_server::analysis_cooperation::AnalysisCooperation::new(|| {
+                // Readiness is only a scheduling signal. The driver remains the
+                // sole stdin reader, frame decoder and protocol dispatcher.
+                wasi_poll::wait_for_stdin(std::time::Duration::ZERO)
+                    == wasi_poll::Readiness::Readable
+            }),
+        );
+        let backend_cooperation = Arc::clone(&cooperation);
+        let (service, socket) = LspService::new(move |client| {
+            Backend::with_store(client, store).with_analysis_cooperation(backend_cooperation)
+        });
+        driver::Driver::new(service, socket)
+            .with_analysis_cooperation(cooperation)
+            .run()
+            .await
     });
 
     // Drop the runtime before exiting so nothing is mid-write, then report the

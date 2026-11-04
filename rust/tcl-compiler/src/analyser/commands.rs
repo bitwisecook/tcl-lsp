@@ -516,6 +516,11 @@ impl Analyser {
         let total = body_commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {
+            if crate::analysis_control::checkpoint(
+                crate::analysis_control::AnalysisCheckpoint::Body,
+            ) {
+                break;
+            }
             let cmd_ref = &body_commands[cmd_idx];
             if cmd_ref.argv.is_empty() {
                 cmd_idx += 1;

@@ -124,6 +124,7 @@ use std::time::{Duration, Instant};
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use futures::sink::SinkExt as _;
+use tcl_lsp_server::analysis_cooperation::AnalysisCooperation;
 use tcl_lsp_server::rt;
 use tcl_lsp_server::service::{inject_type_hierarchy_provider, normalise_request_uris};
 use tower::Service as _;
@@ -266,6 +267,9 @@ pub struct Driver<S> {
     /// to a plain sleep instead of asking again every pass.
     stdin_pollable: bool,
     lifecycle_trace: Option<LifecycleTrace>,
+    analysis_cooperation: Option<Arc<AnalysisCooperation>>,
+    routed_progress: bool,
+    input_consumed: bool,
 }
 
 impl<S> Driver<S>
@@ -319,6 +323,9 @@ where
             last_activity: Instant::now(),
             shutdown_seen: false,
             stdin_pollable: true,
+            analysis_cooperation: None,
+            routed_progress: false,
+            input_consumed: false,
             lifecycle_trace: std::env::var("TCL_LSP_WASI_LIFECYCLE_TRACE")
                 .is_ok_and(|value| value == "1")
                 .then(|| LifecycleTrace {
@@ -328,10 +335,53 @@ where
         }
     }
 
+    /// Attach the same scheduling owner used by this session's backend.
+    #[must_use]
+    pub fn with_analysis_cooperation(mut self, cooperation: Arc<AnalysisCooperation>) -> Self {
+        cooperation.set_buffered_ready(self.decoder.has_ready_frame());
+        self.analysis_cooperation = Some(cooperation);
+        self
+    }
+
+    fn update_buffered_readiness(&self) {
+        if let Some(cooperation) = &self.analysis_cooperation {
+            cooperation.set_buffered_ready(self.decoder.has_ready_frame());
+        }
+    }
+
+    fn publish_input_progress(&mut self) {
+        // Decoding is not admission. Retain this turn's progress until held
+        // requests can join the service, or terminal routing selects stop.
+        if !self.held.is_empty() {
+            return;
+        }
+        let routed = std::mem::take(&mut self.routed_progress);
+        let consumed = std::mem::take(&mut self.input_consumed);
+        if let Some(cooperation) = &self.analysis_cooperation {
+            if routed {
+                cooperation.routed();
+            } else if consumed {
+                cooperation.drained_incomplete();
+            }
+        }
+    }
+
+    fn stop_analysis(&self) {
+        if let Some(cooperation) = &self.analysis_cooperation {
+            cooperation.stop();
+        }
+    }
+
     fn lifecycle_trace(&self, stage: &str) {
         if let Some(trace) = &self.lifecycle_trace {
             trace_lifecycle_row(&trace.rows, stage);
         }
+    }
+
+    fn finish_input(&mut self) -> Stop {
+        let stop = self.route().unwrap_or(Stop::EndOfInput);
+        self.stop_analysis();
+        stop
     }
 
     /// Run the session to completion.
@@ -340,11 +390,15 @@ where
             // 1. Route everything already decodable, then everything held back
             //    behind `initialize`.
             if let Some(stop) = self.route() {
+                self.stop_analysis();
                 self.lifecycle_trace("stop.before-drain");
                 self.drain_for_exit().await;
                 self.lifecycle_trace("stop.after-drain");
                 return stop;
             }
+            // Progress wakes analysis only after all available frames are routed.
+            // An exit in that turn reaches the terminal branch above instead.
+            self.publish_input_progress();
             // 2. Hand the client whatever the server has produced so far.
             self.flush();
             // 3. Let the runtime run every ready task and fire every due timer.
@@ -374,7 +428,7 @@ where
                 // EOF. An `exit` sitting among them decides the process's
                 // status, so route once more and honour what that says;
                 // end-of-input is only the answer if nothing was waiting.
-                let stop = self.route().unwrap_or(Stop::EndOfInput);
+                let stop = self.finish_input();
                 self.lifecycle_trace("stop.before-drain");
                 self.drain_for_exit().await;
                 self.lifecycle_trace("stop.after-drain");
@@ -389,6 +443,9 @@ where
     fn route(&mut self) -> Option<Stop> {
         self.admit();
         while let Some(message) = self.decoder.next_message() {
+            // Dropping a complete malformed frame also advances the decoder.
+            self.routed_progress = true;
+            self.update_buffered_readiness();
             self.last_activity = Instant::now();
             let text = match message {
                 Ok(text) => text,
@@ -437,6 +494,7 @@ where
                 )),
             }
         }
+        self.update_buffered_readiness();
         None
     }
 
@@ -590,6 +648,8 @@ where
                     return true;
                 }
                 self.decoder.push(chunk);
+                self.input_consumed = true;
+                self.update_buffered_readiness();
                 chunk.len()
             }
             Err(err) if err.kind() == std::io::ErrorKind::Interrupted => return false,
@@ -654,4 +714,156 @@ fn classify(text: &str) -> Option<Incoming> {
 /// protocol, and there is no console to reach for.
 fn log(message: &str) {
     eprintln!("tcl-lsp-server-wasi: {message}");
+}
+
+#[cfg(test)]
+mod cooperation_tests {
+    use super::*;
+    use futures::FutureExt as _;
+    use tcl_lsp_server::analysis_cooperation::TransportProgress;
+
+    struct WaitingServer {
+        owner: Arc<AnalysisCooperation>,
+        entered: Arc<tokio::sync::Notify>,
+    }
+    #[tower_lsp_server::async_trait]
+    impl tower_lsp_server::LanguageServer for WaitingServer {
+        async fn initialize(
+            &self,
+            _: tower_lsp_server::ls_types::InitializeParams,
+        ) -> tower_lsp_server::jsonrpc::Result<tower_lsp_server::ls_types::InitializeResult>
+        {
+            Ok(Default::default())
+        }
+        async fn shutdown(&self) -> tower_lsp_server::jsonrpc::Result<()> {
+            Ok(())
+        }
+        async fn hover(
+            &self,
+            _: tower_lsp_server::ls_types::HoverParams,
+        ) -> tower_lsp_server::jsonrpc::Result<Option<tower_lsp_server::ls_types::Hover>> {
+            let ticket = self.owner.ticket();
+            self.entered.notify_one();
+            if self.owner.wait_after(ticket).await == TransportProgress::Stopped {
+                return std::future::pending().await;
+            }
+            Ok(Some(tower_lsp_server::ls_types::Hover {
+                contents: tower_lsp_server::ls_types::HoverContents::Scalar(
+                    tower_lsp_server::ls_types::MarkedString::String(
+                        "prior request completed".to_owned(),
+                    ),
+                ),
+                range: None,
+            }))
+        }
+    }
+
+    #[tokio::test]
+    async fn prior_request_responds_with_only_a_partial_next_frame_and_exit_then_wins() {
+        let owner = Arc::new(AnalysisCooperation::new(|| false));
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let handler_owner = Arc::clone(&owner);
+        let handler_entered = Arc::clone(&entered);
+        let (service, socket) = LspService::new(move |_| WaitingServer {
+            owner: handler_owner,
+            entered: handler_entered,
+        });
+        let mut driver = Driver::new(service, socket).with_analysis_cooperation(Arc::clone(&owner));
+        driver.decoder.push(&encode(
+            r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#,
+        ));
+        assert_eq!(driver.route(), None);
+        driver.publish_input_progress();
+        let initialized = driver.outbound_rx.next().await.unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&initialized).unwrap()["id"],
+            1
+        );
+        driver.decoder.push(&encode(r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///quiet.tcl"},"position":{"line":0,"character":0}}}"#));
+        assert_eq!(driver.route(), None);
+        driver.publish_input_progress();
+        entered.notified().await;
+        let exit = encode(r#"{"jsonrpc":"2.0","method":"exit"}"#);
+        driver.decoder.push(&exit[..exit.len() - 1]);
+        driver.input_consumed = true;
+        driver.update_buffered_readiness();
+        assert_eq!(driver.route(), None);
+        driver.publish_input_progress();
+        // No more client bytes: this actual request must still respond.
+        let response = driver.outbound_rx.next().await.unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["id"], 2);
+        assert_eq!(response["result"]["contents"], "prior request completed");
+        let ticket = owner.ticket();
+        assert_eq!(driver.route(), None);
+        driver.publish_input_progress();
+        assert!(owner.wait_after(ticket).now_or_never().is_none());
+        driver.decoder.push(&exit[exit.len() - 1..]);
+        driver.input_consumed = true;
+        driver.update_buffered_readiness();
+        assert_eq!(driver.route(), Some(Stop::AbruptExit));
+        driver.stop_analysis();
+        driver.publish_input_progress();
+        assert_eq!(owner.wait_after(ticket).await, TransportProgress::Stopped);
+    }
+
+    #[tokio::test]
+    async fn eof_with_an_incomplete_frame_selects_terminal_before_retry_progress() {
+        let owner = Arc::new(AnalysisCooperation::new(|| false));
+        let ticket = owner.ticket();
+        let (service, socket) = LspService::new(tcl_lsp_server::Backend::new);
+        let mut driver = Driver::new(service, socket).with_analysis_cooperation(Arc::clone(&owner));
+        driver.decoder.push(b"Content-Length: 99\r\n\r\npartial");
+        driver.input_consumed = true;
+        driver.update_buffered_readiness();
+        assert_eq!(driver.finish_input(), Stop::EndOfInput);
+        driver.publish_input_progress();
+        assert_eq!(owner.wait_after(ticket).await, TransportProgress::Stopped);
+    }
+
+    #[tokio::test]
+    async fn drained_partial_frame_allows_one_retry_then_quiet_turns_stay_pending() {
+        let owner = Arc::new(AnalysisCooperation::new(|| false));
+        let ticket = owner.ticket();
+        let (service, socket) = LspService::new(tcl_lsp_server::Backend::new);
+        let mut driver = Driver::new(service, socket).with_analysis_cooperation(Arc::clone(&owner));
+        let frame = encode("invalid JSON, deliberately dropped once framed");
+        driver.decoder.push(&frame[..frame.len() - 1]);
+        driver.input_consumed = true;
+        driver.update_buffered_readiness();
+        assert_eq!(driver.route(), None);
+        driver.publish_input_progress();
+        assert_eq!(
+            owner.wait_after(ticket).await,
+            TransportProgress::DrainedIncomplete
+        );
+        let ticket = owner.ticket();
+        assert_eq!(driver.route(), None);
+        driver.publish_input_progress();
+        assert!(owner.wait_after(ticket).now_or_never().is_none());
+        driver.decoder.push(&frame[frame.len() - 1..]);
+        driver.update_buffered_readiness();
+        assert_eq!(driver.route(), None);
+        driver.publish_input_progress();
+        assert_eq!(owner.wait_after(ticket).await, TransportProgress::Routed);
+    }
+
+    #[tokio::test]
+    async fn buffered_exit_selects_stop_before_deferred_analysis_can_restart() {
+        let owner = Arc::new(AnalysisCooperation::new(|| false));
+        let ticket = owner.ticket();
+        let (service, socket) = LspService::new(tcl_lsp_server::Backend::new);
+        let mut driver = Driver::new(service, socket).with_analysis_cooperation(Arc::clone(&owner));
+        driver
+            .decoder
+            .push(&encode(r#"{"jsonrpc":"2.0","method":"exit"}"#));
+        driver.update_buffered_readiness();
+        assert!(driver.decoder.has_ready_frame());
+        assert_eq!(driver.route(), Some(Stop::AbruptExit));
+        driver.stop_analysis();
+        // A delayed nonterminal notification cannot supersede selected exit.
+        owner.routed();
+        assert_eq!(owner.wait_after(ticket).await, TransportProgress::Stopped);
+        assert!(!driver.decoder.has_ready_frame());
+    }
 }

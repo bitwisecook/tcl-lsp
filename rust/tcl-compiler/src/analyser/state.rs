@@ -2430,13 +2430,32 @@ impl Analyser {
         &self.result
     }
 
+    /// Own all provisional analysis until its interruption boundary has closed.
+    /// A stopped job is consumed, so its partial realm/scope cannot be reused.
+    pub fn try_analyse_owned(
+        mut self,
+        source: &str,
+        dialect: &str,
+        namespace: Option<&str>,
+        control: crate::analysis_control::AnalysisControl,
+    ) -> Result<AnalysisResult, crate::analysis_control::AnalysisInterrupted> {
+        crate::analysis_control::run(control, || match namespace {
+            Some(namespace) => self.analyse_with_source_namespace(source, dialect, namespace),
+            None => self.analyse(source, dialect),
+        })
+    }
+
     /// `source` is consumed by reference so the analyser can hold
     /// per-walk references back into it; `dialect` is one of
     /// `"tcl"`, `"f5-irules"`, `"irules"`, `"iapps"`, etc. (kept in
     /// the analyser's per-walk state via [`Self::current_event`]
     /// elsewhere; this entry just records it for future use).
     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
+        use crate::analysis_control::{AnalysisCheckpoint, checkpoint};
         use std::collections::HashSet;
+        if checkpoint(AnalysisCheckpoint::Start) {
+            return AnalysisResult::default();
+        }
 
         let phase_start = ((cfg!(debug_assertions)
             && std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES").is_some())
@@ -2497,8 +2516,14 @@ impl Analyser {
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
         trace_phase("realm-start");
+        if checkpoint(AnalysisCheckpoint::Realm) {
+            return AnalysisResult::default();
+        }
         self.head_identities = self.document_command_realm_reusing(source);
         trace_phase("realm-complete");
+        if crate::analysis_control::interrupted() {
+            return AnalysisResult::default();
+        }
         self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
         self.result.original_command_world =
             self.head_identities.original_completed_command_world();
@@ -2557,6 +2582,9 @@ impl Analyser {
             trace.finish(source.len(), self.structure_only);
         }
         trace_phase("walk-complete");
+        if crate::analysis_control::interrupted() {
+            return AnalysisResult::default();
+        }
         if file_env_pushed {
             self.body_scope_stack.pop();
         }
@@ -2584,6 +2612,9 @@ impl Analyser {
         self.record_literal_parameter_definitions();
         self.retain_original_callback_signature_lookups(source);
         trace_phase("parameter-definitions");
+        if checkpoint(AnalysisCheckpoint::Diagnostics) {
+            return AnalysisResult::default();
+        }
         if self.structure_only {
             if let Some(registry) = self.registry.as_deref() {
                 self.result.retain_logical_class_source_factories(registry);
@@ -2592,6 +2623,9 @@ impl Analyser {
             self.run_diagnostic_emitters(source);
         }
         trace_phase("diagnostics-complete");
+        if crate::analysis_control::interrupted() {
+            return AnalysisResult::default();
+        }
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
@@ -2722,6 +2756,11 @@ impl Analyser {
         let total = commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {
+            if crate::analysis_control::checkpoint(
+                crate::analysis_control::AnalysisCheckpoint::Command,
+            ) {
+                break;
+            }
             let cmd_ref = &commands[cmd_idx];
             if cmd_ref.argv.is_empty() {
                 cmd_idx += 1;
@@ -3323,6 +3362,11 @@ impl Analyser {
         let total = commands.len();
         let mut cmd_idx: usize = 0;
         while cmd_idx < total {
+            if crate::analysis_control::checkpoint(
+                crate::analysis_control::AnalysisCheckpoint::Command,
+            ) {
+                break;
+            }
             let cmd_ref = &commands[cmd_idx];
             if cmd_ref.argv.is_empty() {
                 cmd_idx += 1;
@@ -3608,6 +3652,11 @@ impl Analyser {
             }
         };
         trace_phase("initial");
+        if crate::analysis_control::checkpoint(
+            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
+        ) {
+            return;
+        }
         // Declared package availability first: every emitter below that asks
         // "is this package available here?" — W120, H301, the W123 widening,
         // the Tk activation gate — reads `package_requires`, so the declared
@@ -3636,12 +3685,22 @@ impl Analyser {
         self.retain_positioned_command_definitions();
         self.publish_load_level_destructions();
         trace_phase("invocations");
+        if crate::analysis_control::checkpoint(
+            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
+        ) {
+            return;
+        }
         // Attach every namespace-qualified occurrence to the cell it names,
         // now that the whole file's `namespace eval` bodies have been walked
         // — a qualified read can precede its declaring `namespace eval`
         // textually and still resolve at run time.
         self.attach_qualified_var_references();
         trace_phase("variable-references");
+        if crate::analysis_control::checkpoint(
+            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
+        ) {
+            return;
+        }
         let diag_registry = self.profile_registry();
         self.emit_unresolved_command_diagnostics(&diag_registry);
         self.flush_disabled_command_diagnostics();
@@ -3665,8 +3724,18 @@ impl Analyser {
         // fires when the requirement is absent, this when it is merely late.
         self.emit_package_require_ordering_hints(&diag_registry);
         trace_phase("command-diagnostics");
+        if crate::analysis_control::checkpoint(
+            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
+        ) {
+            return;
+        }
         self.emit_variable_usage_diagnostics();
         trace_phase("variable-usage");
+        if crate::analysis_control::checkpoint(
+            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
+        ) {
+            return;
+        }
         #[cfg(test)]
         let before_cfg_ssa = self
             .cfg_ssa_capture_for_test
@@ -3685,6 +3754,11 @@ impl Analyser {
             );
         }
         trace_phase("cfg-ssa");
+        if crate::analysis_control::checkpoint(
+            crate::analysis_control::AnalysisCheckpoint::Diagnostics,
+        ) {
+            return;
+        }
         self.flush_loop_terminations();
         self.flush_objdefine_abort_diagnostics();
         self.emit_lexer_warning_diagnostics();

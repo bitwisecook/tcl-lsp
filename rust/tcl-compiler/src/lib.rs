@@ -104,6 +104,7 @@ pub mod alias;
 pub mod allocated_instance;
 pub mod analyser;
 pub mod analyses;
+pub mod analysis_control;
 pub mod auto_path_eval;
 pub mod backend_registry;
 pub mod body_analysis_capsule;

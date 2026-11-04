@@ -7928,6 +7928,9 @@ impl SourceCommandBindings {
             Arc::make_mut(&mut state.source_variables).original_native_compiler_formals = scope;
         }
         let root_outcomes = bindings.walk_source(source, 0, &mut state, &context);
+        if crate::analysis_control::interrupted() {
+            return Self::default();
+        }
         #[cfg(any(test, debug_assertions))]
         tracing.phase_with_lookup("walk", source.len(), &bindings);
         bindings.conditional_source.root_outcomes = Some(Arc::new(root_outcomes.clone()));
@@ -7941,6 +7944,9 @@ impl SourceCommandBindings {
         }
         if options.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule {
             bindings.analyse_deferred_entries(&state, config, registry);
+        }
+        if crate::analysis_control::interrupted() {
+            return Self::default();
         }
         #[cfg(any(test, debug_assertions))]
         tracing.phase_with_lookup("deferred", source.len(), &bindings);
@@ -7974,6 +7980,11 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         let mut iteration = 0_usize;
         loop {
+            if crate::analysis_control::checkpoint(
+                crate::analysis_control::AnalysisCheckpoint::Fixpoint,
+            ) {
+                return;
+            }
             let root_count = self.deferred.len();
             #[cfg(any(test, debug_assertions))]
             if let Some(started) = started {
@@ -8003,6 +8014,11 @@ impl SourceCommandBindings {
                     );
                     root_owner_work::report("deferred-entry");
                     last_report = Some(std::time::Instant::now());
+                }
+                if crate::analysis_control::checkpoint(
+                    crate::analysis_control::AnalysisCheckpoint::Body,
+                ) {
+                    return;
                 }
                 if self
                     .called_implementations
@@ -9695,6 +9711,11 @@ impl SourceCommandBindings {
         #[cfg(debug_assertions)]
         outcomes.trace_original_namespace_child("script_entry", base);
         for (index, segment) in segments.iter().enumerate() {
+            if crate::analysis_control::checkpoint(
+                crate::analysis_control::AnalysisCheckpoint::Command,
+            ) {
+                break;
+            }
             let Some(mut continuing) = outcomes.normal.take() else {
                 if !outcomes.abrupt.is_empty() {
                     let mut declaration_state = boxed_source_branch(state);
@@ -12692,6 +12713,11 @@ impl SourceCommandBindings {
         let mut outcomes = SourceOutcomes::normal(state);
         let mut head = boxed_source_branch(state);
         loop {
+            if crate::analysis_control::checkpoint(
+                crate::analysis_control::AnalysisCheckpoint::Fixpoint,
+            ) {
+                break;
+            }
             let before = head.clone();
             // A transfer may publish into its mutable input, including an
             // early unknown-provider path. Keep the loop predecessor intact
@@ -16457,6 +16483,11 @@ impl ModuleCommandBindings {
         // retain intermediate states for consumer queries without feeding
         // those historical states back as executable entry states.
         loop {
+            if crate::analysis_control::checkpoint(
+                crate::analysis_control::AnalysisCheckpoint::Fixpoint,
+            ) {
+                break;
+            }
             let before = live.clone();
             let root_count_before = retained_roots.len();
             let body_roots = retained_roots.snapshot();
