@@ -140,6 +140,13 @@ impl Vm {
         {
             return Err(self.refuse_host_command("original Jim dictionary path worker is unavailable".into()));
         }
+        if let Some(refusal) = self.refused_completion() {
+            return Err(refusal);
+        }
+        // Preparation may borrow and mutate the stored container in place.
+        // Check the original combined-name binding before any target read,
+        // link traversal, conversion or mutation, as the final store does.
+        self.confine_store_bytes(name, self.current_level(), false)?;
         // Jim_SetDictKeysVector publishes this fresh root before conversion or
         // a failing intermediate-key lookup. Prepare borrows the actual stored
         // member/root without adding a caller handle before its COW decision.

@@ -1530,6 +1530,13 @@ mod tests {
                         );
                     }
                 }
+                // The same Jim path worker must admit a genuine local receiver,
+                // independently of the wrapper's forbidden reference alias.
+                let local_path = vm.try_eval_source(
+                    "set path_dictionary {k OLD}; dict set path_dictionary k NEW; set path_member [dict get $path_dictionary k]; dict unset path_dictionary k; list $path_member [dict size $path_dictionary]"
+                ).unwrap();
+                assert_eq!(local_path.code, Code::Ok, "{local_path:?}");
+                assert_eq!(local_path.result.to_str().as_ref(), "NEW 0");
                 for local in ["absent", "local_dictionary(k)", "local_dictionary(missing)"] {
                     let result = vm
                         .try_eval_source(&format!("unset -nocomplain {local}"))
