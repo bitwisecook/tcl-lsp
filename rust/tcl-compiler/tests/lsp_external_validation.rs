@@ -33,29 +33,41 @@ fn codes(source: &str, code: DiagCode) -> Vec<String> {
 fn issue_2288_prefixed_tk_bind_script() {
     let source = "package require Tk\nbind $frameName <Destroy> +[list [self] destroy]";
     let unsafe_source = "package require Tk\nproc f {y} {bind .x <Destroy> \"puts $y\"}";
-    assert!(codes(source, DiagCode::W105).is_empty());
-    assert!(!codes(unsafe_source, DiagCode::W105).is_empty());
+    assert_eq!(codes(source, DiagCode::W105), [] as [String; 0]);
+    assert_ne!(codes(unsafe_source, DiagCode::W105), [] as [String; 0]);
 }
 
 #[test]
 fn issue_2499_dynamic_variable_read() {
     let source = "proc f {sides} {foreach side $sides {set value [set $side]}}";
-    assert!(codes(source, DiagCode::W212).is_empty());
-    assert!(!codes("proc f {name} {set $name 1}", DiagCode::W212).is_empty());
+    assert_eq!(codes(source, DiagCode::W212), [] as [String; 0]);
+    assert_ne!(
+        codes("proc f {name} {set $name 1}", DiagCode::W212),
+        [] as [String; 0]
+    );
 }
 
 #[test]
 fn issue_2503_nested_expr_inside_quoted_result() {
     let source =
         "set progress \"\"\nexpr {$progress eq \"\" ? \"\" : \"[expr {round($progress * 100)}]%\"}";
-    assert!(codes(source, DiagCode::W114).is_empty());
-    assert!(!codes("expr {[expr {1+1}] + 1}", DiagCode::W114).is_empty());
+    assert_eq!(codes(source, DiagCode::W114), [] as [String; 0]);
+    assert_ne!(
+        codes("expr {[expr {1+1}] + 1}", DiagCode::W114),
+        [] as [String; 0]
+    );
 }
 
 #[test]
 fn issue_2505_multiline_list_uplevel() {
     let source = "uplevel #0 [list \\\n    puts hello \\\n]";
-    assert!(codes(source, DiagCode::W301).is_empty());
-    assert!(codes("uplevel #0 [list puts hello]", DiagCode::W301).is_empty());
-    assert!(!codes("proc f {x} {uplevel #0 \"puts $x\"}", DiagCode::W301).is_empty());
+    assert_eq!(codes(source, DiagCode::W301), [] as [String; 0]);
+    assert_eq!(
+        codes("uplevel #0 [list puts hello]", DiagCode::W301),
+        [] as [String; 0]
+    );
+    assert_ne!(
+        codes("proc f {x} {uplevel #0 \"puts $x\"}", DiagCode::W301),
+        [] as [String; 0]
+    );
 }

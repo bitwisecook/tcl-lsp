@@ -11430,15 +11430,15 @@ mod tests {
         assert_eq!(
             registry
                 .best_visible(&[override_spec, shipped], query)
-                .map(|s| s as *const _),
-            Some(override_spec as *const _),
+                .map(std::ptr::from_ref),
+            Some(std::ptr::from_ref(override_spec)),
             "an installed pack override has provenance precedence over core scope"
         );
         assert_eq!(
             registry
                 .best_visible(&[shipped, override_spec], query)
-                .map(|s| s as *const _),
-            Some(override_spec as *const _),
+                .map(std::ptr::from_ref),
+            Some(std::ptr::from_ref(override_spec)),
             "candidate registration order does not let a scoped core row take precedence"
         );
     }

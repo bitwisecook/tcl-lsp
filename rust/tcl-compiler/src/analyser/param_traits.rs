@@ -2129,6 +2129,17 @@ mod tests {
         assert!(view.caller_name_template_invocation().is_none());
     }
 
+    fn assert_no_definite_parameter_invocation(
+        view: &crate::registry_invocation::InvocationBodyAssistance,
+    ) {
+        assert!(view.definite_invocation.is_none());
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
+        assert!(view.definite_traits.is_empty());
+    }
+
     #[test]
     fn original_logical_parameter_roles_keep_authored_body_and_formals_without_entry() {
         let source = "proc reader {name} {upvar 1 $name cell; set cell 1}";
@@ -2227,12 +2238,7 @@ mod tests {
         assert!(prefix.current().unwrap().obligations().contains(
             &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
         ));
-        assert!(view.definite_invocation.is_none());
-        assert_eq!(
-            view.definite_roles,
-            [] as [(usize, tcl_registry::ArgRole); 0]
-        );
-        assert!(view.definite_traits.is_empty());
+        assert_no_definite_parameter_invocation(&view);
     }
 
     #[test]

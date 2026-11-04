@@ -1643,7 +1643,7 @@ mod tests {
             assert_eq!(coverage.invocation().written_argument_roles(), [(0, tcl_registry::ArgRole::Result)]);
             assert_eq!(coverage.invocation().facts.native_result,
                 Some(tcl_registry::native_result::NativeResultContract::ReturnResult));
-            assert!(tokens.source_binding == before);
+            assert_eq!(tokens.source_binding, before);
             assert!(!tokens.source_binding.as_ref().unwrap().unobserved_native_dispatch());
             assert!(fixture.child.original_completed_command_world().is_none());
             assert!(tcl_compiler::registry_invocation::original_authored_result_completion_for_source_coverage(
@@ -1732,7 +1732,7 @@ mod tests {
             let mut uncertain = tokens.clone();
             assert!(!uncertain.source_binding.as_ref().unwrap().may_be_absent);
             uncertain.source_binding.as_mut().unwrap().may_be_absent = true;
-            assert!(uncertain.source_binding.as_ref() != Some(&before));
+            assert_ne!(uncertain.source_binding.as_ref(), Some(&before));
             assert!(
                 layout
                     .source_command_reference(fixture.source, &fixture.suffix, &uncertain)

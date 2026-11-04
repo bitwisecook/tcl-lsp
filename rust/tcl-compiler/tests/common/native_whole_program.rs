@@ -4,7 +4,57 @@
 
 //! Actual whole-program Native entry and its live issuing VM for WASM fixtures.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_runtime_api::CompileService;
+
+struct Capture {
+    original: String,
+    entry: Rc<RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>,
+}
+impl CompileService for Capture {
+    type Module = tcl_bytecode::ModuleAsm;
+    fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "entry capture only".into(),
+        ))
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        assert_eq!(target.source.bytes(), self.original.as_bytes());
+        assert_eq!(
+            target.namespace.as_segments(),
+            [] as [tcl_runtime_api::NameBytes; 0]
+        );
+        *self.entry.borrow_mut() = Some(entry.clone());
+        self.compile("")
+    }
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        _: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        assert_eq!(target.source, self.original);
+        assert_eq!(target.namespace, "");
+        *self.entry.borrow_mut() = Some(entry.clone());
+        self.compile("")
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+}
 
 pub(super) struct NativeWholeProgramFixture {
     pub(super) unit: CompilationUnit,
@@ -13,56 +63,6 @@ pub(super) struct NativeWholeProgramFixture {
 }
 
 pub(super) fn native_whole_program_fixture(program: &str) -> NativeWholeProgramFixture {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use tcl_runtime_api::CompileService;
-
-    struct Capture {
-        original: String,
-        entry: Rc<RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>,
-    }
-    impl CompileService for Capture {
-        type Module = tcl_bytecode::ModuleAsm;
-        fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-            Err(tcl_runtime_api::CompileError::Unsupported(
-                "entry capture only".into(),
-            ))
-        }
-        fn compile_script_bytes_with_entry(
-            &self,
-            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
-            _: &'static tcl_dialect::DialectProfile,
-            entry: &tcl_runtime_api::NativeCompilationEntry,
-        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-            assert_eq!(target.source.bytes(), self.original.as_bytes());
-            assert_eq!(
-                target.namespace.as_segments(),
-                [] as [tcl_runtime_api::NameBytes; 0]
-            );
-            *self.entry.borrow_mut() = Some(entry.clone());
-            self.compile("")
-        }
-        fn compile_script_with_entry(
-            &self,
-            target: tcl_runtime_api::ScriptCompileTarget<'_>,
-            _: &'static tcl_dialect::DialectProfile,
-            entry: &tcl_runtime_api::NativeCompilationEntry,
-        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
-            assert_eq!(target.source, self.original);
-            assert_eq!(target.namespace, "");
-            *self.entry.borrow_mut() = Some(entry.clone());
-            self.compile("")
-        }
-        fn script_command_plan_bytes_with_entry(
-            &self,
-            source: &tcl_runtime_api::SourceImage,
-            profile: &'static tcl_dialect::DialectProfile,
-            entry: &tcl_runtime_api::NativeCompilationEntry,
-        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
-                .script_command_plan_bytes_with_entry(source, profile, entry)
-        }
-    }
     let environment = tcl_registry::model::ingress::resolve_environment("tcl9.0");
     let profile = environment.unit_profile();
     let context = environment.default_context_registry();

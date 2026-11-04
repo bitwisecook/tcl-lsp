@@ -1002,6 +1002,28 @@ impl WorkspaceSymbolDiagnostic {
         admitted
     }
 
+    fn record_transaction<T>(
+        &self,
+        result: &DocumentSourceResult<readonly_reference_reports::ReadonlyTransaction<T>>,
+        rows: usize,
+    ) {
+        self.record(
+            match result {
+                Ok(readonly_reference_reports::ReadonlyTransaction::Published(_)) => {
+                    "lease.published"
+                }
+                Ok(readonly_reference_reports::ReadonlyTransaction::CurrencyRefused) => {
+                    "lease.currency_refused"
+                }
+                Ok(readonly_reference_reports::ReadonlyTransaction::PublishRefused) => {
+                    "lease.publish_refused"
+                }
+                Err(_) => "lease.error",
+            },
+            &[rows],
+        );
+    }
+
     async fn emit(&self, client: &Client, verdict: &'static str) {
         static ISSUED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let Some(events) = &self.0 else { return };
@@ -31943,33 +31965,14 @@ impl Backend {
                 );
                 continue;
             }
-            let start = doc
-                .line_index
-                .position_at_utf16(hit.name_span.start(), &doc.text);
-            let end = doc
-                .line_index
-                .position_at_utf16(hit.name_span.end(), &doc.text);
-            #[allow(deprecated)]
-            let symbol = SymbolInformation {
-                name: hit.name,
-                kind: Self::indexed_workspace_symbol_kind(hit.kind),
-                tags: None,
-                deprecated: None,
-                location: Location {
-                    uri: uri.clone(),
-                    range: Range {
-                        start: Position {
-                            line: start.line,
-                            character: start.character.get(),
-                        },
-                        end: Position {
-                            line: end.line,
-                            character: end.character.get(),
-                        },
-                    },
-                },
-                container_name: hit.container_name,
-            };
+            let symbol = Self::workspace_symbol_information(
+                hit.name,
+                hit.kind,
+                hit.container_name,
+                hit.name_span,
+                &uri,
+                doc,
+            );
             all.push((
                 symbol,
                 uri.clone(),
@@ -31994,22 +31997,43 @@ impl Backend {
                 diagnostic,
             )
             .await;
-        diagnostic.record(
-            match &result {
-                Ok(readonly_reference_reports::ReadonlyTransaction::Published(_)) => {
-                    "lease.published"
-                }
-                Ok(readonly_reference_reports::ReadonlyTransaction::CurrencyRefused) => {
-                    "lease.currency_refused"
-                }
-                Ok(readonly_reference_reports::ReadonlyTransaction::PublishRefused) => {
-                    "lease.publish_refused"
-                }
-                Err(_) => "lease.error",
-            },
-            &[all.len()],
-        );
+        diagnostic.record_transaction(&result, all.len());
         result.map(readonly_reference_reports::ReadonlyTransaction::into_attempt)
+    }
+
+    fn workspace_symbol_information(
+        name: String,
+        kind: CoreWorkspaceSymbolKind,
+        container_name: Option<String>,
+        name_span: tcl_lexer::Span,
+        uri: &Uri,
+        doc: &DocumentState,
+    ) -> SymbolInformation {
+        let start = doc
+            .line_index
+            .position_at_utf16(name_span.start(), &doc.text);
+        let end = doc.line_index.position_at_utf16(name_span.end(), &doc.text);
+        #[allow(deprecated)]
+        SymbolInformation {
+            name,
+            kind: Self::indexed_workspace_symbol_kind(kind),
+            tags: None,
+            deprecated: None,
+            location: Location {
+                uri: uri.clone(),
+                range: Range {
+                    start: Position {
+                        line: start.line,
+                        character: start.character.get(),
+                    },
+                    end: Position {
+                        line: end.line,
+                        character: end.character.get(),
+                    },
+                },
+            },
+            container_name,
+        }
     }
 
     fn workspace_symbol_hit_is_current(

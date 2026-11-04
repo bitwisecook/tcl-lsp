@@ -1132,30 +1132,10 @@ impl Backend {
             diagnostic.record("lease.publish_guard.3", &[]);
             return Ok(ReadonlyTransaction::PublishRefused);
         }
-        let mut admissions = selected
-            .iter()
-            .map(|analysis| WorkspaceSymbolSourceAnalysis::admission(analysis))
-            .collect::<Vec<_>>();
-        // The analysis seed cannot renew an independently captured source-read
-        // mapping. Retain both actual receipts through the same final lease;
-        // equal URI/path/text never substitutes for the original allocation.
-        for (_, uri, snapshot, _) in rows {
-            if let Some(admission) = snapshot.path_admission.as_deref() {
-                if admission.uri() != uri {
-                    diagnostic.record("lease.publish_guard.4", &[]);
-                    return Ok(ReadonlyTransaction::PublishRefused);
-                }
-                admissions.push(admission);
-            } else if self.store.workspace_source_inventory_provider()
-                == super::vfs::WorkspaceSourceInventoryProvider::HostReported
-                && uri.scheme().as_str() == "file"
-            {
-                // Preserve the original host-file source-receipt refusal.
-                // Native and pathless/in-memory purposes remain independent.
-                diagnostic.record("lease.publish_guard.5", &[]);
-                return Ok(ReadonlyTransaction::PublishRefused);
-            }
-        }
+        let Some(admissions) = self.workspace_symbol_source_admissions(&selected, rows, diagnostic)
+        else {
+            return Ok(ReadonlyTransaction::PublishRefused);
+        };
         self.readonly_source_transaction_diagnostic(
             (inputs_epoch, factory_generation),
             &admissions,
@@ -1174,27 +1154,12 @@ impl Backend {
                     diagnostic.record("lease.index_busy", &[]);
                     return None;
                 };
-                let current_inputs = owners
-                    .iter()
-                    .copied()
-                    .filter(|uri| {
-                        analyses
-                            .get(*uri)
-                            .and_then(Option::as_ref)
-                            .is_some_and(|analysis| {
-                                WorkspaceSymbolSourceAnalysis::matches_request_snapshot(
-                                    analysis,
-                                    state,
-                                    inputs_epoch,
-                                    factory_generation,
-                                    diagnostic,
-                                )
-                            })
-                    })
-                    .collect::<std::collections::HashSet<_>>();
-                diagnostic.record(
-                    "lease.inputs_current",
-                    &[current_inputs.len(), owners.len()],
+                let current_inputs = Self::workspace_symbol_current_inputs(
+                    &owners,
+                    analyses,
+                    state,
+                    (inputs_epoch, factory_generation),
+                    diagnostic,
                 );
                 let mut current = Vec::with_capacity(rows.len());
                 for (ordinal, (_, uri, snapshot, indexed_revision)) in rows.iter().enumerate() {
@@ -1234,6 +1199,72 @@ impl Backend {
             },
         )
         .await
+    }
+
+    fn workspace_symbol_current_inputs<'a>(
+        owners: &std::collections::HashSet<&'a str>,
+        analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+        state: &ReadonlySourceState<'_>,
+        epochs: (u64, u64),
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> std::collections::HashSet<&'a str> {
+        let (inputs_epoch, factory_generation) = epochs;
+        let current_inputs = owners
+            .iter()
+            .copied()
+            .filter(|uri| {
+                analyses
+                    .get(*uri)
+                    .and_then(Option::as_ref)
+                    .is_some_and(|analysis| {
+                        WorkspaceSymbolSourceAnalysis::matches_request_snapshot(
+                            analysis,
+                            state,
+                            inputs_epoch,
+                            factory_generation,
+                            diagnostic,
+                        )
+                    })
+            })
+            .collect::<std::collections::HashSet<_>>();
+        diagnostic.record(
+            "lease.inputs_current",
+            &[current_inputs.len(), owners.len()],
+        );
+        current_inputs
+    }
+
+    fn workspace_symbol_source_admissions<'a>(
+        &self,
+        selected: &[&'a WorkspaceSymbolSourceAnalysis],
+        rows: &'a [WorkspaceSymbolRow],
+        diagnostic: &super::WorkspaceSymbolDiagnostic,
+    ) -> Option<Vec<&'a DocumentPathAdmission>> {
+        let mut admissions = selected
+            .iter()
+            .map(|analysis| WorkspaceSymbolSourceAnalysis::admission(analysis))
+            .collect::<Vec<_>>();
+        // The analysis seed cannot renew an independently captured source-read
+        // mapping. Retain both actual receipts through the same final lease;
+        // equal URI/path/text never substitutes for the original allocation.
+        for (_, uri, snapshot, _) in rows {
+            if let Some(admission) = snapshot.path_admission.as_deref() {
+                if admission.uri() != uri {
+                    diagnostic.record("lease.publish_guard.4", &[]);
+                    return None;
+                }
+                admissions.push(admission);
+            } else if self.store.workspace_source_inventory_provider()
+                == super::vfs::WorkspaceSourceInventoryProvider::HostReported
+                && uri.scheme().as_str() == "file"
+            {
+                // Preserve the original host-file source-receipt refusal.
+                // Native and pathless/in-memory purposes remain independent.
+                diagnostic.record("lease.publish_guard.5", &[]);
+                return None;
+            }
+        }
+        Some(admissions)
     }
 
     async fn finish_readonly_reference_report(
@@ -4868,8 +4899,8 @@ mod workspace_symbol_original_admission_tests {
         );
     }
 
-    #[tokio::test]
-    async fn closed_symbol_saved_bytes_cannot_borrow_a_same_binding_upsert() {
+    async fn saved_symbol_source_fixture()
+    -> (Backend, Arc<crate::vfs::MemoryStore>, Uri, &'static str) {
         let mut backend = crate::tests::test_backend();
         let store = Arc::new(crate::vfs::MemoryStore::new());
         let uri: Uri = "file:///workspace-symbol-saved-image.tcl".parse().unwrap();
@@ -4883,6 +4914,12 @@ mod workspace_symbol_original_admission_tests {
             .await
             .add_document(uri.as_str(), &original);
         assert_alias_has_no_open_rows(&backend, &uri).await;
+        (backend, store, uri, path)
+    }
+
+    #[tokio::test]
+    async fn closed_symbol_saved_bytes_cannot_borrow_a_same_binding_upsert() {
+        let (backend, store, uri, path) = saved_symbol_source_fixture().await;
         let symbols = actual_symbols(&backend).await;
         let snapshot = backend
             .closed_workspace_symbol_source(&uri)
