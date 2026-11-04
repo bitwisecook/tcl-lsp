@@ -187,11 +187,14 @@ impl OriginalProcedureSource {
     }
 
     fn matches(&self, procedure: &Procedure) -> bool {
+        self.qualified_name == procedure.qualified_name && self.matches_summary(procedure)
+    }
+
+    fn matches_summary(&self, procedure: &Procedure) -> bool {
         self.body_kind == procedure.body_kind
             && self.publication == procedure.publication
             && self.declaration_site == procedure.declaration_site
             && self.name == procedure.name
-            && self.qualified_name == procedure.qualified_name
             && self.parameters == procedure.params
             && self.parameters_text == procedure.params_raw
             && self.declaration == procedure.span
@@ -707,9 +710,7 @@ impl RetainedSourceModuleBindings {
         let Some(original) = self.procedures.get(&id) else {
             return false;
         };
-        let mut current = OriginalProcedureSource::retain(procedure);
-        current.qualified_name.clone_from(&original.qualified_name);
-        current == *original
+        original.matches_summary(procedure)
     }
 
     /// Installed analysis source under its separately issued body ID.
@@ -722,7 +723,7 @@ impl RetainedSourceModuleBindings {
             && self
                 .installed_procedures
                 .get(&id)
-                .is_some_and(|original| OriginalProcedureSource::retain(procedure) == *original)
+                .is_some_and(|original| original.matches(procedure))
     }
 
     /// Original issued method header and body coordinates, without a receiver entry.
@@ -1272,6 +1273,11 @@ mod tests {
         let module = &unit.ir_module;
         let (&id, procedure) = module.procedures.iter().next().expect("actual named body");
         let retained = module.retained_source_bindings.as_deref().unwrap();
+        assert!(retained.matches_original_procedure_summary(id, procedure));
+        let mut reported = procedure.clone();
+        reported.qualified_name.push_str("::reporting_label");
+        assert!(retained.matches_original_procedure_summary(id, &reported));
+        assert!(!retained.matches_original_procedure(&reported));
         for statement in &procedure.body.statements {
             let tokens = procedure
                 .body
@@ -1310,6 +1316,7 @@ mod tests {
                 }
                 _ => procedure.publication = None,
             }
+            assert!(!retained.matches_original_procedure_summary(id, procedure));
             assert!(!retained.owns_original_body_tokens(&changed, id, tokens, context.commands()));
         }
         let mut missing = module.clone();
