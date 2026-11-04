@@ -11,7 +11,7 @@ isolated Cargo target and fixed-input regressions, with the pinned C Tcl
 | #2246 | C Tcl and Jim confirm the missing-variable read; fresh compiler emits no W210. | Reproduced residual |
 | #2371 | Native controls confirm the error. The narrow attempted-read-version candidate compiled but failed its first original-case Tcl 8.4 assertion; no W210 was emitted. | Reproduced residual; candidate parked |
 | #2374, #2441 | Distinct literal array elements and empty-loop variables emit W210; C Tcl and Jim confirm the errors. | Verified baseline |
-| #2376 | Current production baseline at `8e4ec2014` reproduces the safe-guard false warnings and the misplaced later-read diagnostic in all five Tcl profiles; unsafe and standalone controls warn. | Fresh reproduced residual |
+| #2376 | Canonical completed-command consumer passes 6 focused units and 130 integration assertions for the called path. All 35 uncalled-procedure probes reproduce generic safe-guard false positives/coarse earlier spans with active unsafe controls. | Scoped repair; generic read-local residual open |
 | #2379 | Absent-array size/names/get emit no W210, matching C Tcl and Jim. | Verified baseline |
 | #2294 | Work already carries/rebases `BodyFragment::proven_sites`; whole-file W230 is absent in the parity witness, before testing per-item parity. | Residual under investigation |
 | #2268 | Existing witness fails its dead-store control: an unused literal element has no W211. The computed-element read control passes. | Reproduced residual |
@@ -196,3 +196,14 @@ the documented conditional value contract. The current coherent warning matrix
 also passes 60/60 with unchanged source hashes. Stronger exact value/gate
 assertions await the scheduled final combined run; no candidate code has been
 published, and full gates remain pending.
+
+Final canonical-consumer verification passes all six focused units and all 130
+integration assertions with 41,082 unchanged file hashes. Exact receipts and
+the additional 35 uncalled-procedure observations are in
+[`w210-short-circuit-final`](../rust/tcl-compiler/tests/data/w210-short-circuit-final/README.md).
+The uncalled bodies retain the safe-guard false positive and earlier deduped
+span in all profiles, while unsafe and unguarded controls remain active. The
+canonical known-result repair is therefore separately scoped; #2376 stays open
+for proper read-local condition-edge facts with effect invalidation. No Native
+or Normal authority is inferred to silence the remaining diagnostics. Full
+release gates remain pending.

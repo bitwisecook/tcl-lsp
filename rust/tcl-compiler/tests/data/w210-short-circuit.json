@@ -2,6 +2,14 @@
   "issue": 2376,
   "diagnostics": [
     {
+      "id": "original-report-layout",
+      "source": "proc p {c} {\n    if {$c} {set x 1}\n    if {[info exists x] && $x > 0} {puts yes}\n}\np 0\n",
+      "variable": "x",
+      "expected_w210": false,
+      "native_status": 0,
+      "expected_read": "only"
+    },
+    {
       "id": "safe-and-missing",
       "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $x > 0} {puts yes}}\np 0\n",
       "variable": "x",
@@ -72,6 +80,22 @@
       "expected_w210": true,
       "native_status": 1,
       "expected_read": "only"
+    },
+    {
+      "id": "query-does-not-guard-another-cell",
+      "source": "proc p {c} {if {$c} {set x 1}; if {[info exists x] && $__unrelated > 0} {puts yes}}\np 1\n",
+      "variable": "__unrelated",
+      "expected_w210": true,
+      "native_status": 1,
+      "expected_read": "only"
+    },
+    {
+      "id": "query-does-not-guard-another-element",
+      "source": "proc p {} {set a(safe) 1; if {[info exists a(safe)] && $a(missing) > 0} {puts yes}}\np\n",
+      "variable": "a(missing)",
+      "expected_w210": true,
+      "native_status": 1,
+      "expected_read": "only"
     }
   ],
   "mutations": [
@@ -80,55 +104,61 @@
       "source": "set x 7; if {[set x 0] && [set x 9]} {}; set x\n",
       "native_result": "0",
       "expected_retained_normal_result": "0",
-      "native_status": 0
+      "native_status": 0,
+      "expected_model_rhs_dispatch": false
     },
     {
       "id": "or-one-skips-store",
       "source": "set x 7; if {[set x 1] || [set x 9]} {}; set x\n",
       "native_result": "1",
       "expected_retained_normal_result": "1",
-      "native_status": 0
+      "native_status": 0,
+      "expected_model_rhs_dispatch": false
     },
     {
       "id": "and-one-runs-store",
       "source": "set x 7; if {[set x 1] && [set x 9]} {}; set x\n",
       "native_result": "9",
       "expected_retained_normal_result": "9",
-      "native_status": 0
+      "native_status": 0,
+      "expected_model_rhs_dispatch": true
     },
     {
       "id": "or-zero-runs-store",
       "source": "set x 7; if {[set x 0] || [set x 9]} {}; set x\n",
       "native_result": "9",
       "expected_retained_normal_result": "9",
-      "native_status": 0
+      "native_status": 0,
+      "expected_model_rhs_dispatch": true
     },
     {
       "id": "negated-or-zero-skips-store",
       "source": "set x 7; if {![set x 0] || [set x 9]} {}; set x\n",
       "native_result": "0",
       "expected_retained_normal_result": "0",
-      "native_status": 0
+      "native_status": 0,
+      "expected_model_rhs_dispatch": false
     },
     {
       "id": "double-not-and-zero-skips-store",
       "source": "set x 7; if {!![set x 0] && [set x 9]} {}; set x\n",
       "native_result": "0",
       "expected_retained_normal_result": "0",
-      "native_status": 0
+      "native_status": 0,
+      "expected_model_rhs_dispatch": false
     },
     {
       "id": "numeric-zero-skips-store",
       "source": "set x 7; if {[set x 0.0] && [set x 9]} {}; set x\n",
       "native_result": "0.0",
-      "expected_retained_normal_result": "0.0",
+      "expected_retained_normal_result": null,
       "native_status": 0
     },
     {
       "id": "numeric-nonzero-skips-store",
       "source": "set x 7; if {[set x 2] || [set x 9]} {}; set x\n",
       "native_result": "2",
-      "expected_retained_normal_result": "2",
+      "expected_retained_normal_result": null,
       "native_status": 0
     },
     {
@@ -137,10 +167,6 @@
       "native_result": "0",
       "expected_retained_normal_result": null,
       "native_status": 0,
-      "allowed_retained_normal_results": [
-        null,
-        "0"
-      ],
       "scope": "Bitwise-not retains its child completion in the walker, but that raw 0 is not the truth of the enclosing ~ expression. Accurate future full-expression evaluation is permitted."
     },
     {
@@ -167,26 +193,20 @@
         "TCL_LSP_TCLSH84": 0,
         "TCL_LSP_JIMSH": 0
       },
-      "scope": "A future correct Tcl8.4 truthiness proof may retain NaN; C8.5\u20139.1 have no Normal suffix after this boolean error.",
-      "allowed_retained_normal_results_by_dialect": {
-        "tcl8.4": [
-          null,
-          "NaN"
-        ]
-      }
+      "scope": "A future correct Tcl8.4 truthiness proof may retain NaN; C8.5\u20139.1 have no Normal suffix after this boolean error."
     },
     {
       "id": "and-command-value-precedes-later-argv-store",
       "source": "set x 7; if {[lindex [list [set x 0] [set x 1]] 0] && [set x 9]} {}; set x\n",
       "native_result": "1",
-      "expected_retained_normal_result": "1",
+      "expected_retained_normal_result": null,
       "native_status": 0
     },
     {
       "id": "or-command-value-precedes-later-argv-store",
       "source": "set x 7; if {[lindex [list [set x 1] [set x 0]] 0] || [set x 9]} {}; set x\n",
       "native_result": "0",
-      "expected_retained_normal_result": "0",
+      "expected_retained_normal_result": null,
       "native_status": 0
     }
   ]

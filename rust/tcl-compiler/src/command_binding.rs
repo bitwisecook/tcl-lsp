@@ -13420,7 +13420,8 @@ impl SourceCommandBindings {
             if let Some(coercion) = condition_coercion {
                 coercion.apply(state);
             }
-            let truth = source_expression_truth(left, state, context.registry);
+            let truth = source_completed_expression_truth(left, outcomes.normal_value.as_deref())
+                .or_else(|| source_expression_truth(left, state, context.registry));
             if short.is_some() && truth == short {
                 outcomes.join(&SourceOutcomes::normal(state));
             } else {
@@ -13737,6 +13738,32 @@ fn source_operand_truth(
     let value = operands.arguments.literal_at(index)?;
     let expression = parse_source_expression(value, state, registry);
     source_expression_truth(&expression, state, registry)
+}
+
+/// Only canonical Boolean command results can supply this model decision.
+fn source_completed_expression_truth(
+    expression: &crate::expr_ast::ExprNode,
+    value: Option<&native_result::EvaluatedSourceValue>,
+) -> Option<bool> {
+    let value = value?;
+    if value.numeric.is_some() || !matches!(value.text.as_str(), "0" | "1") {
+        return None;
+    }
+    let mut expression = expression;
+    let mut negated = false;
+    while let crate::expr_ast::ExprNode::Unary {
+        op: crate::expr_ast::UnaryOp::Not,
+        operand,
+    } = expression
+    {
+        expression = operand;
+        negated = !negated;
+    }
+    if !matches!(expression, crate::expr_ast::ExprNode::Command { .. }) {
+        return None;
+    }
+    let truth = tcl_syntax::boolean::parse_boolean_strict(&value.text)?;
+    Some(truth ^ negated)
 }
 
 fn source_expression_truth(
