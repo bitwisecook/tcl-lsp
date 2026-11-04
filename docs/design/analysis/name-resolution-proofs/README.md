@@ -83,6 +83,15 @@ permitting only the recorded ordered unique-key dictionary construction.
 Provider builds, original streams and historical execution receipts keep their
 independent authority; these source snapshots supply no new execution result.
 
+Three maintained proof tools retain a [scoped source contract](derived-public-projections/proof-tool-source-contract.json)
+and [authenticated derivation](derived-public-projections/proof-tool-source-review.json).
+The [source comparison tool](../../../../scripts/dev/check-proof-tool-source-review.py)
+requires original Git bytes and complete AST comparisons, admitting only the
+recorded identity cast, immediate JSON-anchor capture and loader guards.
+The classification merger remains unchanged; its separate render path now trims
+trailing whitespace, with no general rendering-equivalence claim. Historical
+control executions, provider answers and captures retain their original scope.
+
 Reviewed question arrays and exact artifact classifications are merged
 separately, with every update checked before the census is written:
 

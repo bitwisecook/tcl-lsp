@@ -1091329,21 +1091329,21 @@
           "id": "check-name-resolution-proofs",
           "role": "implementation",
           "path": "scripts/dev/check-name-resolution-proofs.py",
-          "sha256": "ecb7350b720b90da729816241fa5b68b2ee26d214e5f05de3f45220bbb03c808",
+          "sha256": "52249cb5c5704cd76e685a01ae47eacef2e5bbfdb66e58f90d06331aac569910",
           "description": "Exact proof-validator or fixed negative-control source; not a native capture."
         },
         {
           "id": "test_name_resolution_proofs",
           "role": "implementation",
           "path": "scripts/dev/test_name_resolution_proofs.py",
-          "sha256": "695880f9d547fa3ae1fbef7567e1c66c05cade1e51de411824014286f6c129cd",
+          "sha256": "0036250cc8995fcbef45c1a6ff014468fbed929019c21cbacc0d2e59c6b8149b",
           "description": "Exact proof-validator or fixed negative-control source; not a native capture."
         },
         {
           "id": "reviewed-classification-merger",
           "role": "implementation",
           "path": "scripts/dev/update-name-resolution-proof-index.py",
-          "sha256": "51b2dc7e96729fffa3a25c8dfd38254d097075836c836c0d93c9863ec1f54f33",
+          "sha256": "e3a6728b81388b29b9f7403b97288e5dd8e251fabded039d7b77f81e4f516ab2",
           "description": "Every candidate classification is validated against exact current artifact bytes and issued question IDs before any census update."
         },
         {
