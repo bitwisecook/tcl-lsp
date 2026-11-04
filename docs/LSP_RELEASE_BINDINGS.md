@@ -207,3 +207,11 @@ canonical known-result repair is therefore separately scoped; #2376 stays open
 for proper read-local condition-edge facts with effect invalidation. No Native
 or Normal authority is inferred to silence the remaining diagnostics. Full
 release gates remain pending.
+
+The 16:14 UTC checkpoint preserves a separate unverified read-local predicate
+draft. It uses original variable-access spans and structured cells from the
+existing existence-query and condition-edge owners; writes, aliases and unknown
+commands expire inherited guards. The draft includes unknown-entry safe/unsafe
+regressions and mutation-order owner checks, but has not been compiled or run.
+It is stashed for this integration; no new passing result is claimed. The
+canonical repair is published as `a6408fb3e`; #2376 remains open.
