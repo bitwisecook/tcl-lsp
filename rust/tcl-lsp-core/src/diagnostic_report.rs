@@ -775,7 +775,7 @@ mod tests {
         let candidates = findings.optimisation_candidates(source);
         let branch = candidates
             .iter()
-            .find(|row| row.code == DiagCode::O100)
+            .find(|row| row.code == DiagCode::O112)
             .expect("the shared current Logical unit produces branch advice");
         assert!(source.get(branch.span.as_range()).is_some());
         assert!(branch.replacement.contains("retained"));
