@@ -1,8 +1,9 @@
 # SpecTcl compiled surface — performance plan
 
-**Status: plan.** The measured baseline and the implementation plan for
-making a `SpecTcl`-authored command surface cost what a compiled-in one
-costs at query time, and nothing at all when no open document needs it.
+**Status: phases 1, 2, 4 and 5 implemented; phase 3 in part.** The measured
+baseline, what was built, and what it measured, for making a
+`SpecTcl`-authored command surface cost what a compiled-in one costs at
+query time, and nothing at all when no open document needs it.
 The priorities, in order:
 
 1. **Editor latency**: time to first semantic tokens, then edit → tokens.
@@ -17,6 +18,82 @@ General analysis latency is out of scope here: the multi-second
 `semanticTokens/full` on some files, and the multi-GB resident set after a few
 dozen open documents. It is covered separately. Where the baseline below
 shows it, it is recorded so that it is not mistaken for a `SpecTcl` cost.
+
+## Results
+
+Same machine and harnesses as the baseline below (`ci` profile, 4 vCPU).
+
+| measurement | baseline | now |
+|---|--:|--:|
+| `tcl diag --source 'set a 1'`, `tcl8.6` / `jim` | 2.6 s, 180 MiB | 0.42 s / 0.32 s, 90 MiB |
+| autosetup `lib/` (`tcl diag`), `jim` / `tcl8.6` | 35 s / 74 s | 16.7 s / 40.1 s |
+| bundled packs at startup, no EDA document open | 1,862 ms, 99 MiB | 136 ms, 35 MiB (manifests) |
+| first EDA document's packs (Xilinx + SDC + UPF) | part of the above | 421 ms, on demand, off the request |
+| hook VM build per worker thread | 200–450 ms, 15 MiB | 0.2–0.3 ms (a proxy) |
+| UPF `define_power_model` resolver, first / warm call | a VM bootstrap / ~28 µs | 0.02 ms / 69 ns, no VM ever started |
+| `resolve_spec`, known head, `tcl8.6` / `jim` | 863 / 494 ns | 235 / 183 ns |
+| `resolve_spec`, unknown head | 266 ns | 20 ns |
+| SpecTcl rendering of the Tcl 8.6 surface, evaluated | 3,635 ms | 697 ms (native `build_default`: 1.3 ms) |
+
+What landed, by phase:
+
+1. **Waste.**
+   - Registry semantic keys are interned. Their equality had walked the
+     whole command table on every invocation-metadata query: a quarter of
+     all analysis instructions.
+   - `evaluator_generation` no longer builds a VM host. The server's eager
+     per-worker host build is gone.
+   - UPF's 16 option-arity bodies are now data
+     (`OptionArity::OptionalOneOf`, `OptionalNotOption`).
+   - Each spec's lowered surface declarations are memoised process-wide.
+   - The deferred-write trace variable is read once.
+   - Collision admission is computed once per load.
+   - Include-free evaluations are memoised across reloads and consumers.
+   - Binding a pack body's original source words is no longer quadratic in
+     the body's size. That alone was half of a cold process's instructions.
+2. **Lazy packs.** Covered in [spec-packs.md](spec-packs.md) § *Lazy
+   bundled packs*. A pack set that installs no command still installs its
+   overlay, which fixed a latent analysis-context miss.
+3. **Surface (partial).**
+   - Authored windows answer from a per-thread memo, so a row's version
+     comparison is a hash lookup after its first ask.
+   - Version parsing no longer allocates.
+   - The whole-surface resolved-name table is not built. Per-lookup
+     resolution measures at about 1% of analysis instructions now, below
+     its cost in cache invalidation across a hundred call sites.
+4. **Hooks.** Covered in [spec-packs.md](spec-packs.md) § *Where bodies
+   run*: one warm hook service per process, and tabulation of count-only
+   resolvers.
+5. **Precompiled.**
+   - `cargo xtask gen-bundled-manifests` compiles into the server binary,
+     and so into every editor extension: which bundled packs may defer,
+     the packages each needs, and the bundled count-only resolvers' answer
+     tables.
+   - `cargo xtask gen-equivalence-packs` renders the native Tcl 8.6 and
+     iRules surfaces as SpecTcl under `rust/tcl-spectcl/equivalence/`. These
+     are like-for-like measuring instruments that no product loads. The
+     only native command the renderings cannot carry is iRules' `when`.
+
+In the language server (`dialect_pair_bench.py`, autosetup `lib/`, 18
+files, opened without waiting for the scan):
+
+| | `jim` | `tcl8.6` |
+|---|--:|--:|
+| first tokens | 294 ms | 757 ms |
+| open → tokens, p50 / p95 | 0.58 s / 3.4 s | 1.4 s / 12.0 s |
+| edit → tokens, p50 | 2.4 s | 30.6 s |
+| peak RSS | 2.4 GB | 3.0 GB |
+
+On a five-line file, edit → tokens after 12 s idle is 77–103 ms: a request
+landing on a fresh pool thread no longer rebuilds a hook VM. The remaining
+latency and memory, and the `tcl8.6` reading's cost on Jim code, are
+general analysis (§ *Why `tcl8.6` analyses Jim code at half the speed of
+`jim`*), not SpecTcl.
+
+The same commands cost 1.3 ms to index natively and 697 ms to evaluate as
+SpecTcl. Both end as the same `CommandSpec` rows, so query cost is
+identical. The remaining gap is load time only: per-command spec
+construction, not parsing.
 
 ## How to measure
 
