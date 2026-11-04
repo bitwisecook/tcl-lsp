@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE plan; refreshed 4 November 2026, 20:15 UTC. Not release-ready.** [Current state](current-state.md) gives exact sources and limits. Server V16 is27/31 mandatory, with4 autoload/provider failures and separate Backend hover/variable failures. Fresh-provider, guarded pattern and cooperative WASI repairs are adopted, untested. Compiler47 stops before tests on a now-corrected return-type error; retry capture remains pending. Registry post-build9/9 does not repair its parent prebuild refusal. Earlier Compiler34/Core27 results remain source-bound. Full strict gates, host/editor/package and performance acceptance remain open. Credentials and regular pushes are restored. No PR or release exists.
+**ACTIVE plan; refreshed 4 November 2026, 20:48 UTC. Not release-ready.** [Current state](current-state.md) gives exact sources and limits. Compiler47 diagnostic is44/46 plus observation; two Registry-name fixture corrections await unit rerun. All seven cooperative Compiler controls pass. Server53 is compiling current provider/pattern/cooperation repairs after V16’s27/31 mandatory result. Variable failure is a measured end-cursor affinity gap; correction pending. O127 source rewrite equivalence remains unresolved. Current host runs are active, no pass claimed. Full strict gates, packages and matched performance remain open. No PR or release exists.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an

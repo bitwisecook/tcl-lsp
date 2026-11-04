@@ -68,7 +68,7 @@ The source-owner/shimmer gap remains unresolved for #940 and related reports;
 no speculative authority or parser workaround was committed.
 
 
-Naming status at 20:15 UTC: Server V16 completes27/31 mandatory; all4 autoload/provider failures have an adopted fresh-provider owner repair awaiting tests. Separate probes expose Server regex dispatch and variable-source gaps. Guarded pattern fallback and cooperative WASI interruption are adopted, untested. Compiler47 v1 fails compilation before tests, overlay restored; return-type fix adopted and retry being prepared. Registry post-build9/9 retains its prebuild refusal. Existing Browser/WASI failures, full gates, packaging and performance remain open. Credentials and scheduled pushes are restored. [Current snapshot](work/name-handling/current-state.md) retains exact receipts and limits.
+Naming status at 20:48 UTC: Compiler47 diagnostic builds and passes44/46 semantic controls plus observation; only two corrected Registry-name expectations fail in the captured old ELF. Seven cooperation/cache controls pass. Server53 is compiling fresh-provider, guarded pattern and cooperation repairs. Public variable probe isolates cursor6 versus end-boundary7; original-root affinity correction remains pending. O127 equivalence and original host failures remain unresolved. Tcl evidence-format gate passes1,647 documents/23 tests; full gates, packages and performance remain open. [Current snapshot](work/name-handling/current-state.md) retains exact limits.
 
 Baseline compiler lint repair, 19:36 UTC: the two oversized Logical source
 walkers are split into their existing static body/target selection and typed
