@@ -114,3 +114,21 @@ diagnostic checkpoints keep their original order; supplied-frame updates and
 the discarded-root opacity predicate retain the same typed inputs and guards.
 No lint suppression or parsing behavior is added. Standalone rustfmt and diff
 checks pass; fresh production Clippy and interruption/runtime checks are pending.
+
+The scoped #940 recurrence foundation is published in `cab14d1a4`. Its clean
+native server build and eleven authenticated Tcl 8.6 protocol cases pass:
+the genuine cycle delivers S102 at the original `$x` range, with matching
+suppression, shimmer-off and severity controls. The generic versioned noqa
+action remains available; no source-context compiler rewrite is granted.
+The [protocol receipt](LSP_RELEASE_S102_PROTOCOL_RECEIPT.json) records exact
+source/binary hashes and publication identities. The existing external proof
+comment was updated and read back exactly. The original conditional-append
+example remains coverage-inconclusive, and #940 stays open. Clean foundation
+production compiler/registry Clippy subsequently passes at `987e6a73a`.
+
+The adjacent taint seed-owner repair is published in `f2b927c5c`: incoming
+external globals are selected by retained cell/entry identity, and independent
+taint provenance survives conservative global-write seeding. Production Clippy,
+compiler test build and twelve focused seed/interruption controls pass. The
+exact IMAP4 diagnostic-read coverage blocker remains; #2243 is open. Full
+repository gates remain unfinished.
