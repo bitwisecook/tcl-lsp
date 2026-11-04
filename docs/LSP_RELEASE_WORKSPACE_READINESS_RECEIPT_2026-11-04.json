@@ -1,0 +1,49 @@
+{
+  "recorded_at": "2026-11-04 15:07 UTC",
+  "issue": 2295,
+  "scope": "The first workspace/symbol request waits for the initial scan completion signal and scan gate; successful scan publication precedes the signal.",
+  "production_fix": "6ae635398",
+  "regression_commit": "756af3eae6b42c77243fe08f2d0258d86fb47979",
+  "clean_unit_build": {
+    "source_base": "ca33451b2",
+    "test_diff_sha256": "2d57411580027e73e83ba1d6f610482aa203ed9e4319b5cb40bc53adacd4ef08",
+    "command": "cargo test -p tcl-lsp-server --lib --no-run",
+    "result": "passed",
+    "binary_sha256": "78eee100cb25696f45c40ae620126f187b7b6b51228252a35d01bad389a31c1d"
+  },
+  "unit_controls": [
+    {
+      "name": "tests::workspace_symbol_waits_past_previous_deadlines_and_scan_gate",
+      "result": "passed"
+    },
+    {
+      "name": "tests::workspace_symbol_readiness_waits_for_completion_and_releases_on_failure",
+      "result": "passed"
+    },
+    {
+      "name": "tests::workspace_symbol_readiness_releases_on_shutdown_and_cancellation",
+      "result": "passed"
+    },
+    {
+      "name": "transport_liveness::tests::workspace_scan_waiters_do_not_starve_unrelated_requests_2295",
+      "result": "passed"
+    }
+  ],
+  "paused_clock_control": "Wait remains pending after 31 + 11 simulated seconds, and after mark_complete until the held scan gate is released.",
+  "native_protocol_regression": {
+    "source_base": "d4b72d762",
+    "test": "document_symbols::workspace_symbol_waits_out_the_startup_scan",
+    "result": "passed",
+    "duration_seconds": 39.57,
+    "server_sha256": "6ab10e96a53d4d7f11ef314d06db77290d133f347be7d2419a36a773975ac4e2"
+  },
+  "implementation_contract": "These are Rust transport/readiness checks, not claims about Tcl or Jim evaluation.",
+  "remaining_failures": [
+    "The separate source-view test compiles after its accessor update but fails earlier at provider capture (source_views.rs:6642), before the changed span assertions.",
+    "The broader lifecycle test still times out on its 30-second workspace scan barrier.",
+    "The changed-pack const-fold diagnostic test still fails before the pack edit.",
+    "Full repository release gates remain pending."
+  ],
+  "raw_unit_log": "\nrunning 1 test\ntest tests::workspace_symbol_waits_past_previous_deadlines_and_scan_gate ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest tests::workspace_symbol_readiness_waits_for_completion_and_releases_on_failure ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.05s\n\n\nrunning 1 test\ntest tests::workspace_symbol_readiness_releases_on_shutdown_and_cancellation ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.05s\n\n\nrunning 1 test\ntest transport_liveness::tests::workspace_scan_waiters_do_not_starve_unrelated_requests_2295 ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.00s\n\n\nrunning 1 test\ntest readonly_reference_reports::source_views::closed_source_child_ingress_tests::conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers ... \nthread 'readonly_reference_reports::source_views::closed_source_child_ingress_tests::conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers' (192215) panicked at rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs:6642:14:\ncalled `Option::unwrap()` on a `None` value\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nFAILED\n\nfailures:\n\nfailures:\n    readonly_reference_reports::source_views::closed_source_child_ingress_tests::conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 985 filtered out; finished in 0.71s\n\n",
+  "raw_e2e_log": "\nrunning 1 test\ntest document_symbols::workspace_symbol_waits_out_the_startup_scan ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1654 filtered out; finished in 39.57s\n\n"
+}
