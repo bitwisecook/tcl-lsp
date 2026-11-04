@@ -125,14 +125,12 @@ impl<'a> CurrentSourcePosition<'a> {
         let root =
             self.analysis
                 .original_variable_root_in_source(&image, config, previous_offset)?;
-        let word = crate::source_structure::original_complete_cursor_word(
+        crate::source_structure::original_variable_word_end(
             self.source,
             self.analysis,
-            previous_offset,
+            root,
+            self.offset,
         )?;
-        if !word.ends_with_variable(root, self.offset) {
-            return None;
-        }
         let name = root.name_span()?;
         let last = self
             .source
@@ -377,6 +375,29 @@ mod variable_end_affinity_tests {
 
     #[test]
     fn original_variable_word_end_keeps_native_scalar_qualified_array_and_unicode_owners() {
+        let source = "set x 42\nputs $x\n";
+        let analysis = analyse(source);
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = analysis.body_lexer_config.unwrap();
+        let root = analysis
+            .original_variable_root_in_source(&image, config, 15)
+            .unwrap();
+        assert!(
+            tcl_lexer::word_parts::word_cursor_prefix_in(
+                &image,
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                15,
+                config
+            )
+            .unwrap()
+            .is_none(),
+            "variable syntax is not a command-name completion prefix"
+        );
+        assert!(
+            crate::source_structure::original_variable_word_end(source, &analysis, root, 16)
+                .is_some(),
+            "the actual complete original command owns the variable word independently"
+        );
         for (source, read) in [
             ("set x 42\nputs $x", "$x"),
             ("set x 42\nputs $x\n", "$x"),

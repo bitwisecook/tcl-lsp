@@ -922,21 +922,6 @@ pub(crate) struct OriginalSourceCursorWord {
 }
 
 impl OriginalSourceCursorWord {
-    /// Cursor affinity uses only this complete word's original geometry. The
-    /// variable remains its own source producer, not the value of the word.
-    pub(crate) fn ends_with_variable(
-        &self,
-        root: &tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot,
-        end: u32,
-    ) -> bool {
-        self.word.image() == root.source_image()
-            && self.word.config() == root.lexer_config()
-            && !self.word.group().expand
-            && self.word.span().start() <= root.part_span().start()
-            && self.word.span().end() == end
-            && root.part_span().end() == end
-    }
-
     /// Static Unicode value of the whole original word, never a computed tail
     /// or source-coordinate inverse of that value.
     pub(crate) fn static_unicode_value(&self) -> Option<String> {
@@ -991,6 +976,49 @@ pub(crate) fn original_complete_cursor_word(
         cursor: prefix,
         word: word.clone(),
     })
+}
+
+/// Whole-command geometry for a terminal original variable component. A
+/// command-name completion prefix is a different purpose and may be absent
+/// for this genuine dynamic word. This supplies no name, frame or binding.
+pub(crate) fn original_variable_word_end(
+    source: &str,
+    analysis: &AnalysisResult,
+    root: &tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot,
+    end: u32,
+) -> Option<()> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let structure = SourceStructure::capture(source, Some(analysis), current.config())?;
+    let extent = structure
+        .commands
+        .iter()
+        .filter(|command| {
+            command.span.start() <= root.part_span().start()
+                && root.part_span().end() <= command.span.end()
+        })
+        .min_by_key(|command| command.span.len())?
+        .span;
+    let plan =
+        tcl_lexer::native_script_words_in(SourceImage::document(source), extent, current.config())
+            .ok()?;
+    let [command] = plan.commands.as_slice() else {
+        return None;
+    };
+    if plan.fatal_tail.is_some()
+        || command.source_extent != Some(extent)
+        || root.part_span().end() != end
+    {
+        return None;
+    }
+    let mut words = command.words.iter().filter(|word| {
+        word.image() == root.source_image()
+            && word.config() == root.lexer_config()
+            && !word.group().expand
+            && word.span().start() <= root.part_span().start()
+            && word.span().end() == end
+    });
+    words.next()?;
+    words.next().is_none().then_some(())
 }
 
 /// Reborrowed original variable geometry for one immutable analysis source.
