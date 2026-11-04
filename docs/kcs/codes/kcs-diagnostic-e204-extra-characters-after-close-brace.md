@@ -39,6 +39,14 @@ set names {alice bob}extra
 The analyser reports **`E204`** at the `e` of `extra` — the first
 character after the closing brace of `{alice bob}`.
 
+This also applies inside a command substitution:
+
+```tcl
+puts [list {a b}c]
+```
+
+Separate the arguments with a space: `puts [list {a b} c]`.
+
 ## Fix
 
 ```tcl

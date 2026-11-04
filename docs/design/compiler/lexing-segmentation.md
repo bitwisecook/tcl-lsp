@@ -294,3 +294,11 @@ issues no physical engine entry, and the generic component scanner does not
 substitute for Jim's selected scanner. Both purposes preserve unavailable
 ownership separately from a clean script. Complete lexical editor prefixes do
 not establish a Jim execution prefix.
+
+For editor syntax diagnostics, `parse_cut::parse_cuts_in` returns the first
+recursive cut in each original top-level command. It shares the existing
+delimiter/component walk and one document image across the retained groups;
+the analyser does not scan nested Tcl independently. The analyser combines
+these cuts with flat lexer warnings and suppresses duplicate code/offset pairs.
+This reports E204/E205 inside command substitutions and array indices while
+preserving the selected dialect's grammar and leaving braced data opaque.

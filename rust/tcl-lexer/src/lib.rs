@@ -111,7 +111,7 @@ pub use parse_cut::{
     EXTRA_AFTER_CLOSE_QUOTE, NestedBodyCutMemo, ParseCut, ParseCutCompleteness,
     ParseCutUnavailable, first_parse_cut, first_parse_cut_bytes, first_parse_cut_bytes_in,
     first_parse_cut_image, first_parse_cut_image_checked, first_parse_cut_image_in_checked,
-    first_parse_cut_in,
+    first_parse_cut_in, parse_cuts_in,
 };
 pub use parse_issue::ParseIssueKind;
 pub use ranges::{

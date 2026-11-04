@@ -2841,7 +2841,7 @@ impl Analyser {
             ),
             self.file_lexer_config(),
         );
-        let Ok((_tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
+        let Ok((tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
             return;
         };
         for w in warnings {
@@ -2862,6 +2862,38 @@ impl Analyser {
                     code,
                     Span::new(w.offset, w.offset),
                     w.message,
+                    super::types::Severity::Error,
+                ));
+        }
+        // Flat lexer warnings cannot see welded words inside a command
+        // substitution. The shared parse-cut owner descends into those scripts
+        // and keeps the original source coordinates.
+        let config = self.file_lexer_config();
+        let commands = tcl_lexer::group_commands(&tokens, &self.source, config);
+        let Ok(cuts) = tcl_lexer::parse_cuts_in(&commands, &tokens, &self.source, config) else {
+            return;
+        };
+        let mut emitted: HashSet<_> = self
+            .result
+            .diagnostics
+            .iter()
+            .map(|diagnostic| (diagnostic.code, diagnostic.span.start()))
+            .collect();
+        for cut in cuts {
+            let code = match cut.kind {
+                tcl_lexer::ParseIssueKind::ExtraAfterBrace => DiagCode::E204,
+                tcl_lexer::ParseIssueKind::ExtraAfterQuote => DiagCode::E205,
+                _ => continue,
+            };
+            if !emitted.insert((code, cut.offset)) {
+                continue;
+            }
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    code,
+                    Span::new(cut.offset, cut.offset),
+                    cut.message.to_owned(),
                     super::types::Severity::Error,
                 ));
         }

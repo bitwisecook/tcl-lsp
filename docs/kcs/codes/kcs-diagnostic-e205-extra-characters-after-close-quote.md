@@ -45,6 +45,9 @@ puts "hello"world
 The analyser reports **`E205`** at the `w` of `world` — the first
 character after the closing quote of `"hello"`.
 
+The same rule applies inside a command substitution, such as
+`puts [list "hello"world]`.
+
 ## Fix
 
 ```tcl
@@ -60,6 +63,11 @@ puts "hello" world
 
 A backslash-newline directly after the `"` is fine — that is a line
 continuation, not extra text.
+
+## When it does not fire
+
+JimTcl permits text immediately after a closing quote. The selected JimTcl
+profile accepts that syntax and does not report E205 for it.
 
 ## How to suppress
 

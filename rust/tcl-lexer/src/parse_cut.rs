@@ -242,6 +242,44 @@ pub fn first_parse_cut_in(
     .flatten()
 }
 
+/// Return the first parse cut in each top-level command, in source order.
+///
+/// The tokens and grouped commands must describe the same original document
+/// and configuration. One source image is shared across commands, preserving
+/// original offsets without rebuilding the document for each diagnostic.
+///
+/// # Errors
+/// Returns unavailable original component geometry or a nested lexical stream.
+pub fn parse_cuts_in(
+    commands: &[CommandSpan],
+    tokens: &[Token],
+    src: &str,
+    config: LexerConfig,
+) -> Result<Vec<ParseCut>, ParseCutUnavailable> {
+    let image = SourceImage::document(src);
+    let mut cuts = Vec::new();
+    for (command_index, command) in commands.iter().enumerate() {
+        if let Some((offset, term, kind)) = command_cut(
+            command,
+            tokens,
+            &image,
+            config,
+            SourceChannel::Document,
+            ParseCutDescent::RecursiveCommands,
+            None,
+        )? {
+            cuts.push(ParseCut {
+                command: command_index,
+                offset,
+                term,
+                kind,
+                message: kind.message(),
+            });
+        }
+    }
+    Ok(cuts)
+}
+
 /// Inspect an existing native byte token stream in its original coordinates.
 #[must_use]
 pub fn first_parse_cut_bytes_in(
