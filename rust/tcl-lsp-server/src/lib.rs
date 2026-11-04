@@ -877,7 +877,7 @@ impl DocumentState {
     /// (`has_bare_cr` is already known, so this costs one branch); only an
     /// old-Mac / mixed buffer allocates.
     fn normalised_for_analysis(mut self) -> Self {
-        if !self.has_bare_cr {
+        if !self.has_bare_cr || self.raw_text.is_some() {
             return self;
         }
         let normalised: Arc<str> = tcl_lexer::normalise_lone_cr(&self.text).into_owned().into();
@@ -64848,6 +64848,41 @@ proc p {} {
             .await
             .expect("the refreshed fair-queue join must finish")
             .expect("the refreshed fair-queue join must not panic");
+    }
+
+    #[tokio::test]
+    async fn repeated_analysis_normalisation_preserves_original_source_receipts() {
+        let mut backend = test_backend();
+        let store = Arc::new(vfs::MemoryStore::new());
+        let uri = Uri::from_str("file:///normalisation-idempotence.tcl").unwrap();
+        let source = b"# note\rproc current {} {}\r";
+        store.upsert_uri(
+            uri.as_str(),
+            "/normalisation-idempotence.tcl",
+            source.to_vec(),
+        );
+        backend.state_mut_for_test().store = store;
+        let once = backend
+            .closed_workspace_symbol_source(&uri)
+            .await
+            .unwrap()
+            .unwrap();
+        let twice = once.clone().normalised_for_analysis();
+        assert_eq!(once.text.as_ref(), "# note\nproc current {} {}\n");
+        assert_eq!(twice.text, once.text);
+        assert_eq!(twice.raw(), std::str::from_utf8(source).unwrap());
+        assert_eq!(twice.raw(), once.raw());
+        assert_eq!(twice.decode_report, once.decode_report);
+        assert!(twice.decode_report.is_some());
+        assert!(Arc::ptr_eq(
+            twice.saved_source_bytes.as_ref().unwrap(),
+            once.saved_source_bytes.as_ref().unwrap()
+        ));
+        assert_eq!(twice.saved_source_bytes.as_deref(), Some(source.as_slice()));
+        assert!(Arc::ptr_eq(
+            twice.path_admission.as_ref().unwrap(),
+            once.path_admission.as_ref().unwrap()
+        ));
     }
 
     /// The independent index seed must consume the
