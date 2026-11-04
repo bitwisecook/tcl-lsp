@@ -889,7 +889,7 @@ fn a_try_handler_walk_reads_timing_not_keywords() {
         "no `try` region: {:?}",
         ordered_block_names(top(&func))
     );
-    assert!(top(&func).exception_edges.is_empty());
+    assert_eq!(top(&func).exception_edges.len(), 0);
 }
 
 /// The blocks of a function whose name starts with `prefix`, in creation
@@ -978,7 +978,7 @@ fn a_flattened_catch_body_ends_a_block_at_each_statement() {
     // Codegen: one body block, as before.
     let codegen = build_cfg_codegen(&lower_to_ir(source, registry()), false);
     let plain = proc(&codegen, "::p");
-    assert!(plain.catch_ends.is_empty());
+    assert_eq!(plain.catch_ends.len(), 0);
     let in_body: Vec<String> = blocks_named(plain, "catch_body")
         .into_iter()
         .chain(blocks_named(plain, "catch_step"))
@@ -992,7 +992,7 @@ fn a_flattened_catch_body_ends_a_block_at_each_statement() {
             .len(),
         3
     );
-    assert!(plain.region_entries.is_empty());
+    assert_eq!(plain.region_entries.len(), 0);
 }
 
 /// A `catch` the flow graph does not flatten — a body that stops at an `error`,
@@ -1004,9 +1004,9 @@ fn an_opaque_catch_keeps_no_words_beside_a_marker() {
                   proc q {} {\n catch {catch {set x 1}} m\n return $m\n}\n\
                   catch {set x 1} m\n";
     let module = cfg(source);
-    assert!(proc(&module, "::p").catch_ends.is_empty());
-    assert!(proc(&module, "::q").catch_ends.is_empty());
-    assert!(top(&module).catch_ends.is_empty());
+    assert_eq!(proc(&module, "::p").catch_ends.len(), 0);
+    assert_eq!(proc(&module, "::q").catch_ends.len(), 0);
+    assert_eq!(top(&module).catch_ends.len(), 0);
 }
 
 /// A `try` whose body can fall through is thrown to from the block before it,
