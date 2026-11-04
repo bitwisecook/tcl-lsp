@@ -13612,9 +13612,9 @@ impl Backend {
         packs: &Arc<tcl_spectcl::PackSet>,
     ) -> std::ops::ControlFlow<(), Vec<(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)>>
     {
-        std::ops::ControlFlow::Continue(if packs.is_empty() {
+        std::ops::ControlFlow::Continue(if packs.key == 0 {
             // Loader-only notices still need the actual default registry owner
-            // used by ordinary analysis when there are no pack commands.
+            // used by ordinary analysis when there is no pack set.
             let installed = tcl_registry::model::store_profiles()
                 .map(|profile| {
                     let registry = tcl_lsp_core::environment_for_dialect(profile.name)
@@ -27892,7 +27892,7 @@ impl Backend {
     async fn registry_for_dialect(&self, dialect: &str) -> Arc<CommandRegistry> {
         self.note_pack_demand(dialect);
         let packs = self.spec_packs().await;
-        if !packs.is_empty() {
+        if packs.key != 0 {
             return tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
         }
         // The same per-dialect cache entry the salsa `registry` query returns

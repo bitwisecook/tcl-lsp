@@ -52,6 +52,19 @@ fn vendor_packs_load_manifest_only_until_an_environment_needs_them() {
         !pack(&cold, "eda_xilinx").environments.is_empty(),
         "a manifest still declares its environment"
     );
+    // A set that installs no command still has a key, and the key is what the
+    // analyser asks for: its overlay must be there, or every document reads
+    // "analysis context unavailable".
+    assert_ne!(cold.key, 0);
+    for dialect in ["tcl8.6", "jim", "f5-irules"] {
+        let _registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &cold);
+        assert!(
+            tcl_registry::model::resolve_environment(dialect)
+                .context_registry(&tcl_registry::model::KeyedVersions::default(), cold.key)
+                .is_ok(),
+            "{dialect}: no analysis context under the manifest set's key"
+        );
+    }
 
     assert!(!tcl_spectcl::demand::note_dialect("tcl8.6"));
     assert!(tcl_spectcl::demand::note_dialect("xilinx-eda-tcl"));

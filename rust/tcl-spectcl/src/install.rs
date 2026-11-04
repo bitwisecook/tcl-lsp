@@ -56,9 +56,12 @@ use tcl_registry::spec::CommandSpec;
 ///
 /// Cached on `(profile, packs.key)`, so the same pack set resolves to the same
 /// registry no matter how many times, or from how many threads, it is asked
-/// for. An empty set is not a distinct registry — it is the plain profile
-/// registry, which keeps "no packs configured" exactly as cheap as it was
-/// before packs existed.
+/// for. No pack set (key `0`) is not a distinct registry — it is the plain
+/// profile registry, which keeps "no packs configured" exactly as cheap as it
+/// was before packs existed. A set that installs no command (every bundled
+/// pack held manifest-only, say) still gets its overlay: every consumer
+/// resolves the set by its key, and a key with no overlay behind it is an
+/// analysis-context miss.
 ///
 /// Either way the registry carries the compiled-in surface of the core family
 /// `profile`'s environment runs on (Jim's own commands for a `jim` profile),
@@ -78,7 +81,7 @@ pub fn registry_with_packs(
     // The compiled-in core surfaces belong to every registry this hands out,
     // whether or not a pack set has been published.
     crate::core_surfaces::ensure();
-    if packs.key == 0 || packs.is_empty() {
+    if packs.key == 0 {
         return std::sync::Arc::clone(
             tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
