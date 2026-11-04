@@ -3059,19 +3059,13 @@ fn visit_string_interpolation_cmd_subs(
         };
         let mut next = out.clone();
         next.push_str(prefix);
-        let selected_escapes = [ctx.lexer_config().escapes];
-        let escapes = if ctx
-            .dialect
-            .and_then(|profile| profile.runtime_version())
-            .is_some()
-        {
-            selected_escapes.as_slice()
-        } else {
-            tcl_dialect::EscapeSyntax::ALL
-        };
-        if !escapes.iter().all(|escapes| {
-            interpolation_splice_preserves_escapes(&next, &result, &inside[end..], *escapes)
-        }) {
+        if !interpolation_splice_preserves_escapes(
+            &next,
+            &result,
+            &inside[end..],
+            ctx.lexer_config(),
+            ctx.dialect,
+        ) {
             continue;
         }
         next.push_str(&result);
@@ -3097,11 +3091,23 @@ fn interpolation_splice_preserves_escapes(
     prefix: &str,
     result: &str,
     suffix: &str,
-    escapes: tcl_dialect::EscapeSyntax,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> bool {
+    let selected_escapes = [config.escapes];
+    let escapes = if dialect
+        .and_then(tcl_dialect::DialectProfile::runtime_version)
+        .is_some()
+    {
+        selected_escapes.as_slice()
+    } else {
+        tcl_dialect::EscapeSyntax::ALL
+    };
     let joined = format!("{prefix}{result}{suffix}");
-    prefix.match_indices('\\').all(|(start, _)| {
-        tcl_syntax::backslash::escape_end_in(&joined, start, escapes) <= prefix.len()
+    escapes.iter().all(|escapes| {
+        prefix.match_indices('\\').all(|(start, _)| {
+            tcl_syntax::backslash::escape_end_in(&joined, start, *escapes) <= prefix.len()
+        })
     })
 }
 
