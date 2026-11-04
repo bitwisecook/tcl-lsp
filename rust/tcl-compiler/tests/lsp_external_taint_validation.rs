@@ -75,6 +75,11 @@ fn issue_2506_boolean_comparison_taint() {
             .any(|v| v == "is_empty" || v == "is_comment"),
         "{warnings:?}"
     );
+    let raw_control = taint("set raw [gets stdin]\nexpr {$raw + 1}");
+    assert!(
+        raw_control.iter().any(|v| v == "raw"),
+        "taint analysis failed raw-input control: {raw_control:?}"
+    );
     let control = taint("set n [gets stdin]\nset m [expr {$n + 1}]\nif {$m} {puts y}");
     assert!(
         control.iter().any(|v| v == "m"),
