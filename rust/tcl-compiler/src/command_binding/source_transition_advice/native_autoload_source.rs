@@ -14,6 +14,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};
 use tcl_lexer::NativeWord;
+use tcl_registry::world_effect::CallbackKinds;
 use tcl_registry::{CommandRegistry, InvocationFacts};
 use tcl_syntax::naming::{NamePolicyProtocol, NativeNameContext};
 
@@ -202,7 +203,6 @@ impl AdviceInvocationContext<'_> {
             );
         let schema = resolution.resolved()?;
         let facts = schema.facts();
-        use tcl_registry::world_effect::CallbackKinds;
         if facts.arity_accepts_frozen_arguments() != Some(true)
             || facts.effects.callback().kinds.is_unknown()
             || facts
@@ -416,7 +416,7 @@ impl OriginalNativeDeferredAutoloadAdvice {
         &self.horizon.name
     }
 
-    /// C library auto_qualify keys, retaining their canonical order.
+    /// C library `auto_qualify` keys, retaining their canonical order.
     #[must_use]
     pub fn candidates(&self) -> &[NameBytes] {
         &self.horizon.library_candidates

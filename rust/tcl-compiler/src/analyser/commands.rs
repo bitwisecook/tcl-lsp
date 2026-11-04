@@ -2419,7 +2419,7 @@ impl Analyser {
             })
         };
         if let Some(mut candidate) = candidate {
-            candidate.cmd_name = cmd_name.to_owned();
+            cmd_name.clone_into(&mut candidate.cmd_name);
             self.loop_candidates.push(candidate);
         }
         let numbers = grammar.numbers;
