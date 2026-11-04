@@ -14,9 +14,9 @@ Does the emitted original variable edit preserve braced/unbraced dollar delimite
 
 The edit contract rechecks each original root name extent against the full source image, selected string protocol and original root/index input. The regression applies the actual edits to set a(k), $a(k) and ${a(k)} forms and requires their delimiters and index k to remain exact. Successful runtime reads or stores are outside this source edit contract.
 
-Logical Document roots and static words retain Unicode source units independently of the authored naming policy. Their source extents use the corresponding source-value geometry; Native roots and words retain the selected Native string protocol and its extent mapping. The planner reparses the complete original component and generated source before issuing edits. Supplementary Unicode in an original name therefore cannot be measured as Tcl 8.6 Native string units.
-
 CLI minimisation selects original variable symbols and shared guarded rename plans from the actual complete source analysis. Array components, scalar parentheses, literal dollars and Unicode names retain their original checked geometry.
+
+Logical Document roots and static words retain Unicode source units independently of the authored naming policy. Their source extents use the corresponding source-value geometry; Native roots and words retain the selected Native string protocol and its extent mapping. The planner reparses the complete original component and generated source before issuing edits. Supplementary Unicode in an original name therefore cannot be measured as Tcl 8.6 Native string units.
 
 ## Scope
 
