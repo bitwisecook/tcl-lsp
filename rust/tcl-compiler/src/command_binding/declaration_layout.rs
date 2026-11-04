@@ -36,6 +36,13 @@ pub(super) enum OriginalDiagnosticFrameEntry {
         namespace: super::SourceNamespaceKey,
         config: tcl_lexer::LexerConfig,
     },
+    /// A conditional Logical source frame, with no entered Native activation.
+    LogicalScriptActivation {
+        source: super::ExecutedScriptSource,
+        frame: crate::var_resolve::VariableExecutionFrame,
+        namespace: super::SourceNamespaceKey,
+        config: tcl_lexer::LexerConfig,
+    },
 }
 
 /// Original procedure source scope for parameter reports. The actual row
@@ -129,9 +136,9 @@ impl OriginalDiagnosticFrameEntry {
             Self::DeclaredReceiver(_) => None,
             Self::LogicalReceiver(_) => return false,
             Self::DeclaredProcedure(body) => Some(&body.namespace),
-            Self::RootScript { namespace, .. } | Self::ScriptActivation { namespace, .. } => {
-                Some(namespace)
-            }
+            Self::RootScript { namespace, .. }
+            | Self::ScriptActivation { namespace, .. }
+            | Self::LogicalScriptActivation { namespace, .. } => Some(namespace),
         };
         SourceCommandBindings::context_owns_frame(context, self.frame(), namespace)
     }
@@ -142,7 +149,9 @@ impl OriginalDiagnosticFrameEntry {
             Self::DeclaredReceiver(body) => body.source(),
             Self::LogicalReceiver(body) => &body.source,
             Self::DeclaredProcedure(body) => &body.source,
-            Self::RootScript { source, .. } | Self::ScriptActivation { source, .. } => source,
+            Self::RootScript { source, .. }
+            | Self::ScriptActivation { source, .. }
+            | Self::LogicalScriptActivation { source, .. } => source,
         }
     }
 
@@ -152,7 +161,9 @@ impl OriginalDiagnosticFrameEntry {
             Self::DeclaredReceiver(body) => body.preview_frame(),
             Self::LogicalReceiver(body) => &body.frame,
             Self::DeclaredProcedure(body) => &body.frame,
-            Self::RootScript { frame, .. } | Self::ScriptActivation { frame, .. } => frame,
+            Self::RootScript { frame, .. }
+            | Self::ScriptActivation { frame, .. }
+            | Self::LogicalScriptActivation { frame, .. } => frame,
         }
     }
 
@@ -161,9 +172,10 @@ impl OriginalDiagnosticFrameEntry {
             Self::Body(body) => body.parameters(),
             Self::DeclaredReceiver(body) => body.parameters(),
             Self::DeclaredProcedure(body) => &body.parameters,
-            Self::LogicalReceiver(_) | Self::RootScript { .. } | Self::ScriptActivation { .. } => {
-                &[]
-            }
+            Self::LogicalReceiver(_)
+            | Self::RootScript { .. }
+            | Self::ScriptActivation { .. }
+            | Self::LogicalScriptActivation { .. } => &[],
         }
     }
 
@@ -174,9 +186,10 @@ impl OriginalDiagnosticFrameEntry {
             Self::Body(body) => body.original_formal_topology(),
             Self::DeclaredReceiver(body) => body.original_formal_topology(),
             Self::DeclaredProcedure(body) => body.original_parameters.as_ref(),
-            Self::LogicalReceiver(_) | Self::RootScript { .. } | Self::ScriptActivation { .. } => {
-                None
-            }
+            Self::LogicalReceiver(_)
+            | Self::RootScript { .. }
+            | Self::ScriptActivation { .. }
+            | Self::LogicalScriptActivation { .. } => None,
         }
     }
 
@@ -232,6 +245,9 @@ impl OriginalDiagnosticFrameEntry {
                 frame: expected, ..
             }
             | Self::ScriptActivation {
+                frame: expected, ..
+            }
+            | Self::LogicalScriptActivation {
                 frame: expected, ..
             } => expected == frame,
         }
@@ -958,11 +974,25 @@ impl SourceCommandBindings {
             };
             source
         };
-        let entry = Arc::new(OriginalDiagnosticFrameEntry::ScriptActivation {
-            source,
-            frame: state.variable_frame.clone(),
-            namespace,
-            config: context.config,
+        let logical = context.body_entry() == super::SourceBodyEntryPurpose::Conditional
+            && state.baseline.logical_source_input.is_some();
+        if logical && super::logical_definition::logical_entry(state, *context).is_none() {
+            return;
+        }
+        let entry = Arc::new(if logical {
+            OriginalDiagnosticFrameEntry::LogicalScriptActivation {
+                source,
+                frame: state.variable_frame.clone(),
+                namespace,
+                config: context.config,
+            }
+        } else {
+            OriginalDiagnosticFrameEntry::ScriptActivation {
+                source,
+                frame: state.variable_frame.clone(),
+                namespace,
+                config: context.config,
+            }
         });
         if !self.original_script_activations.contains(&entry) {
             self.original_script_activations.push(entry);
@@ -980,7 +1010,12 @@ impl SourceCommandBindings {
         let mut matching = self.original_script_activations.iter().filter(|entry| {
             matches!(entry.as_ref(), OriginalDiagnosticFrameEntry::ScriptActivation {
                 frame, namespace: selected, config, ..
+            } | OriginalDiagnosticFrameEntry::LogicalScriptActivation {
+                frame, namespace: selected, config, ..
             } if frame == &state.variable_frame && frame == context.frame && selected == &namespace && *config == context.config)
+                && (matches!(entry.as_ref(), OriginalDiagnosticFrameEntry::LogicalScriptActivation { .. })
+                    == (context.body_entry() == super::SourceBodyEntryPurpose::Conditional
+                        && super::logical_definition::logical_entry(state, *context).is_some()))
                 && entry.owns_source(origin, offset)
                 && entry.owns_original_context(&state.source_variables)
         });
@@ -1543,6 +1578,7 @@ impl SourceCommandBindings {
                     if matches!(
                         row.entry.as_ref(),
                         OriginalDiagnosticFrameEntry::ScriptActivation { .. }
+                            | OriginalDiagnosticFrameEntry::LogicalScriptActivation { .. }
                     ) {
                         continue;
                     }

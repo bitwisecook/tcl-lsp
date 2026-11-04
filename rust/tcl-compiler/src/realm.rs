@@ -1782,6 +1782,101 @@ mod tests {
     }
 
     #[test]
+    fn logical_namespace_builtin_dispatch_does_not_issue_native_evidence() {
+        let source =
+            "namespace eval n {proc format {args} {return NS}; format %b 5}\nformat %d 5\n";
+        let map = logical_namespace_map_for(source);
+        let proc = u32::try_from(source.find("proc format").unwrap()).unwrap();
+        let binding = map.invocation_at_source("proc", proc);
+        assert!(
+            binding
+                .proved_target()
+                .is_some_and(|target| target.registry_backed)
+        );
+        assert!(!binding.unobserved_native_dispatch());
+        assert!(binding.native_handler_envelope.is_none());
+        assert!(binding.compiled_candidates.is_empty());
+    }
+
+    #[test]
+    fn logical_dispatch_refuses_native_evidence_but_fresh_authoring_keeps_it() {
+        let source = "format %d 5\n";
+        let logical = logical_namespace_map_for(source).invocation_at_source("format", 0);
+        assert!(
+            logical
+                .proved_target()
+                .is_some_and(|target| target.registry_backed)
+        );
+        assert!(!logical.unobserved_native_dispatch());
+        let fresh = map_for(source).invocation_at_source("format", 0);
+        assert!(
+            fresh
+                .proved_target()
+                .is_some_and(|target| target.registry_backed)
+        );
+        assert!(fresh.unobserved_native_dispatch());
+    }
+
+    #[test]
+    fn logical_namespace_unknown_callee_keeps_global_lookup_unknown() {
+        let source = "namespace eval n {proc format {args} {$unknown}; format %b 5}\nformat %d 5\n";
+        let map = logical_namespace_map_for(source);
+        let inside = u32::try_from(source.find("format %b").unwrap()).unwrap();
+        let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(map.resolve("format", inside), RealmBinding::Rebound);
+        assert_eq!(map.resolve("format", outside), RealmBinding::Rebound);
+    }
+
+    #[test]
+    fn logical_namespace_multiple_command_body_keeps_global_lookup_unknown() {
+        let source = "namespace eval n {proc format {args} {set a 1; return NS}; format %b 5}\nformat %d 5\n";
+        let map = logical_namespace_map_for(source);
+        let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(map.resolve("format", outside), RealmBinding::Rebound);
+    }
+
+    #[test]
+    fn logical_namespace_wrong_arity_cannot_donate_quiet_continuation() {
+        for call in ["format", "format x y"] {
+            let source = format!(
+                "namespace eval n {{proc format {{required}} {{return NS}}; {call}}}\nformat %d 5\n"
+            );
+            let map = logical_namespace_map_for(&source);
+            let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+            assert_eq!(
+                map.resolve("format", outside),
+                RealmBinding::Rebound,
+                "{call}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_namespace_dynamic_target_and_observers_keep_lookup_unknown() {
+        for source in [
+            "namespace eval $target {proc format {args} {return NS}; format %b 5}\nformat %d 5\n",
+            "trace add execution namespace enter observer\nnamespace eval n {proc format {args} {return NS}; format %b 5}\nformat %d 5\n",
+        ] {
+            let map = logical_namespace_map_for(source);
+            let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+            assert_eq!(
+                map.resolve("format", outside),
+                RealmBinding::Rebound,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn logical_namespace_reference_formal_does_not_donate_quiet_continuation() {
+        let source =
+            "namespace eval n {proc format {&value} {return NS}; format name}\nformat %d 5\n";
+        let map = logical_namespace_map_for(source);
+        let outside = u32::try_from(source.rfind("format %d").unwrap()).unwrap();
+        assert_eq!(map.resolve("format", outside), RealmBinding::Rebound);
+    }
+
+    #[test]
     fn ordinary_native_unknown_local_call_does_not_donate_global_lookup() {
         let source = "namespace eval n {proc format {args} {$unknown}; format %b 5}\nformat %d 5\n";
         let environment = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")

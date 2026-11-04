@@ -476,7 +476,7 @@ pub fn native_return_state_effect(
     if dialect.native_name_protocol().is_none() && dialect.authored_f5_tcl84_core().is_none() {
         return Effect::MayMaterialiseError;
     }
-    return_state_effect_for_source_grammar(args, dialect)
+    return_state_effect_for_source_grammar(args, dialect, false)
 }
 
 /// Conditional Return storage under the independently selected source grammar.
@@ -488,12 +488,13 @@ pub fn authored_source_return_state_effect(
     let Some(dialect) = args.dialect() else {
         return crate::completion_route::ReturnStateEffect::MayMaterialiseError;
     };
-    return_state_effect_for_source_grammar(args, dialect)
+    return_state_effect_for_source_grammar(args, dialect, true)
 }
 
 fn return_state_effect_for_source_grammar(
     args: crate::InvocationArguments<'_>,
     dialect: crate::InvocationDialect,
+    allow_unanimous_unknown_grammar: bool,
 ) -> crate::completion_route::ReturnStateEffect {
     use crate::completion::CompletionCode;
     use crate::completion_route::{
@@ -501,7 +502,9 @@ fn return_state_effect_for_source_grammar(
         ReturnStateEffect as Effect,
     };
     let grammar = Grammar::for_dialect(dialect);
-    if grammar == Grammar::Unknown || args.exact_argv_len().is_none() {
+    if (grammar == Grammar::Unknown && !allow_unanimous_unknown_grammar)
+        || args.exact_argv_len().is_none()
+    {
         return Effect::MayMaterialiseError;
     }
     match exact_return_completion(
@@ -19811,6 +19814,37 @@ mod native_return_effect_ingress_tests {
     use super::native_return_state_effect;
     use crate::completion_route::ReturnStateEffect;
     use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+
+    #[test]
+    fn authored_return_effect_uses_unanimous_unknown_grammar_only() {
+        let logical = InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        let literal = [InvocationWord::Literal("NS")];
+        let arguments = InvocationArguments::structured(&literal).with_dialect(logical);
+        assert_eq!(
+            super::authored_source_return_state_effect(arguments),
+            ReturnStateEffect::ResultAndCompletion
+        );
+        assert_eq!(
+            native_return_state_effect(arguments),
+            ReturnStateEffect::MayMaterialiseError
+        );
+        let dynamic = [InvocationWord::Dynamic, InvocationWord::Literal("value")];
+        let arguments = InvocationArguments::structured(&dynamic).with_dialect(logical);
+        assert_eq!(
+            super::authored_source_return_state_effect(arguments),
+            ReturnStateEffect::MayMaterialiseError
+        );
+        let bad = [
+            InvocationWord::Literal("-code"),
+            InvocationWord::Literal("error"),
+            InvocationWord::Literal("message"),
+        ];
+        let arguments = InvocationArguments::structured(&bad).with_dialect(logical);
+        assert_eq!(
+            super::authored_source_return_state_effect(arguments),
+            ReturnStateEffect::MayMaterialiseError
+        );
+    }
 
     #[test]
     fn native_return_effect_requires_its_independent_selected_protocol() {

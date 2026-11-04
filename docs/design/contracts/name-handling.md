@@ -4496,3 +4496,5 @@ mutable inventories, debt, handles and step counters; existing descendant budget
 sharing remains unchanged. Capacity, poison and
 changed-generation paths use the uncached builder. No source advice, Native
 issuer, live lookup, callback or execution permission is cached.
+
+Logical namespace source descent resolves the exact retained Logical input, Registry and original static argv. Its conditional source frame and Logical script activation supply geometry and source bindings without a Native entry. A current Logical procedure with one statically selected Return may retain only a quiet source continuation: Tcl and Jim formal-binding plans must agree without caller links, and the exact source schema must prove its completion and no lookup mutation. Unknown, dynamic, expanded, foreign or mutating bodies stay opaque. Logical source points cannot issue Native dispatch, handler or compiled receipts; fresh authoring keeps its independent purpose.

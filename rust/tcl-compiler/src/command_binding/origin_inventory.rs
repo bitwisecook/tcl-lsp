@@ -155,7 +155,9 @@ impl SourceInvocationBinding {
         let Some(snapshot) = &self.lookup_state else {
             return false;
         };
-        if snapshot.state.baseline.source_point_entry.is_some() {
+        if snapshot.state.baseline.source_point_entry.is_some()
+            || snapshot.state.baseline.logical_source_input.is_some()
+        {
             return false;
         }
         if snapshot

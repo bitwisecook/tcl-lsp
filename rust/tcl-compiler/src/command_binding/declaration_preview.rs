@@ -2274,6 +2274,43 @@ impl SourceCommandBindings {
         agreed
     }
 
+    /// Select the current Logical procedure's original authored body. This
+    /// retains source geometry only; it supplies no Native entry or completion.
+    pub(super) fn logical_called_procedure_body(
+        &self,
+        target: &super::SourceCommandTarget,
+        state: &super::ModuleCommandBindings,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<DeclaredProcedureBody> {
+        if target.registry_backed
+            || target.kind != super::BindingKind::Proc
+            || !target.prepended.is_empty()
+            || target.implementation_allocation.is_some()
+            || target.runtime_implementation_generation.is_some()
+        {
+            return None;
+        }
+        let site = CommandAllocationSite {
+            source: Arc::clone(state.current_source_origin.as_ref()?),
+            offset: target.implementation_generation,
+        };
+        let body = self.original_declared_procedure_at(&site, registry)?;
+        if body.logical_name.is_none()
+            || body.original_parameters.is_some()
+            || body.declaration != site
+            || body.slot.authored_spelling()? != target.command
+            || body.source.origin != site.source
+            || !matches!(
+                body.source.mapping,
+                super::ExecutedScriptMapping::Contiguous { .. }
+            )
+            || !state.namespaces.contains(&body.namespace)
+        {
+            return None;
+        }
+        Some(body)
+    }
+
     /// Conditional Native source formal names only. This selects no namespace
     /// cell, installed procedure, frame, body entry or completion.
     pub(crate) fn conditional_native_procedure_formal_names_at(
