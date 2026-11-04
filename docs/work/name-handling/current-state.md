@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 16:45 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
+Updated 04 November 2026, 16:58 UTC. This is the active snapshot. Every result is limited to its recorded source, inputs and purpose.
 
 ## Scope and release verdict
 
@@ -8,7 +8,7 @@ Updated 04 November 2026, 16:45 UTC. This is the active snapshot. Every result i
 
 The shallow checkout is `/workspace/tcl-lsp-partial`, branch `work`, origin `https://github.com/bitwisecook/tcl-lsp.git`; it remains a shallow repository. The user authorises reviewed development pushes before green tests. Root owns Main/scratch/the shared Cargo target; agents prepare narrow private files. The five-minute publisher fetches and normally merges clean concurrent remote changes without force or product-WIP adoption; conflicts pause for review. Incoming product fixes from the separate issue sweep are integrated, not counted as naming acceptance.
 
-Publisher PID 278694 continues five-minute fetch/merge/push checkpoints without waiting for green tests. The 16:28 ENOSPC merge interruption and 16:33/16:38 clean-tree refusals remain recorded. After preservation, restoration and normal integration, the 16:43:02 checkpoint successfully merged concurrent remote changes and pushed `f80a8a1aa3d33772d2b0fcc794a8fd56aa828875` without force. `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}` records the recovery. Authentication works and the repository remains shallow.
+Publisher PID 278694 continues five-minute fetch/merge/push checkpoints without waiting for green tests. The 16:28 ENOSPC merge interruption and 16:33/16:38 clean-tree refusals remain recorded. After preservation, restoration and normal integration, the latest inspected 16:53:02 checkpoint merged concurrent remote changes and pushed `b0ff26539172f34f9590916f1e77e8d02d4a1a45` without force. `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}` records the recovery. Authentication works and the repository remains shallow.
 
 ## Current implementation and unresolved behavior
 
@@ -71,9 +71,11 @@ Old [CI41749944578](https://github.com/bitwisecook/tcl-lsp/actions/runs/41749944
 
 ## Latest host and validation results
 
+Fresh Compiler first-refusal diagnostic V3 builds successfully in 405.854 seconds and is running 21 exact controls. The first three results are: Browser-cut positive fails at its original assertion, namespace/release positive passes, and unknown/mutation/dynamic negatives pass. The real trace records a missing prior source continuation and final unavailable advice horizon; a fix is not yet established. Source-card, memo and Boolean controls remain pending in this run. `/workspace/tmp/lsp-merged-cohort/autoload-first-refusal-diagnostic-current-v3/` retains the executable inventory, captured inputs and per-control output. The runner checks source bytes, file membership, dependencies, generated files and executable bytes; symlink topology and undiscovered dynamic inputs are explicitly outside its claim. Final restoration and aggregate verdict are still pending.
+
 Manual host run [41859243999](https://github.com/bitwisecook/tcl-lsp/actions/runs/41859243999), exact source `b06734318768fdef9dcfef7b0109beb7db97544c`, has a completed failing Browser job 126676253361: 40/41 checks pass in both original and diagnostic runs. The only failure is original autoload request id 4 returning null. Workspace-symbol, sourced sibling, genuine empty-directory priming, isolated rename/UTF16/revision changes, opaque abstention and mixed-workspace incomplete-coverage refusal pass. This source predates hostV7. Raw log: `/tmp/autoload-baseline-alias-trace-combined/browser-job-126676253361.raw.json`.
 
-The same run's WASI job 126676253571 builds successfully and passes 32/33 and fails one check in both runs: busy 4,000-call exit+stdin-FIN times out in all 12 attempts at 30 seconds each; ordinary EOF and abrupt exit pass. No workload or timeout is relaxed. A reviewed, default-off WASI lifecycle trace is adopted for the next diagnostic run; it reserves terminal-stage log capacity and records module hashes, bounded stderr and process CPU observations. It is unexecuted and is not a fix claim. `/tmp/wasi-job-126676253571-{logs,steps}.json` and its artifact retain the actual outputs. Native job 126676253416 is still running at this snapshot, so no aggregate Native verdict exists.
+The same run's WASI job 126676253571 builds successfully and passes 32/33 and fails one check in both runs: busy 4,000-call exit+stdin-FIN times out in all 12 attempts at 30 seconds each; ordinary EOF and abrupt exit pass. No workload or timeout is relaxed. A reviewed, default-off WASI lifecycle trace is adopted for the next diagnostic run; it reserves terminal-stage log capacity and records module hashes, bounded stderr and process CPU observations. It is unexecuted and is not a fix claim. `/tmp/wasi-job-126676253571-{logs,steps}.json` and its artifact retain the actual outputs. Native job 126676253416 is still running at this snapshot, so no aggregate Native verdict exists. New host run 41871981409 at b0ff26539172f34f9590916f1e77e8d02d4a1a45 is active with the lifecycle trace. The superseded, still-pending informational run 41871125315 was cancelled before tests; the older running Native job was retained.
 
 Reviewed hostV7 (`887920c189`) adds acknowledged directory/file admission and sticky incomplete census after failed withdrawal. Its 12 private bounded controls pass; full real-host validation of V7 remains pending. Whole-extension TypeScript checking passes after generating canonical ignored JSON inputs through the documented build rules. The formatting-only follow-up passes full extension lint and TypeScript checking (`/tmp/lsp-vscode-{lint,types}-current-1641.log`). No Native execution or physical edit authority is inferred from source advice.
 

@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 16:45 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
+Updated 04 November 2026, 16:58 UTC. **Not release-ready.** [Current state](../current-state.md) binds exact evidence.
 
 | Work | Open acceptance |
 | --- | --- |
@@ -14,3 +14,5 @@ Updated 04 November 2026, 16:45 UTC. **Not release-ready.** [Current state](../c
 | Integration/release | Publisher 278694 succeeds at 16:43:02, merging and pushing `f80a8a1aa3d33772d2b0fcc794a8fd56aa828875` without force; `/workspace/tmp/lsp-publication/{last-success.json,checkpoint.log}`. Earlier ENOSPC/clean-tree interruptions remain historical. Resource recovery is not test acceptance. No PR, merge to `rust`, tag or release. |
 
 Separate VM/BIG-IP features stay deferred; linked dependencies and oracle provenance remain critical.
+
+The fresh 21-control Compiler diagnostic builds successfully and is in progress. Its first three controls retain the Browser-cut failure and pass the namespace positive and mutation negatives. Final aggregate/restoration, Core retry and current host acceptance remain pending. See the timestamped current state for exact limits.
