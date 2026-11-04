@@ -218,12 +218,48 @@ pub struct OriginalConditionalCommandWorld<'a> {
     pub outcome: &'a tcl_compiler::command_binding::OriginalSourceConditionalOutcome,
 }
 
-fn collision_world(
-    document: &OriginalDeclarationDocument<'_>,
-    conditional: &[OriginalConditionalCommandWorld<'_>],
-) -> Option<tcl_compiler::command_binding::OriginalCompletedCommandWorld> {
+enum RenameCollisionWorld<'a, 'borrow> {
+    Ordinary(tcl_compiler::command_binding::OriginalCompletedCommandWorld),
+    ClosedCut(&'borrow tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>),
+}
+
+impl RenameCollisionWorld<'_, '_> {
+    fn source_image(&self) -> &SourceImage {
+        match self {
+            Self::Ordinary(world) => world.source_image(),
+            Self::ClosedCut(cut) => cut.source_image(),
+        }
+    }
+    fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        match self {
+            Self::Ordinary(world) => world.lexer_config(),
+            Self::ClosedCut(cut) => cut.lexer_config(),
+        }
+    }
+    fn command_slot_occupied(
+        &self,
+        slot: &ByteCommandSlot,
+        policy: NamePolicyProtocol,
+    ) -> Option<bool> {
+        match self {
+            Self::Ordinary(world) => world.command_slot_occupied(slot, policy),
+            Self::ClosedCut(cut) => cut.command_slot_occupied(slot, policy),
+        }
+    }
+}
+
+fn collision_world<'a, 'borrow>(
+    document: &OriginalDeclarationDocument<'a>,
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    selected_cut: Option<
+        &'borrow tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>,
+    >,
+) -> Option<RenameCollisionWorld<'a, 'borrow>> {
     if let Some(world) = document.analysis.original_completed_command_world() {
-        return Some(world.clone());
+        return Some(RenameCollisionWorld::Ordinary(world.clone()));
+    }
+    if let Some(cut) = selected_cut.filter(|cut| cut.is_for_analysis(document.analysis)) {
+        return Some(RenameCollisionWorld::ClosedCut(cut));
     }
     let mut selected = conditional.iter().filter(|entry| entry.uri == document.uri);
     let entry = selected.next()?;
@@ -233,17 +269,19 @@ fn collision_world(
     entry
         .outcome
         .original_completed_command_world(document.analysis)
+        .map(RenameCollisionWorld::Ordinary)
 }
 
-fn occupied(
-    documents: &[OriginalDeclarationDocument<'_>],
-    conditional: &[OriginalConditionalCommandWorld<'_>],
+fn occupied_with_cut<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    selected_cut: Option<&tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>>,
     slot: &ByteCommandSlot,
     policy: NamePolicyProtocol,
 ) -> Result<bool, OriginalCommandRenameRefusal> {
     let mut present = false;
     for (ordinal, document) in documents.iter().enumerate() {
-        let world = collision_world(document, conditional).ok_or_else(|| {
+        let world = collision_world(document, conditional, selected_cut).ok_or_else(|| {
             trace_missing_rename_world(document, ordinal, documents.len());
             OriginalCommandRenameRefusal::UnknownWorld
         })?;
@@ -261,6 +299,17 @@ fn destination_matches(
     destination: &ByteCommandSlot,
     tail: &[u8],
 ) -> Result<(), OriginalCommandRenameRefusal> {
+    destination_matches_with_cut(documents, conditional, None, lookup, destination, tail)
+}
+
+fn destination_matches_with_cut<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    selected_cut: Option<&tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>>,
+    lookup: &OriginalCommandLookup,
+    destination: &ByteCommandSlot,
+    tail: &[u8],
+) -> Result<(), OriginalCommandRenameRefusal> {
     if lookup.candidates().is_empty() {
         return Err(OriginalCommandRenameRefusal::UnknownDestination);
     }
@@ -272,7 +321,13 @@ fn destination_matches(
                 reached = true;
                 break;
             }
-            if occupied(documents, conditional, &candidate, lookup.policy())? {
+            if occupied_with_cut(
+                documents,
+                conditional,
+                selected_cut,
+                &candidate,
+                lookup.policy(),
+            )? {
                 return Err(OriginalCommandRenameRefusal::Collision);
             }
         }
@@ -723,7 +778,156 @@ pub fn original_command_rename_edits_with_source_views<'a>(
         &tail,
         conditional,
         Some(&coverage),
+        None,
     )
+}
+
+/// Plan under a unique inherited declaration interpretation from a genuine
+/// single source cut. The physical declaration retains its independent ordinary
+/// rename guards; conditional outcomes supply relationship/collision facts only.
+/// The host must hold the exact source-view revision and publication leases.
+///
+/// # Errors
+/// Returns the unchanged ordinary guards or a missing/ambiguous inherited join.
+pub fn original_command_rename_edits_with_selected_source_view<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    identity: &OriginalDeclarationIdentity,
+    new_tail: &str,
+    cursor_uri: &str,
+    cursor: u32,
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    views: &[crate::original_source_views::OriginalSourceViewDocument<'a>],
+) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
+    let Some(selected) = source_coverage::OriginalInheritedDeclarationSelection::capture(
+        documents,
+        identity,
+        cursor_uri,
+        cursor,
+        conditional,
+        views,
+    )?
+    else {
+        return original_command_rename_edits_with_source_views(
+            documents,
+            identity,
+            new_tail,
+            conditional,
+            views,
+        );
+    };
+    // Validate the physical interpretation independently; it is never rewritten
+    // into an inherited owner or supplied with a conditional completed world.
+    let physical = original_command_rename_edits(&[selected.physical()], identity, new_tail)?;
+    let coverage = source_coverage::SourceCoverage::capture(
+        selected.documents(),
+        selected.identity(),
+        conditional,
+        views,
+    )?;
+    let policy = selected
+        .identity()
+        .input()
+        .ok_or(OriginalCommandRenameRefusal::UneditableInput)?
+        .policy();
+    let tail = tcl_syntax::backslash::native_source_literal_bytes(
+        new_tail.as_bytes(),
+        SourceImage::document(new_tail).channel(),
+        policy.string_protocol(),
+    )
+    .map_err(|_| OriginalCommandRenameRefusal::InvalidTail)?;
+    let inherited = original_command_rename_units_with_source_coverage(
+        selected.documents(),
+        selected.identity(),
+        &tail,
+        conditional,
+        Some(&coverage),
+        Some(selected.publication()),
+    )?;
+    require_selected_physical_edits(&physical, &inherited, identity.uri())?;
+    Ok(inherited)
+}
+
+/// Prepare the original declaration header under the same unique inherited
+/// relationship and complete planning guards used for its subsequent rename.
+/// The host must hold the exact source-view revision and publication leases.
+///
+/// # Errors
+/// Refuses cursor, source, namespace, identity, coverage and world mismatches.
+pub fn original_command_prepare_span_in_with_selected_source_view<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    identity: &OriginalDeclarationIdentity,
+    cursor_uri: &str,
+    cursor: u32,
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    views: &[crate::original_source_views::OriginalSourceViewDocument<'a>],
+) -> Result<tcl_lexer::Span, OriginalCommandRenameRefusal> {
+    let Some(selected) = source_coverage::OriginalInheritedDeclarationSelection::capture(
+        documents,
+        identity,
+        cursor_uri,
+        cursor,
+        conditional,
+        views,
+    )?
+    else {
+        return original_command_prepare_span_in_with_conditional_worlds(
+            documents,
+            identity,
+            cursor_uri,
+            cursor,
+            conditional,
+        );
+    };
+    if cursor_uri != identity.uri() {
+        return Err(OriginalCommandRenameRefusal::UneditableInput);
+    }
+    let span = original_command_prepare_span(selected.physical(), identity, cursor)?;
+    let input = selected
+        .identity()
+        .input()
+        .ok_or(OriginalCommandRenameRefusal::UneditableInput)?;
+    let extent = input
+        .policy()
+        .recipe()
+        .command_tail_extent(input.bytes())
+        .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
+    let coverage = source_coverage::SourceCoverage::capture(
+        selected.documents(),
+        selected.identity(),
+        conditional,
+        views,
+    )?;
+    let physical = original_command_rename_units_with_conditional_worlds(
+        &[selected.physical()],
+        identity,
+        &input.bytes()[extent.clone()],
+        &[],
+    )?;
+    let inherited = original_command_rename_units_with_source_coverage(
+        selected.documents(),
+        selected.identity(),
+        &input.bytes()[extent],
+        conditional,
+        Some(&coverage),
+        Some(selected.publication()),
+    )?;
+    require_selected_physical_edits(&physical, &inherited, identity.uri())?;
+    Ok(span)
+}
+
+fn require_selected_physical_edits(
+    physical: &[WorkspaceTextEdit],
+    inherited: &[WorkspaceTextEdit],
+    selected_uri: &str,
+) -> Result<(), OriginalCommandRenameRefusal> {
+    if !inherited
+        .iter()
+        .filter(|edit| edit.uri == selected_uri)
+        .eq(physical.iter())
+    {
+        return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+    }
+    Ok(())
 }
 
 fn rename_declaration<'a>(
@@ -786,7 +990,39 @@ fn original_command_rename_units_with_conditional_worlds(
     tail: &[u8],
     conditional: &[OriginalConditionalCommandWorld<'_>],
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
-    original_command_rename_units_with_source_coverage(documents, identity, tail, conditional, None)
+    original_command_rename_units_with_source_coverage(
+        documents,
+        identity,
+        tail,
+        conditional,
+        None,
+        None,
+    )
+}
+
+fn selected_publication<'a>(
+    owner: OriginalDeclarationDocument<'a>,
+    declaration: &Declaration<'_>,
+    selected_cut: Option<&tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>>,
+) -> Result<tcl_compiler::command_binding::OriginalCommandPublication, OriginalCommandRenameRefusal>
+{
+    let policy = declaration.name().policy();
+    match selected_cut.filter(|cut| cut.is_for_analysis(owner.analysis)) {
+        Some(cut)
+            if cut.publication().slot() == declaration.name().slot()
+                && cut.publication().policy() == policy =>
+        {
+            Ok(cut.publication().clone())
+        }
+        Some(_) => Err(OriginalCommandRenameRefusal::ChangedPublication),
+        None => Ok(owner
+            .analysis
+            .original_completed_command_world()
+            .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?
+            .declaration_at(declaration.name().slot(), policy)
+            .ok_or(OriginalCommandRenameRefusal::ChangedPublication)?
+            .clone()),
+    }
 }
 
 fn original_command_rename_units_with_source_coverage<'a>(
@@ -795,9 +1031,10 @@ fn original_command_rename_units_with_source_coverage<'a>(
     tail: &[u8],
     conditional: &[OriginalConditionalCommandWorld<'a>],
     coverage: Option<&source_coverage::SourceCoverage<'a>>,
+    selected_cut: Option<&tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>>,
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
     let mut uris = HashSet::new();
-    validate_rename_document_owners(documents, conditional, &mut uris)?;
+    validate_rename_document_owners(documents, conditional, selected_cut, &mut uris)?;
     let owner = documents
         .iter()
         .find(|document| document.uri == identity.uri())
@@ -818,17 +1055,12 @@ fn original_command_rename_units_with_source_coverage<'a>(
         return Err(OriginalCommandRenameRefusal::InvalidTail);
     }
     let destination = renamed_slot(declaration.name().slot(), policy, tail)?;
-    let publication = owner
-        .analysis
-        .original_completed_command_world()
-        .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?
-        .declaration_at(declaration.name().slot(), policy)
-        .ok_or(OriginalCommandRenameRefusal::ChangedPublication)?;
+    let publication = selected_publication(*owner, &declaration, selected_cut)?;
     if Some(publication.declaration_site()) != identity.site() {
         return Err(OriginalCommandRenameRefusal::ChangedPublication);
     }
     if destination != *declaration.name().slot()
-        && occupied(documents, conditional, &destination, policy)?
+        && occupied_with_cut(documents, conditional, selected_cut, &destination, policy)?
     {
         return Err(OriginalCommandRenameRefusal::Collision);
     }
@@ -870,6 +1102,7 @@ fn original_command_rename_units_with_source_coverage<'a>(
         declaration: &declaration,
         destination: &destination,
         tail,
+        selected_cut,
     };
     let mut edits = Vec::new();
     for &document in documents {
@@ -1132,6 +1365,13 @@ fn reject_incomplete_source_procedure(
         coverage_trace(command_offset, "direct-procedure-owner");
         return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
     }
+    reject_nonliteral_source_procedure_words(words, input)
+}
+
+fn reject_nonliteral_source_procedure_words(
+    words: &[tcl_lexer::NativeWord],
+    input: &SignatureSourceNameInput,
+) -> Result<(), OriginalCommandRenameRefusal> {
     let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
         words,
         input.policy().string_protocol(),
@@ -1149,7 +1389,8 @@ fn reject_incomplete_source_procedure(
 
 fn validate_rename_document_owners<'a>(
     documents: &[OriginalDeclarationDocument<'a>],
-    conditional: &[OriginalConditionalCommandWorld<'_>],
+    conditional: &[OriginalConditionalCommandWorld<'a>],
+    selected_cut: Option<&tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>>,
     uris: &mut HashSet<&'a str>,
 ) -> Result<(), OriginalCommandRenameRefusal> {
     for (ordinal, document) in documents.iter().enumerate() {
@@ -1167,7 +1408,7 @@ fn validate_rename_document_owners<'a>(
         {
             return Err(OriginalCommandRenameRefusal::StaleSource);
         }
-        let world = collision_world(document, conditional).ok_or_else(|| {
+        let world = collision_world(document, conditional, selected_cut).ok_or_else(|| {
             trace_missing_rename_world(document, ordinal, documents.len());
             OriginalCommandRenameRefusal::UnknownWorld
         })?;
@@ -1580,20 +1821,23 @@ mod tests {
             analysis: &parent,
         };
         assert_eq!(
-            occupied(&[document], &[], slot, policy),
+            occupied_with_cut(&[document], &[], None, slot, policy),
             Err(OriginalCommandRenameRefusal::UnknownWorld)
         );
         let entry = OriginalConditionalCommandWorld {
             uri: document.uri,
             outcome: &outcome,
         };
-        assert_eq!(occupied(&[document], &[entry], slot, policy), Ok(false));
+        assert_eq!(
+            occupied_with_cut(&[document], &[entry], None, slot, policy),
+            Ok(false)
+        );
         let wrong = OriginalConditionalCommandWorld {
             uri: "file:///other.tcl",
             outcome: &outcome,
         };
         assert_eq!(
-            occupied(&[document], &[wrong], slot, policy),
+            occupied_with_cut(&[document], &[wrong], None, slot, policy),
             Err(OriginalCommandRenameRefusal::UnknownWorld)
         );
         let duplicate = [
@@ -1607,7 +1851,7 @@ mod tests {
             },
         ];
         assert_eq!(
-            occupied(&[document], &duplicate, slot, policy),
+            occupied_with_cut(&[document], &duplicate, None, slot, policy),
             Err(OriginalCommandRenameRefusal::UnknownWorld)
         );
         let foreign = Analyser::new().analyse(source, "tcl8.6");
@@ -1620,7 +1864,7 @@ mod tests {
             outcome: &outcome,
         };
         assert_eq!(
-            occupied(&[foreign_document], &[entry], slot, policy),
+            occupied_with_cut(&[foreign_document], &[entry], None, slot, policy),
             Err(OriginalCommandRenameRefusal::UnknownWorld)
         );
     }

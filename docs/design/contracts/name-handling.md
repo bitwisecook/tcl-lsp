@@ -4086,6 +4086,35 @@ conditional-world route does not replace declaration identity, current source
 geometry, complete reference coverage or static edit-container guards; it grants
 no Native entry, runtime execution or new procedure-body completion.
 
+An opt-in inherited-declaration selection is limited to a declaration-header
+request and one genuine single-cut child interpretation. The same current
+physical source, complete input/configuration, written header extent, role,
+Native naming policy and publication slot must agree; the inherited analysis
+must supply its own namespace context and declaration. A separate closed-cut
+publication joins that exact child-return declaration to the same surviving
+whole-root Normal publication, using the genuine single-cut survey. It retains
+child-return collision occupancy without issuing an ordinary child world.
+Unknown, abrupt, observed, unavailable, foreign and multiple-frame routes keep
+their existing refusals.
+The physical declaration's ordinary planner remains independently required, and
+its complete selected-file edit set must equal the inherited planner's selected-file
+edits. Reference-origin requests, different namespace slots, duplicate child
+interpretations, foreign ancestry and stale inputs refuse this route. The Server
+selects and consumes the opaque relationship inside one indexed source-view
+revision and its actual publication leases, then rechecks all physical sources
+and interpretation dependencies before publishing. The root conditional world alone cannot authorise a selected declaration.
+The joined cut publication supplies only allocation liveness and child-return
+collision occupancy; reference coverage, static edit containers and independent
+physical edit agreement remain mandatory. It supplies no entered frame, Native
+execution or edit permission. Direct top-level source-procedure calls whose
+Normal continuation remains unavailable still refuse. Within the actual cut,
+a direct procedure reference may use a declaration from the exact surveyed
+prefix, child or suffix owner; every such body is separately covered and every
+argument must retain its literal, unexpanded Native word. Unknown external
+procedures and dynamic arguments remain incomplete coverage. The strict ordinary
+selected-owner predicate remains unchanged, including a selected root without
+its own ordinary completed world.
+
 For an independent collision participant whose ordinary analysis has no completed
 world, the Server can retain the actual leased root-prefix analysis together
 with its own completion. This selection requires the same physical source,

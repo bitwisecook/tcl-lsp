@@ -16,11 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Rename, end-to-end against the packaged server. An invalid or unsafe rename
-//! comes back as a `null` `WorkspaceEdit` on the live wire (the `on_rename`
-//! handler returns `None`), so the safety cases assert the result carries no
-//! edits. `prepareRename` is registered server-side and returns a
-//! `{range, placeholder}` (or `null` to reject).
+//! Rename, end-to-end against the packaged server. Safety refusals can return
+//! a JSON-RPC error without edits. `prepareRename` is registered server-side
+//! and returns a `{range, placeholder}` (or `null` to reject).
 
 // Test column math indexes tiny in-memory sources; a `find`/`len` result
 // always fits u32, so the pedantic truncation the lint warns of can't occur.
@@ -367,8 +365,23 @@ fn rejects_proc_collision() {
     let uri = unique_uri("tcl");
     let src = "proc greet {name} { puts \"Hello $name\" }\nproc hello {name} { puts \"Hi $name\" }\ngreet World\n";
     lsp.open_ready(&uri, src);
-    let result = lsp.rename(&uri, 0, 6, "hello");
-    assert!(rename_edits(&result).is_empty());
+    let response = lsp.request_response(
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 6 },
+            "newName": "hello",
+        }),
+        std::time::Duration::from_mins(1),
+    );
+    assert_eq!(response["jsonrpc"], "2.0", "{response}");
+    assert_eq!(response["error"]["code"], -32602, "{response}");
+    assert_eq!(
+        response["error"]["data"]["code"], "original-command-collision",
+        "{response}"
+    );
+    assert!(response.get("result").is_none(), "{response}");
+    assert!(rename_edits(&response).is_empty(), "{response}");
 }
 
 #[test]
@@ -393,8 +406,23 @@ fn rejects_var_collision_in_same_scope() {
     let uri = unique_uri("tcl");
     let src = "proc demo {} {\n    set x 1\n    set y 2\n    puts $x\n}\n";
     lsp.open_ready(&uri, src);
-    let result = lsp.rename(&uri, 3, 10, "y");
-    assert!(rename_edits(&result).is_empty());
+    let response = lsp.request_response(
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 3, "character": 10 },
+            "newName": "y",
+        }),
+        std::time::Duration::from_mins(1),
+    );
+    assert_eq!(response["jsonrpc"], "2.0", "{response}");
+    assert_eq!(response["error"]["code"], -32600, "{response}");
+    assert_eq!(
+        response["error"]["message"], "the replacement names another variable in this document",
+        "{response}"
+    );
+    assert!(response.get("result").is_none(), "{response}");
+    assert!(rename_edits(&response).is_empty(), "{response}");
 }
 
 // -- TclOO instance-variable rename must not corrupt the body --

@@ -3112,6 +3112,7 @@ impl Backend {
         documents: &[tcl_lsp_core::original_declaration::OriginalDeclarationDocument<'_>],
         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
         new_tail: &str,
+        cursor: (&str, u32),
         capture: Option<&OriginalCommandSourceWorldCapture>,
     ) -> DocumentSourceResult<
         Option<
@@ -3144,9 +3145,51 @@ impl Backend {
         self.with_selected_original_source_views(&ids, Some(capture.settlement.revision), |views| {
             let (publications, ancestors) = Self::original_source_view_labels(views)?;
             let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
-            Some(tcl_lsp_core::original_command_rename::original_command_rename_edits_with_source_views(
-                documents, identity, new_tail, &worlds, &inventory,
+            Some(tcl_lsp_core::original_command_rename::original_command_rename_edits_with_selected_source_view(
+                documents, identity, new_tail, cursor.0, cursor.1, &worlds, &inventory,
             ))
+        }).await
+    }
+
+    /// Select and consume the inherited declaration only inside the same
+    /// indexed source-view revision used by the subsequent rename planner.
+    pub(crate) async fn original_command_prepare_with_source_views(
+        &self,
+        documents: &[tcl_lsp_core::original_declaration::OriginalDeclarationDocument<'_>],
+        identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
+        cursor_uri: &str,
+        cursor: u32,
+        capture: Option<&OriginalCommandSourceWorldCapture>,
+    ) -> DocumentSourceResult<Option<tcl_lexer::Span>> {
+        let Some(capture) = capture else {
+            return Ok(
+                tcl_lsp_core::original_command_rename::original_command_prepare_span_in(
+                    documents, identity, cursor_uri, cursor,
+                )
+                .ok(),
+            );
+        };
+        if !self
+            .original_command_source_worlds_are_current(capture)
+            .await?
+        {
+            return Ok(None);
+        }
+        let mut ids = Vec::new();
+        for scope in &capture.settlement.scopes {
+            for id in &scope.ids {
+                if !ids.contains(id) {
+                    ids.push(*id);
+                }
+            }
+        }
+        let worlds = capture.worlds();
+        self.with_selected_original_source_views(&ids, Some(capture.settlement.revision), |views| {
+            let (publications, ancestors) = Self::original_source_view_labels(views)?;
+            let inventory = Self::original_source_view_inventory(views, &publications, &ancestors);
+            tcl_lsp_core::original_command_rename::original_command_prepare_span_in_with_selected_source_view(
+                documents, identity, cursor_uri, cursor, &worlds, &inventory,
+            ).ok()
         }).await
     }
 

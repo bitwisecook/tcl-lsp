@@ -1,6 +1,6 @@
 # Clean LSP release candidate plan
 
-**ACTIVE — 04 November 2026, 07:42 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP features are deferred while linked VM/SpecTcl regressions remain critical. **Not release-ready.** Current Compiler6/6 passes; sealed RMWv6 aggregate fails (Engine1/6, hooks10/13, VM Jim1/1). Earlier Server7/native15+20+5 pass before current style/index changes. New reuse/host plans and adopted Kernel constructor controls are unexecuted; host integration remains private. Separate LSP bootstrap is terminal1success/3failure; ordinary CI and global proof remain failed/incomplete. [Current state](current-state.md) binds exact sources, receipts and publisher checkpoints. The dated observations below are historical, not a current validation recount. No PR or release exists.
+**ACTIVE — 04 November 2026, 08:28 UTC.** The LSP and its transitive libraries remain the priority; separate VM/BIG-IP features are deferred while linked VM/SpecTcl regressions remain critical. **Not release-ready.** Current Compiler6/6 passes; sealed RMWv6 aggregate fails (Engine1/6, hooks10/13, VM Jim1/1). Earlier Server7/native15+20+5 pass before current style/index changes. Closed-cut Kernel V5 passes11/11 sealed software controls; host-onlyv5 and negative rename wire-test corrections are adopted but uncompiled. Reuse vectors/cold-host plans remain unexecuted. Prior LSP run41794544977 is terminal1success/3failure on an old Box/Arc compile error before its fix; newest41798727716 (exacta857c60dd25aa1a58a924aecd6a0870516f2cbf7) is active after08:20 startup and predates new host-only adoption. Ordinary CI and global proof remain failed/incomplete. [Current state](current-state.md) binds exact sources, receipts and publisher checkpoints. The dated observations below are historical, not a current validation recount. No PR or release exists.
 
 Prepared 23 October 2026. Planning and validation records stay on `work`; this
 file is excluded from the shipping candidate. Nothing below is a claim that an
@@ -69,9 +69,11 @@ shipping checks still need to pass on the final candidate.
    inventory guards. Require-first refusal is not a supported positive fixture.
 2. Resolve linked RMWv6 Engine5 error-pattern, hook2 budget and F5 abs failures.
    Its sealed builds/custody pass, but Engine1/6, hooks10/13 and VM Jim1/1 do not
-   establish an aggregate pass. Private ScriptBytes test-only and closed-cut
-   constructor drafts require review/execution with genuine Normal, survey and
-   root-world premises. Separate VM/BIG-IP features stay deferred; linked
+   establish an aggregate pass. Adopted ScriptBytes and budget/F5 test-purpose
+   corrections await repetition. Closed-cut Kernel11/11 passes with genuine
+   Normal/survey/root-world premises; newly adopted host-only integration and
+   negative rename wire tests still need compilation and exact positive/refusal
+   controls. Separate VM/BIG-IP features stay deferred; linked
    regressions and mandatory gates remain in scope.
 3. Validate the final native, browser/WASM, WASI and editor transports and
    current physical edit/refusal behavior. Authenticate complete selected

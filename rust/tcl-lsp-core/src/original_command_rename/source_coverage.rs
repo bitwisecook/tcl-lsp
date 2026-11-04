@@ -21,9 +21,10 @@ use super::{
     ByteCommandSlot, CommandLinkCoverage, Declaration, HashSet, NameBytes,
     OriginalCommandRenameRefusal, OriginalConditionalCommandWorld, OriginalDeclarationDocument,
     OriginalDeclarationIdentity, SignatureSourceNameInput, SourceCommandReference, SourceImage,
-    authored_result_completion_coverage, coverage_region, destination_matches, queue_declaration,
-    quiet_store_coverage, reject_command_link_coverage, reject_incomplete_source_procedure,
-    reject_readonly_math_references, reject_selected_command_link_coverage,
+    authored_result_completion_coverage, coverage_region, destination_matches_with_cut,
+    queue_declaration, quiet_store_coverage, reject_command_link_coverage,
+    reject_nonliteral_source_procedure_words, reject_readonly_math_references,
+    reject_selected_command_link_coverage,
 };
 use super::{coverage_trace, require_coverage, trace_coverage_document};
 use crate::original_source_views::OriginalSourceViewDocument;
@@ -76,9 +77,8 @@ fn physical_document<'a>(
     Ok(first)
 }
 
-fn capture_cut<'a>(
+fn capture_cut_relationship<'a>(
     documents: &[OriginalDeclarationDocument<'a>],
-    identity: &OriginalDeclarationIdentity,
     world: &OriginalConditionalCommandWorld<'a>,
     views: &[OriginalSourceViewDocument<'a>],
 ) -> Result<SourceCut<'a>, OriginalCommandRenameRefusal> {
@@ -98,7 +98,7 @@ fn capture_cut<'a>(
         .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
     let child_view = unique_view(views, survey.child_analysis())?;
     let suffix_view = unique_view(views, survey.suffix_analysis())?;
-    let child_physical = physical_document(documents, child_view.document)?;
+    physical_document(documents, child_view.document)?;
     physical_document(documents, prefix_view.document)?;
     physical_document(documents, suffix_view.document)?;
     if prefix_view.document.uri != world.uri
@@ -116,8 +116,6 @@ fn capture_cut<'a>(
         || prefix_view.publication == child_view.publication
         || prefix_view.publication == suffix_view.publication
         || child_view.publication == suffix_view.publication
-        || (identity.uri() == child_physical.uri
-            && !std::ptr::eq(child_physical.analysis, child_view.document.analysis))
     {
         return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
     }
@@ -127,6 +125,183 @@ fn capture_cut<'a>(
         suffix: suffix_view.document,
         survey,
     })
+}
+
+fn capture_cut<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    identity: &OriginalDeclarationIdentity,
+    world: &OriginalConditionalCommandWorld<'a>,
+    views: &[OriginalSourceViewDocument<'a>],
+) -> Result<SourceCut<'a>, OriginalCommandRenameRefusal> {
+    let cut = capture_cut_relationship(documents, world, views)?;
+    let physical = physical_document(documents, cut.child)?;
+    if identity.uri() == physical.uri && !std::ptr::eq(physical.analysis, cut.child.analysis) {
+        return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+    }
+    Ok(cut)
+}
+
+/// Selection from one authentic inherited interpretation, separately from its
+/// physical document's independently checked declaration. The host must retain
+/// the same published source-view revision throughout selection and planning.
+pub(super) struct OriginalInheritedDeclarationSelection<'a> {
+    physical: OriginalDeclarationDocument<'a>,
+    documents: Vec<OriginalDeclarationDocument<'a>>,
+    identity: OriginalDeclarationIdentity,
+    publication: tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>,
+}
+
+impl<'a> OriginalInheritedDeclarationSelection<'a> {
+    pub(super) fn capture(
+        documents: &[OriginalDeclarationDocument<'a>],
+        physical_identity: &OriginalDeclarationIdentity,
+        cursor_uri: &str,
+        cursor: u32,
+        conditional: &[OriginalConditionalCommandWorld<'a>],
+        views: &[OriginalSourceViewDocument<'a>],
+    ) -> Result<Option<Self>, OriginalCommandRenameRefusal> {
+        if conditional.len() > 4096 || views.len() > 4096 {
+            return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+        }
+        let mut physical = documents
+            .iter()
+            .filter(|doc| doc.uri == physical_identity.uri());
+        let physical_owner = *physical
+            .next()
+            .ok_or(OriginalCommandRenameRefusal::AmbiguousOwner)?;
+        if physical.next().is_some() {
+            return Err(OriginalCommandRenameRefusal::AmbiguousOwner);
+        }
+        if !physical_identity.is_current(
+            physical_owner.uri,
+            physical_owner.source,
+            physical_owner.analysis,
+        ) {
+            return Err(OriginalCommandRenameRefusal::StaleSource);
+        }
+        let mut child = None;
+        for world in conditional {
+            let cut = capture_cut_relationship(documents, world, views)?;
+            if cut.child.uri != physical_owner.uri {
+                continue;
+            }
+            if child.replace(cut).is_some() {
+                return Err(OriginalCommandRenameRefusal::AmbiguousOwner);
+            }
+        }
+        let Some(cut) = child else {
+            return Ok(None);
+        };
+        let inherited = cut.child;
+        if std::ptr::eq(inherited.analysis, physical_owner.analysis) {
+            return Ok(None);
+        }
+        let identity = Self::select_inherited_header(
+            physical_owner,
+            physical_identity,
+            inherited,
+            cursor_uri,
+            cursor,
+        )?;
+        let Declaration::Procedure(declaration) =
+            super::rename_declaration(inherited.analysis, &identity)?
+        else {
+            return Err(OriginalCommandRenameRefusal::UnsupportedRole);
+        };
+        let publication = cut
+            .survey
+            .closed_child_procedure_publication(declaration)
+            .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?;
+        let interpreted = documents
+            .iter()
+            .map(|document| {
+                if document.uri == inherited.uri {
+                    inherited
+                } else {
+                    *document
+                }
+            })
+            .collect();
+        Ok(Some(Self {
+            physical: physical_owner,
+            documents: interpreted,
+            identity,
+            publication,
+        }))
+    }
+
+    fn select_inherited_header(
+        physical_owner: OriginalDeclarationDocument<'a>,
+        physical_identity: &OriginalDeclarationIdentity,
+        inherited: OriginalDeclarationDocument<'a>,
+        cursor_uri: &str,
+        cursor: u32,
+    ) -> Result<OriginalDeclarationIdentity, OriginalCommandRenameRefusal> {
+        if cursor_uri != physical_identity.uri()
+            || cursor < physical_identity.span().start()
+            || cursor >= physical_identity.span().end()
+        {
+            return Err(OriginalCommandRenameRefusal::UneditableInput);
+        }
+        if inherited.analysis.resolved_input != physical_owner.analysis.resolved_input
+            || inherited.analysis.body_lexer_config != physical_owner.analysis.body_lexer_config
+            || inherited.analysis.allows_lexical_declaration_advice()
+        {
+            return Err(OriginalCommandRenameRefusal::StaleSource);
+        }
+        crate::original_context::CurrentSourceContext::capture(
+            inherited.source,
+            inherited.analysis,
+        )
+        .ok_or(OriginalCommandRenameRefusal::StaleSource)?;
+        let std::ops::ControlFlow::Break(Some(identity)) =
+            super::select_in_documents(&[inherited], cursor_uri, cursor)
+        else {
+            return Err(OriginalCommandRenameRefusal::UneditableInput);
+        };
+        if identity.role() != physical_identity.role()
+            || identity.span() != physical_identity.span()
+            || identity
+                .input()
+                .map(|input| (input.bytes(), input.policy()))
+                != physical_identity
+                    .input()
+                    .map(|input| (input.bytes(), input.policy()))
+        {
+            return Err(OriginalCommandRenameRefusal::ChangedPublication);
+        }
+        let physical_declaration =
+            super::rename_declaration(physical_owner.analysis, physical_identity)?;
+        let inherited_declaration = super::rename_declaration(inherited.analysis, &identity)?;
+        if physical_declaration.name().slot() != inherited_declaration.name().slot() {
+            return Err(OriginalCommandRenameRefusal::UnknownDestination);
+        }
+        let site = identity
+            .site()
+            .ok_or(OriginalCommandRenameRefusal::StaleSource)?;
+        inherited
+            .analysis
+            .original_namespace_scope_at(site.offset)
+            .and_then(|scope| scope.context())
+            .ok_or(OriginalCommandRenameRefusal::UnknownDestination)?;
+        Ok(identity)
+    }
+
+    pub(super) fn publication(
+        &self,
+    ) -> &tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a> {
+        &self.publication
+    }
+
+    pub(super) const fn physical(&self) -> OriginalDeclarationDocument<'a> {
+        self.physical
+    }
+    pub(super) fn documents(&self) -> &[OriginalDeclarationDocument<'a>] {
+        &self.documents
+    }
+    pub(super) const fn identity(&self) -> &OriginalDeclarationIdentity {
+        &self.identity
+    }
 }
 
 impl<'a> SourceCoverage<'a> {
@@ -171,6 +346,8 @@ pub(super) struct RequestContext<'b, 'a> {
     pub declaration: &'b Declaration<'a>,
     pub destination: &'b ByteCommandSlot,
     pub tail: &'b [u8],
+    pub selected_cut:
+        Option<&'b tcl_compiler::command_binding::OriginalClosedSourceCutPublication<'a>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -371,9 +548,10 @@ impl<'a> SourceCut<'a> {
                 if !context.declaration.reference_matches(reference, false) {
                     return Err(OriginalCommandRenameRefusal::UneditableLinks);
                 }
-                destination_matches(
+                destination_matches_with_cut(
                     context.documents,
                     context.conditional,
+                    context.selected_cut,
                     &lookup,
                     context.destination,
                     context.tail,
@@ -414,7 +592,7 @@ impl<'a> SourceCut<'a> {
             return Ok(());
         }
         collect_command_regions(
-            &self.survey,
+            self,
             task,
             walk,
             command,
@@ -481,15 +659,49 @@ fn queue_cut_declaration<'a>(
     Ok(true)
 }
 
+impl SourceCut<'_> {
+    fn reject_unowned_source_procedure(
+        &self,
+        subject: &CommandSubject<'_>,
+        offset: u32,
+    ) -> Result<(), OriginalCommandRenameRefusal> {
+        let reference = require_coverage(
+            subject.reference,
+            offset,
+            "cut.unselected-registry-or-source-reference",
+        )?;
+        if !reference.is_direct_definition()
+            || ![self.prefix, self.child, self.suffix].iter().any(|owner| {
+                owner
+                    .analysis
+                    .original_procedure_declarations()
+                    .any(|declaration| {
+                        crate::original_declaration::reference_matches_declaration(
+                            reference,
+                            declaration,
+                            false,
+                        )
+                    })
+            })
+        {
+            coverage_trace(offset, "cut.direct-procedure-owner");
+            return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+        }
+        // Every declaration body in these exact cut owners is separately
+        // visited; no external source body or executable argv is inferred.
+        reject_nonliteral_source_procedure_words(subject.words, subject.input)
+    }
+}
+
 fn collect_command_regions<'a>(
-    survey: &OriginalSingleSourceCutSurvey<'_>,
+    cut: &SourceCut<'_>,
     task: &Task<'a>,
     walk: &crate::refactor::FrameWalk<'a>,
     command: &SegmentedCommand,
     subject: &CommandSubject<'_>,
     output: &mut Output<'a>,
 ) -> Result<(), OriginalCommandRenameRefusal> {
-    if queue_cut_declaration(survey, task, walk, command, output)? {
+    if queue_cut_declaration(&cut.survey, task, walk, command, output)? {
         return Ok(());
     }
     let document = task.document;
@@ -540,13 +752,7 @@ fn collect_command_regions<'a>(
             return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
         }
     } else {
-        reject_incomplete_source_procedure(
-            document,
-            subject.reference,
-            subject.words,
-            subject.input,
-            offset,
-        )?;
+        cut.reject_unowned_source_procedure(subject, offset)?;
     }
     Ok(())
 }
@@ -1298,5 +1504,546 @@ mod tests {
                 });
             }
         }
+    }
+
+    fn inherited_child_identity(fixture: &Fixture) -> OriginalDeclarationIdentity {
+        let std::ops::ControlFlow::Break(Some(identity)) = super::super::select_in_documents(
+            &[OriginalDeclarationDocument {
+                uri: "file:///child.tcl",
+                source: fixture.child_source,
+                analysis: &fixture.ordinary_child,
+            }],
+            "file:///child.tcl",
+            5,
+        ) else {
+            panic!("actual physical child declaration")
+        };
+        identity
+    }
+
+    #[test]
+    fn inherited_selection_keeps_both_physical_and_child_declaration_guards() {
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {return VALUE}",
+            "proc helper {} {return VALUE}; proc caller {} {helper}",
+        );
+        let documents = fixture.documents();
+        let identity = inherited_child_identity(&fixture);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            assert!(
+                original_command_rename_edits_with_source_views(
+                    &documents,
+                    &identity,
+                    "updated_helper",
+                    &worlds,
+                    views,
+                )
+                .is_err()
+            );
+            let edits = super::super::original_command_rename_edits_with_selected_source_view(
+                &documents,
+                &identity,
+                "updated_helper",
+                "file:///child.tcl",
+                5,
+                &worlds,
+                views,
+            )
+            .expect("genuine inherited declaration plus independent physical edit agreement");
+            assert_eq!(edits.len(), 2);
+            assert!(
+                edits.iter().all(
+                    |edit| edit.uri == "file:///child.tcl" && edit.new_text == "updated_helper"
+                )
+            );
+            assert_eq!(
+                super::super::original_command_prepare_span_in_with_selected_source_view(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .unwrap(),
+                identity.span()
+            );
+            let reference = u32::try_from(fixture.child_source.rfind("helper").unwrap()).unwrap();
+            assert!(
+                super::super::original_command_rename_edits_with_selected_source_view(
+                    &documents,
+                    &identity,
+                    "updated_helper",
+                    "file:///child.tcl",
+                    reference,
+                    &worlds,
+                    views,
+                )
+                .is_err(),
+                "reference-origin selection cannot retarget an inherited declaration"
+            );
+        });
+    }
+
+    #[test]
+    fn genuine_single_cut_inherited_declaration_renames_both_physical_files() {
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {helper}",
+            "proc helper {} {return VALUE}",
+        );
+        let documents = fixture.documents();
+        let identity = inherited_child_identity(&fixture);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            let edits = super::super::original_command_rename_edits_with_selected_source_view(
+                &documents,
+                &identity,
+                "updated_helper",
+                "file:///child.tcl",
+                5,
+                &worlds,
+                views,
+            )
+            .expect("actual whole-root Normal source cut, declaration and complete call coverage");
+            assert_eq!(edits.len(), 2);
+            assert_eq!(
+                edits
+                    .iter()
+                    .filter(|edit| edit.uri == "file:///child.tcl")
+                    .count(),
+                1
+            );
+            assert_eq!(
+                edits
+                    .iter()
+                    .filter(|edit| edit.uri == "file:///main.tcl")
+                    .count(),
+                1
+            );
+            assert!(edits.iter().all(|edit| edit.new_text == "updated_helper"));
+        });
+    }
+
+    #[test]
+    fn inherited_cut_keeps_root_child_and_registry_collisions() {
+        for (source, child_source, new_tail, child_occupied) in [
+            (
+                "source child.tcl; proc run {} {helper}; proc updated_helper {} {return ROOT}",
+                "proc helper {} {return VALUE}",
+                "updated_helper",
+                false,
+            ),
+            (
+                "source child.tcl; proc run {} {helper}",
+                "proc helper {} {return VALUE}; proc updated_helper {} {return CHILD}",
+                "updated_helper",
+                true,
+            ),
+            (
+                "source child.tcl; proc run {} {helper}",
+                "proc helper {} {return VALUE}",
+                "puts",
+                true,
+            ),
+        ] {
+            let fixture = Fixture::new(source, child_source);
+            let documents = fixture.documents();
+            let identity = inherited_child_identity(&fixture);
+            let worlds = [OriginalConditionalCommandWorld {
+                uri: "file:///main.tcl",
+                outcome: &fixture.outcome,
+            }];
+            fixture.with_views(|views| {
+                let selected = OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .unwrap()
+                .expect("genuine cut and unchanged selected allocation");
+                let declaration =
+                    super::super::rename_declaration(&fixture.child, selected.identity()).unwrap();
+                let policy = declaration.name().policy();
+                let destination = super::super::renamed_slot(
+                    declaration.name().slot(),
+                    policy,
+                    new_tail.as_bytes(),
+                )
+                .unwrap();
+                assert_eq!(
+                    selected
+                        .publication()
+                        .command_slot_occupied(&destination, policy),
+                    Some(child_occupied),
+                );
+                assert_eq!(
+                    super::super::occupied_with_cut(
+                        selected.documents(),
+                        &worlds,
+                        Some(selected.publication()),
+                        &destination,
+                        policy,
+                    ),
+                    Ok(true),
+                );
+                assert_eq!(
+                    super::super::original_command_rename_edits_with_selected_source_view(
+                        &documents,
+                        &identity,
+                        new_tail,
+                        "file:///child.tcl",
+                        5,
+                        &worlds,
+                        views,
+                    ),
+                    Err(OriginalCommandRenameRefusal::Collision),
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn inherited_header_refuses_genuine_physical_reference_divergence() {
+        let fixture = Fixture::new(
+            "namespace eval ::ns {proc helper {} {return PREFIX}}; source child.tcl; proc run {} {return VALUE}",
+            "proc helper {} {return CHILD}; proc caller {} {namespace eval ::ns {helper}}",
+        );
+        let documents = fixture.documents();
+        let identity = inherited_child_identity(&fixture);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            let selected = OriginalInheritedDeclarationSelection::capture(
+                &documents,
+                &identity,
+                "file:///child.tcl",
+                5,
+                &worlds,
+                views,
+            )
+            .unwrap()
+            .expect("same genuine inherited declaration header");
+            let physical = super::super::original_command_rename_edits(
+                &[selected.physical()],
+                &identity,
+                "updated_helper",
+            )
+            .expect("standalone child declaration and its fallback reference");
+            let coverage =
+                SourceCoverage::capture(selected.documents(), selected.identity(), &worlds, views)
+                    .unwrap();
+            let inherited = super::super::original_command_rename_units_with_source_coverage(
+                selected.documents(),
+                selected.identity(),
+                b"updated_helper",
+                &worlds,
+                Some(&coverage),
+                Some(selected.publication()),
+            )
+            .expect("completed cut keeps the namespace helper independently owned");
+            assert_eq!(physical.len(), 2);
+            assert_eq!(
+                inherited
+                    .iter()
+                    .filter(|edit| edit.uri == "file:///child.tcl")
+                    .count(),
+                1,
+            );
+            assert_eq!(
+                super::super::require_selected_physical_edits(
+                    &physical,
+                    &inherited,
+                    "file:///child.tcl",
+                ),
+                Err(OriginalCommandRenameRefusal::IncompleteCoverage),
+            );
+            assert_eq!(
+                super::super::original_command_rename_edits_with_selected_source_view(
+                    &documents,
+                    &identity,
+                    "updated_helper",
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                ),
+                Err(OriginalCommandRenameRefusal::IncompleteCoverage),
+            );
+        });
+    }
+
+    #[test]
+    fn inherited_cut_reference_coverage_keeps_dynamic_and_unowned_calls_refused() {
+        for body in [
+            "helper $dynamic",
+            "helper {*}$args",
+            "helper [set x V]",
+            "unknown_helper",
+        ] {
+            let source =
+                Box::leak(format!("source child.tcl; proc run {{}} {{{body}}}").into_boxed_str());
+            let fixture = Fixture::new(source, "proc helper {} {return VALUE}");
+            let documents = fixture.documents();
+            let identity = inherited_child_identity(&fixture);
+            let worlds = [OriginalConditionalCommandWorld {
+                uri: "file:///main.tcl",
+                outcome: &fixture.outcome,
+            }];
+            fixture.with_views(|views| {
+                assert!(
+                    OriginalInheritedDeclarationSelection::capture(
+                        &documents,
+                        &identity,
+                        "file:///child.tcl",
+                        5,
+                        &worlds,
+                        views,
+                    )
+                    .unwrap()
+                    .is_some(),
+                    "genuine closed publication before reference coverage: {body}",
+                );
+                assert_eq!(
+                    super::super::original_command_rename_edits_with_selected_source_view(
+                        &documents,
+                        &identity,
+                        "updated_helper",
+                        "file:///child.tcl",
+                        5,
+                        &worlds,
+                        views,
+                    ),
+                    Err(OriginalCommandRenameRefusal::IncompleteCoverage),
+                    "{body}",
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn inherited_selection_refuses_foreign_and_duplicate_owners() {
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {return VALUE}",
+            "proc helper {} {return VALUE}",
+        );
+        let other = Fixture::new(fixture.source, fixture.child_source);
+        let documents = fixture.documents();
+        let identity = inherited_child_identity(&fixture);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .unwrap()
+                .is_some(),
+                "non-vacuous genuine source relationship"
+            );
+            let foreign = [OriginalConditionalCommandWorld {
+                uri: "file:///main.tcl",
+                outcome: &other.outcome,
+            }];
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &foreign,
+                    views,
+                )
+                .is_err()
+            );
+            let duplicate = [
+                OriginalConditionalCommandWorld {
+                    uri: "file:///main.tcl",
+                    outcome: &fixture.outcome,
+                },
+                OriginalConditionalCommandWorld {
+                    uri: "file:///main.tcl",
+                    outcome: &fixture.outcome,
+                },
+            ];
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &duplicate,
+                    views,
+                )
+                .is_err()
+            );
+            let mut duplicate_documents = documents.clone();
+            duplicate_documents.push(documents[1]);
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &duplicate_documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .is_err()
+            );
+        });
+    }
+
+    #[test]
+    fn inherited_selection_refuses_stale_source_input_and_ancestry() {
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {return VALUE}",
+            "proc helper {} {return VALUE}",
+        );
+        let documents = fixture.documents();
+        let identity = inherited_child_identity(&fixture);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .unwrap()
+                .is_some()
+            );
+            let changed = format!("{} ", fixture.child_source);
+            let mut stale = documents.clone();
+            stale[1].source = &changed;
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &stale,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .is_err()
+            );
+            let changed_input = Analyser::new().analyse(fixture.child_source, "tcl9.0");
+            let mut stale_input = documents.clone();
+            stale_input[1].analysis = &changed_input;
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &stale_input,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .is_err()
+            );
+            let missing_ancestry = views
+                .iter()
+                .map(|view| OriginalSourceViewDocument {
+                    publication: view.publication,
+                    document: view.document,
+                    region: view.region,
+                    ancestors: &[],
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    &missing_ancestry,
+                )
+                .is_err()
+            );
+        });
+    }
+
+    #[test]
+    fn inherited_selection_never_promotes_a_native_namespace_entry_or_logical_cut() {
+        let source = "namespace eval ::N {source child.tcl}; proc run {} {return VALUE}";
+        let child_source = "proc helper {} {return VALUE}";
+        let fixture = Fixture::new(source, child_source);
+        assert!(fixture.region_count > 1);
+
+        let documents = fixture.documents();
+        let identity = inherited_child_identity(&fixture);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &fixture.outcome,
+        }];
+        fixture.with_views(|views| {
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .is_err()
+            );
+            assert!(
+                super::super::original_command_rename_edits_with_selected_source_view(
+                    &documents,
+                    &identity,
+                    "updated_helper",
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .is_err()
+            );
+        });
+        let logical = Fixture::logical_namespace(source, child_source);
+        let documents = logical.documents();
+        let identity = inherited_child_identity(&logical);
+        let worlds = [OriginalConditionalCommandWorld {
+            uri: "file:///main.tcl",
+            outcome: &logical.outcome,
+        }];
+        logical.with_views(|views| {
+            assert!(
+                OriginalInheritedDeclarationSelection::capture(
+                    &documents,
+                    &identity,
+                    "file:///child.tcl",
+                    5,
+                    &worlds,
+                    views,
+                )
+                .is_err()
+            );
+        });
     }
 }

@@ -23381,6 +23381,7 @@ impl Backend {
                 &owners,
                 &identity,
                 new_name,
+                (uri.as_str(), offset),
                 source_worlds.as_ref(),
             )
             .await?
@@ -23495,18 +23496,18 @@ impl Backend {
         let (documents, source_worlds) =
             Box::pin(self.command_source_documents(member, documents, identity.uri())).await?;
         let owners = implementation_inventory(&documents);
-        let conditional_worlds = source_worlds
-            .as_ref()
-            .map(OriginalCommandSourceWorldCapture::worlds)
-            .unwrap_or_default();
-        let planned = Self::original_command_prepare_plan(
-            member,
-            &owners,
-            &identity,
-            uri,
-            offset,
-            &conditional_worlds,
-        );
+        let planned = if member {
+            Self::original_command_prepare_plan(true, &owners, &identity, uri, offset, &[])
+        } else {
+            Box::pin(self.original_command_prepare_with_source_views(
+                &owners,
+                &identity,
+                uri.as_str(),
+                offset,
+                source_worlds.as_ref(),
+            ))
+            .await?
+        };
         let Some(span) = planned else {
             return Ok(ControlFlow::Break(None));
         };
