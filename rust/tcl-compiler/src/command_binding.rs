@@ -10339,30 +10339,19 @@ impl SourceCommandBindings {
     /// Retain a quiet conditional source continuation for a current Logical
     /// procedure with one statically selected return. This does not establish
     /// an actual activation or a Native completion.
-    #[inline(never)]
-    fn walk_logical_called_source(
-        &mut self,
+    fn logical_called_source_body(
+        &self,
         segment: &crate::segmenter::SegmentedCommand,
         words: &[crate::ir::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
-        compiled: &compiled_invocation::CompiledInvocationSelection,
-        state: &mut ModuleCommandBindings,
-        context: &SourceExecutionContext<'_>,
-    ) -> Option<Box<SourceOutcomes>> {
-        use tcl_registry::{
-            hooks::LoweringHookId,
-            world_effect::{
-                CallbackKinds, EffectAccessMode, InterpreterScope, Reentrancy, WorldStateDomain,
-            },
-        };
-        if compiled.compile_error || compiled.unknown {
-            return None;
-        }
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<(declaration_preview::DeclaredProcedureBody, String)> {
         let original = logical_definition::original_static_invocation_words(
             words,
             segment.span.start(),
             state,
-            *context,
+            context,
         )?;
         let values = original
             .iter()
@@ -10410,6 +10399,59 @@ impl SourceCommandBindings {
         {
             return None;
         }
+        Some((body, namespace))
+    }
+
+    fn logical_called_return_is_safe(
+        facts: &InvocationFacts,
+        effects: &tcl_registry::world_effect::EffectFootprint,
+        transitions: &tcl_registry::StateTransitions,
+        completion: &tcl_registry::registry::InvocationCompletion,
+    ) -> bool {
+        use tcl_registry::{
+            hooks::LoweringHookId,
+            world_effect::{
+                CallbackKinds, EffectAccessMode, InterpreterScope, Reentrancy, WorldStateDomain,
+            },
+        };
+        facts.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(LoweringHookId::Return)
+            && facts.arity_accepts_frozen_arguments() == Some(true)
+            && facts.frame_effect.is_none()
+            && facts.body_execution.is_none()
+            && effects.callback().kinds == CallbackKinds::NONE
+            && effects.callback().reentrancy == Reentrancy::Never
+            && transitions.facts().is_empty()
+            && !effects.accesses().iter().any(|access| {
+                access.interpreter != InterpreterScope::Current
+                    || access.mode == EffectAccessMode::Clobber
+                    || (access.mode != EffectAccessMode::Read
+                        && !matches!(
+                            access.domain,
+                            WorldStateDomain::InterpreterResult | WorldStateDomain::CompletionState
+                        ))
+            })
+            && matches!(
+                completion,
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
+            )
+    }
+
+    #[inline(never)]
+    fn walk_logical_called_source(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        if compiled.compile_error || compiled.unknown {
+            return None;
+        }
+        let (body, namespace) =
+            self.logical_called_source_body(segment, words, effective, state, *context)?;
         let mut branch = state.clone();
         let variables = branch
             .source_variables
@@ -10471,28 +10513,7 @@ impl SourceCommandBindings {
             body_context,
             false,
         )?;
-        if facts.operation
-            != tcl_registry::SemanticOperationId::StructuredLowering(LoweringHookId::Return)
-            || facts.arity_accepts_frozen_arguments() != Some(true)
-            || facts.frame_effect.is_some()
-            || facts.body_execution.is_some()
-            || effects.callback().kinds != CallbackKinds::NONE
-            || effects.callback().reentrancy != Reentrancy::Never
-            || !transitions.facts().is_empty()
-            || effects.accesses().iter().any(|access| {
-                access.interpreter != InterpreterScope::Current
-                    || access.mode == EffectAccessMode::Clobber
-                    || (access.mode != EffectAccessMode::Read
-                        && !matches!(
-                            access.domain,
-                            WorldStateDomain::InterpreterResult | WorldStateDomain::CompletionState
-                        ))
-            })
-            || !matches!(
-                completion,
-                tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
-            )
-        {
+        if !Self::logical_called_return_is_safe(&facts, &effects, &transitions, &completion) {
             return None;
         }
         Some(Box::new(SourceOutcomes::normal(state)))
@@ -10500,31 +10521,18 @@ impl SourceCommandBindings {
 
     /// Descend a single authored namespace body under the Logical source owner.
     /// This supplies a source continuation only, never a Native handler receipt.
-    #[inline(never)]
-    fn walk_logical_namespace_source(
-        &mut self,
+    fn logical_namespace_source_target(
         segment: &crate::segmenter::SegmentedCommand,
         words: &[crate::ir::WordExpr],
         effective: &[crate::registry_invocation::EffectiveInvocationWord],
-        compiled: &compiled_invocation::CompiledInvocationSelection,
-        state: &mut ModuleCommandBindings,
-        context: &SourceExecutionContext<'_>,
-    ) -> Option<Box<SourceOutcomes>> {
-        use tcl_registry::{
-            hooks::{AnalyserHookId, LoweringHookId},
-            script_body_flow::ScriptBodyFlow,
-            world_effect::{
-                CallbackKinds, EffectAccessMode, InterpreterScope, Reentrancy, WorldStateDomain,
-            },
-        };
-        if compiled.compile_error || compiled.unknown {
-            return None;
-        }
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<(Vec<String>, SourceCommandTarget)> {
         let original = logical_definition::original_static_invocation_words(
             words,
             segment.span.start(),
             state,
-            *context,
+            context,
         )?;
         let values = original
             .iter()
@@ -10556,17 +10564,20 @@ impl SourceCommandBindings {
         {
             return None;
         }
-        let (facts, effects, transitions, _) =
-            Self::logical_selected_source_facts(&values, target, state, *context, true)?;
-        let prepared = prepare_source_native_invocation(
-            target,
-            effective,
-            state,
-            context.registry,
-            context.realm(),
-        )
-        .ok()?;
-        let invocation = prepared.invocation_boxed(&target.command);
+        Some((values, target.clone()))
+    }
+
+    fn logical_namespace_source_transition(
+        facts: &InvocationFacts,
+        effects: &tcl_registry::world_effect::EffectFootprint,
+        transitions: &tcl_registry::StateTransitions,
+    ) -> Option<(tcl_registry::NamespaceTransition, String)> {
+        use tcl_registry::{
+            hooks::{AnalyserHookId, LoweringHookId},
+            world_effect::{
+                CallbackKinds, EffectAccessMode, InterpreterScope, Reentrancy, WorldStateDomain,
+            },
+        };
         if facts.operation
             != tcl_registry::SemanticOperationId::StructuredLowering(LoweringHookId::NamespaceEval)
             || facts.analyser_hook != Some(AnalyserHookId::NamespaceEval)
@@ -10591,12 +10602,45 @@ impl SourceCommandBindings {
         let [fact] = transitions.facts() else {
             return None;
         };
-        let StateTransition::Namespace(
+        let tcl_registry::StateTransition::Namespace(
             transition @ tcl_registry::NamespaceTransition::Ensure { namespace },
         ) = &fact.transition
         else {
             return None;
         };
+        Some((transition.clone(), namespace.clone()))
+    }
+
+    #[inline(never)]
+    fn walk_logical_namespace_source(
+        &mut self,
+        segment: &crate::segmenter::SegmentedCommand,
+        words: &[crate::ir::WordExpr],
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        compiled: &compiled_invocation::CompiledInvocationSelection,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+    ) -> Option<Box<SourceOutcomes>> {
+        use tcl_registry::script_body_flow::ScriptBodyFlow;
+        if compiled.compile_error || compiled.unknown {
+            return None;
+        }
+        let (values, target) =
+            Self::logical_namespace_source_target(segment, words, effective, state, *context)?;
+        let current = context.namespace_identity();
+        let (facts, effects, transitions, _) =
+            Self::logical_selected_source_facts(&values, &target, state, *context, true)?;
+        let prepared = prepare_source_native_invocation(
+            &target,
+            effective,
+            state,
+            context.registry,
+            context.realm(),
+        )
+        .ok()?;
+        let invocation = prepared.invocation_boxed(&target.command);
+        let (transition, namespace) =
+            Self::logical_namespace_source_transition(&facts, &effects, &transitions)?;
         let ScriptBodyFlow::ConcatenatedScript { argument_offset } =
             tcl_registry::case_bodies::script_body_flow_in_registry(
                 context.registry,
@@ -10609,14 +10653,14 @@ impl SourceCommandBindings {
         if invocation.arguments().exact_argv_len()? != argument_offset.checked_add(1)? {
             return None;
         }
-        let namespace_key = state.namespace_target_key_at(namespace, &current)?;
+        let namespace_key = state.namespace_target_key_at(&namespace, &current)?;
         let namespace_name = namespace_key.display()?;
         let previous_variables = Arc::clone(&state.source_variables);
         let previous_frame = state.variable_frame.clone();
         let mut entered = state.clone();
         apply_namespace_transition(
             &mut entered,
-            transition,
+            &transition,
             &crate::ir_helpers::ExecutionNamespace::SourceContext(current),
             segment.span.start(),
             None,
@@ -10648,7 +10692,7 @@ impl SourceCommandBindings {
             compilation_selection: &selection,
             words,
             written_arguments: context.written_arguments,
-            target,
+            target: &target,
             arguments: invocation.arguments_ref(),
         };
         let mut outcomes = self.walk_body_operand(argument_offset, operands, state, &body_context);

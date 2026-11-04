@@ -69,3 +69,13 @@ no speculative authority or parser workaround was committed.
 
 
 Naming status at 19:20 UTC: Compiler34 remains30/34; a fresh post-correction Compiler-library probe now resolves namespace-local and global calls correctly, unit renewal pending. Core27 completes25/27; two obsolete point premises have a reviewed correction. Additional same-ELF12-control diagnostic passes7/12; O112 selector and opaque-name source completion repairs are adopted, untested; O127 and callback-reference failures remain. Registry9 builds then refuses before tests on20 late fixture inputs. Latest de5f Browser40/41 twice and WASI32/33 twice remain failures; WASI trace ends inside inline analysis before exit/EOF routing. Full gates, performance and packages remain open. [Current naming snapshot](work/name-handling/current-state.md) and [outstanding work](work/name-handling/outstanding/README.md) retain exact evidence and limits.
+
+Baseline compiler lint repair, 19:36 UTC: the two oversized Logical source
+walkers are split into their existing static body/target selection and typed
+effect/transition checks. Guards, state transitions and Native/Normal boundaries
+are preserved, including the concurrent delegated-script effect selection;
+no lint suppression is added. The reviewed patch SHA-256 is
+`19dc230cd86eb4164244ea44c55e57f73ebae76322189d60310987ed91281256`.
+Standalone rustfmt and diff checks pass. Compilation, production Clippy and
+runtime regression checks are pending the priority #940 joint build; this is
+not a claim that either repository gate is green.
