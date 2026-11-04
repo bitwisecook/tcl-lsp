@@ -134,10 +134,75 @@ pub struct ConditionalSourcePairedLoopHandler {
     _private: (),
 }
 
+/// Empty stock Jim handler phase under original authored-source premises.
+/// This describes no variable store or body evaluation and grants no Native
+/// argv, object class, physical frame, compilation or handler completion.
+#[derive(Debug, Clone, Copy)]
+pub struct AuthoredSourceJimEmptyIteration {
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+}
+
+impl AuthoredSourceJimEmptyIteration {
+    /// Exact authored Jim naming recipe; execution authority is independent.
+    #[must_use]
+    pub const fn policy(self) -> tcl_syntax::naming::NamePolicyProtocol {
+        self.policy
+    }
+}
+
 pub(crate) const CONDITIONAL_SOURCE_PAIRED_LOOP_HANDLER: ConditionalSourcePairedLoopHandler =
     ConditionalSourcePairedLoopHandler { _private: () };
 
 impl crate::ResolvedInvocation<'_, '_> {
+    /// No binder or script is selected by the stock Jim handler after valid,
+    /// empty original list operands. The caller must retain the original
+    /// source words, completed argument effects and independent observer guards.
+    #[must_use]
+    pub fn authored_source_jim_empty_iteration(&self) -> Option<AuthoredSourceJimEmptyIteration> {
+        use crate::hooks::LoweringHookId;
+        use crate::native_compilation::{NativeBodyCompilation, SuccessfulHandlerSpec};
+        use tcl_syntax::naming::{NamePolicyAuthority, NativeNameProtocol};
+
+        let arguments = self.words.arguments();
+        let dialect = arguments.dialect()?;
+        let policy = dialect.authored_name_policy()?;
+        let semantics = &self.semantics;
+        semantics
+            .value
+            .semantics()?
+            .conditional_source_paired_loop_handler()?;
+        let native = semantics.native_compilation?;
+        let facts = self.facts();
+        if dialect.family() != Some(tcl_dialect::model::Family::Jim)
+            || policy.authority() != NamePolicyAuthority::AuthoredSimulation
+            || policy.recipe() != NativeNameProtocol::Jim084
+            || self.selected.sub.is_some()
+            || self.selected.instance
+            || self.selected.form.is_some()
+            || semantics.argument_offset != 0
+            || !facts.arg_roles_complete
+            || facts.operation != SemanticOperationId::StructuredLowering(LoweringHookId::Foreach)
+            || native.grammar != NativeCompilationGrammar::Foreach
+            || native.operation != facts.operation
+            || native.body != NativeBodyCompilation::Inherit
+            || semantics.successful_handler != Some(SuccessfulHandlerSpec::PossibleBodies)
+            || semantics.body_kind != crate::body_kind::BodyKind::Plain
+            || semantics.body_interpreter != crate::body_kind::BodyInterpreter::Current
+            || semantics.frame_effect.is_some()
+            || semantics.body_execution.is_some()
+            || semantics.state_transitions.is_declared()
+            || semantics.world_effects.is_declared()
+            || semantics.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
+            || self.selected.spec.side_effects != PAIRED_LOOP_LEGACY_EFFECTS
+            || facts.arity_accepts_frozen_arguments() != Some(true)
+            || facts.iteration_entry(arguments) != IterationEntry::Empty
+            || facts.finite_iteration(arguments)?.iterations() != 0
+        {
+            return None;
+        }
+        Some(AuthoredSourceJimEmptyIteration { policy })
+    }
+
     /// One source binder under the selected original handler, ordinary list,
     /// unobserved cell and separately modelled body premises.
     #[must_use]

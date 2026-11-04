@@ -64,6 +64,7 @@ mod frozen_arguments;
 mod future_bodies;
 mod hosted_procedure_body;
 mod incomplete_body_metadata;
+mod jim_empty_iteration;
 mod jim_stock_class;
 mod jim_wrapper_body;
 pub(crate) use jim_stock_class::OriginalJimStockName;
@@ -12100,6 +12101,9 @@ impl SourceCommandBindings {
             context,
             native.original_variable_operands,
         );
+        if let Some(outcomes) = jim_empty_iteration::transfer(native, state, context) {
+            return Err(Box::new(outcomes));
+        }
         let object_protocol = self.prepare_object_callbacks(native, facts, state, context);
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
