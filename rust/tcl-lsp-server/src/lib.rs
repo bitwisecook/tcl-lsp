@@ -33083,6 +33083,7 @@ impl Backend {
     async fn ordinary_rename_edit(
         &self,
         doc: &DocumentState,
+        registry: &Arc<CommandRegistry>,
         ctx: RenameContext<'_>,
         mut source_plan: WorkspaceSourcePlanToken,
     ) -> jsonrpc::Result<Option<WorkspaceEdit>> {
@@ -33091,7 +33092,6 @@ impl Backend {
             analysis,
             pos,
             new_name,
-            registry,
             ..
         } = ctx;
         let edits = self
@@ -36682,6 +36682,7 @@ impl LanguageServer for Backend {
         }
         self.ordinary_rename_edit(
             &doc,
+            &registry,
             RenameContext {
                 uri: &uri,
                 source: &doc.text,
