@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 05:43 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for source-bound receipts.
+Updated 04 November 2026, 05:45 UTC. **Not release-ready.** See the [current snapshot](../current-state.md) for source-bound receipts.
 
 | Work | Open acceptance |
 | --- | --- |
@@ -10,6 +10,6 @@ Updated 04 November 2026, 05:43 UTC. **Not release-ready.** See the [current sna
 | Autoload |15/15 activated fresh/full vectors pass before reuse; original controls5/7 failures retained, all10 selected Core controls pass in sealed V3. Same-survey receipt reuse adopted/reviewed; new controls/vectors/startup/memory acceptance pending. |
 | Hook containment | Current9-case probe confirms adopted fix blocks persistent global RMW state while local updates work. Engine/hook/VM/Jim/alias/read-trace/full suites pending; no whole-sandbox acceptance yet. |
 | Packaging/hosts | Source/output WASI custody fix and four no-build contracts pass; full current native/WASM/WASI/editor/archive production/behavior unexecuted. |
-| Proof/CI | Last proof diagnostic2181errors before parity repair/new changes; no exemptions accepted. Old CI now terminal:05:42 full pagination47jobs/no active. Fresh hosted dispatch next; final failure details being refreshed. |
+| Proof/CI | Last proof diagnostic2181errors before parity repair/new changes; no exemptions accepted. Old CI47jobs terminal:8success/23failure/16skip; shard5valid510failures. Fresh hosted CI41781045833 started05:44 on caf4be84a, initial jobs running. |
 
 Separate VM/BIG-IP/ancillary features are deferred; linked VM/SpecTcl behavior stays in scope. No PR/merge/tag/release exists. Temporary state/process narratives must be removed before merge, retaining oracle evidence.
