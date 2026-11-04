@@ -2536,7 +2536,7 @@ impl Analyser {
         self.emit_w106_unbraced_switch_body(original.as_ref());
         self.emit_w311_encoding_mismatch(original.as_ref());
         self.emit_binary_field_version_gates(&format_templates);
-        self.emit_w121_invalid_subnet_mask(args, arg_tokens);
+        self.emit_w121_invalid_subnet_mask(args, arg_tokens, original.as_ref());
         self.emit_w108_non_ascii(arg_tokens);
         self.emit_w148_numeral_release(args, arg_tokens);
         self.emit_w151_range_numerals(args, arg_tokens);

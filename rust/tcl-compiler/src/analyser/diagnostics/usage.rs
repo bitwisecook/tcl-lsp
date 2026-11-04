@@ -542,10 +542,38 @@ Use braces: {{ \u{2026} }}"
         &mut self,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        original: Option<&crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation>,
     ) {
+        let script_spans: FxHashSet<_> = original
+            .and_then(|call| {
+                let scripts = call.with_schema(|schema| {
+                    let mut scripts = schema
+                        .authored_source_script_arguments()
+                        .unwrap_or_default();
+                    let plan = match schema.clause_walk() {
+                        Some(Ok(plan)) => Some(plan),
+                        Some(Err(abstention)) => Some(abstention.inert),
+                        None => None,
+                    };
+                    if let Some(plan) = plan {
+                        scripts.extend(plan.roles.iter().filter_map(|&(index, role)| {
+                            (role == tcl_registry::ArgRole::Body).then_some(index)
+                        }));
+                    }
+                    scripts
+                })?;
+                let (_, tokens, _) = call.source_arguments()?;
+                Some(
+                    scripts
+                        .into_iter()
+                        .filter_map(|index| tokens.get(index).map(|tok| tok.span))
+                        .collect(),
+                )
+            })
+            .unwrap_or_default();
         let mut seen: FxHashSet<u32> = FxHashSet::default();
         for (tok, text) in arg_tokens.iter().zip(args.iter()) {
-            if seen.contains(&tok.span.start()) {
+            if script_spans.contains(&tok.span) || seen.contains(&tok.span.start()) {
                 continue;
             }
             for quad in find_dotted_quads(text, 3) {
