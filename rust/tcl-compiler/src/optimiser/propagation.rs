@@ -3088,8 +3088,8 @@ fn visit_string_interpolation_cmd_subs(
     ));
 }
 
-/// Substitution boundaries terminate variable-width escapes. Keep that boundary
-/// unless joining the literal fragments has the same shared-decoder result.
+/// Substitution boundaries terminate variable-width escapes. No preceding
+/// escape may consume bytes across a boundary removed by this splice.
 fn interpolation_splice_preserves_escapes(
     prefix: &str,
     result: &str,
@@ -3097,12 +3097,9 @@ fn interpolation_splice_preserves_escapes(
     escapes: tcl_dialect::EscapeSyntax,
 ) -> bool {
     let joined = format!("{prefix}{result}{suffix}");
-    let expected = format!(
-        "{}{result}{}",
-        tcl_syntax::backslash::decode_in(prefix, escapes),
-        tcl_syntax::backslash::decode_in(suffix, escapes),
-    );
-    tcl_syntax::backslash::decode_in(&joined, escapes) == expected
+    prefix.match_indices('\\').all(|(start, _)| {
+        tcl_syntax::backslash::escape_end_in(&joined, start, escapes) <= prefix.len()
+    })
 }
 
 fn visit_simple_var_word(
