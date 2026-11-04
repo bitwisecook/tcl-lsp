@@ -1,5 +1,13 @@
 # Name-resolution proof records
 
+> **Historical development records.** This directory uses the older term
+> “evidence” for source reviews, implementation contracts and inventory
+> material as well as captured runs. Those records are development material;
+> current Tcl execution evidence is a standalone script-and-results Markdown
+> file following the [Tcl execution evidence standard](../../contracts/tcl-execution-evidence.md).
+> Existing captures remain available for careful migration; they are not
+> automatically converted or claimed as new-format evidence.
+
 Each record answers one concrete question. The problem statement explains the
 trigger, competing interpretations and why the distinction matters to a
 consumer. The question, provider answers and conclusion keep the measured
