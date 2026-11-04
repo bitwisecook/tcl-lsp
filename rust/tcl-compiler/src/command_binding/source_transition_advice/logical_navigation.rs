@@ -705,6 +705,42 @@ impl super::AdviceInvocationContext<'_> {
                 return None;
             }
             let prefixes = schema.authored_logical_source_command_prefix_arguments()?;
+            let mut candidates = prefixes
+                .into_iter()
+                .map(|(ordinal, appended)| (ordinal, appended, false))
+                .collect::<Vec<_>>();
+            // A deferred global script is not a command-prefix list. Admit only
+            // the independently selected Body role and check its exact script
+            // spelling below before producing source-only candidate geometry.
+            if let Some(scripts) = schema.authored_logical_source_plain_script_arguments() {
+                let (roles, complete) = schema.authored_logical_source_argument_roles();
+                if complete {
+                    for ordinal in scripts {
+                        if schema.authored_source_script_timing_at(ordinal)
+                            == Some(tcl_registry::ScriptTiming::Deferred)
+                            && schema.facts().script_lookup_scope(ordinal)
+                                == Some(tcl_registry::ScriptLookupScope::GlobalFrame)
+                            && roles.iter().any(|(at, role)| {
+                                schema
+                                    .semantics
+                                    .argument_offset
+                                    .checked_add(usize::from(*at))
+                                    == Some(ordinal)
+                                    && *role == tcl_registry::ArgRole::Body
+                            })
+                            && !candidates
+                                .iter()
+                                .any(|(existing, _, _)| *existing == ordinal)
+                        {
+                            candidates.push((
+                                ordinal,
+                                tcl_registry::AppendedArity::Exactly(0),
+                                true,
+                            ));
+                        }
+                    }
+                }
+            }
             let mut registration = self.schema_advice(invocation, graph, schema)?;
             let scope = match frame {
                 LogicalCallbackScope::Declared(scope) => {
@@ -720,7 +756,7 @@ impl super::AdviceInvocationContext<'_> {
                 LogicalCallbackScope::Document | LogicalCallbackScope::Unavailable => None,
             };
             let mut result = Vec::new();
-            for (ordinal, appended) in prefixes {
+            for (ordinal, appended, single_script_head) in candidates {
                 let argument = invocation.arguments.get(ordinal)?;
                 let crate::registry_invocation::InvocationWordOrigin::Written(written) =
                     argument.origin
@@ -750,6 +786,25 @@ impl super::AdviceInvocationContext<'_> {
                 let Some(head) = elements.first() else {
                     continue;
                 };
+                if single_script_head {
+                    // This bounded spelling is both one Tcl script command and
+                    // one unchanged source list field. No script substitution,
+                    // separator, expansion, or extra argument can be hidden in it.
+                    let Some(script) = tcl_syntax::word_rules::original_static_word_source_bytes(
+                        &argument.original,
+                    ) else {
+                        continue;
+                    };
+                    if elements.len() != 1
+                        || script != head.value().as_bytes()
+                        || script.is_empty()
+                        || !script.iter().all(|byte| {
+                            byte.is_ascii_alphanumeric() || matches!(*byte, b'_' | b':')
+                        })
+                    {
+                        continue;
+                    }
+                }
                 let Some(candidates) =
                     logical_coordinates(graph, namespace, head.value().as_bytes())
                 else {
@@ -1736,6 +1791,52 @@ mod tests {
         assert!(source_logical_callback_candidates_at(source, &missing, offset).is_none());
         let native = Analyser::new().analyse(source, "tcl8.6");
         assert!(source_logical_callback_candidates_at(source, &native, offset).is_none());
+    }
+
+    #[test]
+    fn logical_deferred_global_script_keeps_only_single_original_static_head() {
+        use crate::registry_invocation::source_structure::source_logical_callback_candidates_at;
+        for source in [
+            "proc p {} {}; after 0 p",
+            "proc p {} {}; after 0 {p}",
+            "proc p {} {}; after idle p",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let offset = u32::try_from(source.find("after").unwrap()).unwrap();
+            let callbacks =
+                source_logical_callback_candidates_at(source, &analysis, offset).unwrap();
+            assert_eq!(callbacks.len(), 1, "{source}");
+            let head = callbacks[0].head();
+            assert_eq!(head.value(), "p");
+            let span = head.source_span().unwrap();
+            assert_eq!(&source[span.as_range()], "p");
+            assert!(callbacks[0].procedure_declaration(&analysis).is_some());
+            assert_eq!(
+                callbacks[0].appended_arity(),
+                tcl_registry::AppendedArity::Exactly(0)
+            );
+            assert!(
+                source_logical_callback_candidates_at(&format!("{source} "), &analysis, offset)
+                    .is_none()
+            );
+        }
+        for source in [
+            "proc p {} {}; after 0 {p; other}",
+            "proc p {} {}; after 0 {p arg}",
+            "proc p {} {}; after 0 p extra",
+            "proc p {} {}; after 0 $callback",
+            "proc p {} {}; after 0 {*}$callback",
+            "proc p {} {}; after cancel p",
+            "proc p {} {}; proc after args {}; after 0 p",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let offset = u32::try_from(source.rfind("after ").unwrap()).unwrap();
+            assert!(
+                source_logical_callback_candidates_at(source, &analysis, offset)
+                    .is_none_or(|callbacks| callbacks.is_empty()),
+                "{source}"
+            );
+        }
     }
 
     #[test]
