@@ -1,11 +1,11 @@
 # Outstanding LSP release work
 
-Updated 4 November 2026, 19:05 UTC. **Not release-ready.** [Current state](../current-state.md) gives exact receipts, sources and limits; Git retains earlier attempts.
+Updated 4 November 2026, 19:07 UTC. **Not release-ready.** [Current state](../current-state.md) gives exact receipts, sources and limits; Git retains earlier attempts.
 
 | Work | Current result and remaining obligation |
 | --- | --- |
 | Compiler | Compiler34 completes 30/34: autoload, W214, card ownership, memo and Boolean controls pass; four namespace controls fail. Source-policy correction demonstrably retains local namespace lookup in the actual current library. Later global lookup still fails; exact source-allocation correction is adopted, untested. |
-| Core | Core27 fresh build succeeds; controls continue. Both autoload-header controls pass. Two failures are obsolete no-Logical-point fixture premises; actual public probe verifies parent/child ownership and no completed-world/continuation. Reviewed correction awaits unit execution. Regex/variable definition checks remain pending. |
+| Core | Core27 fresh build succeeds and 25/27 controls pass. Both autoload-header controls, all regex controls and variable definition pass. Two failures are obsolete no-Logical-point fixture premises; actual public probe verifies parent/child ownership and no completed-world/continuation. Reviewed correction awaits unit execution. Captured custody passes; later Main drift prevents current-source acceptance. |
 | Linked containment | RMW19 completes 31/32: Engine 7/7, hooks 14/14, VM 10/11. Jim dictionary mutation occurs before foreign-alias refusal; early guard and genuine local-path control are adopted, untested. Focused VM11 runner ready. Preserve all confinement guards. |
 | SpecTcl | Provider cache domain, exact-byte manifest hash and coherent hook publication repairs adopted, untested. Registry9 and SpecTcl9 runners ready. Standalone Server eager loading restored; first-request EDA acceptance pending. |
 | Server | Earlier V11 mandatory 26/26 passes do not certify later source; autoload probe is null. Current successor preserves existing 31+12 and adds two settled semantic probes and two immediate timing probes; unexecuted. Physical edits and source-view completeness still require validation. |
