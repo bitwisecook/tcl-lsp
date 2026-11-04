@@ -802,13 +802,16 @@ fn script_timing_resolver_retains_structured_payload_kinds() {
         ])),
         vec![(1, ScriptTiming::Deferred)]
     );
-    assert!(
+    assert_eq!(
         resolver(InvocationArguments::structured(&[
             InvocationWord::Literal("known"),
             InvocationWord::Expanded,
-        ]))
-        .is_empty()
+        ])),
+        [] as [(u8, ScriptTiming); 0]
     );
-    assert!(resolver(InvocationArguments::literals(&["known", ""])).is_empty());
+    assert_eq!(
+        resolver(InvocationArguments::literals(&["known", ""])),
+        [] as [(u8, ScriptTiming); 0]
+    );
     pack_hooks::clear_host();
 }
