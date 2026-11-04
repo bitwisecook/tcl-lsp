@@ -1,6 +1,6 @@
 # External issue validation comments
 
-Updated 2026-11-04 16:59 UTC. All **19 requested issue comments** were posted and
+Inventory rechecked 2026-11-04 18:27 UTC: the same 20 external issues remain open. Evidence revisions and measured scope remain in the comments. All **19 requested issue comments** were posted and
 reread on GitHub. **#2021 was excluded and received no comment from this sweep.**
 No external issue was closed by this work. Revisions, commands, native-oracle
 versions, controls and scope limits are in the linked comments.
