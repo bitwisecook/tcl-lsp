@@ -1763,6 +1763,21 @@ impl Backend {
     pub(crate) async fn refresh_original_source_view_graph(
         &self,
     ) -> DocumentSourceResult<Option<OriginalSourceViewSettlement>> {
+        // The view table is read with `try_lock`, so a publisher holding it
+        // (the one that follows `didOpen`) refuses a settlement that a moment
+        // later succeeds. Only a refusal that persists is reported.
+        for _ in 1..SOURCE_VIEW_CONTENTION_ATTEMPTS {
+            if let Some(settlement) = self.refresh_original_source_view_graph_once().await? {
+                return Ok(Some(settlement));
+            }
+            crate::rt::sleep(SOURCE_VIEW_CONTENTION_BACKOFF).await;
+        }
+        self.refresh_original_source_view_graph_once().await
+    }
+
+    async fn refresh_original_source_view_graph_once(
+        &self,
+    ) -> DocumentSourceResult<Option<OriginalSourceViewSettlement>> {
         let _build = self.original_source_view_build_gate.lock().await;
         if !self
             .prune_retired_original_source_view_presentations()
@@ -3362,11 +3377,36 @@ impl Backend {
         std::ops::ControlFlow<Option<Vec<tower_lsp_server::ls_types::Location>>>,
     > {
         self.await_original_source_navigation_readiness(uri).await?;
+        // A settled scope refused while another task holds the view table is
+        // contention, not an answer; only a refusal that persists is terminal.
+        for _ in 1..SOURCE_VIEW_CONTENTION_ATTEMPTS {
+            if let Some(route) = self
+                .original_source_view_navigation_attempt(uri, position, references)
+                .await?
+            {
+                return Ok(route);
+            }
+            crate::rt::sleep(SOURCE_VIEW_CONTENTION_BACKOFF).await;
+        }
+        Ok(self
+            .original_source_view_navigation_attempt(uri, position, references)
+            .await?
+            .unwrap_or(std::ops::ControlFlow::Break(None)))
+    }
+
+    /// One navigation attempt; `None` when the settled scope could not be read
+    /// consistently and the attempt may be repeated.
+    async fn original_source_view_navigation_attempt(
+        &self,
+        uri: &Uri,
+        position: tower_lsp_server::ls_types::Position,
+        references: Option<bool>,
+    ) -> DocumentSourceResult<Option<HostNavigationRoute>> {
         let Some(settlement) = self.refresh_original_source_view_graph().await? else {
-            return Ok(std::ops::ControlFlow::Break(None));
+            return Ok(Some(std::ops::ControlFlow::Break(None)));
         };
         let Some(ids) = settlement.navigation_projection(uri, references) else {
-            return Ok(std::ops::ControlFlow::Break(None));
+            return Ok(Some(std::ops::ControlFlow::Break(None)));
         };
         let aggregate_complete = settlement.aggregate_complete();
         let partial_definition_groups = ids.partial_definition_groups.clone();
@@ -3384,10 +3424,10 @@ impl Backend {
             })
             .await?;
         let Some((owners, output)) = computed else {
-            return Ok(std::ops::ControlFlow::Break(None));
+            return Ok(Some(std::ops::ControlFlow::Break(None)));
         };
         let Some(output) = output else {
-            return Ok(std::ops::ControlFlow::Break(None));
+            return Ok(Some(std::ops::ControlFlow::Break(None)));
         };
         let mut output = Some(output);
         let result = self
@@ -3396,7 +3436,7 @@ impl Backend {
                 output.take()
             })
             .await?;
-        Ok(result.unwrap_or(std::ops::ControlFlow::Break(None)))
+        Ok(result)
     }
 }
 
@@ -3626,6 +3666,12 @@ impl Backend {
 }
 
 type HostNavigationRoute = std::ops::ControlFlow<Option<Vec<tower_lsp_server::ls_types::Location>>>;
+
+/// Bound on source-view navigation attempts refused by table contention.
+pub(crate) const SOURCE_VIEW_CONTENTION_ATTEMPTS: usize = 40;
+/// Pause between those attempts.
+pub(crate) const SOURCE_VIEW_CONTENTION_BACKOFF: std::time::Duration =
+    std::time::Duration::from_millis(25);
 impl Backend {
     fn calculate_original_source_navigation(
         views: &[Arc<PublishedOriginalSourceView>],
