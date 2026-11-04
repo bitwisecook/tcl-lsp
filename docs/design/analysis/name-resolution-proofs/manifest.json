@@ -1014202,10 +1014202,24 @@
         },
         {
           "id": "public-projection",
-          "role": "observation",
+          "role": "implementation",
           "path": "runtime/rust/tests/data/native_original_list_group_command651/software_controls.rs",
-          "sha256": "faa0c666815404aa153716b501894bb3fc9b0f718df1845b5cd948f93304b9aa",
-          "description": "Literal179 available sort outcomes; no Jim case12 expected result or search14/15 software grant."
+          "sha256": "98f2d8f76f9e5524a35e49f953894058cf4080c945e2ed1b98b4052fce080ac6",
+          "description": "Maintained Rust software projection of179 available sort outcomes, independently reconciled field by field to pinned probe declarations and exact retained native streams by public-projection-verifier and public-projection-derivation. This authored representation supplies no native execution, private payload, alias/refcount or callback chronology; Jim case12 and search14/15 remain excluded."
+        },
+        {
+          "id": "public-projection-verifier",
+          "role": "implementation",
+          "path": "scripts/dev/check-runtime651-public-projection.py",
+          "sha256": "09ba0a9bbfc0230590866f54f30f4ee4fe953bafa5f02ca0f782ecb39c964934",
+          "description": "Fail-closed field-by-field checker for the maintained179-row Runtime651 expected-value projection. Reads pinned retained artifacts; executes no native provider or Rust test."
+        },
+        {
+          "id": "public-projection-derivation",
+          "role": "implementation",
+          "path": "docs/design/analysis/name-resolution-proofs/derived-public-projections/runtime651.json",
+          "sha256": "8dc9be70ff6d88cc68665bec738c7a4e8458eff880fdcb2238cd1141322c691e",
+          "description": "Exact derivation receipt for179 software projection rows from original pinned probe declarations and retained native streams. input_manifest_sha256 identifies the pre-adoption manifest used for this inspection; rerunning after record updates produces a new context hash. No historical projection recovery or new provider execution is claimed."
         },
         {
           "id": "interpretation",
