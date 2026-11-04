@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 4 November 2026, 19:12 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
+Updated 4 November 2026, 19:05 UTC. Results apply only to recorded source, inputs and purpose. Git and receipts retain history; this is the current snapshot.
 
 ## Scope, ownership and release verdict
 

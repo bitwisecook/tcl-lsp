@@ -1,6 +1,6 @@
 # Outstanding LSP release work
 
-Updated 4 November 2026, 19:12 UTC. **Not release-ready.** [Current state](../current-state.md) gives exact receipts, sources and limits; Git retains earlier attempts.
+Updated 4 November 2026, 19:05 UTC. **Not release-ready.** [Current state](../current-state.md) gives exact receipts, sources and limits; Git retains earlier attempts.
 
 | Work | Current result and remaining obligation |
 | --- | --- |
