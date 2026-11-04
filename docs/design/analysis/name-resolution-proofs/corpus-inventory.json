@@ -22978,8 +22978,8 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_binary_replacement633/software_controls.rs",
-      "sha256": "067fad858fd3c81728e10b1c1f8b682639c8ca1626b64f9b67ca863674b1db67",
-      "bytes": 30617,
+      "sha256": "acd0f21b0a7ff538c0f1bcbe6aff3985c7ae4042f4207b32a00314329c92bd8e",
+      "bytes": 38432,
       "candidate": false
     },
     {
@@ -23652,8 +23652,8 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_direct_binary_replacement634a/software_controls.rs",
-      "sha256": "9d576930b4b1fdafb6b150dec46d334a20a1b924e89bd50532cd5cd578f0ff1a",
-      "bytes": 8133,
+      "sha256": "dcd8be63d3fafdcc67e0569a435715bff7ad0532dc065472f8972e1ab1069979",
+      "bytes": 10608,
       "candidate": false
     },
     {
@@ -27058,8 +27058,8 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_index_range635/software_controls.rs",
-      "sha256": "f02e21a0c683c53b03a0d3e48262392810df815b4c380e559c716f667b2e7303",
-      "bytes": 66770,
+      "sha256": "f0156dd2cc2af6ca4641cbc16a3b996ec9a63a67754ea8cc2dd7c996fc692f4d",
+      "bytes": 83719,
       "candidate": false
     },
     {
@@ -44190,8 +44190,8 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_list_numeric645_647/software_controls.rs",
-      "sha256": "a31555367fe92c78eb44f015acc4eba3c00c0660fc52b7cc386915d59927c8e2",
-      "bytes": 206099,
+      "sha256": "e2d822464feb401276edf7acd6211099f5ec18f92e2e47b414969d7602fbe2f7",
+      "bytes": 206127,
       "candidate": false
     },
     {
@@ -47314,8 +47314,8 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_list_stride644/software_controls.rs",
-      "sha256": "b7761c9d21a5d06b6eb92ef64da3cc2792966cb1d681d462def9660f99869189",
-      "bytes": 45698,
+      "sha256": "5d3eacd99f7190ebf14989cbc43191b67e96718828d4b43338a807016181e432",
+      "bytes": 45732,
       "candidate": false
     },
     {
@@ -52376,8 +52376,8 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_option_index636/software_controls.rs",
-      "sha256": "c0fe1e3cad6091532785f0d36f0ba9af7e3c46696ee574b130d3be7fbec9e072",
-      "bytes": 89840,
+      "sha256": "7db47e41b8a9ff39398407075205c33253cce845f809ed94c5bb611468bce00d",
+      "bytes": 89874,
       "candidate": false
     },
     {
@@ -55920,8 +55920,8 @@
     },
     {
       "path": "runtime/rust/tests/data/native_original_string_replacement629/software_controls.rs",
-      "sha256": "407808824791ed3e263ec173b5c13bb05a793b2c8efdc6b70a5c01a53a643193",
-      "bytes": 74621,
+      "sha256": "2bc5e676c4060b11d067869cfad6323eda35f41e0cb318c063147187ccc4aaeb",
+      "bytes": 83576,
       "candidate": false
     },
     {

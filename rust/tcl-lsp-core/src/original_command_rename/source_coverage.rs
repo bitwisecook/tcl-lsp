@@ -1230,27 +1230,29 @@ mod tests {
         }
     }
 
-    fn assert_native_namespace_child_entry_refused(source: &str, child_source: &str) {
-        let prefix = Analyser::new().analyse(source, "tcl8.6");
+    fn native_namespace_fixture(source: &'static str, child_source: &'static str) -> Fixture {
+        let fixture = Fixture::new(source, child_source);
         let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
         let load =
             tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
-                source, &prefix, offset,
+                source,
+                &fixture.prefix,
+                offset,
             )
             .unwrap();
-        let point = load.source_point_entry(&prefix).unwrap();
+        let point = load.source_point_entry(&fixture.prefix).unwrap();
+        assert!(point.matches_parent_analysis(&fixture.prefix));
+        assert!(point.matches_child_analysis(&fixture.child));
+        assert!(fixture.child.original_completed_command_world().is_none());
         assert!(
-            !prefix
+            !fixture
+                .child
                 .resolved_input
                 .as_ref()
                 .unwrap()
                 .has_logical_source_name_context()
         );
-        assert!(
-            Analyser::new()
-                .analyse_with_source_point_entry(child_source, "tcl8.6", &point)
-                .is_none()
-        );
+        fixture
     }
 
     #[test]
@@ -1265,30 +1267,36 @@ mod tests {
                 "proc helper {} {return VALUE}",
             ),
         ] {
-            let fixture = if source.starts_with("namespace") {
-                assert_native_namespace_child_entry_refused(source, child_source);
-                Fixture::logical_namespace(source, child_source)
+            let fixtures = if source.starts_with("namespace") {
+                vec![
+                    native_namespace_fixture(source, child_source),
+                    Fixture::logical_namespace(source, child_source),
+                ]
             } else {
-                Fixture::new(source, child_source)
+                vec![Fixture::new(source, child_source)]
             };
-            if source.starts_with("namespace") {
-                assert!(fixture.region_count > 1);
+            for fixture in fixtures {
+                if source.starts_with("namespace") {
+                    assert!(fixture.region_count > 1);
+                }
+                let documents = fixture.documents();
+                let identity = fixture.identity();
+                let worlds = [OriginalConditionalCommandWorld {
+                    uri: "file:///main.tcl",
+                    outcome: &fixture.outcome,
+                }];
+                fixture.with_views(|views| {
+                    assert!(
+                        SourceCoverage::capture(&documents, &identity, &worlds, views).is_err()
+                    );
+                    assert!(
+                        original_command_rename_edits_with_source_views(
+                            &documents, &identity, "host_new", &worlds, views
+                        )
+                        .is_err()
+                    );
+                });
             }
-            let documents = fixture.documents();
-            let identity = fixture.identity();
-            let worlds = [OriginalConditionalCommandWorld {
-                uri: "file:///main.tcl",
-                outcome: &fixture.outcome,
-            }];
-            fixture.with_views(|views| {
-                assert!(SourceCoverage::capture(&documents, &identity, &worlds, views).is_err());
-                assert!(
-                    original_command_rename_edits_with_source_views(
-                        &documents, &identity, "host_new", &worlds, views
-                    )
-                    .is_err()
-                );
-            });
         }
     }
 }

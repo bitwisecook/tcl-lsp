@@ -415,7 +415,7 @@ async function workspaceSession(wasmBindgen) {
     check(
         "workspace/symbol finds a scanned closed file's proc",
         symbolList.some((s) => s.name.includes("greet_helper")),
-        `${symbolList.length} symbols`,
+        `${symbolList.length} symbols; response=${JSON.stringify(symbols)}`,
     );
 
     // Only the package database can answer this one: its file lives under
@@ -431,7 +431,7 @@ async function workspaceSession(wasmBindgen) {
     check(
         "go-to-definition resolves a tclIndex auto-loaded command",
         autoUris.some((u) => u.endsWith("/tmp/mypkg/impl.tcl")),
-        JSON.stringify(autoUris),
+        JSON.stringify({ uris: autoUris, response: autoDef }),
     );
 
     await runNamingHostProof(session, "file:///ws/host-naming.tcl", check, (uri, source) => session.worker.vfs_upsert(uri, source));

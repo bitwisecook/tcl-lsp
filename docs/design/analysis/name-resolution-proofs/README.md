@@ -52,6 +52,19 @@ Maintained tooling recorded with the `implementation` evidence role can be
 formatted; its source digest requires a separately reviewed final source
 snapshot. Source formatting supplies no new native or Rust execution result.
 
+The maintained Rust software-control tables retain original provider streams
+separately from their authored expected-value representation. Their exact
+[seven-source contract](derived-public-projections/authored-fixture-source-contract.json)
+and [derivation receipt](derived-public-projections/authored-fixture-source-review.json)
+bind997 literal rows, field types, pure shared-borrow boolean storage and
+equivalent full-pair byte decoders. The
+[source comparison tool](../../../../scripts/dev/check-authored-fixture-source-review.py)
+requires authenticated original Git bytes; `--fetch-origin` explicitly permits
+immutable configured-origin reads when local objects are absent. A receipt
+digest cannot replace unavailable originals during reproduction. These authored
+source snapshots grant no original-capture renewal, native execution or
+layout/ABI equivalence.
+
 Reviewed question arrays and exact artifact classifications are merged
 separately, with every update checked before the census is written:
 
