@@ -409,12 +409,10 @@ fn scratch(name: &str) -> PathBuf {
 
 /// `llength` overridden by a bundled pack whose `const_fold` names the
 /// shipped folder: a constant computed at compile time from the pack's facts.
-/// The `dialects` row scopes the override to the release the test compiles
-/// for: a profile's resolution prefers a scoped spec over a catch-all one,
-/// so an unscoped override would lose to the shipped `llength`'s own scope.
+/// The unscoped override must beat the shipped command's release-scoped row
+/// under profile-aware lookup, as the pack collision policy promises.
 const FOLD_PACK: &str = "speclib vendor 2.0 {\n    \
      command llength -override {\n        \
-         dialects tcl9.0\n        \
          arity 1\n        \
          arg 0 -role Value\n        \
          const_fold -native llength::const_fold\n    \
