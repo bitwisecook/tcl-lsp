@@ -1071,7 +1071,7 @@ mod abstention_tests {
             assert_eq!(receipt.original_words(), root.as_slice());
             assert!(receipt.matches_source_context(source, &context));
         }
-        let mut changed = root.to_vec();
+        let mut changed = root.clone();
         changed[2] = plan.commands[0].words[2].clone();
         assert_eq!(changed[0], root[0]);
         assert!(query.registration_abstention(&changed).is_none());

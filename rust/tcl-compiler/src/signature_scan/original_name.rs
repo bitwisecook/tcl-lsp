@@ -447,14 +447,14 @@ mod tests {
                 ..plain
             };
             let image = SourceImage::document(source);
-            let plan = tcl_lexer::native_script_words_in(
+            let script_words = tcl_lexer::native_script_words_in(
                 image,
                 Span::new(0, u32::try_from(source.len()).unwrap()),
                 config,
             )
             .unwrap();
             let key = SignatureSourceNameKey::from_original_logical_source_word(
-                &plan.commands[0].words[1],
+                &script_words.commands[0].words[1],
                 WordValueRules::from_config(&config),
                 policy,
             )

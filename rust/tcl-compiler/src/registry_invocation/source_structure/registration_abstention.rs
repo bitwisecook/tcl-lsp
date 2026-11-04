@@ -542,7 +542,7 @@ mod tests {
         let realm =
             OriginalSourceRegistryContext::capture_standalone_structure(&source, input.clone());
         assert_eq!(realm.editing_input(), input);
-        assert!(!std::ptr::eq(&owner, &realm));
+        assert!(!std::ptr::eq(&raw const owner, &raw const realm));
         assert!(!receipt.matches_source_context(&source, &realm));
         let general = OriginalSourceRegistryContext::capture(&source, input.clone());
         assert!(general.standalone_schema_abstentions().is_none());

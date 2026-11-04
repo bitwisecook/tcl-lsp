@@ -3499,6 +3499,11 @@ mod tests {
             engine.invoke(&handle, &arguments).expect("runs").as_str(),
             Some("{a b} 1 {k v} 1 1 a bbc {k v} {k 1} yes")
         );
+        assert_confined_random_generator();
+    }
+
+    fn assert_confined_random_generator() {
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
         // The `rand()` generator's seed is interpreter state every
         // invocation shares: `srand` writes it and `rand` reads what an
         // earlier call left. Both raise while stores are confined, under the
