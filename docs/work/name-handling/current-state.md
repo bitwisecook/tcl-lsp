@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 04 November 2026, 01:15 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
+Updated 04 November 2026, 01:24 UTC. This is the active snapshot. Earlier results remain historical in git and their original receipts; they do not certify the current release candidate.
 
 ## Scope and release verdict
 
@@ -151,3 +151,7 @@ New startup A/B `/workspace/tmp/package-autoload-startup-ab-20261103/receipt.jso
 A new manual [CI41749944578](https://github.com/bitwisecook/tcl-lsp/actions/runs/41749944578) targets exact published8050f4d4c6477af73b42bcf69761805aa653cc6c (created4November00:51:36UTC). Latest inspection:8success/5failure/14active/2skipped. Rust-check fails two new Core lints (needless borrow; name-edit function116lines), private fixes prepared. Web smoke fails ENOSPC extracting Playwright Chrome before build/tests. Browser/WASI still fail their closed/cross-file/rename coverage checks. Runtime2300pass/104fail, not a full runtime pass. Multi-folder passes. Older41736891101 completes9success/15failure/4cancelled/2skipped; incomplete/cancelled Rust shards do not give an honest full-suite aggregate. No required PR-event or release acceptance follows.
 
 V7 compiler/Core/server unit rebuild is in progress on the reviewed policy+fixture+five-case source. No V7 pass is claimed yet. The two metadata controls (closed source read count and W150 range premise) remain open, as do the direct Syntax unit tests, full lint, browser/WASI/editor, current full E2E, proof/drift and packaging.
+
+V7 combined build passes; selected cohort **59/62 pass**, with source/generated pre/post checks unchanged. Newly corrected policy suppression, opaque member/inventory and both readonly-field/report-text controls pass. Remaining failures are the legacy quote guard stopping the five-case conditional test at cash$name, the incomplete fixture overlay installation and the separate W150 range premise. Receipt `/workspace/tmp/lsp-merged-cohort/conditional-controls-v7/results.json.gz`. The first two are now corrected before execution: the conditional-only quote guard is removed in favour of mandatory typed whole-container/generated-source checks (ordinary guards unchanged), and metadata fixtures call the actual all-profile overlay installer. Exact public V7 probe confirms old tcl-only installation returns OverlayMiss for tcl8.6 before the walk; production installation produces read1→withdrawal0. No Native frame or fallback registry is manufactured.
+
+The two reported Core lint findings are fixed by removing a redundant borrow and moving the unchanged ordered edit-conflict/no-op merge into a private helper. New source still requires a current lint rerun and five-case/overlay unit execution. Direct Syntax source-extent controls are next.
