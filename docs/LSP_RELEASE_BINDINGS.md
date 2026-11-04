@@ -142,3 +142,13 @@ Source hashes matched across compilation/runtime, and genuine unsafe controls
 remain active. All retained final-Normal probes are unavailable; those Native
 completion refusals must remain intact. The consumer proposal is still
 unapplied at this baseline, and no product fix is claimed.
+
+The current unverified draft narrows the archived proposal to completed direct
+command results whose text is exactly `0` or `1`, without a retained numeric
+receipt, plus logical negations of that command. Other values retain the
+existing expression-reader fallback. This avoids deriving cached numeric truth
+from bytes. The draft, strict regression driver and revised completion-refusal
+expectations are stashed during the benchmark reservation and this integration
+checkpoint. No candidate compilation or runtime has run, and `rust-check` and
+`prep-pr` remain pending for the eventual product change. The unresolved
+unknown-condition branch and exact later-read span still require verification.
