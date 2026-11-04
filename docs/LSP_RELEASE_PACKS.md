@@ -18,7 +18,7 @@ Updated 4 November 2026. Branch: `work`. Test execution remains pending where no
 | #2309 | Fix drafted; execution pending | `socket_.rs` declares client and server invocation forms separately. `rust/tcl-compiler/src/analyser/diagnostics/tests.rs::socket_server_form_counts_only_its_port_as_positional` checks valid and missing-operand client/server shapes. |
 | #2365 | Pending audit | Check diagnostics for stub directives outside an active stub block; current docs still say these directives are ignored. |
 | #2366 | Pending audit | Compare document stubs passed to `tcl opt` with `tcl diag` and the LSP compilation-unit inputs. |
-| #2372 | Pending audit | Compare the W210 KCS claim about `info vars` / `catch {set _ $X}` with analyser behavior and the SCCP contract. |
+| #2372 | Documentation corrected | Removed the unsupported `info vars` / `info locals` and `catch {set _ $X}` narrowing claims from the W210 page; it now links to the SCCP contract, which states only `info exists` and `array exists` are recognised. |
 | #2422 | Pending audit | Measure and inspect role assignment in `CommandRegistry::callback_script_indices` / `script_timing` for large literal commands. |
 | #2446 | Documentation corrected | `kcs-qa-tcl-lsp-annotations.md` now states that stub roles guide analysis but stub arity is not checked; this matches `kcs-howto-annotate-commands-with-stubs.md` and `flush_arity_diagnostics` in `rust/tcl-compiler/src/analyser/diagnostics/validity.rs`. |
 | #2447 | Documentation corrected | `kcs-howto-suppress-diagnostics.md` now says project `.tcl-lsp.ini` is watched and global config changes require a restart, matching `register_file_watchers` and `did_change_watched_files` in `rust/tcl-lsp-server/src/lib.rs`. |

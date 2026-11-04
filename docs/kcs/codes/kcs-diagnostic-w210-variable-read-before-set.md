@@ -59,12 +59,11 @@ check on it is never folded. When existence is statically provable the check
 folds to a constant and is reported as
 [`I230`](kcs-diagnostic-i230-constant-existence-check.md) instead.
 
-The same narrowing applies to the `info vars` / `info locals` membership
-idioms for a single exact name — `[info vars X] ne ""`,
-`[llength [info vars X]]`, `[lsearch [info vars] X] > -1` — and to
-`catch {set _ $X}`, whose no-error branch proves `$X` was readable.
-`info globals` is not used: it proves the *global* exists, not the bare-`$X`
-local. Glob patterns are not statically decidable.
+Membership tests using `info vars` or `info locals` do not narrow W210,
+even for a single exact name, and neither does `catch {set _ $X}`. The
+analyser currently recognises only `info exists` and `array exists` as
+existence checks; see the
+[SCCP analysis contract](../../design/compiler/sccp-core-analyses.md#read-before-set).
 
 ## Braces are not substitution
 
