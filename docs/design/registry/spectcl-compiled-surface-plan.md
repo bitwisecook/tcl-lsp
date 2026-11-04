@@ -97,10 +97,18 @@ scan, as an editor does:
 | edit → tokens, p50 | 9.1 s | — |
 | peak RSS | 5.2 GB | 3.0 GB at the timeout |
 
-The CLI agrees on the direction: `tcl diag` over autosetup's `lib/` takes
-35 s under `jim` and 74 s under `tcl8.6`. Analysing Jim code as Tcl 8.6
-costs twice as much as analysing it as Jim. The per-lookup numbers above
-rule out the registry query as the cause; see *Why `tcl8.6` analyses Jim code at half the speed of `jim`* below.
+The CLI agrees on the direction. `tcl diag` over each whole corpus, one
+process per dialect, so the 2.6 s floor is paid once:
+
+| corpus | `jim` | `tcl8.6` | peak RSS `jim` / `tcl8.6` |
+|---|--:|--:|--:|
+| autosetup `lib/` (6k lines) | 35 s | 74 s | 232 / 379 MiB |
+| jimtcl (159 files, 38k lines) | 645 s | 968 s | 496 / 882 MiB |
+| OpenOCD `tcl/` (1,120 files, 54k lines) | 285 s | 376 s | 847 / 879 MiB |
+
+Analysing Jim code as Tcl 8.6 costs 1.3–2.1× as much as analysing it as
+Jim. The per-lookup numbers above rule out the registry query as the cause;
+see *Why `tcl8.6` analyses Jim code at half the speed of `jim`* below.
 
 ## What the code does today
 
