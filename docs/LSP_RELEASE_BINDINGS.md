@@ -466,3 +466,22 @@ fixture/guard output and source custody are in
 [`verified-fixtures`](../rust/tcl-compiler/tests/data/w210-query-purpose-review/verified-fixtures/README.md).
 No production source-purpose change was needed. #2376 remains open for the
 coordinator's final receipt review; full workspace gates remain separate.
+
+## Jim empty-loop phase audit (2026-11-04 21:58 UTC)
+
+The published `02a9c35c6` C5 stage fix remains verified. Read-only current-library
+probes distinguish two Jim gaps: a conditional procedure can retain a closed
+registry foreach target while losing its structured source shape, and a
+separate top-level empty foreach withdraws the source world before the
+procedure preview. Generic object preparation changes the latter state from
+non-dynamic to opaque/dynamic. AuthoredJim's existing literal-pool contract
+permits text effects only; it supplies no C object conversion receipt.
+
+The proposed next change is a stock-Jim, registry-issued empty paired-list
+source phase after original argument/observer handling, with no binder/body,
+Native compiler or physical-object permission. It is not implemented or built.
+Native source/effect and available-observer controls have been captured on all
+six engines in the [permanent raw receipt](../rust/tcl-compiler/tests/data/w210-empty-loop-exact-source/reviewed-stage-snapshot/jim-empty-phase-native/README.md).
+The exact scripts and streams are in the two linked `evidence/tcl` records.
+Jim malformed-list behaviour and unavailable observer interfaces remain
+explicit. No #2441 closure or general conditional-body authority is claimed.
