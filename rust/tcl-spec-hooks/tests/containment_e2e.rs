@@ -231,7 +231,7 @@ fn an_erroring_hook_abstains_forever_but_is_logged_once() {
     // other inputs), and the log records it once.
     assert!(!host.is_quarantined(slot));
     assert_eq!(invocations.get(), 5);
-    assert!(host.crash_records().is_empty());
+    assert_eq!(host.crash_records(), [] as [tcl_spec_hooks::CrashRecord; 0]);
     let log = host.error_log();
     assert_eq!(log.len(), 1, "{log:?}");
     assert!(log[0].contains("bad index"), "{log:?}");
@@ -367,7 +367,7 @@ fn an_authored_vendor_profile_cannot_borrow_a_native_tcl_compiler() {
             .any(|error| error.contains("native compiler preflight provider required")),
         "{errors:?}"
     );
-    assert!(host.crash_records().is_empty());
+    assert_eq!(host.crash_records(), [] as [tcl_spec_hooks::CrashRecord; 0]);
 }
 
 /// The confinement leaves a body's own locals alone: a local accumulator
