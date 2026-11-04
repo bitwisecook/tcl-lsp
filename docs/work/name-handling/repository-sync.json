@@ -1,14 +1,21 @@
 {
-  "checked_at": "2026-11-04T07:35:57.582945+00:00",
+  "checked_at": "2026-11-04T07:40:57.617858+00:00",
   "branch": "work",
-  "head_before_status_commit": "8a3fc2b7ae62050028d1ac18ac4c6e1f9fec795a",
-  "remote_head_at_fetch": "8a3fc2b7ae62050028d1ac18ac4c6e1f9fec795a",
+  "head_before_status_commit": "0e4ec5aca7f0d87c47162903fa2d45ce174e5c2a",
+  "remote_head_at_fetch": "0e4ec5aca7f0d87c47162903fa2d45ce174e5c2a",
   "sync": "no new remote commits",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
   "manual_status": "current-state.md",
-  "manual_status_sha256": "f56389bf9551177a75eeb97601d695ae9a6688c9e1bc39d3e163019590b9b8c4",
-  "working_tree_at_check": [],
+  "manual_status_sha256": "83deeca337f7b1acb1f5b09db14760ebde9ce0faee1ddd7492a788bf654501ae",
+  "working_tree_at_check": [
+    " M .github/workflows/manual-lsp-diagnostics.yml",
+    " M docs/work/name-handling/README.md",
+    " M docs/work/name-handling/current-state.md",
+    " M docs/work/name-handling/lsp-release-pr-plan.md",
+    " M docs/work/name-handling/outstanding/README.md",
+    " M rust/tcl-spec-hooks/tests/containment_e2e.rs"
+  ],
   "ci_note": "This heartbeat does not poll or certify CI. Exact workflow sources and outcomes are recorded in the timestamped manual snapshot.",
   "scope": "Status heartbeat only; unadopted private patch archives are not added or uploaded."
 }
