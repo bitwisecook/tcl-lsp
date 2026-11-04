@@ -198,7 +198,7 @@ mod tests {
             assert!(publication.is_for_analysis(child));
             assert!(!publication.is_for_analysis(prefix));
             assert!(!publication.is_for_analysis(&child.clone()));
-            assert_eq!(publication.source_image().text(), child_source);
+            assert_eq!(publication.source_image().try_text().unwrap(), child_source);
             assert_eq!(
                 publication.publication().declaration_site(),
                 declaration.declaration_site()
