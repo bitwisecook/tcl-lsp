@@ -563,7 +563,7 @@ bash /var/tmp/appliance-rules.sh cleanup /var/tmp/r2286-fixtures \
 
 Every failed list must explicitly indicate absence, not permissions or a lost
 management connection. The rule cleanup driver compares the current exact rule
-config digest to its post-create ownership record and refuses a changed
+configuration bytes to its retained post-create configuration and refuses a changed
 object. Investigate a refusal instead of removing the check. Do not use a
 wildcard delete. Delete commands, their exit codes, and subsequent absence
 proofs belong in the evidence bundle. Journal cleanup can be rerun after a

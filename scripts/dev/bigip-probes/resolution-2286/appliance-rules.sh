@@ -30,11 +30,19 @@ exists() {
 }
 if [[ $mode == cleanup ]]; then
   [[ -f $journal/owned.tsv ]] || { echo 'missing ownership journal' >&2; exit 2; }
-  while IFS=$'\t' read -r object checksum; do
+  while IFS=$'\t' read -r object recorded_case; do
     [[ $object =~ ^/Common/__tcl_lsp_probe_2286_[A-Za-z0-9_]+$ ]] || exit 3
+    # Older journals stored a digest instead of a case name. Recover their
+    # case from the fixture mapping, then compare the retained config bytes.
+    case_name=$recorded_case
+    if [[ ! $case_name =~ ^[A-Za-z0-9_]+$ || ! -f $journal/created-$case_name.conf ]]; then
+      mapfile -t matching_cases < <(awk -F '\t' -v name="$object" '$2 == name {sub(/\.conf$/, "", $1); print $1}' "$fixtures/rules.tsv")
+      [[ ${#matching_cases[@]} == 1 && ${matching_cases[0]} =~ ^[A-Za-z0-9_]+$ ]] || { echo "Cannot identify original config for $object" >&2; exit 3; }
+      case_name=${matching_cases[0]}
+    fi
+    [[ -f $journal/created-$case_name.conf ]] || { echo "Missing original config for $object" >&2; exit 3; }
     if exists "$object" > "$journal/current.conf"; then
-      actual=$(sha256sum "$journal/current.conf"); actual=${actual%% *}
-      [[ $actual == "$checksum" ]] || { echo "Changed object: refuse deletion $object" >&2; exit 3; }
+      cmp -s -- "$journal/created-$case_name.conf" "$journal/current.conf" || { echo "Changed object: refuse deletion $object" >&2; exit 3; }
       tmsh delete ltm rule "$object" > "$journal/delete-${object##*/}.log" 2>&1
       if exists "$object" > /dev/null; then echo "Deletion failed $object" >&2; exit 3; fi
     fi
@@ -56,8 +64,7 @@ for case in "$@"; do
   set -e
   printf '%s\t%s\n' "$case" "$rc" >> "$journal/load-status.tsv"
   if exists "$object" > "$journal/created-$case.conf"; then
-    hash=$(sha256sum "$journal/created-$case.conf"); hash=${hash%% *}
-    printf '%s\t%s\n' "$object" "$hash" >> "$journal/owned.tsv"
+    printf '%s\t%s\n' "$object" "$case" >> "$journal/owned.tsv"
     echo "PRESENT $case load-status=$rc (inspect full load log for warnings)"
   else
     echo "ABSENT $case load-status=$rc (inspect full load log for rejection)"
