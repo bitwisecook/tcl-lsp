@@ -4266,6 +4266,17 @@ source geometry receives an explicitly unknown binding, with no targets,
 lookup-state, dispatch, compiler, effect or Normal inventory. All later lookup,
 link, selected-identity, source-word and physical edit/currency guards remain.
 
+A separate cut-body source-reference query uses the same captured declaration
+row and actual completed cut. It requires the exact complete unchanged vector,
+a missing ordinary point with no stronger retained binding, static unexpanded
+Native argv, quiet closed command state and unanimous canonical lookup of one
+direct source definition. The receipt borrows its exact body layout and retains
+its original consuming site; it does not stamp an ordinary lookup state,
+runtime targets, entered frame or completion onto the tokens. Equal text,
+foreign analysis, dynamic arguments and ambiguous allocations refuse. Core
+still checks the selected declaration, static arguments, destination and every
+body/physical edit independently before consuming this source-only reference.
+
 ### Authored result-completion source coverage
 
 An exact current AuthoredSimulation invocation can retain source coverage for

@@ -18,7 +18,7 @@
 //! Complete, finite coverage of one resolved source cut under its actual owners.
 
 use super::{
-    ByteCommandSlot, CommandLinkCoverage, Declaration, HashSet, NameBytes,
+    ByteCommandSlot, CommandLinkCoverage, Declaration, HashSet, NameBytes, OriginalCommandLookup,
     OriginalCommandRenameRefusal, OriginalConditionalCommandWorld, OriginalDeclarationDocument,
     OriginalDeclarationIdentity, SignatureSourceNameInput, SourceCommandReference, SourceImage,
     authored_result_completion_coverage, coverage_region, destination_matches_with_cut,
@@ -504,6 +504,44 @@ impl<'a> SourceCut<'a> {
 }
 
 impl<'a> SourceCut<'a> {
+    fn record_reference(
+        reference: Option<&SourceCommandReference>,
+        lookup: &OriginalCommandLookup,
+        input: &SignatureSourceNameInput,
+        context: &RequestContext<'_, 'a>,
+        output: &mut Output<'a>,
+    ) -> Result<(), OriginalCommandRenameRefusal> {
+        let offset = lookup.site().offset;
+        if let Some(reference) = reference {
+            if !reference.matches_original_invocation_site(lookup.site()) {
+                coverage_trace(offset, "cut.reference-site");
+                return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+            }
+            if context.declaration.reference_matches(reference, true) {
+                if !context.declaration.reference_matches(reference, false) {
+                    return Err(OriginalCommandRenameRefusal::UneditableLinks);
+                }
+                destination_matches_with_cut(
+                    context.documents,
+                    context.conditional,
+                    context.selected_cut,
+                    lookup,
+                    context.destination,
+                    context.tail,
+                )?;
+                let wanted = input
+                    .policy()
+                    .recipe()
+                    .replace_command_tail(input.bytes(), context.tail)
+                    .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
+                output
+                    .requests
+                    .push((input.clone(), NameBytes::from(wanted)));
+            }
+        }
+        Ok(())
+    }
+
     fn command_requests(
         &self,
         task: &Task<'a>,
@@ -538,34 +576,26 @@ impl<'a> SourceCut<'a> {
         {
             return Err(OriginalCommandRenameRefusal::StaleSource);
         }
-        let reference = binding.original_command_reference(&tokens);
-        if let Some(reference) = &reference {
-            if !reference.matches_original_invocation_site(lookup.site()) {
-                coverage_trace(offset, "cut.reference-site");
-                return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
-            }
-            if context.declaration.reference_matches(reference, true) {
-                if !context.declaration.reference_matches(reference, false) {
-                    return Err(OriginalCommandRenameRefusal::UneditableLinks);
-                }
-                destination_matches_with_cut(
-                    context.documents,
-                    context.conditional,
-                    context.selected_cut,
-                    &lookup,
-                    context.destination,
-                    context.tail,
-                )?;
-                let wanted = input
-                    .policy()
-                    .recipe()
-                    .replace_command_tail(input.bytes(), context.tail)
-                    .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
-                output
-                    .requests
-                    .push((input.clone(), NameBytes::from(wanted)));
-            }
+        let ordinary = binding.original_command_reference(&tokens);
+        let conditional = if ordinary.is_none() {
+            task.body_layout.as_ref().and_then(|layout| {
+                layout.source_command_reference(document.source, document.analysis, &tokens)
+            })
+        } else {
+            None
+        };
+        if conditional
+            .as_ref()
+            .is_some_and(|reference| !reference.is_for_analysis(document.analysis))
+        {
+            return Err(OriginalCommandRenameRefusal::StaleSource);
         }
+        let reference = ordinary.as_ref().or_else(|| {
+            conditional
+                .as_ref()
+                .map(|reference| reference.source_reference())
+        });
+        Self::record_reference(reference, &lookup, &input, context, output)?;
         let source_offset = self
             .survey
             .prefix_commands()
@@ -600,7 +630,7 @@ impl<'a> SourceCut<'a> {
                 words: &words,
                 tokens: &tokens,
                 input: &input,
-                reference: reference.as_ref(),
+                reference,
             },
             output,
         )
@@ -798,53 +828,6 @@ mod tests {
         peer: AnalysisResult,
     }
     const PEER: &str = "proc host_old {} {return VALUE}; host_old";
-    // WORK-only failure census of data already resident in the actual fixture owner.
-    fn observe_namespace_load_card(
-        value: Option<
-            tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad,
-        >,
-        analysis: &AnalysisResult,
-        offset: u32,
-    ) -> Option<tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad>
-    {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        static EVENTS: AtomicUsize = AtomicUsize::new(0);
-        const ROW_LIMIT: usize = 8;
-        if value.is_none()
-            && option_env!("TCL_LSP_TRACE_COARSE_SOURCE") == Some("1")
-            && EVENTS
-                .try_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
-                    (used < 4).then_some(used + 1)
-                })
-                .is_ok()
-        {
-            let input = analysis.resolved_input.as_ref().map(std::ptr::from_ref);
-            eprintln!(
-                "SOURCE_LOAD_CARD owner={:p} offset={offset} input_slot={input:?} config_present={} unavailable={} targets={} shown={}",
-                analysis,
-                analysis.body_lexer_config.is_some(),
-                analysis.analysis_context_unavailable.is_some(),
-                analysis.source_targets.len(),
-                analysis.source_targets.len().min(ROW_LIMIT),
-            );
-            for (ordinal, target) in analysis.source_targets.iter().take(ROW_LIMIT).enumerate() {
-                let project = target
-                    .original_project_source_load
-                    .as_ref()
-                    .map(std::sync::Arc::as_ptr);
-                eprintln!(
-                    "SOURCE_LOAD_CARD_ROW owner={:p} ordinal={ordinal} range={}/{} literal={} project_card={project:?} interpreter_card={}",
-                    analysis,
-                    target.range.start(),
-                    target.range.end(),
-                    target.is_literal,
-                    target.original_interpreter_source_load.is_some(),
-                );
-            }
-        }
-        value
-    }
-
     impl Fixture {
         fn new(source: &'static str, child_source: &'static str) -> Self {
             let prefix = Analyser::new().analyse(source, "tcl8.6");
@@ -879,53 +862,29 @@ mod tests {
             }
         }
 
-        fn logical_namespace(source: &'static str, child_source: &'static str) -> Self {
-            let profile = tcl_dialect::DialectProfile::plain_tcl();
-            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
-                profile,
-                profile,
-                tcl_registry::model::ingress::context_for_profile(profile),
-                tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
-            );
-            assert!(input.has_logical_source_name_context());
-            let prefix = Analyser::new()
-                .with_resolved_input(input.clone())
-                .analyse(source, profile.name);
-            let source_offset = u32::try_from(source.find("source child").unwrap()).unwrap();
-            let load = observe_namespace_load_card(
-                tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
-                    source, &prefix, source_offset,
-                ),
-                &prefix,
-                source_offset,
-            ).unwrap();
-            let point = load.source_point_entry(&prefix).unwrap();
-            let child = Analyser::new()
-                .with_resolved_input(input.clone())
-                .analyse_with_source_point_entry(child_source, profile.name, &point)
+        fn with_suffix_body_layout(
+            &self,
+            check: impl FnOnce(
+                &tcl_compiler::registry_invocation::OriginalSourceCutBodyLayout<'_>,
+                &tcl_compiler::ir::CommandTokens,
+            ),
+        ) {
+            let survey = self
+                .outcome
+                .single_source_cut_survey(&self.prefix, &[&self.child, &self.suffix])
                 .unwrap();
-            let regions = load
-                .conditional_continuation(&prefix, &child)
-                .unwrap()
-                .source_regions(&prefix, &child)
+            let declaration = tcl_compiler::registry_invocation::original_source_cut_procedure_declaration_for_coverage(
+                self.source, &self.suffix, &survey.suffix_commands()[0], &survey,
+            ).expect("actual issued suffix declaration");
+            let span = declaration.body().content_span();
+            let layout = declaration.into_body_layout(&survey).unwrap();
+            let walk = crate::refactor::FrameWalk::new(self.source, &self.suffix).unwrap();
+            let commands = walk.segment_nested(&self.source[span.as_range()], span.start());
+            let mut tokens = walk.tokens(self.source, &commands[0]);
+            layout
+                .stamp_original_tokens(self.source, &self.suffix, &mut tokens)
                 .unwrap();
-            let region = regions.regions()[0].clone();
-            let suffix = Analyser::new()
-                .with_resolved_input(input)
-                .analyse_source_region(&region, &prefix, &child)
-                .unwrap();
-            Self {
-                source,
-                child_source,
-                ordinary_child: Analyser::new().analyse(child_source, "tcl8.6"),
-                outcome: regions.normal_outcome().unwrap(),
-                region_count: regions.regions().len(),
-                region,
-                prefix,
-                child,
-                suffix,
-                peer: Analyser::new().analyse(PEER, "tcl8.6"),
-            }
+            check(&layout, &tokens);
         }
 
         fn documents(&self) -> Vec<OriginalDeclarationDocument<'_>> {
@@ -1436,6 +1395,58 @@ mod tests {
         }
     }
 
+    fn assert_logical_source_rename_issuer_unavailable(namespace_source: &str, child_source: &str) {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            tcl_registry::model::ingress::context_for_profile(profile),
+            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        );
+        assert!(input.has_logical_source_name_context());
+        for (source, has_point) in [
+            (namespace_source, false),
+            ("source child.tcl; proc run {} {return VALUE}", true),
+        ] {
+            let parent = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse(source, profile.name);
+            assert_eq!(parent.resolved_input.as_ref(), Some(&input));
+            let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
+            let load = tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(
+                source, &parent, offset,
+            ).expect("actual Logical project-source load card");
+            assert!(load.matches_source(&SourceImage::document(source), &input));
+            let point = load.source_point_entry(&parent);
+            if !has_point {
+                assert!(
+                    point.is_none(),
+                    "Logical namespace ingress has no original point"
+                );
+                continue;
+            }
+            let point = point.expect("actual whole-root Logical point");
+            let child = Analyser::new()
+                .with_resolved_input(input.clone())
+                .analyse_with_source_point_entry(child_source, profile.name, &point)
+                .expect("genuine Logical child under its actual point");
+            assert!(point.matches_parent_analysis(&parent));
+            assert!(point.matches_child_analysis(&child));
+            assert!(
+                child
+                    .resolved_input
+                    .as_ref()
+                    .unwrap()
+                    .has_logical_source_name_context()
+            );
+            assert!(child.original_completed_command_world().is_none());
+            assert!(
+                load.conditional_continuation(&parent, &child).is_none(),
+                "current Logical source issuer has no completed continuation"
+            );
+        }
+    }
+
     fn native_namespace_fixture(source: &'static str, child_source: &'static str) -> Fixture {
         let fixture = Fixture::new(source, child_source);
         let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
@@ -1473,36 +1484,30 @@ mod tests {
                 "proc helper {} {return VALUE}",
             ),
         ] {
-            let fixtures = if source.starts_with("namespace") {
-                vec![
-                    native_namespace_fixture(source, child_source),
-                    Fixture::logical_namespace(source, child_source),
-                ]
+            let fixture = if source.starts_with("namespace") {
+                assert_logical_source_rename_issuer_unavailable(source, child_source);
+                native_namespace_fixture(source, child_source)
             } else {
-                vec![Fixture::new(source, child_source)]
+                Fixture::new(source, child_source)
             };
-            for fixture in fixtures {
-                if source.starts_with("namespace") {
-                    assert!(fixture.region_count > 1);
-                }
-                let documents = fixture.documents();
-                let identity = fixture.identity();
-                let worlds = [OriginalConditionalCommandWorld {
-                    uri: "file:///main.tcl",
-                    outcome: &fixture.outcome,
-                }];
-                fixture.with_views(|views| {
-                    assert!(
-                        SourceCoverage::capture(&documents, &identity, &worlds, views).is_err()
-                    );
-                    assert!(
-                        original_command_rename_edits_with_source_views(
-                            &documents, &identity, "host_new", &worlds, views
-                        )
-                        .is_err()
-                    );
-                });
+            if source.starts_with("namespace") {
+                assert!(fixture.region_count > 1);
             }
+            let documents = fixture.documents();
+            let identity = fixture.identity();
+            let worlds = [OriginalConditionalCommandWorld {
+                uri: "file:///main.tcl",
+                outcome: &fixture.outcome,
+            }];
+            fixture.with_views(|views| {
+                assert!(SourceCoverage::capture(&documents, &identity, &worlds, views).is_err());
+                assert!(
+                    original_command_rename_edits_with_source_views(
+                        &documents, &identity, "host_new", &worlds, views
+                    )
+                    .is_err()
+                );
+            });
         }
     }
 
@@ -1587,6 +1592,88 @@ mod tests {
                 "reference-origin selection cannot retarget an inherited declaration"
             );
         });
+    }
+
+    #[test]
+    fn cut_body_reference_is_exact_and_leaves_ordinary_dispatch_unavailable() {
+        let fixture = Fixture::new(
+            "source child.tcl; proc run {} {helper}",
+            "proc helper {} {return VALUE}",
+        );
+        fixture.with_suffix_body_layout(|layout, tokens| {
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let before = binding.clone();
+            assert!(binding.original_command_reference(tokens).is_none());
+            let reference = layout
+                .source_command_reference(fixture.source, &fixture.suffix, tokens)
+                .expect("same captured row, complete static argv and actual child allocation");
+            assert!(reference.is_for_analysis(&fixture.suffix));
+            assert!(crate::original_declaration::reference_matches_declaration(
+                reference.source_reference(),
+                fixture
+                    .child
+                    .original_procedure_declarations()
+                    .next()
+                    .unwrap(),
+                false,
+            ));
+            assert_eq!(tokens.source_binding.as_ref(), Some(&before));
+            assert!(binding.original_command_reference(tokens).is_none());
+            assert!(fixture.child.original_completed_command_world().is_none());
+            let foreign = fixture.suffix.clone();
+            assert!(
+                layout
+                    .source_command_reference(fixture.source, &foreign, tokens)
+                    .is_none()
+            );
+            assert!(
+                layout
+                    .source_command_reference(
+                        &format!("{}\n", fixture.source),
+                        &fixture.suffix,
+                        tokens
+                    )
+                    .is_none()
+            );
+            let mut stronger = tokens.clone();
+            stronger
+                .source_binding
+                .as_mut()
+                .unwrap()
+                .may_use_live_dispatch = true;
+            assert!(
+                layout
+                    .source_command_reference(fixture.source, &fixture.suffix, &stronger)
+                    .is_none()
+            );
+        });
+        let foreign = Fixture::new(fixture.source, fixture.child_source);
+        fixture.with_suffix_body_layout(|layout, _| {
+            foreign.with_suffix_body_layout(|_, tokens| {
+                assert!(
+                    layout
+                        .source_command_reference(fixture.source, &fixture.suffix, tokens)
+                        .is_none()
+                );
+            });
+        });
+    }
+
+    #[test]
+    fn cut_body_reference_refuses_dynamic_arguments_under_a_real_layout() {
+        for body in ["helper $unknown", "helper {*}$args", "helper [set value X]"] {
+            let source =
+                Box::leak(format!("source child.tcl; proc run {{}} {{{body}}}").into_boxed_str());
+            let fixture = Fixture::new(source, "proc helper {} {return VALUE}");
+            fixture.with_suffix_body_layout(|layout, tokens| {
+                assert!(
+                    layout
+                        .source_command_reference(fixture.source, &fixture.suffix, tokens)
+                        .is_none(),
+                    "{body}"
+                );
+            });
+        }
     }
 
     #[test]
@@ -1715,7 +1802,7 @@ mod tests {
     #[test]
     fn inherited_header_refuses_genuine_physical_reference_divergence() {
         let fixture = Fixture::new(
-            "namespace eval ::ns {proc helper {} {return PREFIX}}; source child.tcl; proc run {} {return VALUE}",
+            "namespace eval ::ns {}; proc ::ns::helper {} {return PREFIX}; source child.tcl; proc run {} {return VALUE}",
             "proc helper {} {return CHILD}; proc caller {} {namespace eval ::ns {helper}}",
         );
         let documents = fixture.documents();
@@ -2025,25 +2112,6 @@ mod tests {
                 .is_err()
             );
         });
-        let logical = Fixture::logical_namespace(source, child_source);
-        let documents = logical.documents();
-        let identity = inherited_child_identity(&logical);
-        let worlds = [OriginalConditionalCommandWorld {
-            uri: "file:///main.tcl",
-            outcome: &logical.outcome,
-        }];
-        logical.with_views(|views| {
-            assert!(
-                OriginalInheritedDeclarationSelection::capture(
-                    &documents,
-                    &identity,
-                    "file:///child.tcl",
-                    5,
-                    &worlds,
-                    views,
-                )
-                .is_err()
-            );
-        });
+        assert_logical_source_rename_issuer_unavailable(source, child_source);
     }
 }

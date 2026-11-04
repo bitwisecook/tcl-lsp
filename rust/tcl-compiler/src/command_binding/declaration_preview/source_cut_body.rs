@@ -166,6 +166,83 @@ impl OriginalSourceCutBodyRows {
         })
     }
 
+    pub(crate) fn source_reference(
+        &self,
+        tokens: &CommandTokens,
+    ) -> Option<super::super::SourceCommandReference> {
+        if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
+            return None;
+        }
+        let offset = tokens.words().first()?.source().span.start();
+        let (words, template) = self.commands.get(&offset)?;
+        let binding = tokens.source_binding.as_ref()?;
+        let mut expected = template.clone();
+        expected
+            .original_argument_syntax
+            .clone_from(&binding.original_argument_syntax);
+        expected
+            .original_source_operand_attachment
+            .clone_from(&binding.original_source_operand_attachment);
+        if words.as_ref() != tokens.words() || binding != &expected {
+            return None;
+        }
+        let input = binding.original_head_name_input(tokens)?;
+        let crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(key) = &input
+        else {
+            return None;
+        };
+        let native = crate::registry_invocation::original_native_compiler_words(
+            key.source_image(),
+            tokens.words(),
+            offset,
+            key.lexer_config(),
+        )?;
+        let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            &native,
+            input.policy().string_protocol(),
+        )
+        .ok()?;
+        if native
+            .iter()
+            .enumerate()
+            .any(|(index, word)| word.group().expand || captured.literal(index).is_none())
+        {
+            return None;
+        }
+        let rows =
+            original_declaration_layouts(template.declaration_layout_observations.as_deref()?)?;
+        let mut agreed = None;
+        for row in rows {
+            let state = &row.snapshot.state;
+            if row.words.as_ref() != tokens.words()
+                || row.config != key.lexer_config()
+                || row.namespace != template.lookup_namespace_key
+                || state.has_opaque_domain()
+                || state.source_step_observed()
+                || state.source_execution_observed(None)
+                || !state.command_observers.is_quiet()
+                || state.unclosed_command_world
+                || !input.is_current(&state.source_variables)
+            {
+                return None;
+            }
+            let reference = state.original_reference_for_input(
+                &input,
+                &row.namespace,
+                template.dispatch_site.clone(),
+            )?;
+            if !reference.is_direct_definition()
+                || agreed
+                    .as_ref()
+                    .is_some_and(|previous| previous != &reference)
+            {
+                return None;
+            }
+            agreed = Some(reference);
+        }
+        agreed
+    }
+
     pub(crate) fn stamp(&self, tokens: &mut CommandTokens) -> Option<()> {
         if tokens.synthetic.is_some() || !tokens.original_words_match_argv_text() {
             return None;

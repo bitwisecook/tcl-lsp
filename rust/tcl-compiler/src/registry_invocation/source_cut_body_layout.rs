@@ -6,7 +6,9 @@
 
 use super::OriginalSourceCutProcedureDeclaration;
 use crate::analyser::AnalysisResult;
-use crate::command_binding::{OriginalSingleSourceCutSurvey, OriginalSourceCutBodyEntryProjection};
+use crate::command_binding::{
+    OriginalSingleSourceCutSurvey, OriginalSourceCutBodyEntryProjection, SourceCommandReference,
+};
 use crate::ir::CommandTokens;
 use std::sync::OnceLock;
 
@@ -45,6 +47,33 @@ impl<'a> OriginalSourceCutBodyLayout<'a> {
         analysis: &AnalysisResult,
         tokens: &mut CommandTokens,
     ) -> Option<()> {
+        self.current_rows(source, analysis)?.stamp(tokens)
+    }
+
+    /// A direct source reference from this exact conditional body row. The
+    /// complete literal argv has no substitution effects on its captured table.
+    /// Ordinary dispatch, entered frames and completion remain absent.
+    #[must_use]
+    pub fn source_command_reference<'b>(
+        &'b self,
+        source: &str,
+        analysis: &AnalysisResult,
+        tokens: &CommandTokens,
+    ) -> Option<OriginalSourceCutBodyReference<'b, 'a>> {
+        let reference = self
+            .current_rows(source, analysis)?
+            .source_reference(tokens)?;
+        Some(OriginalSourceCutBodyReference {
+            layout: self,
+            reference,
+        })
+    }
+
+    fn current_rows(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<&crate::command_binding::OriginalSourceCutBodyRows> {
         let declaration = &self.declaration;
         let input = analysis.resolved_input.as_ref()?;
         let realm = analysis.retained_command_realm()?;
@@ -70,7 +99,29 @@ impl<'a> OriginalSourceCutBodyLayout<'a> {
                     input,
                 )
             })
-            .as_ref()?
-            .stamp(tokens)
+            .as_ref()
+    }
+}
+
+/// A conditional source-only direct reference under the actual cut body owner.
+/// This does not supply an ordinary lookup state, invocation, Native dispatch,
+/// entered body, completion or permission to edit source.
+pub struct OriginalSourceCutBodyReference<'layout, 'analysis> {
+    layout: &'layout OriginalSourceCutBodyLayout<'analysis>,
+    reference: SourceCommandReference,
+}
+
+impl OriginalSourceCutBodyReference<'_, '_> {
+    /// Retain the exact declaration analysis; equal text is insufficient.
+    #[must_use]
+    pub fn is_for_analysis(&self, analysis: &AnalysisResult) -> bool {
+        self.layout.declaration.is_for_analysis(analysis)
+    }
+
+    /// Navigation-only allocation selected by the captured conditional row.
+    /// The enclosing cut and physical coverage guards remain independent.
+    #[must_use]
+    pub const fn source_reference(&self) -> &SourceCommandReference {
+        &self.reference
     }
 }

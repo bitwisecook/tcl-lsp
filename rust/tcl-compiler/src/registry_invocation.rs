@@ -1394,7 +1394,7 @@ pub fn original_authored_result_completion_for_source_coverage<'a>(
 }
 
 mod source_cut_body_layout;
-pub use source_cut_body_layout::OriginalSourceCutBodyLayout;
+pub use source_cut_body_layout::{OriginalSourceCutBodyLayout, OriginalSourceCutBodyReference};
 
 /// Deferred declaration geometry under one exact completed source cut.
 /// The original child or suffix owns its Registry source schema; this grants

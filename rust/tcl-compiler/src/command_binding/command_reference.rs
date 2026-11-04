@@ -270,30 +270,11 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        let mut occupied = Vec::new();
-        for key in state.original_command_keys_for_input(&self.lookup_namespace_key, &input)? {
-            let bindings = state.original_bindings_for_key(&key)?;
-            if bindings == std::collections::BTreeSet::from([MayBinding::Missing]) {
-                continue;
-            }
-            occupied.push((key, bindings));
-        }
-        let [(key, bindings)] = occupied.as_slice() else {
-            return None;
-        };
-        let linked = state
-            .original_targets_for_input(
-                &input,
-                &self.lookup_namespace_key,
-                super::CommandTargetLookup::NamedSlots,
-            )
-            .and_then(|selection| {
-                if selection.unknown || selection.may_be_absent || selection.targets.len() != 1 {
-                    return None;
-                }
-                state.source_definition_for_implementation(selection.targets.first()?)
-            });
-        state.reference_for_command_key(key, bindings, self.invocation_site().cloned(), linked)
+        state.original_reference_for_input(
+            &input,
+            &self.lookup_namespace_key,
+            self.invocation_site().cloned(),
+        )
     }
 
     /// Require the caller's genuine complete vector before selecting the same
@@ -309,6 +290,34 @@ impl SourceInvocationBinding {
 }
 
 impl ModuleCommandBindings {
+    pub(super) fn original_reference_for_input(
+        &self,
+        input: &crate::signature_scan::scope::SignatureSourceNameInput,
+        namespace: &super::SourceNamespaceKey,
+        site: Option<super::CommandAllocationSite>,
+    ) -> Option<SourceCommandReference> {
+        let mut occupied = Vec::new();
+        for key in self.original_command_keys_for_input(namespace, input)? {
+            let bindings = self.original_bindings_for_key(&key)?;
+            if bindings == std::collections::BTreeSet::from([MayBinding::Missing]) {
+                continue;
+            }
+            occupied.push((key, bindings));
+        }
+        let [(key, bindings)] = occupied.as_slice() else {
+            return None;
+        };
+        let linked = self
+            .original_targets_for_input(input, namespace, super::CommandTargetLookup::NamedSlots)
+            .and_then(|selection| {
+                if selection.unknown || selection.may_be_absent || selection.targets.len() != 1 {
+                    return None;
+                }
+                self.source_definition_for_implementation(selection.targets.first()?)
+            });
+        self.reference_for_command_key(key, bindings, site, linked)
+    }
+
     pub(super) fn reference_for_command_key(
         &self,
         slot: &super::SourceCommandKey,
