@@ -20,10 +20,10 @@ Updated 4 November 2026. Branch: `work`. Test execution remains pending where no
 | #2366 | Pending audit | Compare document stubs passed to `tcl opt` with `tcl diag` and the LSP compilation-unit inputs. |
 | #2372 | Pending audit | Compare the W210 KCS claim about `info vars` / `catch {set _ $X}` with analyser behavior and the SCCP contract. |
 | #2422 | Pending audit | Measure and inspect role assignment in `CommandRegistry::callback_script_indices` / `script_timing` for large literal commands. |
-| #2446 | Pending docs correction | `kcs-qa-tcl-lsp-annotations.md` says stub arity is checked; verify and align it with `kcs-howto-annotate-commands-with-stubs.md`. |
-| #2447 | Pending docs correction | `kcs-howto-suppress-diagnostics.md` reload guidance conflicts with project-config watching. |
-| #2448 | Pending docs correction | `kcs-qa-how-tcl-lsp-loads-configuration.md` refers to a nonexistent local-only ignore list. |
-| #2449 | Pending docs correction | `kcs-howto-write-a-tclspec-pack.md` describes vocabulary 2.0 as current; loader currently reports 2.2 as newest. |
+| #2446 | Documentation corrected | `kcs-qa-tcl-lsp-annotations.md` now states that stub roles guide analysis but stub arity is not checked; this matches `kcs-howto-annotate-commands-with-stubs.md` and `flush_arity_diagnostics` in `rust/tcl-compiler/src/analyser/diagnostics/validity.rs`. |
+| #2447 | Documentation corrected | `kcs-howto-suppress-diagnostics.md` now says project `.tcl-lsp.ini` is watched and global config changes require a restart, matching `register_file_watchers` and `did_change_watched_files` in `rust/tcl-lsp-server/src/lib.rs`. |
+| #2448 | Documentation corrected | Removed the nonexistent project "local-only ignore list" workaround from `kcs-qa-how-tcl-lsp-loads-configuration.md`; it now explains project precedence and advises coordinating with the team. |
+| #2449 | Documentation corrected | `kcs-howto-write-a-tclspec-pack.md` no longer calls vocabulary 2.0 current; the loader's `NEWEST_VOCABULARY_VERSION` is 2.2, while the separate upgrade-to-2.0 wording remains. |
 
 ## Verification
 

@@ -73,10 +73,11 @@ The same syntax works in a workspace-wide `<dialect>.tcl.stubs` file, with
 the `# tcl-lsp:` prefix optional.
 
 Argument roles are `body` (a Tcl script), `expr`, `var`, `var_read`,
-`name`, `pattern`, `channel`, and the default `value`. Roles and arity give
-the analyser a shape for the call: the argument count is checked, and each
-word is read as the kind of thing its role names rather than as an opaque
-string.
+`name`, `pattern`, `channel`, and the default `value`. Roles give the
+analyser a shape for the call: each word is read as the kind of thing its
+role names rather than as an opaque string. A stub does not make the
+analyser check the call's argument count; Tcl reports a wrong-argument
+error when the call runs.
 
 Seven flags are accepted — `-barrier`, `-loop`, `-pure`, `-mutator`,
 `-unsafe`, `-scope_alias`, and `-extension`. Each states a fact about the
@@ -104,8 +105,9 @@ proc dump {} {
 
 Without the block, `sqlite_eval` draws
 [W123](codes/kcs-diagnostic-w123-unresolved-command.md) — "Unknown command".
-With it, the call is recognised, its argument count is checked, and the
-trailing word is read as a script.
+With it, the call is recognised and the trailing word is read as a script.
+The stub does not check the call's argument count; Tcl checks that when the
+call runs.
 
 Full syntax and more examples live in
 [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md).
