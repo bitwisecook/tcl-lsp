@@ -1334,7 +1334,7 @@ mod tests {
                 "proc f {{condition raw}} {{if {{$condition}} {{set x {left}}} else {{set x {right}}}; set view $x}}"
             );
             inspect_read(&source, "tcl8.6", |read, registry| {
-                assert!(!read.context_alternatives().is_empty());
+                assert_ne!(read.context_alternatives(), []);
                 for context in read.context_alternatives() {
                     let place = read.place_in_context(context, registry);
                     assert_eq!(
@@ -1493,7 +1493,7 @@ mod tests {
     fn integer_contents_join_closes_conversion_without_an_intrep_or_value() {
         let source = "proc f {flag x} {if {$flag} {set x 0; llength $x} else {incr x}; puts $x}";
         inspect_read(source, "tcl8.6", |read, registry| {
-            assert!(!read.context_alternatives().is_empty());
+            assert_ne!(read.context_alternatives(), []);
             for context in read.context_alternatives() {
                 let place = read.place_in_context(context, registry);
                 assert!(
@@ -1545,7 +1545,7 @@ mod tests {
             ("tcl9.1", tcl_syntax::value::ValueRepresentation::Unknown),
         ] {
             inspect_read("set x 0; llength $x; puts $x", profile, |read, registry| {
-                assert!(!read.context_alternatives().is_empty());
+                assert_ne!(read.context_alternatives(), []);
                 for context in read.context_alternatives() {
                     let place = read.place_in_context(context, registry);
                     assert_eq!(
@@ -1574,7 +1574,7 @@ mod tests {
                 "proc f {x} {set ordinary [list $x]; set x [llength $ordinary]; incr x; llength $x; puts $x}",
                 profile,
                 |read, registry| {
-                    assert!(!read.context_alternatives().is_empty());
+                    assert_ne!(read.context_alternatives(), []);
                     let preserves = matches!(profile, "tcl9.0" | "tcl9.1");
                     for context in read.context_alternatives() {
                         let place = read.place_in_context(context, registry);
@@ -1735,7 +1735,7 @@ mod tests {
                 "set x 0; expr {$x < 3}; puts $x",
                 profile,
                 |read, registry| {
-                    assert!(!read.context_alternatives().is_empty());
+                    assert_ne!(read.context_alternatives(), []);
                     for context in read.context_alternatives() {
                         let place = read.place_in_context(context, registry);
                         assert!(

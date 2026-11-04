@@ -404,8 +404,14 @@ mod tests {
         assert_eq!(findings(&analyser.result, DiagCode::W101).len(), 1);
         assert_eq!(findings(&analyser.result, DiagCode::W309).len(), 1);
         let unavailable = analyse(source, &self::input(older));
-        assert!(findings(&unavailable.result, DiagCode::W101).is_empty());
-        assert!(findings(&unavailable.result, DiagCode::W309).is_empty());
+        assert_eq!(
+            findings(&unavailable.result, DiagCode::W101),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
+        assert_eq!(
+            findings(&unavailable.result, DiagCode::W309),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let command = crate::segmenter::segment_commands_with_offset_and_config(
             source,
             0,

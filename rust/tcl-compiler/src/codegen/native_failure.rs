@@ -371,7 +371,7 @@ mod tests {
         let error = function.native_compilation_failure.as_ref().unwrap();
         assert_eq!(error.message, "unknown math function \"future_function\"");
         assert_eq!(error.error_code.as_deref(), Some("NONE"));
-        assert!(function.instructions.is_empty());
+        assert_eq!(function.instructions, [] as [tcl_bytecode::Instruction; 0]);
         let required = function.native_math_table_prerequisite.as_ref().unwrap();
         assert_eq!(required.interpreter, entry.interpreter);
         assert_eq!(&required.table, table);
@@ -409,7 +409,7 @@ mod tests {
             "wrong # args: should be \"catch command ?varName?\""
         );
         assert_eq!(error.error_code, None);
-        assert!(function.instructions.is_empty());
+        assert_eq!(function.instructions, [] as [tcl_bytecode::Instruction; 0]);
         compiler_registration(&function, "incr");
         compiler_registration(&function, "catch");
         assert!(
@@ -455,7 +455,7 @@ mod tests {
         let required = function.native_math_table_prerequisite.as_ref().unwrap();
         assert_eq!(required.interpreter, entry.interpreter);
         assert_eq!(Some(&required.table), entry.math_functions.as_ref());
-        assert!(function.instructions.is_empty());
+        assert_eq!(function.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert!(function.validate_native_compilation_entry().is_ok());
     }
 
@@ -475,7 +475,7 @@ mod tests {
             .expect("original source namespace")
             .top_level;
         assert!(function.native_compilation_failure.is_none());
-        assert!(function.instructions.is_empty());
+        assert_eq!(function.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert_eq!(
             function.native_compilation_preflight,
             tcl_runtime_api::NativeCompilationPreflight::UnpresentedDefiniteFailure

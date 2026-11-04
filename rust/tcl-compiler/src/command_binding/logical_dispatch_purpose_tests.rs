@@ -65,10 +65,16 @@ fn assert_deferred_logical_bindings_have_no_execution(
     );
     assert!(original.proved_target().is_none());
     assert!(original.unknown);
-    assert!(original.targets.is_empty());
+    assert_eq!(
+        original.targets,
+        [] as [crate::command_binding::SourceCommandTarget; 0]
+    );
     assert!(binding.proved_target().is_none());
     assert!(binding.unknown);
-    assert!(binding.targets.is_empty());
+    assert_eq!(
+        binding.targets,
+        [] as [crate::command_binding::SourceCommandTarget; 0]
+    );
     assert!(binding.lookup_state.is_none());
     assert!(binding.logical_source_name_advice_input().is_none());
     assert_ne!(

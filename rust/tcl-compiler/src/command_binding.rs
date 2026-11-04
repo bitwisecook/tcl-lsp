@@ -23373,7 +23373,10 @@ mod tests {
             .expect("actual installed procedure");
         assert_eq!(procedure_target.command, "::first");
         assert!(!procedure_target.registry_backed);
-        assert!(procedure_target.prepended.is_empty());
+        assert_eq!(
+            procedure_target.prepended,
+            [] as [crate::registry_invocation::EffectiveInvocationWord; 0]
+        );
         let allocation = procedure_target
             .implementation_allocation
             .as_ref()
@@ -26088,15 +26091,15 @@ mod original_logical_source_layout_tests {
         assert!(advice.closed_logical_source_lookup());
         assert!(!advice.closed_lookup());
         assert_eq!(advice.targets(), binding.targets.as_slice());
-        assert!(
+        assert_eq!(
             crate::word_subst::checked_original_lifted_calls_with_metadata_context(
                 &literal,
                 input.lexer_config(),
                 registry,
                 metadata,
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::word_subst::LiftedCall; 0]
         );
         let expression = original("expr {[dict size DATA]}", &input);
         let calls = crate::word_subst::checked_original_lifted_calls_with_metadata_context(

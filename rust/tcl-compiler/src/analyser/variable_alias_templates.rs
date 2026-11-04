@@ -363,7 +363,7 @@ mod tests {
                 .find(|template| template.span().start() == read)
                 .unwrap_or_else(|| panic!("genuine Logical source alias: {source}: {templates:?}"));
             assert_eq!(template.local_name().as_bytes(), b"local");
-            assert!(!template.obligations().is_empty());
+            assert_ne!(template.obligations(), []);
             assert!(
                 templates
                     .iter()
@@ -399,7 +399,10 @@ mod tests {
         let analysis = Analyser::new().analyse(source, "tcl");
         let image = SourceImage::document(source);
         let config = analysis.body_lexer_config.unwrap();
-        assert!(analysis.original_variable_alias_receipts.is_empty());
+        assert_eq!(
+            analysis.original_variable_alias_receipts,
+            [] as [crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt; 0]
+        );
         let templates = analysis
             .original_variable_alias_templates_in_source(&image, config)
             .unwrap();
@@ -432,11 +435,11 @@ mod tests {
         missing_source
             .original_variable_alias_source_operands
             .clear();
-        assert!(
+        assert_eq!(
             missing_source
                 .original_variable_alias_templates_in_source(&image, config)
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [crate::signature_scan::variable_symbol::OriginalVariableAliasTemplate; 0]
         );
         assert_source_guards(source, &analysis, config, &image);
     }
@@ -463,7 +466,10 @@ mod tests {
                     .all(|template| template.span().start() != read),
                 "{body}"
             );
-            assert!(analysis.original_variable_alias_receipts.is_empty());
+            assert_eq!(
+                analysis.original_variable_alias_receipts,
+                [] as [crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt; 0]
+            );
         }
     }
 

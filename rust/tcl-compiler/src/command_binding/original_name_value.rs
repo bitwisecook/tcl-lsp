@@ -3132,7 +3132,7 @@ mod graph_tests {
                 .original_written_name_input(&original, 1)
                 .expect("current exact stored byte read");
             assert!(input.original_word_key().is_none());
-            assert!(!input.bytes().is_empty());
+            assert_ne!(input.bytes(), []);
             let held = input.produced_value().unwrap();
             assert!(held.is_current(&binding.variable_context));
             let mut changed = binding.clone();

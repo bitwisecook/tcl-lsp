@@ -3673,7 +3673,10 @@ mod tests {
             let declared = binding
                 .original_logical_declaration_call_targets(&tokens, input, context.commands())
                 .expect("complete Logical source declaration");
-            assert!(!declared.is_empty());
+            assert_ne!(
+                declared,
+                [] as [crate::command_binding::SourceCommandTarget; 0]
+            );
             assert!(declared.iter().all(|target| !target.registry_backed
                 && target.kind == super::super::BindingKind::Proc
                 && target.implementation_allocation.is_none()));
@@ -3747,7 +3750,10 @@ mod tests {
         let binding = tokens.source_binding.as_ref().unwrap();
         assert!(binding.lookup_state.is_none());
         assert!(binding.unknown);
-        assert!(binding.targets.is_empty());
+        assert_eq!(
+            binding.targets,
+            [] as [crate::command_binding::SourceCommandTarget; 0]
+        );
         let declared = binding
             .original_logical_declaration_call_targets(&tokens, input, context.commands())
             .unwrap();
@@ -3763,10 +3769,10 @@ mod tests {
                 .original_source_procedure_argument_roles(&tokens, input, context.commands())
                 .is_some()
         );
-        assert!(
+        assert_eq!(
             crate::word_subst::checked_argument_lifted_calls(&tokens, input.lexer_config(),)
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [crate::word_subst::LiftedCall; 0]
         );
         assert!(binding.declaration_call_layout_advice(&tokens).is_none());
         assert!(binding.proved_execution_target().is_none());

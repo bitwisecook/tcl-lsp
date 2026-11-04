@@ -491,10 +491,10 @@ mod tests {
         let (unit, registry, profile) = original(source);
         let raw = super::super::optimise_unit_raw_report(&unit, &registry, Some(profile));
         assert!(raw.owner.is_some());
-        assert!(!raw.members().is_empty());
+        assert_ne!(raw.members(), []);
         let finalised =
             super::super::finalise_original_optimiser_report(&raw, &unit, &registry, Some(profile));
-        assert!(!finalised.is_empty());
+        assert_ne!(finalised.len(), 0);
         assert!(
             finalised
                 .iter()
@@ -591,7 +591,7 @@ mod tests {
         }
         complete.append_top_level(&top_report);
         let finalised = complete.finish_report();
-        assert!(!finalised.is_empty());
+        assert_ne!(finalised.len(), 0);
         assert!(
             finalised
                 .iter()
@@ -617,7 +617,7 @@ mod tests {
             omitted.append_body(capsule, report);
         }
         let incomplete = omitted.finish_report();
-        assert!(!incomplete.is_empty());
+        assert_ne!(incomplete.len(), 0);
         assert!(
             incomplete
                 .iter()
@@ -738,7 +738,7 @@ mod tests {
                 assembly.finish_report()
             };
             let fresh = finish(&fresh_body);
-            assert!(!fresh.is_empty());
+            assert_ne!(fresh.len(), 0);
             assert!(
                 fresh
                     .iter()

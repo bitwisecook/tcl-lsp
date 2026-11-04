@@ -163,7 +163,7 @@ fn propagation_and_constant_folding_core() {
     // Non-static RHS ([clock seconds]) is not a constant ⇒ no rewrite at all.
     let dyn_src = "set a [clock seconds]\nset b [expr {$a + 2}]";
     assert_eq!(optimised(dyn_src, TCL), dyn_src);
-    assert!(opt_codes(dyn_src, TCL).is_empty());
+    assert_eq!(opt_codes(dyn_src, TCL), [] as [std::string::String; 0]);
 
     // tclsh: reassignment a=5 ⇒ b == 7.
     // A single pass is less aggressive when an intervening reassignment
@@ -275,7 +275,7 @@ fn loop_constants_and_post_loop_folding() {
     let loop_src =
         "set total 0\nfor {set i 0} {$i < 5} {incr i} {\n    set total [expr {$total + $i}]\n}\n";
     assert_eq!(optimised(loop_src, TCL), loop_src);
-    assert!(opt_codes(loop_src, TCL).is_empty());
+    assert_eq!(opt_codes(loop_src, TCL), [] as [std::string::String; 0]);
 
     // After a statically-bounded loop, $total > 5 is known true ⇒ `if {1}` (O101).
     let post = "set total 0\nfor {set i 0} {$i < 5} {incr i} {\n    set total [expr {$total + $i}]\n}\nif {$total > 5} {\n    puts ok\n}\n";
@@ -874,7 +874,7 @@ fn constant_propagation_into_commands_o100() {
     // Braced whole-name array ref ${a(1)} is a load, never a literal ⇒ untouched.
     let arr = "set x ${a(1)}\nputs $x";
     assert_eq!(optimised(arr, TCL), arr);
-    assert!(opt_codes(arr, TCL).is_empty());
+    assert_eq!(opt_codes(arr, TCL), [] as [std::string::String; 0]);
 }
 
 #[test]

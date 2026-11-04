@@ -825,7 +825,7 @@ mod tests {
         let proof = inventory
             .source_expression_gaps(source, &analysis, &segment, 0, "$n<=1")
             .unwrap();
-        assert!(!proof.removed_gaps().is_empty());
+        assert_ne!(proof.removed_gaps(), []);
         assert_eq!(proof.original_operand(), &operands[0].1);
         assert_eq!(
             inventory
@@ -944,7 +944,7 @@ mod tests {
                     "fact [expr {$n - 1}]"
                 );
             } else {
-                assert!(bodies.is_empty());
+                assert_eq!(bodies, [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]);
             }
             assert!(
                 inventory
@@ -958,11 +958,11 @@ mod tests {
             );
             assert!(inventory.tokens(source, &analysis, &segment).is_none());
             assert!(inventory.words(source, &analysis, &segment).is_none());
-            assert!(
-                !inventory
+            assert_ne!(
+                inventory
                     .expression_operands(source, &analysis, &segment)
-                    .unwrap()
-                    .is_empty()
+                    .unwrap(),
+                [] as [(usize, tcl_lexer::NativeWord); 0]
             );
             assert!(
                 inventory

@@ -2162,12 +2162,12 @@ mod tests {
         }
         // The effective template is a captured prefix. No invocation operand
         // can borrow its location from the alias declaration or a later value.
-        assert!(
+        assert_eq!(
             dsl_diags(
                 "interp alias {} encode {} binary format cu\nencode 5\n",
                 "tcl8.4",
-            )
-            .is_empty()
+            ),
+            [] as [(std::string::String, std::string::String); 0]
         );
     }
 

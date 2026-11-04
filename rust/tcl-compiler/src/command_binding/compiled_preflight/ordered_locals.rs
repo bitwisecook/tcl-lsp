@@ -459,7 +459,10 @@ mod original_native_request_tests {
             .positioned_for_module(module, module.resolved_registry())
             .unwrap();
         let visits: Vec<_> = bindings.compiler_invocations.values().flatten().collect();
-        assert!(!visits.is_empty());
+        assert_ne!(
+            visits,
+            [] as [&crate::command_binding::compiler_inventory::SourceCompilerInvocation; 0]
+        );
         assert!(visits.iter().all(|visit| {
             visit
                 .table
@@ -569,7 +572,7 @@ mod original_native_request_tests {
             );
         }
         let (_, body) = fixture.body();
-        assert!(body.params_raw.is_empty());
+        assert_eq!(body.params_raw, "");
         let before = fingerprint(&locals);
         fixture.drop_owner();
         assert_eq!(

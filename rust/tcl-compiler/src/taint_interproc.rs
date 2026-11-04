@@ -2251,9 +2251,9 @@ mod tests {
             command_subst_callees_with_config("return [foo; café]", "::ns::caller", &known, config),
             ["::café", "::foo"],
         );
-        assert!(
-            command_subst_callees_with_config("return []", "::ns::caller", &known, config)
-                .is_empty()
+        assert_eq!(
+            command_subst_callees_with_config("return []", "::ns::caller", &known, config),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -2262,23 +2262,23 @@ mod tests {
         let known = HashSet::from(["::foo".to_owned(), "::unused".to_owned()]);
         let config =
             tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
-        assert!(
+        assert_eq!(
             command_subst_callees_with_config(
                 "while {$value} {incr value}",
                 "::caller",
                 &known,
                 config,
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
-        assert!(
+        assert_eq!(
             command_subst_callees_with_config(
                 "puts {[foo]}; return {[unused]}",
                 "::caller",
                 &known,
                 config,
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -3015,11 +3015,13 @@ mod consumed_source_dependency_tests {
                             | crate::ir::Statement::NativeCall { .. }
                     ))
             );
-            assert!(
-                super::resolved_callees(&unit, Some(body), &known, context.commands()).is_empty()
+            assert_eq!(
+                super::resolved_callees(&unit, Some(body), &known, context.commands()),
+                [] as [tcl_runtime_api::ProcedureId; 0]
             );
-            assert!(
-                super::command_subst_callees(&unit, body, &known, context.commands()).is_empty()
+            assert_eq!(
+                super::command_subst_callees(&unit, body, &known, context.commands()),
+                [] as [tcl_runtime_api::ProcedureId; 0]
             );
         }
     }

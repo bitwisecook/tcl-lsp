@@ -1003,11 +1003,13 @@ fn self_class_abstains_on_a_class_object_method() {
     //   oo::class create ::U { self method cm {} { self class } }
     //   ::U cm   ->  method not defined by a class
     // Folding it to `::U` would invent a value the interpreter never produces.
-    assert!(
-        o129("oo::class create ::U {\n    classmethod cm {} { puts [self class] }\n}\n").is_empty(),
+    assert_eq!(
+        o129("oo::class create ::U {\n    classmethod cm {} { puts [self class] }\n}\n"),
+        [] as [std::string::String; 0],
     );
-    assert!(
-        o129("oo::class create ::U {\n    self method cm {} { puts [self class] }\n}\n").is_empty(),
+    assert_eq!(
+        o129("oo::class create ::U {\n    self method cm {} { puts [self class] }\n}\n"),
+        [] as [std::string::String; 0],
     );
 }
 
@@ -1018,17 +1020,17 @@ fn self_class_abstains_when_the_class_command_is_renamed() {
     //   set r [::R new] ; rename ::R ::R2 ; $r r   ->  ::R2
     // so a module that renames the class anywhere must not fold to ::R. Same
     // rename-captures-identity rule `indirection.rs` applies.
-    assert!(
-        o129("oo::class create ::R {\n    method r {} { puts [self class] }\n}\nrename ::R ::R2\n")
-            .is_empty(),
+    assert_eq!(
+        o129("oo::class create ::R {\n    method r {} { puts [self class] }\n}\nrename ::R ::R2\n"),
+        [] as [std::string::String; 0],
     );
     // The rename buried inside a proc body counts too: the whole-module query
     // is flow-insensitive because the call order is not statically known.
-    assert!(
+    assert_eq!(
         o129(
             "oo::class create ::R {\n    method r {} { puts [self class] }\n}\nproc ::later {} { rename ::R ::R2 }\n"
-        )
-        .is_empty(),
+        ),
+        [] as [std::string::String; 0],
     );
 }
 
@@ -1036,11 +1038,11 @@ fn self_class_abstains_when_the_class_command_is_renamed() {
 fn self_class_abstains_when_self_itself_is_rebound() {
     // TN. The generic builtin-fold trust gate: a module that redefines `self`
     // no longer has `self`'s builtin semantics to fold with.
-    assert!(
+    assert_eq!(
         o129(
             "proc self {args} { return spoofed }\noo::class create ::A {\n    method m {} { puts [self class] }\n}\n"
-        )
-        .is_empty(),
+        ),
+        [] as [std::string::String; 0],
     );
 }
 
@@ -1080,16 +1082,20 @@ fn self_class_outside_a_method_body_never_folds() {
     // in a plain proc it is not even a command
     // (`invalid command name "self"`), so there is no frame to answer from and
     // the fold must never reach these bodies.
-    assert!(o129("puts [self class]\n").is_empty());
-    assert!(o129("proc ::p {} { puts [self class] }\n").is_empty());
+    assert_eq!(o129("puts [self class]\n"), [] as [std::string::String; 0]);
+    assert_eq!(
+        o129("proc ::p {} { puts [self class] }\n"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]
 fn a_dynamic_class_name_leaves_self_class_alone() {
     // TN. The lowering already declines a class word it cannot resolve
     // statically, so no frame exists and nothing is claimed.
-    assert!(
-        o129("set nm ::F\noo::class create $nm { method m {} { puts [self class] } }\n").is_empty(),
+    assert_eq!(
+        o129("set nm ::F\noo::class create $nm { method m {} { puts [self class] } }\n"),
+        [] as [std::string::String; 0],
     );
 }
 
@@ -1100,7 +1106,7 @@ fn runtime_selected_my_abstains_from_the_entire_method_body() {
     // propagation. Exact core/helper spellings around that dispatch do not
     // weaken the runtime-selected dependency.
     let src = "oo::class create ::A {\n    variable ivar\n    method m {} {\n        ::set ivar 1\n        my other\n        ::puts $ivar\n        ::puts [::oo::Helpers::self class]\n    }\n    method other {} { ::set ivar 2 }\n}\n";
-    assert!(o129(src).is_empty());
+    assert_eq!(o129(src), [] as [std::string::String; 0]);
     // No `$ivar` was propagated to a literal `1` anywhere.
     assert!(
         !opts(src).iter().any(|o| o.replacement == "1"),

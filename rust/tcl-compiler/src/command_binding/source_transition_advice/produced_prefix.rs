@@ -751,7 +751,7 @@ mod tests {
             Some(crate::registry_invocation::InvocationWordOrigin::Written(1))
         );
         assert_eq!(prefix.original_argument(2).unwrap().bytes(), b"localName");
-        assert!(!prefix.producer().lineage().is_empty());
+        assert_ne!(prefix.producer().lineage(), []);
         for source in [
             "proc list args {}; set cb [list upvar #0 originalName localName]",
             "proc upvar args {}; set cb [list upvar #0 originalName localName]",
@@ -932,7 +932,7 @@ mod tests {
             panic!("missing producer");
         };
         assert_eq!(prefix.parent().logical_source_input(), Some(&input));
-        assert!(!prefix.lineage().is_empty());
+        assert_ne!(prefix.lineage(), []);
         assert!(
             words.operands()[0].is_none(),
             "captured lambda cannot borrow the later list source anchor"

@@ -2296,7 +2296,10 @@ mod tests {
         assert_eq!(tcl8.package_version("p"), None);
         let rejected = package(&mut tcl8, &["ifneeded", "p", "1.2+platform", ""]);
         assert_eq!(rejected.code, Code::Error);
-        assert!(tcl8.package_ifneeded_versions("p").is_empty());
+        assert_eq!(
+            tcl8.package_ifneeded_versions("p"),
+            [] as [std::string::String; 0]
+        );
 
         let mut tcl9 = vm();
         tcl9.set_runtime_version(TclVersion::V9_0);
@@ -2496,7 +2499,10 @@ mod tests {
             vm.forget_package_completely(b"outer");
             vm.record_package_source_file(b"after-forget.tcl").unwrap();
             vm.end_package_loading(b"outer", b"1");
-            assert!(vm.take_package_file_scope().is_empty());
+            assert_eq!(
+                vm.take_package_file_scope(),
+                [] as [tcl_core_types::NameBytes; 0]
+            );
             assert_eq!(
                 vm.package_file_object(b"outer").string_bytes().as_ref(),
                 b"after-forget.tcl"

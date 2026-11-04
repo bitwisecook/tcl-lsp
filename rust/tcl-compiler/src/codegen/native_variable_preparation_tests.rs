@@ -139,7 +139,7 @@ fn original_variable_read_uses_selected_plan_and_withdraws_missing_compiler_rece
         let mut no_entry = CodegenCtx::new(true, &["x"], &registry);
         no_entry.invocation_dialect = context.invocation_dialect;
         assert!(!no_entry.emit_native_original_preparation_invocation(Some(&tokens)));
-        assert!(no_entry.instructions.is_empty());
+        assert_eq!(no_entry.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert!(no_entry.literals.is_empty());
 
         for hook in [
@@ -171,7 +171,10 @@ fn original_variable_read_uses_selected_plan_and_withdraws_missing_compiler_rece
                 !changed_context.emit_native_original_preparation_invocation(Some(&tokens)),
                 "{name}/{hook:?}"
             );
-            assert!(changed_context.instructions.is_empty());
+            assert_eq!(
+                changed_context.instructions,
+                [] as [tcl_bytecode::Instruction; 0]
+            );
             assert!(changed_context.literals.is_empty());
         }
     }

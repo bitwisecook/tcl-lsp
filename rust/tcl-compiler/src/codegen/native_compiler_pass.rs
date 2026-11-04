@@ -198,7 +198,7 @@ mod tests {
                             .iter()
                             .any(|instruction| instruction.op == Op::START_CMD)
                     );
-                    assert!(!function.native_compiler_prerequisites.is_empty());
+                    assert_ne!(function.native_compiler_prerequisites, [] as [tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite; 0]);
                 }
             }
         }

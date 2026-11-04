@@ -138,13 +138,13 @@ mod tests {
             &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
         ));
         let registry = analysis.resolved_registry().unwrap();
-        assert!(
+        assert_eq!(
             crate::registry_invocation::invocation_argument_role_consensus(
                 registry,
                 tcl_registry::model::semantic::SemanticContext::for_environment("tcl8.6"),
                 &tokens,
-            )
-            .is_empty()
+            ),
+            [] as [(usize, tcl_registry::ArgRole); 0]
         );
         assert_eq!(tokens.source_binding.as_ref(), Some(&before));
         assert!(source_registry_words(&format!("#{source}"), &analysis, &segment).is_none());

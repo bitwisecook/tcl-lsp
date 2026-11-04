@@ -1394,7 +1394,10 @@ mod tests {
                 Presence::Unknown
             );
             assert!(missing.unknown);
-            assert!(missing.targets.is_empty());
+            assert_eq!(
+                missing.targets,
+                [] as [crate::command_binding::SourceCommandTarget; 0]
+            );
         }
         snapshot.commands[0].compiler_hook =
             tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent;
@@ -2015,7 +2018,10 @@ mod tests {
             .proved_execution_target()
             .expect("actual installed child wrapper");
         assert!(!target.registry_backed);
-        assert!(target.prepended.is_empty());
+        assert_eq!(
+            target.prepended,
+            [] as [crate::registry_invocation::EffectiveInvocationWord; 0]
+        );
         assert_eq!(target.kind, BindingKind::Command);
         assert_eq!(
             target
@@ -2351,14 +2357,20 @@ mod tests {
                 compiled.top_level.native_compilation_preflight,
                 tcl_runtime_api::NativeCompilationPreflight::NotRequired
             );
-            assert!(!compiled.top_level.native_compiler_prerequisites.is_empty());
+            assert_ne!(
+                compiled.top_level.native_compiler_prerequisites,
+                [] as [tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite; 0]
+            );
             let selections: Vec<_> = compiled
                 .top_level
                 .instructions
                 .iter()
                 .filter_map(|instruction| instruction.native_compiler_selection.as_ref())
                 .collect();
-            assert!(!selections.is_empty());
+            assert_ne!(
+                selections,
+                [] as [&tcl_bytecode::NativeCompilerSelectionSite; 0]
+            );
             assert!(
                 selections
                     .iter()

@@ -378,7 +378,10 @@ pub(super) mod tests {
         let named = proof
             .named_invocation()
             .expect("argument removal preserves captured name");
-        assert!(named.targets.is_empty());
+        assert_eq!(
+            named.targets,
+            [] as [crate::command_binding::SourceCommandTarget; 0]
+        );
         assert!(named.may_be_absent);
         assert!(!named.unknown);
     }
@@ -410,7 +413,10 @@ pub(super) mod tests {
         );
         std::sync::Arc::make_mut(&mut state.bindings).insert(key, bindings);
         let result = named.with_late_lookup(&state);
-        assert!(result.targets.is_empty());
+        assert_eq!(
+            result.targets,
+            [] as [crate::command_binding::SourceCommandTarget; 0]
+        );
         assert!(result.unknown);
         assert!(result.may_be_absent);
     }

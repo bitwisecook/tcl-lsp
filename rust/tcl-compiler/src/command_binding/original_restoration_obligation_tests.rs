@@ -151,8 +151,14 @@ fn original_native_restoration_requires_full_failure_contexts_and_dependency_gen
         .as_ref()
         .unwrap();
     let failure = original.failure.as_ref().unwrap();
-    assert!(!failure.dependencies.is_empty());
-    assert!(!failure.contexts.is_empty());
+    assert_ne!(
+        failure.dependencies,
+        [] as [crate::command_binding::compiled_preflight::SourceNativeCompilationDependency; 0]
+    );
+    assert_ne!(
+        failure.contexts,
+        [] as [crate::command_binding::compiled_preflight::SourceNativeCompilationContext; 0]
+    );
     let mut unchanged = module.top_level.clone();
     assert!(owner.restore_script_bindings(&mut unchanged));
     assert_eq!(

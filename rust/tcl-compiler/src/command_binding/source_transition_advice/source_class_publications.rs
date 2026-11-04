@@ -495,7 +495,7 @@ mod tests {
             .with_resolved_input(supplied)
             .analyse(source, "tcl8.6");
         let unavailable_inventory = source_class_publications(source, &unavailable).unwrap();
-        assert!(unavailable_inventory.publications().is_empty());
+        assert_eq!(unavailable_inventory.publications(), []);
         assert!(unavailable_inventory.candidates(&unavailable).is_empty());
         assert!(unavailable.original_class_declarations().next().is_none());
         assert!(source_class_publications("", &AnalysisResult::default()).is_none());

@@ -115,7 +115,10 @@ fn original_restored_nested_declaration_keeps_actual_child_vector_without_dispat
     assert_eq!(source_only, raw);
     assert!(binding.lookup_state.is_none());
     assert!(binding.unknown);
-    assert!(binding.targets.is_empty());
+    assert_eq!(
+        binding.targets,
+        [] as [crate::command_binding::SourceCommandTarget; 0]
+    );
     assert!(binding.proved_target().is_none());
     assert!(binding.proved_execution_target().is_none());
     assert!(binding.proved_handler_target().is_none());
@@ -215,7 +218,10 @@ fn original_restored_nested_declaration_requires_retained_inventory_input_config
     let mut missing = parent.clone();
     missing.nested_bindings.clear();
     owner.restore_original_nested_bindings(&mut missing);
-    assert!(missing.nested_bindings.is_empty());
+    assert_eq!(
+        missing.nested_bindings,
+        [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
+    );
 }
 
 #[test]
@@ -261,7 +267,10 @@ fn original_script_restoration_keeps_reached_nested_statement_and_consumed_site_
     let mut restored = module.top_level.clone();
     let source_before = restored.executed_source.clone();
     let statement = restored.statements[0].tokens().unwrap();
-    assert!(!statement.nested_bindings.is_empty());
+    assert_ne!(
+        statement.nested_bindings,
+        [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
+    );
     assert!(restored.command_binding_sites.iter().any(|site| {
         site.source_tokens
             .as_deref()

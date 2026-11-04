@@ -2290,8 +2290,14 @@ mod tests {
                 .is_some_and(|classes| classes.contains("::C"))
         );
         assert!(!sink.facts.any_scope.contains_key("inert"));
-        assert!(sink.facts.proven_reads.is_empty());
-        assert!(sink.facts.physical_type_reads.is_empty());
+        assert_eq!(
+            sink.facts.proven_reads,
+            [] as [crate::object_types::ObjectHandleRead; 0]
+        );
+        assert_eq!(
+            sink.facts.physical_type_reads,
+            [] as [crate::object_types::PhysicalObjectTypeReadEvidence; 0]
+        );
         assert!(sink.facts.normal_procedure_results.is_empty());
     }
 
@@ -2693,7 +2699,10 @@ mod tests {
                         .0
                 )
             );
-            assert!(facts.proven_reads.is_empty());
+            assert_eq!(
+                facts.proven_reads,
+                [] as [crate::object_types::ObjectHandleRead; 0]
+            );
         }
     }
 
@@ -2741,10 +2750,9 @@ mod tests {
                 .is_some_and(|classes| classes.contains("struct::graph"))
         );
         // Nominal candidates do not fabricate physical variable/object reads.
-        assert!(
-            object_handle_facts(&loaded, &registry)
-                .proven_reads
-                .is_empty()
+        assert_eq!(
+            object_handle_facts(&loaded, &registry).proven_reads,
+            [] as [crate::object_types::ObjectHandleRead; 0]
         );
 
         let (registry, unprovided) = provided_unit(create, &[]);
@@ -2776,10 +2784,9 @@ mod tests {
                 expected,
                 "{source}"
             );
-            assert!(
-                object_handle_facts(&unit, &registry)
-                    .proven_reads
-                    .is_empty()
+            assert_eq!(
+                object_handle_facts(&unit, &registry).proven_reads,
+                [] as [crate::object_types::ObjectHandleRead; 0]
             );
         }
     }

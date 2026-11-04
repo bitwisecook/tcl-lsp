@@ -421,7 +421,10 @@ mod tests {
             findings(&analyse(source, &input(Arc::clone(&current))).result).len(),
             1
         );
-        assert!(findings(&analyse(source, &input(older)).result).is_empty());
+        assert_eq!(
+            findings(&analyse(source, &input(older)).result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let current = input(current);
         for source in [
             "regsub -all {(a+)+} literal replacement out",
@@ -467,7 +470,10 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(&source[found[0].span.as_range()], r"\(é+\)+");
         let malformed = "switch -regexp $s {(é+)+ \"unterminated}";
-        assert!(findings(&analyse(malformed, &input).result).is_empty());
+        assert_eq!(
+            findings(&analyse(malformed, &input).result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let mut lenient = input.clone();
         lenient.config.list_parse = tcl_dialect::ListParse::Lenient;
         let lenient_result = analyse(malformed, &lenient);
@@ -523,7 +529,7 @@ mod tests {
                 panic!("proven original pattern")
             };
             assert_eq!(subject.supplemental_literals(), &[(0, "(a+)+".to_owned())]);
-            assert!(subject.list_element_path().is_empty());
+            assert_eq!(subject.list_element_path(), []);
         }
         for source in [
             "proc f {p} {regexp $p literal}",

@@ -377,7 +377,7 @@ mod tests {
         cu.ir_module = foreign;
         ctx.optimisations.clear();
         run(&mut ctx, &cu);
-        assert!(ctx.optimisations.is_empty());
+        assert_eq!(ctx.optimisations.len(), 0);
     }
 
     #[test]

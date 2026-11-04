@@ -6363,7 +6363,7 @@ mod original_namespace_export_inventory_tests {
         let imports = result.original_namespace_patterns().collect::<Vec<_>>();
         assert_eq!(exports.len(), 2);
         assert_eq!(imports.len(), 2);
-        assert!(result.original_namespace_export_unknowns().is_empty());
+        assert_eq!(result.original_namespace_export_unknowns(), []);
         assert!(
             exports
                 .iter()
@@ -6412,7 +6412,7 @@ mod original_namespace_export_inventory_tests {
         let result = Analyser::new().analyse(source, "tcl8.6");
         assert!(result.original_namespace_exports().next().is_none());
         assert!(result.original_namespace_patterns().next().is_none());
-        assert!(!result.original_namespace_export_unknowns().is_empty());
+        assert_ne!(result.original_namespace_export_unknowns(), []);
         assert!(result.original_completed_command_world().is_none());
     }
 
@@ -6516,7 +6516,10 @@ mod source_alias_coverage_tests {
         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
         let image = tcl_lexer::SourceImage::document(source);
         let config = analysis.body_lexer_config.unwrap();
-        assert!(!analysis.original_variable_alias_obligations.is_empty());
+        assert_ne!(
+            analysis.original_variable_alias_obligations,
+            [] as [(u32, usize); 0]
+        );
         assert_eq!(analysis.original_variable_alias_receipts.len(), 1);
         assert!(analysis.original_variable_alias_source_is_complete(&image, config));
         let mut missing_receipts = analysis.clone();

@@ -1460,7 +1460,7 @@ mod tests {
         assert!(statement_uses_var(&native, "result", 0, braced));
         assert!(statement_defines_var(&native, "source"));
         assert!(stmt_redefines_sink_read(&native, &sink, 0, braced));
-        assert!(stmt_defined_vars(&native).is_empty());
+        assert_eq!(stmt_defined_vars(&native), [] as [&str; 0]);
     }
 
     #[test]

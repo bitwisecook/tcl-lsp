@@ -3106,7 +3106,7 @@ mod tests {
             .procedures
             .get(&fixture_id(&unit.ir_module.procedures, "::p"))
             .expect("authored fixture body");
-        assert!(procedure.body.statements.is_empty());
+        assert_eq!(procedure.body.statements, [] as [crate::ir::Statement; 0]);
         assert!(!crate::native_compilation_admission::script_requires_admission(&procedure.body));
         let plan = CommonAotProofPlan::build_with_retained_metadata(
             &unit,

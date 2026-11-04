@@ -4658,12 +4658,12 @@ mod tests {
                 .name,
             "arg"
         );
-        assert!(
+        assert_eq!(
             observation
                 .snapshot
                 .state
-                .installed_procedure_targets(&recipe.slot, site.offset)
-                .is_empty()
+                .installed_procedure_targets(&recipe.slot, site.offset),
+            [] as [crate::command_binding::ResolvedCommandTarget; 0]
         );
         assert!(!bindings.has_actual_procedure_entry(&recipe.source));
         assert!(
@@ -4918,7 +4918,15 @@ mod tests {
             ));
             let rows = parent_declaration_layouts(site, &tokens, &changed, registry);
             assert!(rows[0].original.is_none());
-            assert!(unanimous_nested_layouts_from_parents(site, &rows, registry).is_empty());
+            assert_eq!(
+                unanimous_nested_layouts_from_parents(site, &rows, registry),
+                [] as [(
+                    crate::command_binding::executed_script_source::ExecutedScriptSource,
+                    std::vec::Vec<
+                        crate::command_binding::declaration_layout::DeclarationLayoutObservation,
+                    >
+                ); 0]
+            );
             assert!(!rows.iter().all(|row| {
                 row.original
                     .as_ref()
@@ -4956,8 +4964,11 @@ mod tests {
         assert_eq!(first[0].site.offset, source.base());
         assert_eq!(first[0].tokens.argv_texts, ["puts", "done"]);
         assert!(first[0].tokens.source_binding.is_none());
-        assert!(first[0].tokens.variable_accesses.is_empty());
-        assert!(first[0].tokens.nested_bindings.is_empty());
+        assert_eq!(first[0].tokens.variable_accesses.len(), 0);
+        assert_eq!(
+            first[0].tokens.nested_bindings,
+            [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
+        );
 
         let mut changed_config = config;
         changed_config.strict_quoting = !config.strict_quoting;
@@ -5176,7 +5187,10 @@ mod tests {
             .unwrap()
             .cloned()
             .collect::<Vec<_>>();
-        assert!(!parents.is_empty());
+        assert_ne!(
+            parents,
+            [] as [crate::command_binding::declaration_layout::DeclarationLayoutObservation; 0]
+        );
         assert!(parents.iter().all(|parent| {
             parent.snapshot.state.source_variables.dynamic_traces
                 && parent.snapshot.state.baseline.native_entry.is_none()
@@ -5184,7 +5198,15 @@ mod tests {
         }));
         let originals = parent_declaration_layouts(site, &condition, &parents, registry);
         assert!(originals.iter().all(|parent| parent.original.is_some()));
-        assert!(unanimous_nested_layouts_from_parents(site, &originals, registry).is_empty());
+        assert_eq!(
+            unanimous_nested_layouts_from_parents(site, &originals, registry),
+            [] as [(
+                crate::command_binding::executed_script_source::ExecutedScriptSource,
+                std::vec::Vec<
+                    crate::command_binding::declaration_layout::DeclarationLayoutObservation,
+                >
+            ); 0]
+        );
         assert!(binding.proved_execution_target().is_none());
         assert!(binding.compiler_lookup_state.is_none());
         let (_, nested) = inventory_in_world(source, "info exists condition", true);
@@ -5762,7 +5784,10 @@ mod original_argument_declaration_tests {
             assert!(targets[0].implementation_allocation.is_none());
             assert!(binding.lookup_state.is_none());
             assert!(binding.unknown);
-            assert!(binding.targets.is_empty());
+            assert_eq!(
+                binding.targets,
+                [] as [crate::command_binding::SourceCommandTarget; 0]
+            );
             assert!(binding.proved_execution_target().is_none());
             assert!(binding.proved_handler_target().is_none());
             assert_ne!(
@@ -5886,13 +5911,7 @@ mod original_argument_declaration_tests {
             .original_authored_procedure_source_geometry(header, registry)
             .expect("transition-selected declaration geometry");
         assert!(geometry.has_unclosed_source_coverage());
-        assert!(
-            !geometry
-                .declaration
-                .advice
-                .uncertain_operations()
-                .is_empty()
-        );
+        assert_ne!(geometry.declaration.advice.uncertain_operations(), []);
         assert!(
             geometry
                 .snapshot

@@ -664,23 +664,23 @@ mod tests {
         );
         let source = "proc p {longleft longright} {global longleft; return $longleft}";
         let records = original_logical_procedure_bindings(source, &analyse(source)).unwrap();
-        assert!(records[0].formals()[0].references().is_empty());
+        assert_eq!(records[0].formals()[0].references(), []);
         let source = "mystery; proc p {longleft longright} {return $longleft}";
         assert!(
             !original_logical_procedure_bindings(source, &analyse(source)).unwrap()[0]
                 .alpha_binding_lookup_closed()
         );
         let source = "proc p {longleft longleft} {return $longleft}";
-        assert!(
-            original_logical_procedure_bindings(source, &analyse(source))
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            original_logical_procedure_bindings(source, &analyse(source)).unwrap(),
+            [] as [crate::registry_invocation::logical_formals::OriginalLogicalProcedureBindings;
+                0]
         );
         let source = r#"proc p {longleft} "return\u0020$longleft""#;
-        assert!(
-            original_logical_procedure_bindings(source, &analyse(source))
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            original_logical_procedure_bindings(source, &analyse(source)).unwrap(),
+            [] as [crate::registry_invocation::logical_formals::OriginalLogicalProcedureBindings;
+                0]
         );
     }
 

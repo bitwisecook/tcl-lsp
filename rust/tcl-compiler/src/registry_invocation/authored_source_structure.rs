@@ -970,7 +970,7 @@ mod standalone_script_source_variable_tests {
         let (source, candidate) = original_possible_sink_structure(tokens, registry)
             .expect("genuine conditional source coordinates retain unknown applicability");
         assert!(source.has_unknown_residual());
-        assert!(!candidate.obligations().is_empty());
+        assert_ne!(candidate.obligations(), []);
         assert!(candidate.matches_registry(registry));
         assert!(unit.ir_module.source_entry.metadata_context.is_standalone());
         assert!(unit.ir_module.source_entry.native_entry.is_none());

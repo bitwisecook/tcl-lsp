@@ -122,9 +122,9 @@ fn original_trace_epilogue_releases_original_operations_and_keeps_child_storage(
     assert_eq!(error, first(&vm));
     assert_eq!(vm.cur, target);
     let original = vm.st_of(original_id).unwrap();
-    assert!(original.active_traces.is_empty());
+    assert_eq!(original.active_traces, [] as [tcl_core_types::VarId; 0]);
     assert!(!original.var_arena.has_operation_refs(original_cell));
-    assert!(vm.active_traces.is_empty());
+    assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
     assert!(!vm.var_arena.has_operation_refs(child_cell));
     assert!(
         matches!(vm.var_arena.get(child_cell).unwrap().state(), Local::Scalar(value)
@@ -164,7 +164,7 @@ fn original_owned_variable_teardown_keeps_first_cause_and_releases_its_real_trac
         assert_eq!(drops.get(), 1);
         let original = vm.st_of(original_id).unwrap();
         assert!(original.var_arena.get(raw).is_none());
-        assert!(original.active_traces.is_empty());
+        assert_eq!(original.active_traces, [] as [tcl_core_types::VarId; 0]);
         assert!(!original.variable_observers.script_traces.contains_key(&raw));
         assert_eq!(header.value().native_object_reference_count(), 0);
         assert!(!header.value().native_object_is_live());
@@ -197,7 +197,7 @@ fn original_variable_finish_refuses_unbalanced_frame_and_allows_balanced_reentry
         );
         let held = OriginalVariableCleanup::enter(&mut vm);
         let reached = Traces::fire_bytes(&mut vm, b"x", "read");
-        assert!(vm.active_traces.is_empty());
+        assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
         assert!(!vm.var_arena.has_operation_refs(id));
         if mode == 2 {
             assert_eq!(reached.unwrap_err(), first(&vm));
@@ -276,7 +276,7 @@ fn original_dying_namespace_table_finishes_owned_rows_after_child_callback() {
     for id in rows {
         assert!(original.var_arena.get(id).is_none());
     }
-    assert!(original.active_traces.is_empty());
+    assert_eq!(original.active_traces, [] as [tcl_core_types::VarId; 0]);
     assert_eq!(held.check_native(&mut vm).unwrap_err(), first(&vm));
     vm.switch_to(original_id);
 }

@@ -3962,9 +3962,18 @@ mod tests {
             assert_eq!(result.analysis_context_unavailable.as_ref(), Some(&missing));
             assert!(result.resolved_input.is_none());
             assert!(result.all_procs.is_empty());
-            assert!(result.command_invocations.is_empty());
-            assert!(result.diagnostics.is_empty());
-            assert!(result.global_scope.children.is_empty());
+            assert_eq!(
+                result.command_invocations,
+                [] as [crate::signature_scan::types::SignatureCommandInvocation; 0]
+            );
+            assert_eq!(
+                result.diagnostics,
+                [] as [crate::analyser::types::Diagnostic; 0]
+            );
+            assert_eq!(
+                result.global_scope.children,
+                [] as [crate::analyser::types::Scope; 0]
+            );
         }
     }
 

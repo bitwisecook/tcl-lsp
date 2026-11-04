@@ -569,7 +569,13 @@ fn ensemble_map_dictionary_conversion_keeps_original_members_and_caller_checks()
                 assert!(original.cached_dictionary_representation().is_none());
                 assert!(original.cached_list_representation().is_some());
                 assert!(later.resident_string_bytes().is_none());
-                assert!(token.config().map.is_empty());
+                assert_eq!(
+                    token.config().map,
+                    [] as [(
+                        tcl_core_types::NameBytes,
+                        std::vec::Vec<std::option::Option<tcl_core_types::NameBytes>>
+                    ); 0]
+                );
                 assert!(vm.execution_refusal.is_some());
             } else {
                 assert_eq!(configured.code, crate::Code::Ok);
@@ -622,7 +628,13 @@ fn ensemble_map_nested_prefix_list_getter_checks_the_original_caller() {
         assert!(prefix_lease.value().cached_list_representation().is_none());
         assert_eq!(prefix_lease.value().native_object_reference_count(), 1);
         assert!(later.resident_string_bytes().is_none());
-        assert!(token.config().map.is_empty());
+        assert_eq!(
+            token.config().map,
+            [] as [(
+                tcl_core_types::NameBytes,
+                std::vec::Vec<std::option::Option<tcl_core_types::NameBytes>>
+            ); 0]
+        );
         assert!(formatter.calls.borrow().is_empty());
         assert!(vm.execution_refusal.is_some());
     }

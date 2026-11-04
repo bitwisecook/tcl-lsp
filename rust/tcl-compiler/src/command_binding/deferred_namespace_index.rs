@@ -449,7 +449,7 @@ mod tests {
         absent.replace("::p", BTreeSet::from([MayBinding::Missing]));
         let mut case = analysis.clone();
         case.deferred_outcomes.clear();
-        assert!(case.deferred_entry_states(&absent).is_empty());
+        assert_eq!(case.deferred_entry_states(&absent).len(), 0);
         // Modelled completion alternatives retain their actual table owner.
         // The index neither issues a completion nor folds it into continuation.
         let outcome = super::super::SourceDeferredOutcome {
@@ -461,7 +461,7 @@ mod tests {
             state: Arc::clone(&analysis.final_state),
         };
         case.deferred_outcomes.push(outcome.clone());
-        assert!(case.deferred_entry_states(&absent).is_empty());
+        assert_eq!(case.deferred_entry_states(&absent).len(), 0);
         let mut abrupt = outcome;
         abrupt.route = tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
             tcl_core_types::Code::Error,
@@ -476,6 +476,9 @@ mod tests {
         );
         assert!(Arc::ptr_eq(&entries[0].1, &analysis.final_state));
         assert!(!entries[0].1.same_state(&absent));
-        assert!(case.deferred_entry_bodies(&absent).is_empty());
+        assert_eq!(
+            case.deferred_entry_bodies(&absent),
+            [] as [crate::command_binding::DeferredSourceBody; 0]
+        );
     }
 }

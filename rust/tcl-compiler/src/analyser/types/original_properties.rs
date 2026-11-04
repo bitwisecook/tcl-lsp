@@ -415,11 +415,11 @@ mod producer_context_tests {
                     .properties_for_analysis(MemberSide::Instance, &current)
                     .is_none()
             );
-            assert!(
+            assert_eq!(
                 combined
                     .properties_for_analysis(MemberSide::ClassObject, &current)
-                    .unwrap()
-                    .is_empty()
+                    .unwrap(),
+                [] as [&crate::analyser::types::original_properties::OriginalSourcePropertyMetadata; 0]
             );
         }
     }

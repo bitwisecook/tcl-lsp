@@ -453,10 +453,11 @@ mod tests {
                 candidate.target.command = "::puts".to_owned();
             }
         }
-        assert!(
-            bindings
-                .original_hosted_procedure_body_cards(&input, registry)
-                .is_empty()
+        assert_eq!(
+            bindings.original_hosted_procedure_body_cards(&input, registry),
+            [] as [std::sync::Arc<
+                crate::command_binding::hosted_procedure_body::OriginalHostedProcedureBody,
+            >; 0]
         );
     }
 
@@ -535,13 +536,14 @@ mod tests {
             environment.default_context_registry(),
             tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
         );
-        assert!(
-            bindings
-                .original_hosted_procedure_body_cards(
-                    &logical,
-                    input.borrowed_context_registry().commands()
-                )
-                .is_empty()
+        assert_eq!(
+            bindings.original_hosted_procedure_body_cards(
+                &logical,
+                input.borrowed_context_registry().commands()
+            ),
+            [] as [std::sync::Arc<
+                crate::command_binding::hosted_procedure_body::OriginalHostedProcedureBody,
+            >; 0]
         );
         let other = ResolvedAnalysisInput::new(
             input.analyser_profile(),
@@ -549,13 +551,14 @@ mod tests {
             environment.default_context_registry(),
             input.lexer_config(),
         );
-        assert!(
-            bindings
-                .original_hosted_procedure_body_cards(
-                    &other,
-                    input.borrowed_context_registry().commands()
-                )
-                .is_empty()
+        assert_eq!(
+            bindings.original_hosted_procedure_body_cards(
+                &other,
+                input.borrowed_context_registry().commands()
+            ),
+            [] as [std::sync::Arc<
+                crate::command_binding::hosted_procedure_body::OriginalHostedProcedureBody,
+            >; 0]
         );
     }
 }

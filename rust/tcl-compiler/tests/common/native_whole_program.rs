@@ -35,7 +35,7 @@ pub(super) fn native_whole_program_fixture(program: &str) -> NativeWholeProgramF
             entry: &tcl_runtime_api::NativeCompilationEntry,
         ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
             assert_eq!(target.source.bytes(), self.original.as_bytes());
-            assert!(target.namespace.as_segments().is_empty());
+            assert_eq!(target.namespace.as_segments(), []);
             *self.entry.borrow_mut() = Some(entry.clone());
             self.compile("")
         }
@@ -46,7 +46,7 @@ pub(super) fn native_whole_program_fixture(program: &str) -> NativeWholeProgramF
             entry: &tcl_runtime_api::NativeCompilationEntry,
         ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
             assert_eq!(target.source, self.original);
-            assert!(target.namespace.is_empty());
+            assert_eq!(target.namespace, "");
             *self.entry.borrow_mut() = Some(entry.clone());
             self.compile("")
         }

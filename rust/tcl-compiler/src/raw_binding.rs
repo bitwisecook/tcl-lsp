@@ -1493,11 +1493,11 @@ mod original_callable_static_tests {
         );
         let slot = operands.raw_unset_slot(0, &entered, registry).unwrap();
         assert!(entered.raw_static_unset_error_at_slot(&slot));
-        assert!(
+        assert_eq!(
             crate::variable_bindings::source_variable_write_places_with_original_operands(
                 &facts, arguments, &entered, registry, &operands,
-            )
-            .is_empty()
+            ),
+            [] as [crate::place::Place; 0]
         );
         crate::variable_bindings::transfer_source_namespace_cells_with_input(
             &mut entered,

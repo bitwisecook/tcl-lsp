@@ -2123,7 +2123,7 @@ mod tests {
         // This current formal read retains real observer/lookup debt. Its
         // source recipe must never become a closed execution candidate.
         assert!(!view.parameter_role_advice().is_closed());
-        assert!(view.parameter_role_advice().candidates().is_empty());
+        assert_eq!(view.parameter_role_advice().candidates(), []);
         assert!(view.parameter_invocation(&["name"]).is_none());
         assert!(view.parameter_invocation(&["other"]).is_none());
         assert!(view.caller_name_template_invocation().is_none());
@@ -2223,12 +2223,15 @@ mod tests {
             prefix.current().unwrap().original_words(),
             advice.original_words()
         );
-        assert!(!prefix.current().unwrap().uncertain_operations().is_empty());
+        assert_ne!(prefix.current().unwrap().uncertain_operations(), []);
         assert!(prefix.current().unwrap().obligations().contains(
             &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
         ));
         assert!(view.definite_invocation.is_none());
-        assert!(view.definite_roles.is_empty());
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(view.definite_traits.is_empty());
     }
 
@@ -2261,11 +2264,9 @@ mod tests {
             .expect("dedicated conditional source invocation");
         let shape = view.conditional_parameter_source_shape(&["name"]).unwrap();
         assert!(!selected.facts.arg_roles_complete);
-        assert!(
-            selected
-                .retained_invocation()
-                .written_argument_roles()
-                .is_empty()
+        assert_eq!(
+            selected.retained_invocation().written_argument_roles(),
+            [] as [(usize, tcl_registry::ArgRole); 0]
         );
         assert!(std::ptr::eq(
             selected.facts,
@@ -2276,13 +2277,19 @@ mod tests {
             shape.written_argument_roles()
         );
         assert!(shape.roles_complete);
-        assert!(!shape.written_argument_roles().is_empty());
-        assert!(view.parameter_role_advice().candidates().is_empty());
+        assert_ne!(
+            shape.written_argument_roles(),
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
+        assert_eq!(view.parameter_role_advice().candidates(), []);
         assert!(!view.parameter_role_advice().is_closed());
         assert!(view.parameter_invocation(&["name"]).is_none());
         assert!(view.caller_name_template_invocation().is_none());
         assert!(view.definite_invocation.is_none());
-        assert!(view.definite_roles.is_empty());
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(view.definite_traits.is_empty());
         assert!(
             view.conditional_parameter_source_shape(&["other"])
@@ -2304,7 +2311,7 @@ mod tests {
             assert!(prefix.matches_body(body, input));
             assert_eq!(prefix.operations().len(), count);
             assert_eq!(prefix.formal_read_count(), 1);
-            assert!(!prefix.current().unwrap().uncertain_operations().is_empty());
+            assert_ne!(prefix.current().unwrap().uncertain_operations(), []);
             assert!(prefix.current().unwrap().obligations().contains(
                 &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation,
             ));
@@ -3117,7 +3124,7 @@ mod tests {
                 if nested { &["a{b}c"][..] } else { &["a{b"][..] }
             );
             assert_eq!(values("$arr($k)").argument_components(0), &["arr", "k"]);
-            assert!(values("${arr($k)}").argument_components(0).is_empty());
+            assert_eq!(values("${arr($k)}").argument_components(0), []);
             assert_eq!(
                 values("[set $café]").argument_components(0),
                 if unicode {
@@ -3131,7 +3138,7 @@ mod tests {
                 if nested { &["a{b}c"][..] } else { &["a{b"][..] },
             );
             assert!(values("${arr($k)}").argument(0).is_none());
-            assert!(values("{$arr($k)}").argument_components(0).is_empty());
+            assert_eq!(values("{$arr($k)}").argument_components(0), []);
         }
     }
 
@@ -3221,10 +3228,10 @@ mod tests {
             &registry,
         );
         assert!(changed.argument(0).is_none());
-        assert!(changed.argument_components(0).is_empty());
+        assert_eq!(changed.argument_components(0), []);
         let literal = lexical_reference_values("{$old}", &["old"], config);
         assert!(literal.argument(0).is_none());
-        assert!(literal.argument_components(0).is_empty());
+        assert_eq!(literal.argument_components(0), []);
     }
 
     #[test]

@@ -1906,7 +1906,12 @@ mod tests {
     fn counted_initial_methods_decline_malformed_bodies() {
         let source = "oo::class create C\\uD800 {method m {} {}";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
-        assert!(analysis.original_counted_class_metadata.is_empty());
+        assert_eq!(
+            analysis.original_counted_class_metadata,
+            [] as [crate::signature_scan::original_name::SourceDeclarationMetadata<
+                crate::analyser::types::OriginalCountedClass,
+            >; 0]
+        );
         let inner = "oo::class create C\\uD800 {method m {} \"unterminated}";
         let analysis = Analyser::new().analyse(inner, "tcl8.6");
         let [class] = analysis.original_counted_class_metadata.as_slice() else {
@@ -2282,7 +2287,7 @@ mod tests {
                 method.declaration().original_word().config()
             ));
             assert_eq!(installer.candidate().name, "foreach");
-            assert!(!installer.obligations().is_empty());
+            assert_ne!(installer.obligations(), []);
             assert!(installer.site().offset < method.declaration().site().offset);
         }
         assert!(moved.declaration().source_installer().is_none());
@@ -2917,13 +2922,13 @@ mod tests {
             tcl_registry::commands::tcl::TclOoPropertyKind::Readable
         );
         assert!(properties[2].setter().is_some());
-        assert!(
+        assert_eq!(
             declaration
                 .metadata()
                 .original_properties
                 .properties(MemberSide::ClassObject)
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [&crate::analyser::types::original_properties::OriginalSourcePropertyMetadata; 0]
         );
         assert!(properties.iter().all(
             |property| property.declaration().name_input().source_image()
@@ -2954,13 +2959,13 @@ mod tests {
             assert_eq!(members.len(), 2);
             assert_eq!(members[0].original_name_input().bytes(), b"own\xed\xa0\x80");
             assert_eq!(members[1].original_name_input().bytes(), b"own\xed\xa0\x81");
-            assert!(
+            assert_eq!(
                 classes[0]
                     .metadata()
                     .original_members
                     .methods(MemberSide::ClassObject)
-                    .unwrap()
-                    .is_empty()
+                    .unwrap(),
+                [] as [crate::analyser::types::original_members::OriginalSourceMethodMetadata; 0]
             );
             assert_eq!(
                 classes[0]

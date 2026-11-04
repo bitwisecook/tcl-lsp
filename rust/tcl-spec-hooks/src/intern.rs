@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn an_empty_word_list_leaks_nothing() {
-        assert!(intern_words(&[]).is_empty());
+        assert_eq!(intern_words(&[]), []);
         assert_eq!(intern_words(&["a".to_owned(), "b".to_owned()]), ["a", "b"]);
     }
 }

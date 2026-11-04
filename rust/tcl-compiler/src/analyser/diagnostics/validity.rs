@@ -3672,7 +3672,10 @@ mod original_expression_assistance_tests {
             .unwrap();
             let expression = command.argv[1];
             analyser.result.resolved_input = None;
-            assert!(analyser.expr_function_calls(expression).is_empty());
+            assert_eq!(
+                analyser.expr_function_calls(expression),
+                [] as [(std::string::String, tcl_lexer::Span, usize); 0]
+            );
             analyser.result.resolved_input = Some(crate::analyser::ResolvedAnalysisInput::new(
                 actual.analyser_profile(),
                 actual.unit_profile(),
@@ -3680,11 +3683,17 @@ mod original_expression_assistance_tests {
                     .default_context_registry(),
                 actual.lexer_config(),
             ));
-            assert!(analyser.expr_function_calls(expression).is_empty());
+            assert_eq!(
+                analyser.expr_function_calls(expression),
+                [] as [(std::string::String, tcl_lexer::Span, usize); 0]
+            );
             let mut stale = actual;
             stale.config.strict_quoting = !stale.config.strict_quoting;
             analyser.result.resolved_input = Some(stale);
-            assert!(analyser.expr_function_calls(expression).is_empty());
+            assert_eq!(
+                analyser.expr_function_calls(expression),
+                [] as [(std::string::String, tcl_lexer::Span, usize); 0]
+            );
         }
     }
 }

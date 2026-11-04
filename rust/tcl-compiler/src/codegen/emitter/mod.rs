@@ -775,7 +775,7 @@ mod tests {
                 .iter()
                 .filter(|instruction| !instruction.source_cmd_text.is_empty())
                 .collect();
-            assert!(!source_instructions.is_empty());
+            assert_ne!(source_instructions, [] as [&tcl_bytecode::Instruction; 0]);
             assert!(source_instructions.iter().all(|instruction| {
                 instruction.source_cmd_text.bytes() == b"return"
                     && instruction.source_command_namespace == path

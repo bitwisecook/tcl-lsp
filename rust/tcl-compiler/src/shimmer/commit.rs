@@ -1211,7 +1211,7 @@ mod tests {
         assert_eq!(possible.first_span(), None);
         let unknown = earlier.at_captured_representation(None, None, false);
         assert!(!unknown.must_pay(TclType::List));
-        assert!(unknown.may_types().is_empty());
+        assert_eq!(unknown.may_types(), []);
     }
 
     #[test]

@@ -326,7 +326,10 @@ mod tests {
             .unwrap();
         assert!(!Arc::ptr_eq(&child.bindings, &b.bindings));
         assert!(child.points.is_empty());
-        assert!(child.expression_preparations_for_script(&whole).is_empty());
+        assert_eq!(
+            child.expression_preparations_for_script(&whole),
+            [] as [crate::command_binding::expression_preparation::SourceExpressionPreparation; 0]
+        );
         let foreign_text = "expr {9 + 10}";
         let foreign_origin = Arc::new(SourceOriginId::authored(&Arc::from(foreign_text)));
         let foreign = ExecutedScriptSource::contiguous(foreign_origin, foreign_text, 0).unwrap();
@@ -334,10 +337,9 @@ mod tests {
             .selected_source_in_context(&foreign, &preparations[0].namespace_key)
             .unwrap();
         assert!(absent.points.is_empty());
-        assert!(
-            absent
-                .expression_preparations_for_script(&foreign)
-                .is_empty()
+        assert_eq!(
+            absent.expression_preparations_for_script(&foreign),
+            [] as [crate::command_binding::expression_preparation::SourceExpressionPreparation; 0]
         );
         assert_eq!(
             a.expression_preparations_for_script(&whole),
@@ -464,10 +466,9 @@ mod tests {
             .unwrap();
         assert!(!Arc::ptr_eq(&current.bindings, &foreign.bindings));
         assert!(foreign.points.is_empty());
-        assert!(
-            foreign
-                .expression_preparations_for_script(&whole)
-                .is_empty()
+        assert_eq!(
+            foreign.expression_preparations_for_script(&whole),
+            [] as [crate::command_binding::expression_preparation::SourceExpressionPreparation; 0]
         );
         assert!(Arc::ptr_eq(
             &current.bindings,

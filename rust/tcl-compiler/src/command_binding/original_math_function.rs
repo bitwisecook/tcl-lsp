@@ -889,15 +889,15 @@ mod tests {
             assert!(call.original_function_command_name().is_none());
             assert!(call.command_reference().is_none());
             assert!(call.registry_identity().is_none());
-            assert!(
+            assert_eq!(
                 bindings
                     .original_math_functions_in_source(
                         &registry,
                         &SourceImage::document("expr {Pi()} "),
                         config,
                         Span::new(6, 8),
-                    )
-                    .is_empty()
+                    ),
+                [] as [crate::command_binding::original_math_function::OriginalMathFunctionOccurrence; 0]
             );
             let root = Arc::clone(bindings.source_origin().unwrap());
             bindings
@@ -1092,34 +1092,48 @@ mod tests {
             ]
         );
         let foreign = SourceImage::native(image.bytes());
-        assert!(
-            bindings
-                .original_math_functions_in_source(&registry, &foreign, config, Span::new(0, 25))
-                .is_empty()
+        assert_eq!(
+            bindings.original_math_functions_in_source(
+                &registry,
+                &foreign,
+                config,
+                Span::new(0, 25)
+            ),
+            [] as [crate::command_binding::original_math_function::OriginalMathFunctionOccurrence;
+                0]
         );
         let changed = LexerConfig {
             strict_quoting: !config.strict_quoting,
             ..config
         };
-        assert!(
-            bindings
-                .original_math_functions_in_source(&registry, &image, changed, Span::new(0, 25))
-                .is_empty()
+        assert_eq!(
+            bindings.original_math_functions_in_source(
+                &registry,
+                &image,
+                changed,
+                Span::new(0, 25)
+            ),
+            [] as [crate::command_binding::original_math_function::OriginalMathFunctionOccurrence;
+                0]
         );
         let wrong_registry =
             registry.project_for_profile(tcl_dialect::DialectProfile::find("tcl9.1").unwrap());
-        assert!(
-            bindings
-                .original_math_functions_in_source(
-                    &wrong_registry,
-                    &image,
-                    config,
-                    Span::new(0, 25)
-                )
-                .is_empty()
+        assert_eq!(
+            bindings.original_math_functions_in_source(
+                &wrong_registry,
+                &image,
+                config,
+                Span::new(0, 25)
+            ),
+            [] as [crate::command_binding::original_math_function::OriginalMathFunctionOccurrence;
+                0]
         );
         assert!(calls[0].selected_registry_spec(&wrong_registry).is_none());
-        assert!(functions("expr {abs([bad}", "tcl8.6").4.is_empty());
+        assert_eq!(
+            functions("expr {abs([bad}", "tcl8.6").4,
+            [] as [crate::command_binding::original_math_function::OriginalMathFunctionOccurrence;
+                0]
+        );
         for source in [
             "if {abs(-3)} {set x 1}",
             "while {abs(-3)} {break}",

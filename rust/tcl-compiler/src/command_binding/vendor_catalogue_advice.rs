@@ -634,12 +634,12 @@ mod tests {
         assert!(calls[0].matches_source_analysis(source, &analysis));
         let blocked = "proc invoke {} {set h [ILX::init p e]; unknown_command; ILX::call $h m}";
         let analysis = crate::analyser::Analyser::new().analyse(blocked, "f5-irules");
-        assert!(
+        assert_eq!(
             crate::registry_invocation::source_remote_first_operand_associations(
                 blocked, &analysis
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::registry_invocation::source_remote_first_operand::OriginalSourceRemoteFirstOperandAssociation; 0]
         );
     }
 

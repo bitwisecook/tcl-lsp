@@ -85,7 +85,7 @@ fn native_core_root_cells_match_six_original_constructor_inventories() {
                 (fields[0] == version).then_some((fields[1].as_bytes().to_vec(), fields[2] == "1"))
             })
             .collect();
-        assert!(!expected.is_empty());
+        assert_ne!(expected, [] as [(std::vec::Vec<u8>, bool); 0]);
         let actual: Vec<_> = vm.frames[0]
             .locals
             .keys()

@@ -127,7 +127,7 @@ fn original_callback_host_cause_stops_later_rows_and_restores_the_real_result() 
         assert_eq!(*reached.borrow(), [2], "{profile}");
         assert_eq!(vm.execution_refusal, Some(first()));
         assert!(!vm.var_arena.has_operation_refs(cell));
-        assert!(vm.active_traces.is_empty());
+        assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
         assert!(!vm.has_entered_native_operation());
         vm.with_native_interp_result(|result| {
             assert_eq!(result.native_object_identity(), identity);
@@ -181,7 +181,7 @@ fn original_callback_host_aba_keeps_reached_effects_without_a_later_observer() {
             assert_eq!(result.native_object_identity(), identity);
         })
         .unwrap();
-        assert!(vm.active_traces.is_empty());
+        assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
     }
 }
 
@@ -215,7 +215,7 @@ fn original_quiet_scalar_element_and_c_exists_ignore_guest_errors_only() {
                     .unwrap()
             );
             assert_eq!(*reached.borrow(), [1, 1]);
-            assert!(vm.active_traces.is_empty());
+            assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
         }
     }
 }
@@ -253,7 +253,7 @@ fn original_scalar_element_and_c_exists_refuse_before_boolean_publication() {
             }
             assert_eq!(vm.execution_refusal, Some(first()));
             assert_eq!(*reached.borrow(), [1]);
-            assert!(vm.active_traces.is_empty());
+            assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
         }
     }
 }
@@ -293,7 +293,7 @@ fn original_taken_unset_stops_host_callbacks_but_finishes_removed_cell_cleanup()
             assert_eq!(vm.execution_refusal, host.then(first));
             assert!(!vm.variable_observers.script_traces.contains_key(&cell));
             assert!(!vm.var_arena.has_operation_refs(cell));
-            assert!(vm.active_traces.is_empty());
+            assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
             assert!(vm.get_var_bytes(b"x").is_none());
         }
     }
@@ -485,7 +485,7 @@ fn original_native_observer_guest_initializes_error_info_before_its_trace_frame(
                 "{profile}/{op}: {:?}",
                 vm.execution_refusal
             );
-            assert!(vm.active_traces.is_empty());
+            assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
             assert!(!vm.has_entered_native_operation());
         }
     }
@@ -512,7 +512,7 @@ fn original_script_trace_guest_keeps_its_existing_error_episode_through_presenta
                 .any(|part| part == b"(write trace on \"x\")")
         );
         assert!(vm.execution_refusal.is_none());
-        assert!(vm.active_traces.is_empty());
+        assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
         assert!(!vm.has_entered_native_operation());
     }
 }
@@ -562,7 +562,7 @@ fn original_quiet_trace_guest_restores_the_selected_result_without_new_error_inf
             b"changed"
         );
         assert!(vm.execution_refusal.is_none());
-        assert!(vm.active_traces.is_empty());
+        assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
         assert!(!vm.has_entered_native_operation());
     }
 }

@@ -1069,10 +1069,10 @@ mod tests {
         let selected =
             crate::segmenter::segment_commands("search-path grow auto_path /opt/library");
         assert_eq!(result.auto_path_entries[0].range, selected[0].argv[3].span);
-        assert!(
+        assert_eq!(
             super::super::extract_signatures("search-path grow unrelated /opt/library", &registry,)
-                .auto_path_entries
-                .is_empty()
+                .auto_path_entries,
+            [] as [crate::signature_scan::types::SignatureAutoPathEntry; 0]
         );
     }
 

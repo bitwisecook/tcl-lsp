@@ -149,7 +149,10 @@ fn original_true_command_deletion_keeps_release_order_and_visible_source_imports
         assert!(vm.visible_command_at_key(&key).is_none());
         assert!(vm.imported_commands.is_empty());
         assert!(vm.name_world.borrow().command_deletion_active.is_empty());
-        assert!(vm.firing_cmd_traces.is_empty());
+        assert_eq!(
+            vm.firing_cmd_traces,
+            [] as [crate::interp::CommandSidecarKey; 0]
+        );
         assert!(vm.execution_refusal.is_none());
     }
 }
@@ -261,7 +264,10 @@ fn original_command_cleanup_keeps_first_cause_and_retires_only_original_child_ta
         let actual = vm.st_of(parent).unwrap();
         assert!(!actual.commands.contains_key(&key));
         assert!(actual.imported_commands.is_empty());
-        assert!(actual.firing_cmd_traces.is_empty());
+        assert_eq!(
+            actual.firing_cmd_traces,
+            [] as [crate::interp::CommandSidecarKey; 0]
+        );
         assert!(
             actual
                 .name_world
@@ -340,7 +346,10 @@ fn original_command_retirement_follows_actual_rename_without_repeating_delete_tr
         );
         assert!(vm.command_token_at_generation(generation).is_none());
         assert!(vm.imported_commands.is_empty());
-        assert!(vm.firing_cmd_traces.is_empty());
+        assert_eq!(
+            vm.firing_cmd_traces,
+            [] as [crate::interp::CommandSidecarKey; 0]
+        );
         assert!(vm.name_world.borrow().command_deletion_active.is_empty());
         assert!(vm.execution_refusal.is_none());
     }
@@ -498,7 +507,10 @@ fn original_delete_trace_epilogue_preserves_child_stack_and_original_trace_gate(
     );
     assert!(vm.trace_in_progress.get());
     let original = vm.st_of(parent).unwrap();
-    assert!(original.firing_cmd_traces.is_empty());
+    assert_eq!(
+        original.firing_cmd_traces,
+        [] as [crate::interp::CommandSidecarKey; 0]
+    );
     assert!(!original.trace_in_progress.get());
     assert!(!original.commands.contains_key(&key));
     assert!(original.imported_commands.is_empty());

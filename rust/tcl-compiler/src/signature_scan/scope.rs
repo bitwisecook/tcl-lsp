@@ -811,10 +811,9 @@ mod original_key_tests {
             lookup.first_matching_publications([(&root_name, "root")]),
             vec!["root"]
         );
-        assert!(
-            lookup
-                .first_matching_publications([(&other_name, "other")])
-                .is_empty()
+        assert_eq!(
+            lookup.first_matching_publications([(&other_name, "other")]),
+            [] as [&str; 0]
         );
     }
 

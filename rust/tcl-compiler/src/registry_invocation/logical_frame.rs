@@ -509,7 +509,7 @@ mod tests {
             );
             assert_eq!(body.is_some(), expected, "{level}");
             if let Some(body) = body {
-                assert!(!body.statements.is_empty());
+                assert_ne!(body.statements, [] as [crate::ir::Statement; 0]);
                 assert!(body.namespace_context.is_some());
                 assert!(
                     body.executed_source.is_none(),

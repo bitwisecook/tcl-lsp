@@ -353,7 +353,10 @@ mod tests {
         config: LexerConfig,
         offset: u32,
     ) {
-        assert!(analysis.original_variable_symbols.is_empty());
+        assert_eq!(
+            analysis.original_variable_symbols,
+            [] as [crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence; 0]
+        );
         let saved: Vec<_> = analysis
             .original_vendor_variable_advice()
             .cloned()
@@ -565,7 +568,10 @@ mod tests {
                     .is_some()
             );
         }
-        assert!(analysis.original_variable_symbols.is_empty());
+        assert_eq!(
+            analysis.original_variable_symbols,
+            [] as [crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence; 0]
+        );
         for profile in ["f5-iapps", "f5-tmsh"] {
             let analysis = crate::analyser::Analyser::new().analyse("set root 1", profile);
             let advice = analysis

@@ -57,7 +57,7 @@ fn original_control_capture_keeps_alias_body_and_whole_edit_extent() {
     assert!(
         matches!(&diagnostic.subject, Some(DiagnosticSubject::RegistrySource(subject)) if subject.kind() == RegistrySourceDiagnosticKind::ErrorCapture)
     );
-    assert!(!diagnostic.fixes.is_empty());
+    assert_ne!(diagnostic.fixes, [] as [crate::irules_checks::CodeFix; 0]);
     for fix in &diagnostic.fixes {
         assert_eq!(fix.span.start() as usize, source.len());
         assert_eq!(fix.span.start(), fix.span.end());
@@ -165,7 +165,7 @@ fn original_control_clause_edit_uses_the_grammar_keyword_not_a_condition_name() 
         panic!("one grammar-owned proposal")
     };
     assert_eq!(&source[fix.span.as_range()], "elseif elseif");
-    assert!(fix.new_text.is_empty());
+    assert_eq!(fix.new_text, "");
     let mut fixed = source.to_owned();
     fixed.replace_range(fix.span.as_range(), &fix.new_text);
     assert_eq!(fixed, "if 1 {puts ok} ");

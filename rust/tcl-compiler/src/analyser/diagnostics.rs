@@ -1569,7 +1569,10 @@ mod complete_cu_input_tests {
         }
         let mut unowned = Analyser::new();
         unowned.emit_cfg_ssa_diagnostics(SOURCE);
-        assert!(unowned.result.diagnostics.is_empty());
+        assert_eq!(
+            unowned.result.diagnostics,
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         assert!(unowned.result.resolved_input.is_none());
     }
 }

@@ -2635,12 +2635,12 @@ mod tests {
                 .argument_roles()
                 .contains(&(1, tcl_registry::ArgRole::Body))
         );
-        assert!(
+        assert_eq!(
             checked_original_lifted_calls_with_metadata_context(
                 &tokens, config, registry, metadata
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::word_subst::LiftedCall; 0]
         );
         assert!(selected.dialect.unwrap().native_name_protocol().is_none());
 
@@ -3659,12 +3659,12 @@ mod tests {
             .is_none()
         );
         let literal = original_logical_tokens("puts {[dict size DATA]}", &input);
-        assert!(
+        assert_eq!(
             checked_original_lifted_calls_with_metadata_context(
                 &literal, config, registry, metadata,
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::word_subst::LiftedCall; 0]
         );
         let expression = original_logical_tokens("expr {[dict size DATA]}", &input);
         let calls = checked_original_lifted_calls_with_metadata_context(
@@ -3989,7 +3989,7 @@ mod native_source_lifted_inventory_owner_tests {
                 tokens, config, registry, metadata,
             )
             .expect("genuine readonly Native child syntax inventory");
-            assert!(calls.is_empty());
+            assert_eq!(calls, [] as [crate::word_subst::LiftedCall; 0]);
             count += 1;
             let mut changed = tokens.clone();
             changed.argv_texts[0].push('_');

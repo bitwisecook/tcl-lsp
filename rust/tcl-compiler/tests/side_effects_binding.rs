@@ -194,7 +194,10 @@ fn command_side_effects_pure() {
     assert!(!cse.reads_any());
     assert!(!cse.writes_any());
     // No effects ⇒ no targets touched.
-    assert!(cse.effects.is_empty());
+    assert_eq!(
+        cse.effects,
+        [] as [tcl_compiler::side_effects::SideEffect; 0]
+    );
 }
 
 #[test]

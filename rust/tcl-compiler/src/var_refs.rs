@@ -886,9 +886,9 @@ mod tests {
                 .iter()
                 .any(|word| word.role == ArgRole::VarRead && word.word.is_empty())
         );
-        assert!(
-            original_variable_name_role_words("set changed VALUE\n", &analysis, &commands[1])
-                .is_empty()
+        assert_eq!(
+            original_variable_name_role_words("set changed VALUE\n", &analysis, &commands[1]),
+            [] as [crate::var_refs::NameRoleWord; 0]
         );
     }
 
@@ -903,7 +903,10 @@ mod tests {
         )
         .pop()
         .unwrap();
-        assert!(original_variable_name_role_words(source, &analysis, &command).is_empty());
+        assert_eq!(
+            original_variable_name_role_words(source, &analysis, &command),
+            [] as [crate::var_refs::NameRoleWord; 0]
+        );
     }
 
     #[test]

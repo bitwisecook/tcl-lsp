@@ -1152,7 +1152,10 @@ mod tests {
             .iter_mut()
             .find_map(Statement::tokens_mut)
             .unwrap();
-        assert!(!tokens.nested_bindings.is_empty());
+        assert_ne!(
+            tokens.nested_bindings,
+            [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
+        );
         tokens.nested_bindings[0].1.dispatch_site = None;
         assert!(
             bindings

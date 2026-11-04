@@ -1338,10 +1338,9 @@ mod tests {
                     }
                 ))
             );
-            assert!(
-                !words
-                    .source_script_bodies(input.borrowed_context_registry())
-                    .is_empty()
+            assert_ne!(
+                words.source_script_bodies(input.borrowed_context_registry()),
+                [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
             );
             assert!(words_at(source, &analysis, "puts $x").is_some());
             assert!(!words.operands_preserve_source_lookup());
@@ -1424,7 +1423,7 @@ mod tests {
         let words = words_at(source, &analysis, "unknown missing").unwrap();
         assert_eq!(
             words.with_source_schema(input.borrowed_context_registry(), |schema| {
-                assert!(schema.state_transitions().facts().is_empty());
+                assert_eq!(schema.state_transitions().facts(), []);
                 schema.effects().accesses().iter().any(|access| {
                     access.mode != tcl_registry::world_effect::EffectAccessMode::Read
                         && matches!(
@@ -1472,10 +1471,9 @@ mod tests {
                     .1),
                 Some(true)
             );
-            assert!(
-                !words
-                    .source_script_bodies(input.borrowed_context_registry())
-                    .is_empty()
+            assert_ne!(
+                words.source_script_bodies(input.borrowed_context_registry()),
+                [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
             );
             assert!(!words.operands_preserve_source_lookup());
             assert!(words_at(&format!("{source} "), &analysis, fragment).is_none());
@@ -1559,16 +1557,15 @@ mod tests {
         let cooked = r#"proc p {} "puts\u0020inner""#;
         let cooked_analysis = analyse_source(cooked);
         let parent = words_at(cooked, &cooked_analysis, cooked).unwrap();
-        assert!(
-            parent
-                .source_script_bodies(
-                    &cooked_analysis
-                        .resolved_input
-                        .as_ref()
-                        .unwrap()
-                        .context_registry()
-                )
-                .is_empty()
+        assert_eq!(
+            parent.source_script_bodies(
+                &cooked_analysis
+                    .resolved_input
+                    .as_ref()
+                    .unwrap()
+                    .context_registry()
+            ),
+            [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
         );
         assert!(words_at(cooked, &cooked_analysis, r"puts\u0020inner").is_none());
         for source in [
@@ -1735,7 +1732,7 @@ mod tests {
         let OriginalRegistrySource::SourceTransitions(advice) = words.source() else {
             panic!("original conditional source advice")
         };
-        assert!(!advice.uncertain_operations().is_empty());
+        assert_ne!(advice.uncertain_operations(), []);
         assert_eq!(
             advice.logical_source_input(),
             analysis.resolved_input.as_ref()
@@ -1769,7 +1766,7 @@ mod tests {
             let OriginalRegistrySource::SourceTransitions(advice) = selected.source() else {
                 panic!("authentic selected moved/imported descriptor")
             };
-            assert!(!advice.lineage().is_empty());
+            assert_ne!(advice.lineage(), []);
         }
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let mut registry = tcl_registry::CommandRegistry::build_default();

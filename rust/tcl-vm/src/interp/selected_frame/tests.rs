@@ -85,7 +85,10 @@ impl NativeCommand for Probe {
                 vm.package_loading_version_bytes(b"original-package")
                     .is_none()
             );
-            assert!(vm.take_package_file_scope().is_empty());
+            assert_eq!(
+                vm.take_package_file_scope(),
+                [] as [tcl_core_types::NameBytes; 0]
+            );
         });
         assert!(vm.interp_is_current(self.child));
         self.checked.set(self.checked.get() + 1);

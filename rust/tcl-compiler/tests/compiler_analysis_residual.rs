@@ -1728,12 +1728,9 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
     let registry = reg();
     let source = "proc p {} {set x 5; try {} on error [missing_command] {}; if {$x == 5} {return stale} else {return changed}}";
     let cu = CompilationUnit::build_for(source, &registry, false);
-    assert!(
-        cu.fixture_function("::p")
-            .unwrap()
-            .sccp
-            .constant_branches
-            .is_empty()
+    assert_eq!(
+        cu.fixture_function("::p").unwrap().sccp.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
     );
     for cfg in [
         build_cfg_with_registry(&cu.ir_module, false, &registry),
@@ -1759,13 +1756,9 @@ fn try_header_handler_barrier_blocks_scalar_constant_branch() {
         &registry,
         false,
     );
-    assert!(
-        !safe
-            .fixture_function("::p")
-            .unwrap()
-            .sccp
-            .constant_branches
-            .is_empty()
+    assert_ne!(
+        safe.fixture_function("::p").unwrap().sccp.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
     );
 }
 
@@ -2141,7 +2134,10 @@ fn registry_handler_widens_seeded_parameter() {
     let result = seeded_parameter_result(
         "proc p {x} { missing_command; if {$x == 5} { return stale } else { return changed } }",
     );
-    assert!(result.constant_branches.is_empty());
+    assert_eq!(
+        result.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
+    );
 }
 
 #[test]
@@ -2149,7 +2145,10 @@ fn conditional_registry_handler_widens_seeded_parameter() {
     let result = seeded_parameter_result(
         "proc p {x flag} { if {$flag} { missing_command }; if {$x == 5} { return stale } else { return changed } }",
     );
-    assert!(result.constant_branches.is_empty());
+    assert_eq!(
+        result.constant_branches,
+        [] as [tcl_compiler::sccp::ConstantBranch; 0]
+    );
 }
 
 #[test]
@@ -2229,7 +2228,10 @@ fn registry_handler_widens_array_element_read_by_terminator() {
                 );
             }
         }
-        assert!(fu.sccp.constant_branches.is_empty());
+        assert_eq!(
+            fu.sccp.constant_branches,
+            [] as [tcl_compiler::sccp::ConstantBranch; 0]
+        );
     }
     let control =
         CompilationUnit::build_for("proc p {} {set a(k) 5; return $a(k)}", &registry, false);
@@ -2257,12 +2259,9 @@ fn brace_expression_handler_barrier_blocks_following_scalar_fold() {
             "proc p {{}} {{set x 5; {expression}; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
         );
         let cu = CompilationUnit::build_for(&source, &reg(), false);
-        assert!(
-            cu.fixture_function("::p")
-                .unwrap()
-                .sccp
-                .constant_branches
-                .is_empty()
+        assert_eq!(
+            cu.fixture_function("::p").unwrap().sccp.constant_branches,
+            [] as [tcl_compiler::sccp::ConstantBranch; 0]
         );
     }
     let safe = CompilationUnit::build_for(
@@ -2513,10 +2512,9 @@ fn catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths() {
         let source = format!(
             "proc p {{x}} {{catch {{{body}}} [missing_command]; if {{$x == 5}} {{return stale}} else {{return changed}}}}"
         );
-        assert!(
-            seeded_parameter_result(&source)
-                .constant_branches
-                .is_empty()
+        assert_eq!(
+            seeded_parameter_result(&source).constant_branches,
+            [] as [tcl_compiler::sccp::ConstantBranch; 0]
         );
         let cu = CompilationUnit::build_for(&source, &registry, false);
         for cfg in [
@@ -2581,7 +2579,7 @@ fn constructor_effects_and_redefinitions_withdraw_collection_type_precision() {
             .filter(|((symbol, _), _)| *symbol == x)
             .map(|(_, ty)| ty)
             .collect();
-        assert!(!inferred.is_empty());
+        assert_ne!(inferred, [] as [&tcl_compiler::types::TypeLattice; 0]);
         assert!(
             inferred.iter().all(|ty| ty.class_name().is_none()),
             "{source}: {inferred:?}"

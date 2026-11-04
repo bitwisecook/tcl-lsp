@@ -379,7 +379,10 @@ fn def_use_foreach_loop() {
     // variable `item`. tclsh: after the loop item == c.
     let cu = build_cu("foreach item {a b c} { set result $item }");
     let fu = top_fu(&cu);
-    assert!(!reaching_defs(fu, "item").is_empty());
+    assert_ne!(
+        reaching_defs(fu, "item"),
+        [] as [(std::string::String, u32); 0]
+    );
 }
 
 // The SSA data-flow graph
@@ -388,7 +391,10 @@ fn def_use_foreach_loop() {
 fn dataflow_simple_linear() {
     // ≥1 function, ≥2 defs, ≥1 use.
     let g = graph_for("set x 1\nset y [expr {$x + 1}]");
-    assert!(!g.functions.is_empty());
+    assert_ne!(
+        g.functions,
+        [] as [tcl_compiler::dataflow_graph::FunctionDataFlowGraph; 0]
+    );
     assert!(g.total_defs() >= 2);
     assert!(g.total_uses() >= 1);
 }
@@ -456,10 +462,13 @@ fn dataflow_alias_info_present() {
         .iter()
         .find(|f| f.function_name.contains("bar"))
         .expect("bar function present");
-    assert!(!bar.aliases.is_empty());
+    assert_ne!(
+        bar.aliases,
+        [] as [tcl_compiler::dataflow_graph::AliasInfo; 0]
+    );
     let alias = &bar.aliases[0];
-    assert!(!alias.local_kind.is_empty());
-    assert!(!alias.target_kind.is_empty());
+    assert_ne!(alias.local_kind, "");
+    assert_ne!(alias.target_kind, "");
 }
 
 #[test]
@@ -520,7 +529,10 @@ fn dataflow_graph_has_nodes_and_edges() {
     let g = graph_for("set x 1\nset y [expr {$x + 1}]");
     let func = &g.functions[0];
     assert!(func.nodes.len() >= 2);
-    assert!(!func.edges.is_empty());
+    assert_ne!(
+        func.edges,
+        [] as [tcl_compiler::dataflow_graph::DataFlowEdge; 0]
+    );
     // Every node carries a name and a (u32) version field.
     assert!(func.nodes.iter().all(|n| !n.name.is_empty()));
     let _ = func.nodes[0].version; // version is always present (a u32).

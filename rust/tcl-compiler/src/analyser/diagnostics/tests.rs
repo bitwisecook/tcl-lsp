@@ -2663,9 +2663,18 @@ fn w147_reports_mixed_subst_switch_families() {
     );
     // One family alone is legal, and below 9.1 the positive switches are not
     // options at all, so there is no family to mix.
-    assert!(w147("subst -nocommands -novariables $x\n", "tcl9.1").is_empty());
-    assert!(w147("subst -variables -commands $x\n", "tcl9.1").is_empty());
-    assert!(w147("subst -nocommands -variables $x\n", "tcl9.0").is_empty());
+    assert_eq!(
+        w147("subst -nocommands -novariables $x\n", "tcl9.1"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        w147("subst -variables -commands $x\n", "tcl9.1"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        w147("subst -nocommands -variables $x\n", "tcl9.0"),
+        [] as [std::string::String; 0]
+    );
 }
 
 /// `regexp -inline` returns the match data and rejects a match variable
@@ -2688,8 +2697,11 @@ fn w147_reports_a_match_variable_after_regexp_inline() {
         found[0].contains("regexp match variables not allowed when using -inline"),
         "{found:?}"
     );
-    assert!(w147("set t {a b}\nregexp -all -inline {\\S+} $t\n").is_empty());
-    assert!(w147("regexp {a(b)} ab v\n").is_empty());
+    assert_eq!(
+        w147("set t {a b}\nregexp -all -inline {\\S+} $t\n"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(w147("regexp {a(b)} ab v\n"), [] as [std::string::String; 0]);
 }
 
 #[test]
@@ -7733,20 +7745,20 @@ fn an_opaque_switch_reports_the_arms_it_never_selects() {
     // `case` reads its own contract, and is gone from 9.0.
     let case = "proc p {} {\n case abc in a* {puts A} b* {puts B} default {puts D}\n}\n";
     assert_eq!(reported(case, "tcl8.6"), at(case, &["b*"]));
-    assert!(reported(case, "tcl9.0").is_empty());
+    assert_eq!(reported(case, "tcl9.0"), [] as [u32; 0]);
 
     // Nothing is proven about a parameter, and dead code is not analysed.
     let unknown = "proc p {s} {\n switch -glob -- $s {a* {puts A} b* {puts B}}\n}\n";
-    assert!(reported(unknown, "tcl8.6").is_empty());
+    assert_eq!(reported(unknown, "tcl8.6"), [] as [u32; 0]);
     let dead = "proc p {} {\n return\n switch -glob -- abc {a* {puts A} b* {puts B}}\n}\n";
-    assert!(reported(dead, "tcl8.6").is_empty());
+    assert_eq!(reported(dead, "tcl8.6"), [] as [u32; 0]);
 
     // A quoted `-` body of the separate-words form reads two ways on 9.1b0,
     // and `abc` selects the arm that has one: no selection there, so nothing
     // is reported; 9.0 reads it by value and falls through into `b*`'s body.
     let quoted = "proc p {} {\n set s abc\n switch -glob -- $s a* \"-\" b* {puts B} c* {puts C} default {puts D}\n}\n";
     assert_eq!(reported(quoted, "tcl9.0"), at(quoted, &["c*"]));
-    assert!(reported(quoted, "tcl9.1").is_empty());
+    assert_eq!(reported(quoted, "tcl9.1"), [] as [u32; 0]);
 }
 
 /// I231 on an opaque case list names the command the statement is spelled
@@ -7861,7 +7873,10 @@ fn i231_reads_a_switch_words_by_their_values() {
             }
         }
     }
-    assert!(i231_messages(glob, "tcl8.6").is_empty());
+    assert_eq!(
+        i231_messages(glob, "tcl8.6"),
+        [] as [std::string::String; 0]
+    );
 }
 
 /// Before 8.5 `switch` reads every leading word that starts with `-` as an
@@ -7898,7 +7913,10 @@ fn i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option() 
                 "{dialect}: `--` ends the options"
             );
         }
-        assert!(i231_messages(&wrap(escaped), "tcl8.4").is_empty());
+        assert_eq!(
+            i231_messages(&wrap(escaped), "tcl8.4"),
+            [] as [std::string::String; 0]
+        );
         assert_eq!(i231_messages(&wrap(escaped), "tcl8.6").len(), 1);
         for dialect in ["tcl8.4", "tk"] {
             let reported = i231_messages(&wrap(plain), dialect);
@@ -9342,7 +9360,7 @@ fn tcloo_constructor_signature_advice_keeps_unknown_formal_grammar_separate_from
     assert!(plain.native_name_protocol().is_none());
     assert!(plain.parameter_grammar().is_none());
     let source = "oo::class create C {constructor {a b} { }}\nC new 1";
-    assert!(e00x_codes_for(source).is_empty());
+    assert_eq!(e00x_codes_for(source), [] as [std::string::String; 0]);
     assert_eq!(tcloo_constructor_codes_for(source), vec!["E002".to_owned()]);
 }
 
@@ -12701,7 +12719,10 @@ fn w102_narrows_a_proven_switch_word() {
         unproven[0].contains("any [cmd] and $var") && !unproven[0].contains("Add "),
         "{unproven:?}"
     );
-    assert!(w102("proc f {x} { set opt -nocommands\n subst $opt -novariables $x }\n").is_empty());
+    assert_eq!(
+        w102("proc f {x} { set opt -nocommands\n subst $opt -novariables $x }\n"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]
@@ -17336,7 +17357,7 @@ fn original_deprecation_advice_preserves_whole_source_words_and_declines_capture
         .iter()
         .find(|d| d.code == DiagCode::Irule2001)
         .expect("advice has no incomplete-shape edit");
-    assert!(diagnostic.fixes.is_empty());
+    assert_eq!(diagnostic.fixes, [] as [crate::irules_checks::CodeFix; 0]);
     let shadow = "proc matchclass args {}; matchclass item paths";
     assert!(!has_code(shadow, "f5-irules", "IRULE2001"));
 }
@@ -17467,7 +17488,7 @@ fn original_source_arity_and_relationships_keep_effective_counts_and_written_suf
             RegistrySourceDiagnosticKind::ArgumentRelationship
         );
         assert_eq!(subject.span(), diagnostic.span);
-        assert!(diagnostic.fixes.is_empty());
+        assert_eq!(diagnostic.fixes, [] as [crate::irules_checks::CodeFix; 0]);
     }
 }
 

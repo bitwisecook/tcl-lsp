@@ -503,7 +503,7 @@ mod tests {
                 .original_alias_target_for_reference(&after_reference)
                 .expect("current alias recipe");
             assert_eq!(replacement.name_input().bytes(), b"second");
-            assert!(replacement.arguments().is_empty());
+            assert_eq!(replacement.arguments(), []);
             assert_ne!(
                 before_reference.called_implementation_allocation(),
                 after_reference.called_implementation_allocation()

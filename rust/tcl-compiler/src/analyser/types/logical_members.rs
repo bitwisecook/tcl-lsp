@@ -1445,11 +1445,9 @@ mod logical_navigation_receipt_tests {
         let edges = analysis.logical_source_direct_classes(child).unwrap();
         assert_eq!(edges.len(), 1);
         assert!(std::ptr::eq(edges[0], base));
-        assert!(
-            analysis
-                .logical_source_direct_classes(base)
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            analysis.logical_source_direct_classes(base).unwrap(),
+            [] as [&crate::analyser::types::ClassDef; 0]
         );
         let at = u32::try_from(source.find("run").unwrap()).unwrap();
         let member = analysis

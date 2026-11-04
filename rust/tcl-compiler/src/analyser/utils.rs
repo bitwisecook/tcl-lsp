@@ -2939,10 +2939,10 @@ mod tests {
         );
         let inline = tcl_lexer::SourceImage::document("hold {# inline \\\nputs hidden\n}");
         let inline_end = u32::try_from(inline.len() - 1).unwrap();
-        assert!(
+        assert_eq!(
             original_script_comment_facts(&inline, &[(Span::new(6, inline_end), 1)], config)
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [crate::analyser::utils::ScriptCommentFact; 0]
         );
         let bad_boundary = u32::try_from(source.find('é').unwrap() + 1).unwrap();
         assert!(
@@ -2985,7 +2985,10 @@ mod tests {
             )
             .unwrap();
             assert!(captured.literal(3).unwrap().starts_with(b"# noqa:"));
-            assert!(script_comment_facts(source, config, registry).is_empty());
+            assert_eq!(
+                script_comment_facts(source, config, registry),
+                [] as [crate::analyser::utils::ScriptCommentFact; 0]
+            );
         }
         let source = "proc p {} {\n# noqa: W210\nputs hi\n}";
         let facts = script_comment_facts(source, config, registry);

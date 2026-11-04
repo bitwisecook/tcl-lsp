@@ -3909,7 +3909,7 @@ mod tests {
             function.native_compilation_preflight,
             tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
         );
-        assert!(function.instructions.is_empty());
+        assert_eq!(function.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert!(
             !function
                 .literals
@@ -4327,7 +4327,10 @@ mod tests {
                 script.fatal_tail.is_some(),
                 "{name}/{case}: authentic unsupported expansion syntax"
             );
-            assert!(script.commands.is_empty());
+            assert_eq!(
+                script.commands,
+                [] as [tcl_lexer::NativeScriptCommandWords; 0]
+            );
             return;
         }
         let mut context = CodegenCtx::new(true, &["ns", "val"], registry);
@@ -4966,7 +4969,7 @@ mod tests {
         let mut ugi = false;
         ctx.emit_stmt(&stmt, &mut ugi);
         assert!(!ugi);
-        assert!(opcodes(&ctx).is_empty());
+        assert_eq!(opcodes(&ctx), [] as [tcl_bytecode::Op; 0]);
     }
 
     #[test]

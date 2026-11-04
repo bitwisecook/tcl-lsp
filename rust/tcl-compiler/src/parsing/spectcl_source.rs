@@ -470,7 +470,10 @@ mod tests {
         // The loader's original recovery projection remains available. It cannot
         // supply a navigation target without a complete original header.
         assert!(first_pack_source_body(malformed, config).is_some());
-        assert!(!pack_source_statements(malformed, config).is_empty());
+        assert_ne!(
+            pack_source_statements(malformed, config),
+            [] as [crate::segmenter::SegmentedCommand; 0]
+        );
         assert!(pack_source_includes(malformed, config).is_empty());
 
         for source in [

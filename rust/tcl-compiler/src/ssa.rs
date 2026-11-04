@@ -9989,7 +9989,10 @@ mod tests {
                 .is_none()
         );
         assert_eq!(scan(metadata), vec![("selected".into(), UseClass::Name)]);
-        assert!(scan(None).is_empty());
+        assert_eq!(
+            scan(None),
+            [] as [(std::string::String, crate::ssa::UseClass); 0]
+        );
         let older = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl8.4")
                 .with_command_store(Arc::clone(context.commands())),
@@ -10016,11 +10019,11 @@ mod tests {
             grammar,
         );
         for withheld in [&older_input, &foreign, &changed] {
-            assert!(
+            assert_eq!(
                 scan(InvocationMetadataContext::for_analysis_input(
                     registry, withheld
-                ))
-                .is_empty()
+                )),
+                [] as [(std::string::String, crate::ssa::UseClass); 0]
             );
         }
     }
@@ -10040,7 +10043,10 @@ mod tests {
             .find(|statement| statement.tokens().is_some())
             .unwrap();
         let unavailable = SsaInvocationContext::supplied(registry, None);
-        assert!(defs_of_in_context(statement, Some(unavailable)).is_empty());
+        assert_eq!(
+            defs_of_in_context(statement, Some(unavailable)),
+            [] as [std::string::String; 0]
+        );
         let tokens = statement.tokens().unwrap();
         assert!(unavailable.normal(tokens).is_none());
         assert!(unavailable.resolve(tokens).is_none());
@@ -12277,9 +12283,9 @@ mod tests {
         assert!(selected.contains(&String::new()), "{selected:?}");
         assert!(selected.contains(&"$name".to_owned()), "{selected:?}");
         assert!(!selected.contains(&"name".to_owned()), "{selected:?}");
-        assert!(
-            selected_barrier_defs(SsaInvocationContext::supplied(registry, None), tokens)
-                .is_empty()
+        assert_eq!(
+            selected_barrier_defs(SsaInvocationContext::supplied(registry, None), tokens),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -14320,7 +14326,7 @@ mod tests {
 
         let ssa = ssa_of_function("set a 1\nget $a\nset a 2\nputs $a\n", "::top");
         let a = ssa.var_symbol("a").expect("a");
-        assert!(fresh(&ssa, a).is_empty());
+        assert_eq!(fresh(&ssa, a), [] as [(u32, u32); 0]);
     }
 
     /// A call to a command the module cannot see inside a `catch` body, or with

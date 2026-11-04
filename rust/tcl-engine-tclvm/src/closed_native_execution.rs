@@ -678,7 +678,7 @@ mod tests {
                 let selection = owner.scope().unwrap().select(source.into()).unwrap();
                 let output = owner.execute(selection).unwrap();
                 assert_eq!(output.transcript.stdout, stdout);
-                assert!(output.transcript.stderr.is_empty());
+                assert_eq!(output.transcript.stderr, [] as [u8; 0]);
             }
         });
     }

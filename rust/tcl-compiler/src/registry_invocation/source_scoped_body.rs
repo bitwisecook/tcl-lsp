@@ -2483,7 +2483,10 @@ mod script_purpose_tests {
                     .any(|(_, role)| *role == ArgRole::LambdaLiteral)
             );
             assert!(source_script_bodies_for_mutation_coverage(&words, &context).is_none());
-            assert!(words.source_script_bodies(&context).is_empty());
+            assert_eq!(
+                words.source_script_bodies(&context),
+                [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
+            );
         }
     }
 
@@ -2522,7 +2525,10 @@ mod script_purpose_tests {
             };
             let body = words.original_lambda_body_geometry(&context);
             assert!(source_script_bodies_for_mutation_coverage(&words, &context).is_none());
-            assert!(words.source_script_bodies(&context).is_empty());
+            assert_eq!(
+                words.source_script_bodies(&context),
+                [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
+            );
             match expected {
                 Some(expected) => {
                     let body = body.expect("explicit unchanged original lambda geometry");
@@ -2633,11 +2639,9 @@ mod script_purpose_tests {
                 region.variable_argument_words(commands[1]).unwrap(),
                 vec![&commands[1][2]]
             );
-            assert!(
-                region
-                    .variable_argument_words(commands[2])
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                region.variable_argument_words(commands[2]).unwrap(),
+                [] as [&tcl_lexer::NativeWord; 0]
             );
             assert!(region.variable_argument_words(&commands[0][..2]).is_none());
             let other = source.replace("a\\ b", "different");
@@ -2678,7 +2682,7 @@ mod script_purpose_tests {
             let wrapped = region.references(commands[1]).unwrap();
             assert_eq!(wrapped.len(), 1);
             assert_eq!(wrapped[0].original_word(), &commands[1][2]);
-            assert!(region.references(commands[2]).unwrap().is_empty());
+            assert_eq!(region.references(commands[2]).unwrap(), [] as [crate::registry_invocation::source_scoped_body::OriginalSourceDefinitionMemberReference; 0]);
             assert!(region.references(&commands[0][..2]).is_none());
             let other = source.replace("m space", "n space");
             let (_, foreign) = original_definition_parent(&other, dialect);
@@ -3350,13 +3354,12 @@ mod script_purpose_tests {
         let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
         let reference = syntax.words(&commands[0]).unwrap();
         assert_eq!(reference.source_script_bodies(&context).len(), 1);
-        assert!(
-            reference
-                .source_script_bodies_for(
-                    &context,
-                    OriginalSourceScriptPurpose::PotentialEvaluation
-                )
-                .is_empty()
+        assert_eq!(
+            reference.source_script_bodies_for(
+                &context,
+                OriginalSourceScriptPurpose::PotentialEvaluation
+            ),
+            [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
         );
         let potential = syntax.words(&commands[1]).unwrap();
         assert_eq!(

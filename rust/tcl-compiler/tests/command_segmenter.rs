@@ -59,12 +59,18 @@ fn semicolon_separator() {
 
 #[test]
 fn empty_source_is_no_commands() {
-    assert!(segment_commands("").is_empty());
+    assert_eq!(
+        segment_commands(""),
+        [] as [tcl_compiler::segmenter::SegmentedCommand; 0]
+    );
 }
 
 #[test]
 fn comment_only_is_no_commands() {
-    assert!(segment_commands("# just a comment").is_empty());
+    assert_eq!(
+        segment_commands("# just a comment"),
+        [] as [tcl_compiler::segmenter::SegmentedCommand; 0]
+    );
 }
 
 #[test]

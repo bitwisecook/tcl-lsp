@@ -3016,8 +3016,8 @@ mod tests {
                 assert!(exports.contains(&"::top"));
                 assert!(exports.iter().any(|name| name.starts_with("__tcl_wasm_body_")),
                     "actual redefinition requires physical body hygiene");
-                assert!(!module.to_bytes().is_empty());
-                assert!(!module.to_wat().is_empty());
+                assert_ne!(module.to_bytes(), [] as [u8; 0]);
+                assert_ne!(module.to_wat(), "");
             }
         }
     }
@@ -3252,10 +3252,16 @@ mod tests {
         );
         let mut missing = unit.ir_module.clone();
         missing.original_native_declaration_body_units.clear();
-        assert!(procedure_plan(&missing, None, 0).procs.is_empty());
+        assert_eq!(
+            procedure_plan(&missing, None, 0).procs,
+            [] as [(tcl_runtime_api::ProcedureId, &crate::ir::Procedure); 0]
+        );
         let mut stale = unit.ir_module.clone();
         stale.source = tcl_lexer::SourceImage::document("changed source");
-        assert!(procedure_plan(&stale, None, 0).procs.is_empty());
+        assert_eq!(
+            procedure_plan(&stale, None, 0).procs,
+            [] as [(tcl_runtime_api::ProcedureId, &crate::ir::Procedure); 0]
+        );
     }
 
     #[test]

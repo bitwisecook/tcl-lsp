@@ -150,7 +150,7 @@ mod tests {
                 analyser.result.diagnostics
             );
             assert_eq!(&source[found[0].span.as_range()], value);
-            assert!(found[0].fixes.is_empty());
+            assert_eq!(found[0].fixes, [] as [crate::irules_checks::CodeFix; 0]);
             let Some(DiagnosticSubject::RegistrySource(subject)) = found[0].subject() else {
                 panic!("original channel option subject")
             };
@@ -160,7 +160,7 @@ mod tests {
             );
             assert_eq!(subject.argument(), Some(argument));
             assert_eq!(subject.written_argument(), written);
-            assert!(subject.supplemental_literals().is_empty());
+            assert_eq!(subject.supplemental_literals(), []);
         }
     }
 
@@ -213,7 +213,10 @@ mod tests {
         let source = "configuration_current stdout -encoding binary -translation crlf";
         let input = self::input(current);
         assert_eq!(findings(&analyse(source, &input).result).len(), 1);
-        assert!(findings(&analyse(source, &self::input(older)).result).is_empty());
+        assert_eq!(
+            findings(&analyse(source, &self::input(older)).result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let mut analyser = analyse(source, &input);
         let segment = crate::segmenter::segment_commands_with_offset_and_config(
             source,
@@ -254,6 +257,9 @@ mod tests {
         analyser.result.resolved_input = None;
         analyser.result.diagnostics.clear();
         analyser.emit_w311_encoding_mismatch(Some(&original));
-        assert!(findings(&analyser.result).is_empty());
+        assert_eq!(
+            findings(&analyser.result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
     }
 }

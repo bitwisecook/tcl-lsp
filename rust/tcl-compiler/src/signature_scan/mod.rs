@@ -444,10 +444,9 @@ mod tests {
                 result.procedures_for_written_name(&namespace, ":f", Some(policy)),
                 [declaration]
             );
-            assert!(
-                result
-                    .procedures_for_written_name(&namespace, "::N:::f", Some(policy))
-                    .is_empty()
+            assert_eq!(
+                result.procedures_for_written_name(&namespace, "::N:::f", Some(policy)),
+                [] as [&crate::signature_scan::types::SignatureProc; 0]
             );
         }
         for engine in ["tcl8.4", "tcl8.5"] {

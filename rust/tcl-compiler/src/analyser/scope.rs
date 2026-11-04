@@ -4305,7 +4305,10 @@ mod tests {
         let advice = unavailable
             .logical_variable_scope_advice(&image, config, u32::try_from(source.len()).unwrap())
             .unwrap();
-        assert!(advice.cross_namespace_variable_names().is_empty());
+        assert_eq!(
+            advice.cross_namespace_variable_names(),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -5363,7 +5366,7 @@ info exists ::N::v\uD800";
                 .conditional_metadata()
                 .unwrap_or_else(|| panic!("{profile}: retained conditional applicability"));
             assert!(metadata.matches_source(&image, config));
-            assert!(!metadata.obligations().is_empty());
+            assert_ne!(metadata.obligations(), []);
             assert_eq!(
                 declaration.original_name_input().bytes(),
                 b"::N::v\xed\xa0\x80"
@@ -5626,7 +5629,7 @@ info exists ::N::v\uD800";
                     .original_name_input()
                     .original_static_list_container()
                     .expect("authentic ParamList ancestry");
-                assert!(!container.ordinals().is_empty());
+                assert_ne!(container.ordinals(), []);
                 assert!(
                     analysis.original_variable_rename_is_complete(declaration.symbol()),
                     "{profile}: complete original naming occurrences"

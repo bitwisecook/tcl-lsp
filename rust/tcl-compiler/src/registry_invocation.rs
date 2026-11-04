@@ -10352,11 +10352,11 @@ mod tests {
                 .find(|shape| shape.command == "HTTP::uri")
                 .unwrap();
             assert!(shape.hosted_source.is_some());
-            assert!(
+            assert_eq!(
                 shape
                     .source_argument_words(registry, Some(metadata), child)
-                    .unwrap()
-                    .is_empty()
+                    .unwrap(),
+                [] as [crate::registry_invocation::EffectiveInvocationWord; 0]
             );
             assert!(
                 shape
@@ -12093,7 +12093,10 @@ mod tests {
                 .contains(&(1, tcl_registry::ArgRole::Body))
         );
         assert!(view.unknown_residual);
-        assert!(view.definite_roles.is_empty());
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(view.definite_traits.is_empty());
         assert!(view.definite_scope.is_none());
 
@@ -12101,15 +12104,24 @@ mod tests {
             "interp alias {} declare {} proc p; rename declare {}; proc declare args {return ordinary}; declare {} {}",
         );
         let view = invocation_body_assistance(registry, test_context(), &surface, &tokens);
-        assert!(view.possible_roles.is_empty());
+        assert_eq!(
+            view.possible_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
 
         let tokens = last_source_tokens(
             "rename if original; proc if args {return ordinary}; if {$other} {set x 1}",
         );
         assert!(catalogue_invocation_assistance(registry, test_context(), &tokens).is_none());
         let view = invocation_body_assistance(registry, test_context(), &surface, &tokens);
-        assert!(view.possible_roles.is_empty());
-        assert!(view.definite_roles.is_empty());
+        assert_eq!(
+            view.possible_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(view.definite_invocation.is_none());
 
         let tokens = last_source_tokens(
@@ -12121,7 +12133,10 @@ mod tests {
             view.possible_roles
                 .contains(&(2, tcl_registry::ArgRole::Body))
         );
-        assert!(view.definite_roles.is_empty());
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(view.definite_invocation.is_none());
     }
 
@@ -12141,7 +12156,10 @@ mod tests {
                 .possible_roles
                 .contains(&(2, tcl_registry::ArgRole::Body))
         );
-        assert!(advisory.definite_roles.is_empty());
+        assert_eq!(
+            advisory.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(advisory.definite_traits.is_empty());
         assert!(advisory.definite_invocation.is_none());
         assert!(advisory.conditional_invocation.is_none());
@@ -12221,7 +12239,10 @@ mod tests {
         let opaque =
             tokens.with_source_binding(crate::command_binding::SourceInvocationBinding::unknown());
         let view = invocation_body_assistance(registry, context, &surface, &opaque);
-        assert!(view.definite_roles.is_empty());
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(view.definite_traits.is_empty());
         assert!(view.definite_scope.is_none());
         assert!(view.definite_invocation.is_none());
@@ -12257,7 +12278,10 @@ mod tests {
             view.possible_roles
                 .contains(&(0, tcl_registry::ArgRole::Body))
         );
-        assert!(view.definite_roles.is_empty());
+        assert_eq!(
+            view.definite_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(view.definite_traits.is_empty());
         assert!(view.definite_invocation.is_none());
         let unknown = crate::command_binding::SourceCommandBindings::analyse_with_options(
@@ -12879,12 +12903,18 @@ mod tests {
             .with_command_store(std::sync::Arc::clone(registry));
         let tokens = last_source_tokens("dict for {key value} {} {puts nested}");
         let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
-        assert!(
-            !invocation_argument_role_assistance(registry, generation, &surface, &tokens)
-                .is_empty()
+        assert_ne!(
+            invocation_argument_role_assistance(registry, generation, &surface, &tokens),
+            [] as [(usize, tcl_registry::ArgRole); 0]
         );
-        assert!(invocation_argument_role_assistance(registry, &old, &surface, &tokens).is_empty());
-        assert!(invocation_argument_role_consensus(registry, &old, &tokens).is_empty());
+        assert_eq!(
+            invocation_argument_role_assistance(registry, &old, &surface, &tokens),
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
+        assert_eq!(
+            invocation_argument_role_consensus(registry, &old, &tokens),
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         let body = invocation_body_assistance(registry, &old, &surface, &tokens);
         assert!(body.possible_roles.is_empty() && body.definite_roles.is_empty());
         assert!(body.unknown_residual && body.definite_invocation.is_none());
@@ -12896,8 +12926,14 @@ mod tests {
             foreign.commands().snapshot().semantic_key(),
             registry.snapshot().semantic_key()
         );
-        assert!(invocation_argument_role_assistance(registry, &foreign, &surface, &set).is_empty());
-        assert!(invocation_argument_role_consensus(registry, &foreign, &set).is_empty());
+        assert_eq!(
+            invocation_argument_role_assistance(registry, &foreign, &surface, &set),
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
+        assert_eq!(
+            invocation_argument_role_consensus(registry, &foreign, &set),
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(original_variable_write_advice(registry, &foreign, &set).is_none());
         assert!(
             original_symbol_declaration_advice(
@@ -13010,7 +13046,10 @@ mod tests {
             Some(&older),
         )
         .unwrap();
-        assert!(unavailable.possible_roles.is_empty());
+        assert_eq!(
+            unavailable.possible_roles,
+            [] as [(usize, tcl_registry::ArgRole); 0]
+        );
         assert!(unavailable.unknown_residual);
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
         assert!(
@@ -13058,7 +13097,10 @@ mod tests {
             possible_variable_name_operands_in_context(&older, &tokens).unwrap();
         assert!(unavailable_names.candidates.is_empty() && unavailable_names.unknown_residual());
         let assistance = registry_invocation_assistance_in_context(generation, &tokens).unwrap();
-        assert!(!assistance.candidates.is_empty());
+        assert_ne!(
+            assistance.candidates,
+            [] as [crate::registry_invocation::RegistryInvocationShape; 0]
+        );
         let unavailable = registry_invocation_assistance_in_context(&older, &tokens).unwrap();
         assert!(unavailable.candidates.is_empty() && unavailable.unknown_residual);
         let replaced = last_source_tokens("proc dict args {}; dict create key value");
@@ -13166,29 +13208,41 @@ mod tests {
             advisory_return_values_in_context(&generation, &returning),
             vec![returning.words()[1].clone()]
         );
-        assert!(advisory_value_assignments_in_context(&older, &assignment).is_empty());
-        assert!(advisory_return_values_in_context(&older, &returning).is_empty());
+        assert_eq!(
+            advisory_value_assignments_in_context(&older, &assignment),
+            [] as [crate::registry_invocation::AdvisoryValueAssignment; 0]
+        );
+        assert_eq!(
+            advisory_return_values_in_context(&older, &returning),
+            [] as [crate::ir::WordExpr; 0]
+        );
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
-        assert!(
+        assert_eq!(
             advisory_value_assignments_with_metadata_context(
                 registry,
                 Some(foreign.into()),
                 &assignment
-            )
-            .is_empty()
+            ),
+            [] as [crate::registry_invocation::AdvisoryValueAssignment; 0]
         );
-        assert!(
+        assert_eq!(
             advisory_return_values_with_metadata_context(
                 registry,
                 Some(foreign.into()),
                 &returning
-            )
-            .is_empty()
+            ),
+            [] as [crate::ir::WordExpr; 0]
         );
         assignment.source_binding = None;
         returning.source_binding = None;
-        assert!(advisory_value_assignments_in_context(&generation, &assignment).is_empty());
-        assert!(advisory_return_values_in_context(&generation, &returning).is_empty());
+        assert_eq!(
+            advisory_value_assignments_in_context(&generation, &assignment),
+            [] as [crate::registry_invocation::AdvisoryValueAssignment; 0]
+        );
+        assert_eq!(
+            advisory_return_values_in_context(&generation, &returning),
+            [] as [crate::ir::WordExpr; 0]
+        );
     }
 }
 

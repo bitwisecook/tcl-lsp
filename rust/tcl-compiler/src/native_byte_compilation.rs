@@ -876,7 +876,10 @@ mod tests {
                     // The original C8.4 parser rejects the adjacent brace
                     // groups before a compiler receives a command vector.
                     assert!(parsed.fatal_tail.is_some());
-                    assert!(parsed.commands.is_empty());
+                    assert_eq!(
+                        parsed.commands,
+                        [] as [tcl_lexer::NativeScriptCommandWords; 0]
+                    );
                     continue;
                 }
                 let plan =
@@ -990,7 +993,7 @@ mod tests {
                 recipe.outcome == NativeNamespaceBindingOutcome::Inline,
                 inline
             );
-            assert!(!recipe.visits.is_empty());
+            assert_ne!(recipe.visits, [] as [tcl_registry::native_namespace_binding_compilation::NativeNamespaceBindingVisit; 0]);
         }
     }
 
@@ -1258,7 +1261,10 @@ mod tests {
                 assert_eq!(plan.binding, entry.commands[0]);
                 assert_eq!(plan.context, context);
                 assert_eq!(plan.operand_from, 1);
-                assert!(plan.dependencies.is_empty());
+                assert_eq!(
+                    plan.dependencies,
+                    [] as [tcl_runtime_api::native_compilation::NativeCompilationBinding; 0]
+                );
                 assert!(
                     plan.prerequisite.is_none(),
                     "ordinary compiler has no delegated worker"
@@ -2568,7 +2574,10 @@ mod tests {
             };
             assert_eq!(plan.binding, registration);
             assert_eq!(plan.operand_from, 1);
-            assert!(plan.dependencies.is_empty());
+            assert_eq!(
+                plan.dependencies,
+                [] as [tcl_runtime_api::native_compilation::NativeCompilationBinding; 0]
+            );
             assert!(matches!(
                 plan.selection,
                 NativeCompilationSelection::Inline { .. }

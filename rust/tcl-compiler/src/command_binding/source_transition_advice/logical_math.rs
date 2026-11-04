@@ -459,7 +459,7 @@ mod tests {
             &ByteNamespacePath::from_segments([b"N".as_slice()])
         );
         assert!(occurrence.has_opaque_or_substitution_operands());
-        assert!(!occurrence.parent().obligations().is_empty());
+        assert_ne!(occurrence.parent().obligations(), []);
         let declarations = occurrence
             .source_declarations(&analysis)
             .expect("genuine retained header catalogue");
@@ -494,7 +494,7 @@ mod tests {
             .logical_math_function_at(source, offset)
             .expect("selected original alias expression");
         assert_eq!(occurrence.parent().original_words().len(), 2);
-        assert!(!occurrence.parent().lineage().is_empty());
+        assert_ne!(occurrence.parent().lineage(), []);
         assert!(occurrence.has_earlier_unknown_mutations());
         assert!(occurrence.has_opaque_or_substitution_operands());
         assert!(occurrence.builtin_metadata(&analysis).is_some());
@@ -583,7 +583,7 @@ mod tests {
         assert!(occurrence.coordinates().is_none());
         assert!(occurrence.source_declarations(&analysis).is_none());
         assert!(occurrence.builtin_metadata(&analysis).is_some());
-        assert!(!occurrence.parent().lineage().is_empty());
+        assert_ne!(occurrence.parent().lineage(), []);
         let input = analysis.resolved_input.as_ref().unwrap();
         let document = occurrence.document.as_ref().unwrap();
         assert!(document.matches_source(

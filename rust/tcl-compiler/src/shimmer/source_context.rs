@@ -226,55 +226,79 @@ mod tests {
             "positive actual input must retain typed nested reads"
         );
         let function = unit.function("::f").unwrap();
-        assert!(
-            !crate::compiler_checks::shimmer_family_checks(
+        assert_ne!(
+            crate::compiler_checks::shimmer_family_checks(
                 function,
                 &registry,
                 None,
                 None::<&std::collections::HashSet<String>>
-            )
-            .is_empty()
+            ),
+            [] as [crate::compiler_checks::Diagnostic; 0]
         );
         let mut missing = function.clone();
         missing.source_metadata_input = None;
         assert!(ShimmerContext::for_function(&missing, &registry).is_none());
-        assert!(
+        assert_eq!(
             crate::compiler_checks::shimmer_family_checks(
                 &missing,
                 &registry,
                 None,
                 None::<&std::collections::HashSet<String>>
-            )
-            .is_empty()
+            ),
+            [] as [crate::compiler_checks::Diagnostic; 0]
         );
         let mut foreign_registry = tcl_registry::CommandRegistry::build_default();
         let mut unrelated = foreign_registry.get("set").unwrap().clone();
         unrelated.name = "unrelated";
         foreign_registry.insert(unrelated);
         assert!(ShimmerContext::for_function(function, &foreign_registry).is_none());
-        assert!(
+        assert_eq!(
             crate::compiler_checks::shimmer_family_checks(
                 function,
                 &foreign_registry,
                 None,
                 None::<&std::collections::HashSet<String>>
-            )
-            .is_empty()
+            ),
+            [] as [crate::compiler_checks::Diagnostic; 0]
         );
-        assert!(super::super::find_shimmer_warnings_for_cu(&unit, &foreign_registry).is_empty());
+        assert_eq!(
+            super::super::find_shimmer_warnings_for_cu(&unit, &foreign_registry),
+            [] as [crate::shimmer::ShimmerWarning; 0]
+        );
         assert!(super::super::first_use_commitments_for_cu(&unit, &foreign_registry).is_empty());
-        assert!(super::super::find_thunking_warnings_for_cu(&unit, &foreign_registry).is_empty());
-        assert!(super::super::find_sharing_warnings_for_cu(&unit, &foreign_registry).is_empty());
-        assert!(super::super::find_byte_array_warnings_for_cu(&unit, &foreign_registry).is_empty());
+        assert_eq!(
+            super::super::find_thunking_warnings_for_cu(&unit, &foreign_registry),
+            [] as [crate::shimmer::ThunkingWarning; 0]
+        );
+        assert_eq!(
+            super::super::find_sharing_warnings_for_cu(&unit, &foreign_registry),
+            [] as [crate::shimmer::SharingWarning; 0]
+        );
+        assert_eq!(
+            super::super::find_byte_array_warnings_for_cu(&unit, &foreign_registry),
+            [] as [crate::shimmer::ShimmerWarning; 0]
+        );
         unit.top_level.source_metadata_input = None;
         for function in unit.procedures.values_mut() {
             function.source_metadata_input = None;
         }
-        assert!(super::super::find_shimmer_warnings_for_cu(&unit, &registry).is_empty());
+        assert_eq!(
+            super::super::find_shimmer_warnings_for_cu(&unit, &registry),
+            [] as [crate::shimmer::ShimmerWarning; 0]
+        );
         assert!(super::super::first_use_commitments_for_cu(&unit, &registry).is_empty());
-        assert!(super::super::find_thunking_warnings_for_cu(&unit, &registry).is_empty());
-        assert!(super::super::find_sharing_warnings_for_cu(&unit, &registry).is_empty());
-        assert!(super::super::find_byte_array_warnings_for_cu(&unit, &registry).is_empty());
+        assert_eq!(
+            super::super::find_thunking_warnings_for_cu(&unit, &registry),
+            [] as [crate::shimmer::ThunkingWarning; 0]
+        );
+        assert_eq!(
+            super::super::find_sharing_warnings_for_cu(&unit, &registry),
+            [] as [crate::shimmer::SharingWarning; 0]
+        );
+        assert_eq!(
+            super::super::find_byte_array_warnings_for_cu(&unit, &registry),
+            [] as [crate::shimmer::ShimmerWarning; 0]
+        );
     }
 
     #[test]
@@ -287,7 +311,10 @@ mod tests {
             &registry,
             false,
         );
-        assert!(!super::super::find_shimmer_warnings_for_cu(&stock, &registry).is_empty());
+        assert_ne!(
+            super::super::find_shimmer_warnings_for_cu(&stock, &registry),
+            [] as [crate::shimmer::ShimmerWarning; 0]
+        );
         let shadow = CompilationUnit::build_for(
             "proc lindex args {return 0}; proc f {lst} {set x [llength $lst]; puts [::lindex $x 0]}",
             &registry,

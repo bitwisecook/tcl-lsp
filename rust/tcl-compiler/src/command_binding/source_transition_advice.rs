@@ -5074,7 +5074,10 @@ mod advice_cell_storage_tests {
         branch.widen(&original_words());
         assert!(branch.cells.shares_storage(&current.cells));
         assert_eq!(&*branch.cells, &*current.cells);
-        assert!(current.uncertain_operations.is_empty());
+        assert_eq!(
+            current.uncertain_operations,
+            [] as [std::sync::Arc<[tcl_lexer::NativeWord]>; 0]
+        );
         assert_eq!(branch.uncertain_operations.len(), 1);
         assert_eq!(branch.uncertain_operations[0][0].bytes(), b"opaque");
     }
@@ -5114,7 +5117,10 @@ mod advice_cell_storage_tests {
         assert!(old.cells.contains_key(&removed));
         assert_eq!(current.cells.get(&imported), old.cells.get(&imported));
         assert_eq!(current.cells.len() + 1, old.cells.len());
-        assert!(old.uncertain_operations.is_empty());
+        assert_eq!(
+            old.uncertain_operations,
+            [] as [std::sync::Arc<[tcl_lexer::NativeWord]>; 0]
+        );
     }
 }
 

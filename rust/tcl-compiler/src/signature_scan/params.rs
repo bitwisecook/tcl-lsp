@@ -1050,7 +1050,10 @@ mod selected_nested_formal_rules_tests {
     #[test]
     fn nested_formal_receiver_keeps_selected_lenient_list_grammar() {
         let source = "{{a}x default}";
-        assert!(parse_param_list(source, WordValueRules::TCL).is_empty());
+        assert_eq!(
+            parse_param_list(source, WordValueRules::TCL),
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
         let jim = WordValueRules {
             list: tcl_dialect::ListParse::Lenient,
             ..WordValueRules::TCL

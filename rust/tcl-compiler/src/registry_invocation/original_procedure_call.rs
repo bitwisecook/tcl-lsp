@@ -758,7 +758,7 @@ mod native_may_dependency_tests {
         assert_eq!(possible.bodies, expected);
         assert_eq!(possible.bodies.len(), 2);
         let unavailable = queried("alias");
-        assert!(unavailable.bodies.is_empty());
+        assert_eq!(unavailable.bodies, [] as [tcl_runtime_api::ProcedureId; 0]);
         assert!(unavailable.unknown_alternatives);
     }
 }
@@ -1047,7 +1047,7 @@ mod logical_may_named_descriptor_tests {
                 "{source}"
             );
             if expected_named_only {
-                assert!(dependencies.bodies.is_empty());
+                assert_eq!(dependencies.bodies, [] as [tcl_runtime_api::ProcedureId; 0]);
             }
             if source.starts_with("proc set") {
                 let (id, _) = module

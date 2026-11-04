@@ -461,7 +461,10 @@ mod tests {
         let current = current_input("tcl9.1");
         let source = "subst -backslashes $tmpl";
         let current_analyser = analyse(source, &current);
-        assert!(findings(&current_analyser.result).is_empty());
+        assert_eq!(
+            findings(&current_analyser.result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let older = Arc::new(
             tcl_registry::model::ingress::static_context_for("tcl9.0")
                 .with_command_store(Arc::clone(current.context_registry().commands())),
@@ -515,7 +518,10 @@ mod tests {
         assert_eq!(findings(&analyser.result).len(), 1);
         let original = last_original(&analyser, source);
         let unavailable = analyse(source, &input(older, supplied.lexer_config()));
-        assert!(findings(&unavailable.result).is_empty());
+        assert_eq!(
+            findings(&unavailable.result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let foreign =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         assert!(OriginalDiagnosticInvocation::new(original.words().clone(), foreign).is_none());

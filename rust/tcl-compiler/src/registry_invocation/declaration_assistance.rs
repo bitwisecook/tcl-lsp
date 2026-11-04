@@ -1159,7 +1159,7 @@ mod original_alias_source_schema_tests {
             input.borrowed_context_registry(),
         )
         .unwrap();
-        assert!(aliases.operands().is_empty());
+        assert_eq!(aliases.operands(), []);
         let declarations = aliases.logical_declarations(input, realm).unwrap();
         let [declaration] = declarations.as_slice() else {
             panic!("one actual source local");
@@ -1222,11 +1222,11 @@ mod original_alias_source_schema_tests {
             input.borrowed_context_registry(),
         )
         .unwrap();
-        assert!(
+        assert_eq!(
             aliases
                 .logical_declarations(input, analysis.retained_command_realm().unwrap())
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [crate::registry_invocation::declaration_assistance::OriginalLogicalAliasDeclaration; 0]
         );
     }
 

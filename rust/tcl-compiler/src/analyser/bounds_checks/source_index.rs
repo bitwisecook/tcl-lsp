@@ -418,7 +418,10 @@ mod tests {
         );
         let older_input = input(older, current.analyser_profile().grammar);
         let (_, older_result) = analyse(source, &older_input);
-        assert!(indices(&older_result).is_empty());
+        assert_eq!(
+            indices(&older_result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let original = last_original(&analyser, source);
         let foreign =
             tcl_registry::model::ingress::resolve_environment("tcl8.4").default_context_registry();
@@ -459,7 +462,10 @@ mod tests {
         let source = "interp alias {} at {} lindex; at $literal $index";
         let (analyser, _) = analyse(source, &input);
         let original = last_original(&analyser, source);
-        assert!(original_index_diagnostics(&original).is_empty());
+        assert_eq!(
+            original_index_diagnostics(&original),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         let projected = original
             .with_supplemental_literals(&[(0, "a b".to_owned()), (1, "9".to_owned())])
             .unwrap();

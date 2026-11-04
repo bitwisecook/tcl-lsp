@@ -1838,14 +1838,14 @@ mod tests {
             &mut global,
             &["first".into(), "prefix$computed".into()]
         ));
-        assert!(global.instructions.is_empty());
+        assert_eq!(global.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert!(global.lvt.is_empty());
         let mut upvar = CodegenCtx::new(true, &[], &registry);
         assert!(!upvar_cmd(
             &mut upvar,
             &["0".into(), "remote".into(), "prefix$computed".into()]
         ));
-        assert!(upvar.instructions.is_empty());
+        assert_eq!(upvar.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert!(upvar.lvt.is_empty());
     }
 
@@ -2321,7 +2321,7 @@ mod tests {
                 &[name.into(), "a".into(), "b".into()],
                 &mut used
             ));
-            assert!(multi.instructions.is_empty());
+            assert_eq!(multi.instructions, [] as [tcl_bytecode::Instruction; 0]);
         }
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used = false;
@@ -2805,7 +2805,10 @@ mod tests {
             &mut unavailable,
             &["12".into(), "other".into(), "local".into()]
         ));
-        assert!(unavailable.instructions.is_empty());
+        assert_eq!(
+            unavailable.instructions,
+            [] as [tcl_bytecode::Instruction; 0]
+        );
         assert!(unavailable.lvt.is_empty());
     }
 
@@ -3048,7 +3051,7 @@ mod tests {
             &mut ctx,
             &["$literal".to_owned(), "array($index)".to_owned()]
         ));
-        assert!(ctx.instructions.is_empty());
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
     }
 
     #[test]
@@ -3101,7 +3104,7 @@ mod tests {
             } else {
                 upvar_cmd(&mut ctx, &args)
             });
-            assert!(ctx.instructions.is_empty());
+            assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
         }
     }
 
@@ -3134,7 +3137,7 @@ mod tests {
             &mut ctx,
             &["0".to_owned(), "$remote".to_owned(), "local".to_owned()]
         ));
-        assert!(ctx.instructions.is_empty());
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert!(ctx.lvt.is_empty());
     }
 }

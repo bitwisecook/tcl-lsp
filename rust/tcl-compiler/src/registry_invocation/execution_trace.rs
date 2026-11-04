@@ -967,7 +967,10 @@ mod tests {
         let (owner, captured) =
             crate::environment_ingress::captured_native_entry_with_owner(profile);
         assert!(captured.command_name_policy().is_none());
-        assert!(!captured.commands.is_empty());
+        assert_ne!(
+            captured.commands,
+            [] as [tcl_runtime_api::native_compilation::NativeCompilationBinding; 0]
+        );
         let unit = native_profile_unit_from_entry(
             "llength {a b}",
             std::sync::Arc::clone(&context),

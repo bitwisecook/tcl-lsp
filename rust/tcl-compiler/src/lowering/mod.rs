@@ -10195,7 +10195,10 @@ mod tests {
             "proc namespace args {}; namespace import foo::* ::foo::*",
             &reg(),
         );
-        assert!(shadowed.namespace_imports.is_empty());
+        assert_eq!(
+            shadowed.namespace_imports,
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -10633,12 +10636,18 @@ mod tests {
         );
         let mut unavailable = make(older);
         unavailable.lower(source);
-        assert!(unavailable.namespace_exports.is_empty());
+        assert_eq!(
+            unavailable.namespace_exports,
+            [] as [(std::string::String, std::string::String); 0]
+        );
         let mut missing = make(std::sync::Arc::clone(&current));
         missing.metadata_input = None;
         missing.dialect_context = None;
         missing.lower(source);
-        assert!(missing.namespace_exports.is_empty());
+        assert_eq!(
+            missing.namespace_exports,
+            [] as [(std::string::String, std::string::String); 0]
+        );
         let logical_profile = tcl_dialect::DialectProfile::plain_tcl();
         let logical_input = crate::analyser::ResolvedAnalysisInput::new(
             logical_profile,
@@ -10660,16 +10669,25 @@ mod tests {
         assert!(!missing_authoring.allows_standalone_registry_metadata());
         assert!(missing_authoring.invocation_metadata_context().is_none());
         missing_authoring.lower(source);
-        assert!(missing_authoring.namespace_exports.is_empty());
+        assert_eq!(
+            missing_authoring.namespace_exports,
+            [] as [(std::string::String, std::string::String); 0]
+        );
         let mut stale = make(std::sync::Arc::clone(&current));
         stale.config.strict_quoting = !config.strict_quoting;
         stale.lower(source);
-        assert!(stale.namespace_exports.is_empty());
+        assert_eq!(
+            stale.namespace_exports,
+            [] as [(std::string::String, std::string::String); 0]
+        );
         let mut foreign = make(
             tcl_registry::model::ingress::resolve_environment("tcl9.1").default_context_registry(),
         );
         foreign.lower(source);
-        assert!(foreign.namespace_exports.is_empty());
+        assert_eq!(
+            foreign.namespace_exports,
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -11106,8 +11124,8 @@ mod tests {
             panic!("missing original/context ownership must retain a generic call");
         };
         assert!(canonical_command.is_none());
-        assert!(defs.is_empty());
-        assert!(reads.is_empty());
+        assert_eq!(defs, []);
+        assert_eq!(reads, []);
         assert_eq!(
             lowerer.advisory_method_instance_names(&statement),
             vec!["local", "${dynamic}"]
@@ -11896,7 +11914,7 @@ mod tests {
             let procedure = fixture_id_if_present(&module.procedures, "::subject")
                 .and_then(|id| module.procedures.get(&id))
                 .expect("captured source declaration");
-            assert!(procedure.params.is_empty());
+            assert_eq!(procedure.params, [] as [std::string::String; 0]);
             assert_eq!(procedure.params_raw, "");
             assert!(module.source_entry.native_entry.is_none());
         }

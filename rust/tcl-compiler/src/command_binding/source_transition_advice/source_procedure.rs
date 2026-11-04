@@ -762,7 +762,7 @@ mod tests {
             .caller_body()
             .expect("authentic owner body without entry");
         assert_eq!(&source[body.content_span().as_range()], "target");
-        assert!(!call.declaration_advice().obligations().is_empty());
+        assert_ne!(call.declaration_advice().obligations(), []);
         assert!(analysis.original_completed_command_world().is_none());
         assert!(
             crate::registry_invocation::source_structure::source_original_procedure_call_at(
@@ -942,7 +942,7 @@ mod original_captured_call_controls {
                 call.declaration(&analysis).unwrap().name_input().bytes(),
                 b"target"
             );
-            assert!(!call.lineage().is_empty());
+            assert_ne!(call.lineage(), []);
         }
         let source = "proc target {a b} {}; interp alias {} one {} target X; interp alias {} two {} one; rename one {}; two Z";
         let analysis = Analyser::new().analyse(source, "tcl8.6");

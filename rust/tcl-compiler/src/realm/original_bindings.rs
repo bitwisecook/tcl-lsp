@@ -128,7 +128,10 @@ mod tests {
                 .invocation_at_source("presentation-ignored", 0)
         );
         assert!(!first.unknown);
-        assert!(!first.targets.is_empty());
+        assert_ne!(
+            first.targets,
+            [] as [crate::command_binding::SourceCommandTarget; 0]
+        );
         assert!(Arc::ptr_eq(&first, &realm.retained_original_invocation(0)));
         assert!(Arc::ptr_eq(&first, &clone.retained_original_invocation(0)));
         let second = realm.retained_original_invocation(9);

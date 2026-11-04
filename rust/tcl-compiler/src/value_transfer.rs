@@ -9744,7 +9744,10 @@ mod tests {
                 .any(|statement| matches!(statement.statement, Statement::Switch { .. })),
             "the opaque statement"
         );
-        assert!(function.sccp.selections.is_empty());
+        assert_eq!(
+            function.sccp.selections,
+            [] as [crate::sccp::SelectionRecord; 0]
+        );
     }
 
     /// The selection the call `head words…` makes under `dialect`.

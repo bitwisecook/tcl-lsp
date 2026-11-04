@@ -34398,7 +34398,10 @@ mod native_hidden_byte_names {
                     .unwrap()
                     .is_some()
             );
-            assert!(vm.own_hidden_names_bytes().is_empty());
+            assert_eq!(
+                vm.own_hidden_names_bytes(),
+                [] as [tcl_core_types::NameBytes; 0]
+            );
         }
     }
 
@@ -34420,7 +34423,10 @@ mod native_hidden_byte_names {
             assert_eq!(hidden.code, Code::Ok);
             assert_eq!(hidden.result.string_bytes().as_ref(), b"h\xff");
             vm.expose_own_command_bytes(b"h\xff", b"q\xff").unwrap();
-            assert!(vm.own_hidden_names_bytes().is_empty());
+            assert_eq!(
+                vm.own_hidden_names_bytes(),
+                [] as [tcl_core_types::NameBytes; 0]
+            );
             let selected = vm
                 .lookup_command_bytes_checked(ROOT_NS, b"q\xff")
                 .unwrap()
@@ -35035,7 +35041,10 @@ mod debug_owned_cell_tests {
         assert_eq!(snapshot.level, 1);
         assert_eq!(snapshot.stack[0].name, "inspection");
         vm.pop_call_frame();
-        assert!(vm.debug_snapshot(8, "after").variables.is_empty());
+        assert_eq!(
+            vm.debug_snapshot(8, "after").variables,
+            [] as [crate::debug::DebugVar; 0]
+        );
     }
 }
 

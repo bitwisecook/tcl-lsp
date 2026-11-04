@@ -1263,7 +1263,7 @@ fn no_return_proc_is_not_constant() {
         .unwrap();
     assert!(!s.returns_constant);
     assert_eq!(s.constant_return, None);
-    assert!(s.return_depends_on_params.is_empty());
+    assert_eq!(s.return_depends_on_params, [] as [std::string::String; 0]);
 }
 
 // call-graph edges discovered inside substitutions (scan_value_substitutions

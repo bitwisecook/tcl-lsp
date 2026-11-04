@@ -52,7 +52,10 @@ fn original_namespace_producer_preserves_alias_written_origins_and_known_shadowi
     );
     let shadowed = "proc namespace args {}\nnamespace exists Ghost";
     let result = Analyser::new().analyse(shadowed, "tcl8.6");
-    assert!(result.namespace_refs.is_empty());
+    assert_eq!(
+        result.namespace_refs,
+        [] as [crate::analyser::types::NamespaceRef; 0]
+    );
 }
 
 #[test]
@@ -70,5 +73,8 @@ fn original_dynamic_variable_producer_preserves_alias_written_origins_and_known_
     assert_eq!(site.resolved.as_deref(), Some("target"));
     let shadowed = "proc set args {}\nset $name 1";
     let result = Analyser::new().analyse(shadowed, "tcl8.6");
-    assert!(result.dynamic_variable_names.is_empty());
+    assert_eq!(
+        result.dynamic_variable_names,
+        [] as [crate::analyser::types::DynamicVariableNameSite; 0]
+    );
 }

@@ -3851,7 +3851,10 @@ mod tests {
         let bindings = retained
             .positioned_for_module(&module, context.commands())
             .unwrap();
-        assert!(bindings.installed_procedure_body_units().is_empty());
+        assert_eq!(
+            bindings.installed_procedure_body_units(),
+            [] as [crate::command_binding::generated_procedures::SourceInstalledProcedureBody; 0]
+        );
         let mut stale = module.clone();
         stale
             .body_units

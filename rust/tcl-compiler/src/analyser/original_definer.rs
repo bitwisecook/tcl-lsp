@@ -545,7 +545,12 @@ mod tests {
             );
         }
         let analysis = Analyser::new().analyse("oo::class create C {}", "tcl8.6");
-        assert!(analysis.original_counted_class_metadata.is_empty());
+        assert_eq!(
+            analysis.original_counted_class_metadata,
+            [] as [crate::signature_scan::original_name::SourceDeclarationMetadata<
+                crate::analyser::types::OriginalCountedClass,
+            >; 0]
+        );
         assert_eq!(analysis.original_class_declarations().count(), 1);
     }
 

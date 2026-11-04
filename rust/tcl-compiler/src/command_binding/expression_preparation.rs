@@ -1716,10 +1716,11 @@ mod tests {
         nested.invocation.offset += 1;
         let inner = bindings.begin_expression_read_capture(&nested, &frame);
         bindings.capture_current_expression_read(&script.origin, &frame, &read);
-        assert!(
+        assert_eq!(
             bindings
                 .finish_expression_read_capture(inner, &nested)
-                .is_empty()
+                .len(),
+            0
         );
         assert_eq!(
             bindings.finish_expression_read_capture(outer, &proof),
@@ -1733,10 +1734,11 @@ mod tests {
             &crate::var_resolve::VariableExecutionFrame::Unknown,
             &read,
         );
-        assert!(
+        assert_eq!(
             bindings
                 .finish_expression_read_capture(capture, &proof)
-                .is_empty()
+                .len(),
+            0
         );
         assert!(bindings.current_expression_reads.0.is_empty());
         // The retained lexical inventory survives this transient refusal.

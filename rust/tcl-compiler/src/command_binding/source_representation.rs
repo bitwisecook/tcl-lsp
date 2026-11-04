@@ -828,7 +828,7 @@ mod tests {
         );
         let outcomes = super::unobserved_read_result(&state, &target, registry);
         assert!(outcomes.normal.is_some());
-        assert!(outcomes.abrupt.is_empty());
+        assert_eq!(outcomes.abrupt.len(), 0);
         assert!(outcomes.normal_value.is_none());
     }
 

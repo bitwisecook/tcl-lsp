@@ -7834,8 +7834,8 @@ mod tests {
         else {
             panic!("empty original operand selects source root");
         };
-        assert!(target.as_segments().is_empty());
-        assert!(result.namespace_name_unknowns.is_empty());
+        assert_eq!(target.as_segments(), []);
+        assert_eq!(result.namespace_name_unknowns, [] as [tcl_lexer::Span; 0]);
     }
 
     #[test]

@@ -1028,10 +1028,9 @@ mod tests {
             source_resolver: Some(SourceWorldEffectResolver::Effects(source_write)),
             ..WorldEffectDescriptor::EMPTY
         };
-        assert!(
-            !source_write(tcl_registry::InvocationArguments::structured(&[]))
-                .accesses()
-                .is_empty()
+        assert_ne!(
+            source_write(tcl_registry::InvocationArguments::structured(&[])).accesses(),
+            []
         );
         assert!(intrinsic_conditional_has_no_authored_overrides(
             &ResolvedWorldEffects::default(),
@@ -1200,7 +1199,10 @@ mod tests {
             assert_eq!(calls.len(), 1);
             assert!(calls[0].matches_source_analysis(source, &analysis));
             if !source.starts_with("proc ") {
-                assert!(!calls[0].body_path.is_empty());
+                assert_ne!(
+                    calls[0].body_path,
+                    [] as [crate::registry_invocation::source_structure::OriginalRegistryWords; 0]
+                );
             }
         }
     }
@@ -1252,10 +1254,10 @@ mod tests {
             "when HTTP_REQUEST {set a(h) [ILX::init p e]; ILX::call $a(h) m}",
             "when HTTP_REQUEST {set h [ILX::init p e]; ILX::call prefix$h m}",
         ] {
-            assert!(
+            assert_eq!(
                 source_remote_first_operand_associations(source, &analyse(source))
-                    .unwrap()
-                    .is_empty()
+                    .unwrap(),
+                [] as [crate::registry_invocation::source_remote_first_operand::OriginalSourceRemoteFirstOperandAssociation; 0]
             );
         }
     }

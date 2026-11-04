@@ -737,7 +737,7 @@ mod tests {
             },
             &mut callback,
         );
-        assert!(!visits.is_empty());
+        assert_ne!(visits, [] as [tcl_runtime_api::ProcedureId; 0]);
         assert!(!unit.original_lattice_callbacks_are_current());
         assert!(visits.iter().all(|body| {
             unit.function_for_body(Some(*body))

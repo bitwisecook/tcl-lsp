@@ -715,7 +715,7 @@ mod arity_prefix_tests {
                 assert_eq!(debts.is_empty(), expected, "{dialect}: {source}");
                 if let Some(debt) = debts.first() {
                     assert_eq!(debt.command(), "llength");
-                    assert!(debt.uncertain_operations().is_empty());
+                    assert_eq!(debt.uncertain_operations(), []);
                     assert!(debt.obligations().contains(
                         &crate::command_binding::SourceCommandTransitionObligation::UnacceptedSourceArity,
                     ));

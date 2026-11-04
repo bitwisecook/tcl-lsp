@@ -629,7 +629,11 @@ mod tests {
             let paths = state
                 .original_command_paths_for_input(&root, &input)
                 .unwrap();
-            assert!(!paths.is_empty());
+            assert_ne!(
+                paths,
+                [] as [std::vec::Vec<crate::command_binding::namespace_context::SourceCommandKey>;
+                    0]
+            );
             assert!(paths.iter().all(Vec::is_empty));
             let selected = state
                 .original_targets_for_input(

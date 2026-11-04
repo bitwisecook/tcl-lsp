@@ -2942,7 +2942,11 @@ mod tests {
                 selected.admission,
                 Some(NativeCompilationSelection::Unknown)
             );
-            assert!(selected.proofs.is_empty());
+            assert_eq!(
+                selected.proofs,
+                [] as [crate::command_binding::compiled_invocation::SourceCompiledInvocationProof;
+                    0]
+            );
             assert!(selected.admitted.is_none());
             assert_eq!(
                 selected
@@ -3030,7 +3034,7 @@ mod tests {
                     Some(NativeCompilationSelection::Unknown)
                 );
                 assert!(point.compiled_execution.admitted.is_none());
-                assert!(point.compiled_execution.proofs.is_empty());
+                assert_eq!(point.compiled_execution.proofs, [] as [crate::command_binding::compiled_invocation::SourceCompiledInvocationProof; 0]);
             }
         }
     }
@@ -3216,7 +3220,11 @@ mod tests {
                 point.compiled_execution.compiler_preserves_names(),
                 "{name}"
             );
-            assert!(point.compiled_execution.proofs.is_empty());
+            assert_eq!(
+                point.compiled_execution.proofs,
+                [] as [crate::command_binding::compiled_invocation::SourceCompiledInvocationProof;
+                    0]
+            );
             assert!(point.compiled_execution.admitted.is_none());
         }
     }
@@ -3918,7 +3926,7 @@ mod original_logical_compiler_purpose_tests {
                 .iter()
                 .filter(|point| point.dispatch)
                 .collect::<Vec<_>>();
-            assert!(!points.is_empty());
+            assert_ne!(points.len(), 0);
             for point in points {
                 assert!(point.compiled_execution.admission.is_none());
                 assert!(point.compiled_execution.policy.is_none());

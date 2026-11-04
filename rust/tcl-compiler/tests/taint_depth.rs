@@ -423,7 +423,7 @@ mod t100_sink_family {
         // the RHS of an assignment, not a bare Call. The AssignValue branch of
         // `emit_statement_warnings` must still classify it.
         let ws = of_code("set x [read $fd]\nset out [eval $x]", D, "T100");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].sink_command, "eval");
     }
 
@@ -432,7 +432,7 @@ mod t100_sink_family {
         // tclsh: `subst {val=$x}` evaluates `$x` (and `[cmd]`); a tainted operand
         // is a code-execution vector even when subst's result is captured.
         let ws = of_code("set x [read $fd]\nset out [subst $x]", D, "T100");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].sink_command, "subst");
     }
 
@@ -477,19 +477,28 @@ mod exec_shell_atom {
     #[test]
     fn ip_atom_clears_exec_t100() {
         // f5-dialect: IP::client_addr augments to SHELL_ATOM → exec-safe.
-        assert!(of_code("set a [IP::client_addr]\nexec ping $a", D, "T100").is_empty());
+        assert_eq!(
+            of_code("set a [IP::client_addr]\nexec ping $a", D, "T100"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
     fn port_atom_clears_exec_t100() {
         // f5-dialect: TCP::client_port → PORT → SHELL_ATOM.
-        assert!(of_code("set p [TCP::client_port]\nexec nc host $p", D, "T100").is_empty());
+        assert_eq!(
+            of_code("set p [TCP::client_port]\nexec nc host $p", D, "T100"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
     fn fqdn_atom_clears_exec_t100() {
         // f5-dialect: SSL::sni → FQDN → SHELL_ATOM.
-        assert!(of_code("set h [SSL::sni]\nexec host $h", D, "T100").is_empty());
+        assert_eq!(
+            of_code("set h [SSL::sni]\nexec host $h", D, "T100"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
@@ -575,7 +584,10 @@ mod t102_scan_region {
         // `regexp -nocase -- $x subject` — `--` ends switch scanning, so $x is a
         // definite positional (pattern), not an option. No T102.
         let source = "set x [read $fd]\nregexp -nocase -- $x subject";
-        assert!(channel_of_code(source, D, "T102").is_empty());
+        assert_eq!(
+            channel_of_code(source, D, "T102"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
         let control = format!("{source}\nregexp $x subject match");
         assert!(
             channel_of_code(&control, D, "T102")
@@ -589,7 +601,7 @@ mod t102_scan_region {
         // `{*}$x` could expand to a leading `-switch`, so it is in the option
         // scan region → T102.
         let ws = of_code("set x [read $fd]\nregexp {*}$x subject", D, "T102");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -597,7 +609,10 @@ mod t102_scan_region {
         // `regexp {fixed} $subject` — the literal `{fixed}` pattern is a definite
         // positional that ends scanning, so the later tainted subject is safe.
         let source = "set s [read $fd]\nregexp {fixed} $s";
-        assert!(channel_of_code(source, D, "T102").is_empty());
+        assert_eq!(
+            channel_of_code(source, D, "T102"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
         let control = format!("{source}\nregexp $s subject match");
         assert!(
             channel_of_code(&control, D, "T102")
@@ -621,7 +636,10 @@ mod t102_scan_region {
     fn exec_with_terminator_clean_for_t102() {
         // `exec -- $x` ends switch scanning, so `$x` cannot be a switch → no
         // T102 (the T100 code-exec sink is a separate concern, not asserted here).
-        assert!(of_code("set x [read $fd]\nexec -- $x", D, "T102").is_empty());
+        assert_eq!(
+            of_code("set x [read $fd]\nexec -- $x", D, "T102"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 }
 
@@ -640,7 +658,7 @@ mod t103_regsub_and_quotes {
         // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: regsub's first positional is the regex pattern; tainted → T103.
         let ws = channel_of_code("set x [read $fd]\nregsub $x subject {}", D, "T103");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].variable, "x");
         assert!(ws[0].sink_command.contains("regsub"));
     }
@@ -657,43 +675,46 @@ mod t103_regsub_and_quotes {
     fn regsub_tainted_replacement_is_not_t103() {
         // The replacement (slot after pattern) is not a pattern position → no
         // T103 on a tainted replacement when the pattern is literal.
-        assert!(of_code("set r [read $fd]\nregsub -all {x} subject $r", D, "T103").is_empty());
+        assert_eq!(
+            of_code("set r [read $fd]\nregsub -all {x} subject $r", D, "T103"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
     fn regexp_quote_suppresses_t103() {
         // `regexp::quote` stamps REGEX_LITERAL → the pattern is trusted, no T103.
-        assert!(
+        assert_eq!(
             of_code(
                 "set x [read $fd]\nset q [regexp::quote $x]\nregexp $q subject",
                 D,
                 "T103",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn regex_colon_quote_suppresses_t103() {
-        assert!(
+        assert_eq!(
             of_code(
                 "set x [read $fd]\nset q [regex::quote $x]\nregexp $q subject",
                 D,
                 "T103",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn re_quote_suppresses_t103() {
-        assert!(
+        assert_eq!(
             of_code(
                 "set x [read $fd]\nset q [re_quote $x]\nregsub -all $q subject {}",
                 D,
                 "T103",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -773,7 +794,10 @@ mod t104_network_sinks {
     #[test]
     fn http_geturl_fqdn_clears() {
         // f5-dialect source: an SSL::sni FQDN clears T104.
-        assert!(of_code("set s [SSL::sni]\nhttp::geturl $s", D, "T104").is_empty());
+        assert_eq!(
+            of_code("set s [SSL::sni]\nhttp::geturl $s", D, "T104"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
@@ -796,7 +820,7 @@ mod t105_cross_interp {
     #[test]
     fn interp_eval_tainted_script_warns() {
         let ws = of_code("set x [read $fd]\ninterp eval child $x", D, "T105");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].variable, "x");
         assert_eq!(ws[0].sink_command, "interp eval");
     }
@@ -804,7 +828,7 @@ mod t105_cross_interp {
     #[test]
     fn interp_invokehidden_tainted_warns() {
         let ws = of_code("set x [read $fd]\ninterp invokehidden child $x", D, "T105");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].sink_command, "interp invokehidden");
     }
 
@@ -813,13 +837,13 @@ mod t105_cross_interp {
         // `interp eval child [list puts $x]` — the constructed list's command
         // word is the literal known command `puts`, so the tainted `$x` is a
         // quoted argument, not the command word. No T105.
-        assert!(
+        assert_eq!(
             of_code(
                 "set x [read $fd]\ninterp eval child [list puts $x]",
                 D,
                 "T105"
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -841,7 +865,10 @@ mod t105_cross_interp {
     fn interp_eval_subcommand_only_other_subcommands_clean() {
         // `interp share`/`interp delete` are not in `taint_interp_eval_subcommands`
         // → no T105 even with a tainted argument.
-        assert!(of_code("set x [read $fd]\ninterp share {} $x child", D, "T105").is_empty());
+        assert_eq!(
+            of_code("set x [read $fd]\ninterp share {} $x child", D, "T105"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 }
 
@@ -873,7 +900,7 @@ mod t106_double_encode_breadth {
             IR,
             "T106",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -896,7 +923,7 @@ mod t106_double_encode_breadth {
             IR,
             "T106",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws[0].message.contains("HTML-escaped"));
     }
 
@@ -908,7 +935,7 @@ mod t106_double_encode_breadth {
             IR,
             "T106",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -920,7 +947,7 @@ mod t106_double_encode_breadth {
             D,
             "T106",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws[0].message.contains("regex-escaped"));
     }
 
@@ -928,20 +955,23 @@ mod t106_double_encode_breadth {
     fn single_encode_is_not_double() {
         // f5-dialect: one pass through the encoder is fine — T106 needs the
         // colour already present on the input.
-        assert!(of_code("set x [HTTP::query]\nset a [URI::encode $x]", IR, "T106",).is_empty());
+        assert_eq!(
+            of_code("set x [HTTP::query]\nset a [URI::encode $x]", IR, "T106",),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
     fn url_encode_then_html_encode_is_not_double() {
         // Different colours: URL_ENCODED input into an HTML encoder is a
         // different transform, not a re-encode → no T106.
-        assert!(
+        assert_eq!(
             of_code(
                 "set x [HTTP::query]\nset a [URI::encode $x]\nset b [HTML::encode $a]",
                 IR,
                 "T106",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 }
@@ -954,13 +984,13 @@ mod irule3001_depth {
     #[test]
     fn html_escaped_body_suppresses() {
         // f5-dialect: HTML::encode stamps HTML_ESCAPED → IRULE3001 cleared.
-        assert!(
+        assert_eq!(
             of_code(
                 "set raw [HTTP::query]\nset safe [HTML::encode $raw]\nHTTP::respond 200 content $safe",
                 IR,
                 "IRULE3001",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -974,7 +1004,7 @@ mod irule3001_depth {
             IR,
             "IRULE3001",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -986,7 +1016,7 @@ mod irule3001_depth {
             IR,
             "IRULE3001",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(
             ws[0].message.to_lowercase().contains("xss")
                 || ws[0].message.to_lowercase().contains("content injection")
@@ -1009,7 +1039,7 @@ mod irule3002_depth {
             IR,
             "IRULE3002",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws[0].sink_command.to_lowercase().contains("header"));
     }
 
@@ -1017,39 +1047,39 @@ mod irule3002_depth {
     fn ip_value_clears_header_via_crlf_free() {
         // f5-dialect: an IP address is CRLF-free → IRULE3002 cleared in the
         // value position.
-        assert!(
+        assert_eq!(
             of_code(
                 "set a [IP::client_addr]\nHTTP::header insert X-Real-IP $a",
                 IR,
                 "IRULE3002",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn port_value_clears_header() {
         // f5-dialect.
-        assert!(
+        assert_eq!(
             of_code(
                 "set p [TCP::client_port]\nHTTP::header insert X-Port $p",
                 IR,
                 "IRULE3002",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn fqdn_value_clears_header() {
         // f5-dialect.
-        assert!(
+        assert_eq!(
             of_code(
                 "set s [SSL::sni]\nHTTP::header insert X-SNI $s",
                 IR,
                 "IRULE3002",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -1060,13 +1090,13 @@ mod irule3002_depth {
         // `taint_transform`). The CRLF_FREE component IS in CRLF_SAFE → the
         // encoded value clears IRULE3002 in the header value position. This pins
         // the command-transform (not bare-colour) suppression path.
-        assert!(
+        assert_eq!(
             of_code(
                 "set raw [HTTP::header Host]\nset e [HTML::encode $raw]\nHTTP::header insert X-H $e",
                 IR,
                 "IRULE3002",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -1089,20 +1119,20 @@ mod irule3002_depth {
             IR,
             "IRULE3002",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
     fn header_at_subcommand_not_a_sink() {
         // `HTTP::header at` is a getter-ish subcommand, not insert/replace → no
         // IRULE3002 even with a tainted argument.
-        assert!(
+        assert_eq!(
             of_code(
                 "set v [HTTP::header Host]\nHTTP::header at $v",
                 IR,
                 "IRULE3002",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 }
@@ -1119,32 +1149,32 @@ mod irule3003_depth {
         // PATH_PREFIXED is a T102 mitigation, NOT a CRLF mitigation: an HTTP::uri
         // (which carries PATH_PREFIXED, not CRLF_FREE) still trips IRULE3003.
         let ws = dialect_of_code("set u [HTTP::uri]\nlog local0. $u", IR, "IRULE3003");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
     fn uri_escape_clears_log_via_crlf_free() {
         // f5-dialect: URI::escape augments CRLF_FREE → IRULE3003 cleared.
-        assert!(
+        assert_eq!(
             of_code(
                 "set raw [HTTP::query]\nset e [URI::escape $raw]\nlog local0. $e",
                 IR,
                 "IRULE3003",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
     #[test]
     fn html_escape_clears_log_via_crlf_free() {
         // f5-dialect: html_escape's transform includes CRLF_FREE.
-        assert!(
+        assert_eq!(
             of_code(
                 "set raw [HTTP::query]\nset e [html_escape $raw]\nlog local0. $e",
                 IR,
                 "IRULE3003",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -1157,7 +1187,7 @@ mod irule3003_depth {
             IR,
             "IRULE3003",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(
             ws[0].message.to_lowercase().contains("log injection")
                 || ws[0].message.to_lowercase().contains("log forging")
@@ -1177,20 +1207,23 @@ mod irule3004_depth {
     fn path_prefixed_target_suppresses() {
         // f5-dialect: HTTP::uri starts with `/` (PATH_PREFIXED ⊂ REDIRECT_SAFE)
         // → same-origin, no open redirect.
-        assert!(of_code("set u [HTTP::uri]\nHTTP::redirect $u", IR, "IRULE3004").is_empty());
+        assert_eq!(
+            of_code("set u [HTTP::uri]\nHTTP::redirect $u", IR, "IRULE3004"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
     fn file_normalised_target_suppresses() {
         // PATH_NORMALISED ⊂ REDIRECT_SAFE: a `[file normalize]`d redirect target
         // routes back to the current host.
-        assert!(
+        assert_eq!(
             of_code(
                 "set raw [HTTP::header X-Loc]\nset t [file normalize $raw]\nHTTP::redirect $t",
                 IR,
                 "IRULE3004",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -1203,7 +1236,7 @@ mod irule3004_depth {
             IR,
             "IRULE3004",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(
             ws[0].message.to_lowercase().contains("open redirect")
                 || ws[0].message.to_lowercase().contains("redirect")
@@ -1214,7 +1247,10 @@ mod irule3004_depth {
     fn redirect_not_classified_under_plain_tcl() {
         // Under tcl8.6 the HTTP::redirect sink is not classified → no IRULE3004
         // even though `read` taints `$loc`.
-        assert!(of_code("set loc [read $fd]\nHTTP::redirect $loc", D, "IRULE3004",).is_empty());
+        assert_eq!(
+            of_code("set loc [read $fd]\nHTTP::redirect $loc", D, "IRULE3004",),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 }
 
@@ -1243,13 +1279,13 @@ mod irule3101_depth {
     #[test]
     fn file_normalised_var_suppresses() {
         // PATH_NORMALISED is in the IRULE3101 safe-path set → suppressed.
-        assert!(
+        assert_eq!(
             of_code(
                 "set raw [read $fd]\nset p [file normalize $raw]\nHTTP::path $p",
                 IR,
                 "IRULE3101",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -1265,15 +1301,24 @@ mod irule3101_depth {
 
     #[test]
     fn literal_with_slash_clean_both_setters() {
-        assert!(of_code("HTTP::uri /a/b", IR, "IRULE3101").is_empty());
-        assert!(of_code("HTTP::path /a/b", IR, "IRULE3101").is_empty());
+        assert_eq!(
+            of_code("HTTP::uri /a/b", IR, "IRULE3101"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
+        assert_eq!(
+            of_code("HTTP::path /a/b", IR, "IRULE3101"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
     fn not_classified_under_plain_tcl() {
         // The setter constraint is dialect-gated: a literal non-slash target
         // under tcl8.6 emits nothing (defence-in-depth gate).
-        assert!(of_code("HTTP::uri relativepath", D, "IRULE3101").is_empty());
+        assert_eq!(
+            of_code("HTTP::uri relativepath", D, "IRULE3101"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 }
 
@@ -1292,7 +1337,7 @@ mod w313_destructive_file {
     fn file_delete_variable_path_warns() {
         // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let ws = channel_of_code("set p [read $fd]\nfile delete $p", D, "W313");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].variable, "p");
         assert_eq!(ws[0].sink_command, "file delete");
     }
@@ -1301,7 +1346,7 @@ mod w313_destructive_file {
     fn file_mkdir_variable_path_warns() {
         // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         let ws = channel_of_code("set p [read $fd]\nfile mkdir $p", D, "W313");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].sink_command, "file mkdir");
     }
 
@@ -1310,7 +1355,7 @@ mod w313_destructive_file {
         // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `file rename` is a destructive (mutating) op.
         let ws = channel_of_code("set p [read $fd]\nfile rename $p /dest", D, "W313");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert_eq!(ws[0].sink_command, "file rename");
     }
 
@@ -1326,7 +1371,10 @@ mod w313_destructive_file {
     #[test]
     fn literal_path_clean() {
         // tclsh: a literal path cannot carry user content → no W313.
-        assert!(of_code("file delete /tmp/known", D, "W313").is_empty());
+        assert_eq!(
+            of_code("file delete /tmp/known", D, "W313"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
@@ -1336,7 +1384,7 @@ mod w313_destructive_file {
         // per-argument targeting.
         let src = "set p [read $fd]\nfile delete $p";
         let ws = of_code(src, D, "W313");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         let expected = src.rfind("$p").unwrap();
         assert_eq!(
             (ws[0].span.start() as usize, ws[0].span.end() as usize),
@@ -1368,7 +1416,7 @@ mod w313_destructive_file {
         // the switch word.
         let src = "set p [read $fd]\nfile delete -force $p";
         let ws = of_code(src, D, "W313");
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         let expected = src.rfind("$p").unwrap();
         assert_eq!(
             (ws[0].span.start() as usize, ws[0].span.end() as usize),
@@ -1412,7 +1460,10 @@ mod w313_destructive_file {
         // the path stays inside the intended directory → W313 suppressed in the
         // guarded block.
         let src = "set raw [read $fd]\nset p [file normalize $raw]\nif {[string match \"/safe/*\" $p]} {\n  file delete $p\n}";
-        assert!(channel_of_code(src, D, "W313").is_empty());
+        assert_eq!(
+            channel_of_code(src, D, "W313"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
         let control = format!("{src}\nfile delete $p");
         assert!(
             channel_of_code(&control, D, "W313")
@@ -1440,7 +1491,10 @@ mod w313_destructive_file {
     fn file_stat_non_destructive_subcommand_clean() {
         // Tcl requires the channel before the non-destructive read.
         let source = "set p [read $fd]\nfile exists $p";
-        assert!(channel_of_code(source, D, "W313").is_empty());
+        assert_eq!(
+            channel_of_code(source, D, "W313"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
         let control = format!("{source}\nfile delete $p");
         assert!(
             channel_of_code(&control, D, "W313")
@@ -1467,7 +1521,7 @@ mod transform_propagation {
             D,
             "T100",
         );
-        assert!(!ws.is_empty());
+        assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -1487,13 +1541,13 @@ mod transform_propagation {
         // Interpolation `"<p>${a}</p>"` invalidates HTML_ESCAPED
         // (`interpolation_carve_out`), so passing the interpolated value through
         // HTML::encode is a FRESH encode, not a double-encode → no T106.
-        assert!(
+        assert_eq!(
             of_code(
                 "set x [HTTP::query]\nset a [HTML::encode $x]\nset b \"<p>${a}</p>\"\nset c [HTML::encode $b]",
                 IR,
                 "T106",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -1528,12 +1582,12 @@ mod sanitiser_breadth {
         // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `string is integer …` returns a boolean (0/1) — a fixed numeric
         // return that cannot carry content taint.
-        assert!(
+        assert_eq!(
             channel_codes(
                 "set x [read $fd]\nset ok [string is integer $x]\neval $ok",
                 D,
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -1541,12 +1595,12 @@ mod sanitiser_breadth {
     fn string_compare_sanitises() {
         // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `string compare a b` → an int in {-1,0,1}.
-        assert!(
+        assert_eq!(
             channel_codes(
                 "set x [read $fd]\nset c [string compare $x foo]\nexpr $c",
                 D,
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -1554,8 +1608,9 @@ mod sanitiser_breadth {
     fn string_match_sanitises() {
         // Dialect build with a defined channel: tclsh errors on an undefined `$fd`.
         // tclsh: `string match pat str` → boolean.
-        assert!(
-            channel_codes("set x [read $fd]\nset m [string match a* $x]\nexpr $m", D,).is_empty()
+        assert_eq!(
+            channel_codes("set x [read $fd]\nset m [string match a* $x]\nexpr $m", D,),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -1626,13 +1681,13 @@ mod dialect_gating {
     fn irules_sink_fires_under_irules_dialect() {
         // Dialect build: a standalone unit without an invocation dialect stays opaque.
         // Control: the same HTTP::respond IS classified under f5-irules.
-        assert!(
-            !dialect_of_code(
+        assert_ne!(
+            dialect_of_code(
                 "set d [HTTP::payload]\nHTTP::respond 200 content $d",
                 IR,
                 "IRULE3001",
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
 
@@ -1674,7 +1729,10 @@ mod interproc_depth {
         // T102-safe when copied directly but not when passed through `wrap`).
         let src =
             "proc wrap {x} { return $x }\nset uri [HTTP::uri]\nset w [wrap $uri]\nregexp $w test";
-        assert!(!of_code(src, D, "T102").is_empty());
+        assert_ne!(
+            of_code(src, D, "T102"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
@@ -1686,7 +1744,10 @@ mod interproc_depth {
         // emit_sink_warnings false positive documented in w313/sanitiser_breadth
         // — avoided here by binding the result to a variable.)
         let src = "proc len {x} { return [string length $x] }\nset raw [read $fd]\nset n [len $raw]\nputs $n";
-        assert!(channel_of_code(src, D, "T101").is_empty());
+        assert_eq!(
+            channel_of_code(src, D, "T101"),
+            [] as [tcl_compiler::taint::TaintWarning; 0]
+        );
         let control = "proc len {x} { return [string length $x] }\nset raw [read $fd]\nset n [len $raw]\nputs $raw";
         let warnings = channel_of_code(control, D, "T101");
         assert!(

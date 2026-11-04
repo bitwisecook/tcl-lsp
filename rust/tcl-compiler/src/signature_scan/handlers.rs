@@ -1407,7 +1407,10 @@ mod tests {
         }
         let mut unprofiled = SignatureScanResult::default();
         handle_source(&texts, &argv, "", None, &mut unprofiled);
-        assert!(unprofiled.source_targets.is_empty());
+        assert_eq!(
+            unprofiled.source_targets,
+            [] as [crate::signature_scan::types::SignatureSource; 0]
+        );
     }
 
     #[test]

@@ -2692,9 +2692,9 @@ mod tests {
         ));
         let mut ssa = SsaFunction::trivial("::f", BlockId(0), vec!["entry".into()]);
         let statement = ssa_stmt_for(&mut ssa, native, None);
-        assert!(
-            statement_occurrences(&registry, &statement, "entry", 0, registry.profile(), &ssa)
-                .is_empty()
+        assert_eq!(
+            statement_occurrences(&registry, &statement, "entry", 0, registry.profile(), &ssa),
+            [] as [crate::gvn::ExprOccurrence; 0]
         );
     }
 

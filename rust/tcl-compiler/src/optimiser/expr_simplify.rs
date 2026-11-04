@@ -1117,7 +1117,7 @@ mod tests {
         );
         let mut missing = unit.clone();
         missing.ir_module.source_metadata_input = None;
-        assert!(collect(&missing).is_empty());
+        assert_eq!(collect(&missing).len(), 0);
     }
 
     #[test]

@@ -6451,7 +6451,7 @@ mod tests {
         let r = sccp_no_traces(&f, &ssa, None, FoldPolicy::default());
         assert!(r.executable_blocks.contains(&t));
         assert!(r.executable_blocks.contains(&e));
-        assert!(r.constant_branches.is_empty());
+        assert_eq!(r.constant_branches, [] as [crate::sccp::ConstantBranch; 0]);
     }
 
     #[test]

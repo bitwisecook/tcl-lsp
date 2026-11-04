@@ -2637,7 +2637,7 @@ mod tests {
                     barrier,
                     "{dialect}: {source}"
                 );
-                assert!(!lookup.original().obligations().is_empty());
+                assert_ne!(lookup.original().obligations(), []);
                 if let Some(target) = lookup.original().target() {
                     assert_eq!(
                         target.captured_arguments().len(),

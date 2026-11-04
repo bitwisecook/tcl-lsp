@@ -200,14 +200,14 @@ mod tests {
                         .original_lexer_config_for_tokens(&boundary)
                         .is_none()
                 );
-                assert!(
+                assert_eq!(
                     argument_calls(
                         &boundary,
                         registry,
                         ArgumentReadInput::for_owner(&owner, registry)
                     )
-                    .unwrap()
-                    .is_empty()
+                    .unwrap(),
+                    [] as [crate::word_subst::LiftedCall; 0]
                 );
                 assert!(
                     crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
@@ -405,20 +405,18 @@ mod tests {
         ] {
             let mut cached = tokens.clone();
             cached.synthetic = Some(phase);
-            assert!(
-                argument_calls(&cached, registry, ArgumentReadInput::Supplied(None))
-                    .unwrap()
-                    .is_empty()
+            assert_eq!(
+                argument_calls(&cached, registry, ArgumentReadInput::Supplied(None)).unwrap(),
+                [] as [crate::word_subst::LiftedCall; 0]
             );
         }
         let mut lossless = original_tokens("list {[opaque]}", &input);
         lossless.synthetic = Some(SyntheticMarker::EvaluatedArguments);
         lossless.source_binding = None;
         assert!(argument_calls(&lossless, registry, ArgumentReadInput::Supplied(None)).is_none());
-        assert!(
-            argument_calls(&lossless, registry, ArgumentReadInput::Standalone)
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            argument_calls(&lossless, registry, ArgumentReadInput::Standalone).unwrap(),
+            [] as [crate::word_subst::LiftedCall; 0]
         );
         let deep = format!("list {}0{}", "[list ".repeat(12), "]".repeat(12));
         let deep = original_tokens(&deep, &input);
@@ -481,14 +479,14 @@ mod tests {
             Some(&input)
         );
         let tokens = points.source_tokens_at(block, index).unwrap();
-        assert!(
+        assert_eq!(
             argument_calls(
                 tokens,
                 registry,
                 ArgumentReadInput::for_owner(points.source_metadata_owner(), registry)
             )
-            .unwrap()
-            .is_empty()
+            .unwrap(),
+            [] as [crate::word_subst::LiftedCall; 0]
         );
         assert!(!crate::memory_ssa::is_clobber_with_metadata_context(
             statement,

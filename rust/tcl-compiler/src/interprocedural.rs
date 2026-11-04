@@ -5674,7 +5674,10 @@ mod tests {
             .expect("conditional source summary");
         assert!(!summary.completes);
         assert!(summary.defined_at.is_none());
-        assert!(summary.defined_callees.is_empty());
+        assert_eq!(
+            summary.defined_callees,
+            [] as [tcl_runtime_api::ProcedureId; 0]
+        );
         assert!(!module.procedures.contains_key(&id));
 
         let mut missing = module.clone();
@@ -7347,7 +7350,7 @@ mod tests {
         assert!(observed.has_unknown_calls);
         assert!(observed.upvar_aliases.is_empty());
         assert!(observed.global_aliases.is_empty());
-        assert!(observed.name_params.is_empty());
+        assert_eq!(observed.name_params, [] as [usize; 0]);
         assert!(observed.source_parameter_aliases.is_empty());
         assert!(
             observed

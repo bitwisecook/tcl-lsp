@@ -184,7 +184,10 @@ mod tests {
         let mut embedder = CommandRegistry::build_default();
         embedder.insert(spec);
         let module = compile("set x [vendor::double 21]\nset x", &embedder);
-        assert!(module.top_level.site_claims.is_empty());
+        assert_eq!(
+            module.top_level.site_claims,
+            [] as [tcl_runtime_api::SiteClaim; 0]
+        );
     }
 
     /// The manifest's packs are the claims' stamps, sorted, each once,
@@ -237,11 +240,9 @@ mod tests {
             "set x [vendor::double 21]",
             &CommandRegistry::build_default(),
         );
-        assert!(
-            bare.manifest
-                .expect("the compiler fills it")
-                .packs
-                .is_empty()
+        assert_eq!(
+            bare.manifest.expect("the compiler fills it").packs,
+            [] as [tcl_runtime_api::PackFactStamp; 0]
         );
     }
 
@@ -322,7 +323,10 @@ mod tests {
                 .packs,
             vec![facts]
         );
-        assert!(module.top_level.site_claims.is_empty());
+        assert_eq!(
+            module.top_level.site_claims,
+            [] as [tcl_runtime_api::SiteClaim; 0]
+        );
     }
 
     /// A script's global level is Tcl frame zero's and holds no local variable
@@ -339,8 +343,14 @@ mod tests {
 
         let script = service.compile("vdouble 21").unwrap();
         assert!(calls_a_command(&script.top_level));
-        assert!(script.top_level.procedure_bindings.is_empty());
-        assert!(script.top_level.site_claims.is_empty());
+        assert_eq!(
+            script.top_level.procedure_bindings,
+            [] as [tcl_runtime_api::ProcedureBindingIdentity; 0]
+        );
+        assert_eq!(
+            script.top_level.site_claims,
+            [] as [tcl_runtime_api::SiteClaim; 0]
+        );
 
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
@@ -378,8 +388,14 @@ mod tests {
                 ProcedureDispatch::Plain,
             )
             .unwrap();
-        assert!(plain.top_level.procedure_bindings.is_empty());
-        assert!(plain.top_level.site_claims.is_empty());
+        assert_eq!(
+            plain.top_level.procedure_bindings,
+            [] as [tcl_runtime_api::ProcedureBindingIdentity; 0]
+        );
+        assert_eq!(
+            plain.top_level.site_claims,
+            [] as [tcl_runtime_api::SiteClaim; 0]
+        );
         assert!(calls_a_command(&plain.top_level));
     }
 
@@ -459,8 +475,11 @@ mod tests {
             .procedures
             .get(&fixture_id(&module.procedures, "::caller"))
             .expect("authored fixture body");
-        assert!(caller.procedure_bindings.is_empty());
-        assert!(caller.site_claims.is_empty());
+        assert_eq!(
+            caller.procedure_bindings,
+            [] as [tcl_runtime_api::ProcedureBindingIdentity; 0]
+        );
+        assert_eq!(caller.site_claims, [] as [tcl_runtime_api::SiteClaim; 0]);
         assert!(calls_a_command(caller));
     }
 

@@ -1202,10 +1202,9 @@ mod tests {
         assert!(!targets.contains(&"::helper"), "{targets:?}");
         let inert_offset = u32::try_from(source.find("set inert").unwrap()).unwrap();
         let inert = analysis.invocation_at_source("set", inert_offset);
-        assert!(
-            analysis
-                .possible_entered_body_invocations(inert.invocation_site().unwrap())
-                .is_empty()
+        assert_eq!(
+            analysis.possible_entered_body_invocations(inert.invocation_site().unwrap()),
+            [] as [crate::command_binding::SourceInvocationBinding; 0]
         );
     }
 
@@ -1371,10 +1370,9 @@ mod tests {
             .unwrap();
         assert!(absent.points.is_empty());
         assert!(absent.invocation_at_source("", 0).unknown);
-        assert!(
-            absent
-                .expression_preparations_for_script(&script)
-                .is_empty()
+        assert_eq!(
+            absent.expression_preparations_for_script(&script),
+            [] as [crate::command_binding::expression_preparation::SourceExpressionPreparation; 0]
         );
         assert_eq!(
             analysis.expression_preparations_for_script(&script),
@@ -1409,12 +1407,12 @@ mod tests {
             );
         }
         let unrelated = super::super::SourceNamespaceKey::authored("::unrelated");
-        assert!(
+        assert_eq!(
             analysis
                 .selected_source_in_context(&script, &unrelated)
                 .unwrap()
-                .expression_preparations_for_script(&script)
-                .is_empty()
+                .expression_preparations_for_script(&script),
+            [] as [crate::command_binding::expression_preparation::SourceExpressionPreparation; 0]
         );
         assert_eq!(
             analysis.expression_preparations_for_script(&script),

@@ -302,7 +302,7 @@ mod tests {
             assert_eq!(receipt.site(), &site);
             assert_eq!(receipt.lexer_config(), config);
             assert_eq!(receipt.slot().simple.as_bytes(), b"set");
-            assert!(!receipt.source_word().is_empty());
+            assert_ne!(receipt.source_word(), "");
             let mut foreign_config = config;
             foreign_config.expand_syntax = !foreign_config.expand_syntax;
             assert!(

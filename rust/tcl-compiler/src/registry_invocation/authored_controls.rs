@@ -927,7 +927,10 @@ mod tests {
             source,
         );
         assert!(bytecode.original_authored_declaration_body_units.is_empty());
-        assert!(!bytecode.top_level.statements.is_empty());
+        assert_ne!(
+            bytecode.top_level.statements,
+            [] as [crate::ir::Statement; 0]
+        );
         assert!(
             bytecode
                 .top_level

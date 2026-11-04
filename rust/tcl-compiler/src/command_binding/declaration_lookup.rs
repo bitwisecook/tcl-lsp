@@ -1027,6 +1027,9 @@ mod original_produced_static_source_purpose_tests {
         assert_eq!(nested.commands[0].words[0].config(), config);
         assert_eq!(nested.commands[0].words[0].image(), &image);
         let whole = tcl_lexer::native_script_words_in(image, region, config).unwrap();
-        assert!(whole.commands.is_empty());
+        assert_eq!(
+            whole.commands,
+            [] as [tcl_lexer::NativeScriptCommandWords; 0]
+        );
     }
 }

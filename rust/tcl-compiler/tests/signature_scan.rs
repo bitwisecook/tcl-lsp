@@ -168,7 +168,10 @@ fn package_require_without_version() {
 fn package_other_subcommands_ignored() {
     // package provide / package ifneeded must not produce require entries.
     let r = run("package provide foo 1.0\npackage ifneeded foo 1.0 {source foo.tcl}");
-    assert!(r.package_requires.is_empty());
+    assert_eq!(
+        r.package_requires,
+        [] as [tcl_compiler::signature_scan::types::SignaturePackageRequire; 0]
+    );
 }
 
 // source
@@ -203,7 +206,7 @@ fn simple_alias() {
     assert!(r.command_aliases.contains_key("::myset"));
     let alias = &r.command_aliases["::myset"];
     assert_eq!(alias.target, "set");
-    assert!(alias.extras.is_empty());
+    assert_eq!(alias.extras, [] as [std::string::String; 0]);
 }
 
 #[test]
@@ -546,8 +549,14 @@ fn param_list_defaults_and_args() {
 
 #[test]
 fn param_list_empty() {
-    assert!(parse_param_list("", tcl_syntax::word_rules::WordValueRules::TCL).is_empty());
-    assert!(parse_param_list("   \t\n ", tcl_syntax::word_rules::WordValueRules::TCL).is_empty());
+    assert_eq!(
+        parse_param_list("", tcl_syntax::word_rules::WordValueRules::TCL),
+        [] as [tcl_compiler::signature_scan::types::ParamDef; 0]
+    );
+    assert_eq!(
+        parse_param_list("   \t\n ", tcl_syntax::word_rules::WordValueRules::TCL),
+        [] as [tcl_compiler::signature_scan::types::ParamDef; 0]
+    );
 }
 
 // Registry-driven class-definer recognition (walker `definer_family`)
@@ -704,7 +713,10 @@ fn package_require_abbreviation_recorded() {
     // An ambiguous prefix (`package pr` — prefer/present/provide) is a
     // tclsh error; nothing is recorded.
     let r = run("package pr Tcl");
-    assert!(r.package_requires.is_empty());
+    assert_eq!(
+        r.package_requires,
+        [] as [tcl_compiler::signature_scan::types::SignaturePackageRequire; 0]
+    );
 }
 
 #[test]

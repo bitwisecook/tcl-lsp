@@ -1721,7 +1721,7 @@ mod tests {
             );
             let mut compound = CodegenCtx::new(is_proc, &[], &registry);
             assert!(!compound.emit_variable_reference("$arr(k)suffix"));
-            assert!(compound.instructions.is_empty());
+            assert_eq!(compound.instructions, [] as [tcl_bytecode::Instruction; 0]);
         }
     }
 
@@ -2142,7 +2142,7 @@ mod tests {
             );
             ctx.native_hook_layout = Some(("captured".to_owned(), 1));
             assert!(ctx.original_upvar_level_width(count).is_none());
-            assert!(ctx.instructions.is_empty());
+            assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
             assert!(ctx.lvt.is_empty());
         }
     }
@@ -2246,7 +2246,10 @@ mod tests {
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.native_entry = Some(&entry);
         ctx.retain_entry_named_compiler_prerequisite(&Arc::new(required));
-        assert!(ctx.native_compiler_prerequisites.is_empty());
+        assert_eq!(
+            ctx.native_compiler_prerequisites,
+            [] as [tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite; 0]
+        );
     }
 
     #[test]
@@ -2660,7 +2663,7 @@ mod tests {
             for original in [b"k\0z::x".as_slice(), b"a(k::z)".as_slice()] {
                 let (operation, operands) = context.prepare_original_variable_load(original, false);
                 assert_eq!(operation, Op::LOAD_STK);
-                assert!(operands.is_empty());
+                assert_eq!(operands, [] as [tcl_bytecode::Operand; 0]);
                 assert!(
                     context
                         .literals

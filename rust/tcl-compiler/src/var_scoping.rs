@@ -533,15 +533,21 @@ mod tests {
             global_scope_alias_local_indices(registry, "::global", &v(&["g"])),
             [0]
         );
-        assert!(global_scope_alias_local_indices(registry, ":global", &v(&["g"])).is_empty());
-        assert!(global_scope_alias_local_indices(registry, "::::global", &v(&["g"])).is_empty());
+        assert_eq!(
+            global_scope_alias_local_indices(registry, ":global", &v(&["g"])),
+            [] as [usize; 0]
+        );
+        assert_eq!(
+            global_scope_alias_local_indices(registry, "::::global", &v(&["g"])),
+            [] as [usize; 0]
+        );
         assert_eq!(
             scope_alias_declaration_indices(registry, "upvar", &v(&["1", "source", "local"])),
             [2]
         );
-        assert!(
-            scope_alias_declaration_indices(registry, "upvar", &v(&["1", "$source", "local"]))
-                .is_empty()
+        assert_eq!(
+            scope_alias_declaration_indices(registry, "upvar", &v(&["1", "$source", "local"])),
+            [] as [usize; 0]
         );
         assert_eq!(
             scope_alias_declaration_indices(

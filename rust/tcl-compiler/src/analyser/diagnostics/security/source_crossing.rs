@@ -368,7 +368,10 @@ mod tests {
             findings(&analyse(source, &current).result, DiagCode::W312).len(),
             1
         );
-        assert!(findings(&analyse(source, &input(older)).result, DiagCode::W312).is_empty());
+        assert_eq!(
+            findings(&analyse(source, &input(older)).result, DiagCode::W312),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let source = "uplevel 1 \"pré $value\"; interp eval $child $script";
         let analyser = analyse(source, &current);
         let segments = crate::segmenter::segment_commands_with_offset_and_config(

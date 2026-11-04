@@ -348,7 +348,10 @@ fn pure_local_does_not_escape() {
     assert!(p.safe_to_dce());
     assert!(p.safe_for_frame_elision());
     // reasons_for a Local var is always empty — it is not in the frame.
-    assert!(p.reasons_for("s").is_empty());
+    assert_eq!(
+        p.reasons_for("s"),
+        [] as [tcl_compiler::var_escape::EscapeReason; 0]
+    );
 }
 
 #[test]
@@ -796,7 +799,10 @@ fn summary_explicit_reason_passthrough_and_flags() {
     assert!(s.has_fallback());
     assert!(s.wants_frame(), "has_fallback alone wants a frame");
     // A var not tagged Frame has no reasons.
-    assert!(s.reasons_for("unknown").is_empty());
+    assert_eq!(
+        s.reasons_for("unknown"),
+        [] as [tcl_compiler::var_escape::EscapeReason; 0]
+    );
 }
 
 // type_infer: literal classification (set-statement context)

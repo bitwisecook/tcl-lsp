@@ -2760,7 +2760,7 @@ mod tests {
                     &registry,
                     Some((&context).into()),
                 );
-                assert!(footprint.names.is_empty());
+                assert_eq!(footprint.names, [] as [std::string::String; 0]);
                 assert!(footprint.opaque);
             }
         }

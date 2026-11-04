@@ -6642,7 +6642,10 @@ snit::type {C\uD800} {}";
             .retained_source_tokens_for_statement(script.statements.last().unwrap())
             .unwrap()
             .clone();
-        assert!(!tokens.nested_bindings.is_empty());
+        assert_ne!(
+            tokens.nested_bindings,
+            [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
+        );
         tokens.nested_bindings.clear();
         let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
             context.commands(),
@@ -8058,7 +8061,10 @@ _original_unknown $cmd $args";
                 !has_w315(&analyser.result),
                 "{dialect}: reports grant no Native closure"
             );
-            assert!(class.definition_aborts.is_empty());
+            assert_eq!(
+                class.definition_aborts,
+                [] as [crate::analyser::types::DefinitionAbort; 0]
+            );
             assert_eq!(class.retracted_members.len(), 1);
         }
     }
@@ -8074,7 +8080,10 @@ _original_unknown $cmd $args";
         let mut class = injected_class_abort_candidates();
         analyser.emit_w315_definition_cannot_run(&mut class);
         assert!(!has_w315(&analyser.result));
-        assert!(class.definition_aborts.is_empty());
+        assert_eq!(
+            class.definition_aborts,
+            [] as [crate::analyser::types::DefinitionAbort; 0]
+        );
         assert_eq!(class.retracted_members.len(), 1);
     }
 
@@ -8092,13 +8101,22 @@ _original_unknown $cmd $args";
         let mut class = injected_class_abort_candidates();
         analyser.emit_w315_definition_cannot_run(&mut class);
         assert_eq!(w315_messages(&analyser.result).len(), 3);
-        assert!(class.definition_aborts.is_empty());
-        assert!(class.retracted_members.is_empty());
+        assert_eq!(
+            class.definition_aborts,
+            [] as [crate::analyser::types::DefinitionAbort; 0]
+        );
+        assert_eq!(
+            class.retracted_members,
+            [] as [crate::analyser::types::MemberRetractionRecord; 0]
+        );
         analyser.result.lexical_declaration_advice = false;
         let mut withdrawn = injected_class_abort_candidates();
         analyser.emit_w315_definition_cannot_run(&mut withdrawn);
         assert_eq!(w315_messages(&analyser.result).len(), 3);
-        assert!(withdrawn.definition_aborts.is_empty());
+        assert_eq!(
+            withdrawn.definition_aborts,
+            [] as [crate::analyser::types::DefinitionAbort; 0]
+        );
         assert_eq!(withdrawn.retracted_members.len(), 1);
     }
 
@@ -8161,7 +8179,10 @@ _original_unknown $cmd $args";
                 !has_w315(&analyser.result),
                 "{dialect}: report maps grant no Native table"
             );
-            assert!(analyser.objdefine_abort_candidates.is_empty());
+            assert_eq!(
+                analyser.objdefine_abort_candidates,
+                [] as [crate::analyser::state::ObjdefineAbortCandidate; 0]
+            );
         }
     }
 
@@ -8175,7 +8196,10 @@ _original_unknown $cmd $args";
         inject_object_abort_candidates(&mut analyser);
         analyser.flush_objdefine_abort_diagnostics();
         assert!(!has_w315(&analyser.result));
-        assert!(analyser.objdefine_abort_candidates.is_empty());
+        assert_eq!(
+            analyser.objdefine_abort_candidates,
+            [] as [crate::analyser::state::ObjdefineAbortCandidate; 0]
+        );
     }
 
     #[test]

@@ -5993,7 +5993,10 @@ mod original_matcher_admission_tests {
             vec!["v"]
         );
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
-        assert!(selected_matcher_no_match_outputs(&words, foreign).is_empty());
+        assert_eq!(
+            selected_matcher_no_match_outputs(&words, foreign),
+            [] as [std::string::String; 0]
+        );
         let mut missing = analysis.clone();
         missing.resolved_input = None;
         assert!(

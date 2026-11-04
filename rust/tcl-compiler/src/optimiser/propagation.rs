@@ -5843,7 +5843,7 @@ mod tests {
             "::",
             statement.span(),
         );
-        assert!(context.optimisations.is_empty());
+        assert_eq!(context.optimisations.len(), 0);
     }
     #[test]
     fn retained_substitution_procedure_folding_preserves_arity_and_argument_effects() {
@@ -6134,7 +6134,7 @@ mod tests {
             "::",
             span,
         );
-        assert!(context.optimisations.is_empty());
+        assert_eq!(context.optimisations.len(), 0);
     }
     /// The controls: a name the hidden writes never name, a name assigned
     /// after the call the module cannot see, and a read the call follows still

@@ -1637,7 +1637,7 @@ mod tests {
         };
         let source = "set a 2; expr {$a + 1}";
         let proof = receipt(source, "$a+1").expect("selected syntax gaps without erasing reads");
-        assert!(!proof.removed_gaps().is_empty());
+        assert_ne!(proof.removed_gaps(), []);
         assert!(proof.matches_source(
             &SourceImage::document(source),
             proof.original_operand().config()
@@ -1715,7 +1715,7 @@ mod tests {
         let proof = gap_receipt(source, "1+2*3").expect("pure original finite expression");
         assert_eq!(proof.replacement_source_word(), "{1+2*3}");
         assert_eq!(proof.original_operand().bytes(), b"{ 1 + 2 * 3 }");
-        assert!(!proof.removed_gaps().is_empty());
+        assert_ne!(proof.removed_gaps(), []);
         let config = proof.original_operand().config();
         assert!(proof.matches_source(&SourceImage::document(source), config));
         let mut changed = config;

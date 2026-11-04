@@ -1318,8 +1318,14 @@ fn a_body_in_a_namespace_that_names_no_command_is_spliced_anywhere() {
          proc ::global {n} { ::app::inc $n }\n\
          proc ::other::caller {n} { ::app::inc $n }",
     ));
-    assert!(call_heads(&module, "::global").is_empty());
-    assert!(call_heads(&module, "::other::caller").is_empty());
+    assert_eq!(
+        call_heads(&module, "::global"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        call_heads(&module, "::other::caller"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]

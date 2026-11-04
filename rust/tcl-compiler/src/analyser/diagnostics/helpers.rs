@@ -2817,7 +2817,7 @@ mod exact_cell_diagnostic_tests {
         );
         let mut missing = original.clone();
         missing.source_metadata_input = None;
-        assert!(definitions(&missing).is_empty());
+        assert_eq!(definitions(&missing), [] as [crate::place::Place; 0]);
         assert_eq!(
             special_variable_definition_at_span(&missing, span, registry),
             None
@@ -2830,7 +2830,7 @@ mod exact_cell_diagnostic_tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
             input.lexer_config(),
         ));
-        assert!(definitions(&foreign).is_empty());
+        assert_eq!(definitions(&foreign), [] as [crate::place::Place; 0]);
         assert_eq!(
             special_variable_definition_at_span(&foreign, span, registry),
             None
@@ -2892,10 +2892,22 @@ mod exact_cell_diagnostic_tests {
             ),
             input.lexer_config(),
         ));
-        assert!(collect_existence_guards(&unavailable, &registry, config).is_empty());
+        assert_eq!(
+            collect_existence_guards(&unavailable, &registry, config),
+            [] as [(
+                crate::var_resolve::cell_key::VariableCellKey,
+                crate::cfg::BlockId
+            ); 0]
+        );
         let mut missing = original.clone();
         missing.source_metadata_input = None;
-        assert!(collect_existence_guards(&missing, &registry, config).is_empty());
+        assert_eq!(
+            collect_existence_guards(&missing, &registry, config),
+            [] as [(
+                crate::var_resolve::cell_key::VariableCellKey,
+                crate::cfg::BlockId
+            ); 0]
+        );
         let mut foreign = original.clone();
         foreign.source_metadata_input = Some(crate::analyser::ResolvedAnalysisInput::new(
             input.analyser_profile(),
@@ -2903,7 +2915,13 @@ mod exact_cell_diagnostic_tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry(),
             input.lexer_config(),
         ));
-        assert!(collect_existence_guards(&foreign, &registry, config).is_empty());
+        assert_eq!(
+            collect_existence_guards(&foreign, &registry, config),
+            [] as [(
+                crate::var_resolve::cell_key::VariableCellKey,
+                crate::cfg::BlockId
+            ); 0]
+        );
     }
 
     #[test]

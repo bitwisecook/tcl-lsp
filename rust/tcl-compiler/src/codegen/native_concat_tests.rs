@@ -54,7 +54,10 @@ fn original_concat_emits_shared_recipe_with_captured_compiler_guards() {
                     tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
                 )
                 .unwrap();
-                assert!(parsed.commands.is_empty());
+                assert_eq!(
+                    parsed.commands,
+                    [] as [tcl_lexer::NativeScriptCommandWords; 0]
+                );
                 assert_eq!(
                     parsed.fatal_tail.unwrap().cut.message,
                     "extra characters after close-brace"

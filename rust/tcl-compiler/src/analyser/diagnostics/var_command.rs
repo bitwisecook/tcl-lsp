@@ -3300,11 +3300,14 @@ mod factory_metadata_context_tests {
         );
         cu.ir_module.lexer_config = original_config;
         cu.source.push(' ');
-        assert!(
-            analyser
-                .compute_factory_object_ranges(cu, registry)
-                .ranges
-                .is_empty()
+        assert_eq!(
+            analyser.compute_factory_object_ranges(cu, registry).ranges,
+            [] as [(
+                tcl_core_types::BodyFrameId,
+                u32,
+                u32,
+                std::collections::HashSet<std::string::String>
+            ); 0]
         );
     }
 
@@ -3365,26 +3368,39 @@ mod factory_metadata_context_tests {
                 "{environment}"
             );
             let foreign = tcl_registry::CommandRegistry::build_default();
-            assert!(
-                analyser
-                    .compute_factory_object_ranges(&cu, &foreign)
-                    .ranges
-                    .is_empty()
+            assert_eq!(
+                analyser.compute_factory_object_ranges(&cu, &foreign).ranges,
+                [] as [(
+                    tcl_core_types::BodyFrameId,
+                    u32,
+                    u32,
+                    std::collections::HashSet<std::string::String>
+                ); 0]
             );
             analyser.result.resolved_input = None;
-            assert!(
+            assert_eq!(
                 analyser
                     .compute_factory_object_ranges(&cu, context.commands())
-                    .ranges
-                    .is_empty()
+                    .ranges,
+                [] as [(
+                    tcl_core_types::BodyFrameId,
+                    u32,
+                    u32,
+                    std::collections::HashSet<std::string::String>
+                ); 0]
             );
             analyser.result = analysis.clone();
             cu.ir_module.source_metadata_input = None;
-            assert!(
+            assert_eq!(
                 analyser
                     .compute_factory_object_ranges(&cu, context.commands())
-                    .ranges
-                    .is_empty()
+                    .ranges,
+                [] as [(
+                    tcl_core_types::BodyFrameId,
+                    u32,
+                    u32,
+                    std::collections::HashSet<std::string::String>
+                ); 0]
             );
             cu.ir_module.source_metadata_input = analysis.resolved_input.clone();
             assert_factory_source_metadata_refusals(&analyser, &mut cu, context.commands());
@@ -3511,28 +3527,52 @@ mod original_abstract_factory_context_tests {
         let (mut analyser, unit) = fixture(source, &current, &native);
         assert_eq!(emitted(&mut analyser, &unit).len(), 1);
         let (mut unavailable, older_unit) = fixture(source, &older, &native);
-        assert!(emitted(&mut unavailable, &older_unit).is_empty());
-        assert!(emitted(&mut analyser, &older_unit).is_empty());
+        assert_eq!(
+            emitted(&mut unavailable, &older_unit),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
+        assert_eq!(
+            emitted(&mut analyser, &older_unit),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         let mut missing = unit.clone();
         missing.ir_module.source_metadata_input = None;
-        assert!(emitted(&mut analyser, &missing).is_empty());
+        assert_eq!(
+            emitted(&mut analyser, &missing),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         let mut missing = unit.clone();
         missing.ir_module.retained_source_bindings = None;
-        assert!(emitted(&mut analyser, &missing).is_empty());
+        assert_eq!(
+            emitted(&mut analyser, &missing),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         let mut changed = unit.clone();
         changed.ir_module.lexer_config.strict_quoting ^= true;
-        assert!(emitted(&mut analyser, &changed).is_empty());
+        assert_eq!(
+            emitted(&mut analyser, &changed),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         let mut changed = unit.clone();
         changed.ir_module.source = tcl_lexer::SourceImage::document(&format!("{source} # changed"));
-        assert!(emitted(&mut analyser, &changed).is_empty());
+        assert_eq!(
+            emitted(&mut analyser, &changed),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         let foreign = input(
             "tcl9.0",
             Arc::new(tcl_registry::CommandRegistry::build_default()),
         );
         analyser.result.resolved_input = Some(foreign);
-        assert!(emitted(&mut analyser, &unit).is_empty());
+        assert_eq!(
+            emitted(&mut analyser, &unit),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
         analyser.result.resolved_input = None;
-        assert!(emitted(&mut analyser, &unit).is_empty());
+        assert_eq!(
+            emitted(&mut analyser, &unit),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]

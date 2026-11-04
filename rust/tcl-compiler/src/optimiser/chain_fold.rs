@@ -940,14 +940,14 @@ mod tests {
         );
         let mut missing_function = original.clone();
         missing_function.top_level.source_metadata_input = None;
-        assert!(run_unit(&missing_function, &registry).is_empty());
+        assert_eq!(run_unit(&missing_function, &registry).len(), 0);
         let mut stale_grammar = original.clone();
         stale_grammar.top_level.source_config.expand_syntax =
             !stale_grammar.top_level.source_config.expand_syntax;
-        assert!(run_unit(&stale_grammar, &registry).is_empty());
+        assert_eq!(run_unit(&stale_grammar, &registry).len(), 0);
         let mut missing_module = original.clone();
         missing_module.ir_module.source_metadata_input = None;
-        assert!(run_unit(&missing_module, &registry).is_empty());
+        assert_eq!(run_unit(&missing_module, &registry).len(), 0);
         let mut foreign = original.clone();
         let input = original.top_level.source_metadata_input().unwrap();
         foreign.top_level.source_metadata_input =
@@ -958,7 +958,7 @@ mod tests {
                     .default_context_registry(),
                 input.lexer_config(),
             ));
-        assert!(run_unit(&foreign, &registry).is_empty());
+        assert_eq!(run_unit(&foreign, &registry).len(), 0);
         // Both inputs individually belong to this command store. A different
         // availability owner must still not be borrowed across the function/module join.
         let mut different_owner = original.clone();
@@ -978,10 +978,10 @@ mod tests {
                 .invocation_metadata_context(&registry)
                 .is_some()
         );
-        assert!(run_unit(&different_owner, &registry).is_empty());
+        assert_eq!(run_unit(&different_owner, &registry).len(), 0);
         let mut detached = PassContext::new(&original.source, InterproceduralAnalysis::default());
         run(&mut detached, &original);
-        assert!(detached.optimisations.is_empty());
+        assert_eq!(detached.optimisations.len(), 0);
     }
 
     #[test]
@@ -1007,7 +1007,7 @@ mod tests {
         let mut missing = original;
         missing.ir_module.top_level.command_binding_sites =
             crate::ir::CommandBindingSites::default();
-        assert!(run_unit(&missing, &registry).is_empty());
+        assert_eq!(run_unit(&missing, &registry).len(), 0);
     }
 
     #[test]
@@ -1028,7 +1028,7 @@ mod tests {
                 .iter()
                 .any(|opt| opt.code == DiagCode::O104)
         );
-        assert!(run_unit(&unavailable, &registry).is_empty());
+        assert_eq!(run_unit(&unavailable, &registry).len(), 0);
     }
 
     #[test]
@@ -1444,7 +1444,7 @@ mod tests {
             std::sync::Arc::clone(&context),
         );
         let advice = run_unit(&logical, registry);
-        assert!(!advice.is_empty());
+        assert_ne!(advice.len(), 0);
         assert!(advice.iter().all(|advice| !advice.hint_only));
     }
     #[test]
@@ -1496,7 +1496,7 @@ mod tests {
             Some(crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation)
         );
         let advice = run_unit(&unit, registry);
-        assert!(!advice.is_empty());
+        assert_ne!(advice.len(), 0);
         assert!(advice.iter().all(|advice| advice.hint_only));
     }
 }

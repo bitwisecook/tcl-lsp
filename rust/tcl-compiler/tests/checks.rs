@@ -1440,7 +1440,14 @@ mod unmatched_close_bracket {
     fn known_command_inserts_bracket_under_irules() {
         // ACCESS::policy is a known iRules command preceding `]`.
         let ds = of_code("switch -- ACCESS::policy result]", IR, "E100");
-        assert!(!ds.is_empty());
+        assert_ne!(
+            ds,
+            [] as [(
+                std::string::String,
+                tcl_compiler::analyser::Severity,
+                std::vec::Vec<std::string::String>
+            ); 0]
+        );
         assert_eq!(ds[0].2, vec!["[".to_string()]);
     }
 
@@ -2333,7 +2340,14 @@ mod irules_checks {
     #[test]
     fn http_getter_should_be_normalized() {
         let ds = of_code("set p [HTTP::path]", IR, "IRULE3102");
-        assert!(!ds.is_empty());
+        assert_ne!(
+            ds,
+            [] as [(
+                std::string::String,
+                tcl_compiler::analyser::Severity,
+                std::vec::Vec<std::string::String>
+            ); 0]
+        );
         assert!(ds[0].0.contains("HTTP::path -normalized"));
         assert_eq!(ds[0].1, Severity::Warning);
         // Already normalized / setter form / plain Tcl → clean.
@@ -2981,8 +2995,11 @@ mod edge_cases {
 
     #[test]
     fn empty_and_comment_only_sources_are_silent() {
-        assert!(codes("", D).is_empty());
-        assert!(codes("# just a comment\n# another comment", D).is_empty());
+        assert_eq!(codes("", D), [] as [std::string::String; 0]);
+        assert_eq!(
+            codes("# just a comment\n# another comment", D),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]

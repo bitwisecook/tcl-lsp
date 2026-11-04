@@ -426,9 +426,15 @@ mod tests {
                 .is_none()
         );
         let replaced = unit("proc file args {return STUB}; file delete -- $path", &input);
-        assert!(destructive(&replaced, owner.commands()).is_empty());
+        assert_eq!(
+            destructive(&replaced, owner.commands()),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         let uncertain = unit("file delete -unknown $path", &input);
-        assert!(destructive(&uncertain, owner.commands()).is_empty());
+        assert_eq!(
+            destructive(&uncertain, owner.commands()),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         assert_eq!(
             destructive(&unit("file delete $missing", &input), owner.commands()).len(),
             1
@@ -461,28 +467,49 @@ mod tests {
         let source = "purge delete -- $path";
         let mut actual = unit(source, &input);
         assert_eq!(destructive(&actual, &registry).len(), 1);
-        assert!(destructive(&unit(source, &old_input), &registry).is_empty());
+        assert_eq!(
+            destructive(&unit(source, &old_input), &registry),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         actual.ir_module.source_metadata_input = None;
-        assert!(destructive(&actual, &registry).is_empty());
+        assert_eq!(
+            destructive(&actual, &registry),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         actual.ir_module.source_metadata_input = Some(input.clone());
         actual.top_level.source_metadata_input = None;
-        assert!(destructive(&actual, &registry).is_empty());
+        assert_eq!(
+            destructive(&actual, &registry),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         actual.top_level.source_metadata_input = Some(input.clone());
         actual.ir_module.lexer_config.strict_quoting = !config.strict_quoting;
-        assert!(destructive(&actual, &registry).is_empty());
+        assert_eq!(
+            destructive(&actual, &registry),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         actual.ir_module.lexer_config = config;
         actual.top_level.source_config.strict_quoting = !config.strict_quoting;
-        assert!(destructive(&actual, &registry).is_empty());
+        assert_eq!(
+            destructive(&actual, &registry),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         actual.top_level.source_config = config;
         actual.ir_module.dialect_profile =
             Some(tcl_registry::model::ingress::resolve_environment("jim").unit_profile());
-        assert!(destructive(&actual, &registry).is_empty());
+        assert_eq!(
+            destructive(&actual, &registry),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         actual.ir_module.dialect_profile = Some(input.unit_profile());
         let mut foreign = CommandRegistry::build_default();
         let mut foreign_descriptor = foreign.get("file").unwrap().clone();
         foreign_descriptor.name = "foreign_source_warning_store";
         foreign.insert(foreign_descriptor);
-        assert!(destructive(&actual, &foreign).is_empty());
+        assert_eq!(
+            destructive(&actual, &foreign),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         assert_eq!(
             destructive(&actual, &registry).len(),
             1,
@@ -516,7 +543,7 @@ mod tests {
         assert_eq!(warnings(&standalone).len(), 1);
         standalone.ir_module.source_entry.metadata_context =
             crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable;
-        assert!(warnings(&standalone).is_empty());
+        assert_eq!(warnings(&standalone), [] as [crate::taint::TaintWarning; 0]);
 
         let environment = tcl_registry::model::ingress::resolve_environment("tcl9.1");
         let context = Arc::new(
@@ -536,11 +563,11 @@ mod tests {
         assert!(!supplied.top_level.cfg.metadata_context.is_standalone());
         assert_eq!(warnings(&supplied).len(), 1);
         supplied.ir_module.source_metadata_input = None;
-        assert!(warnings(&supplied).is_empty());
+        assert_eq!(warnings(&supplied), [] as [crate::taint::TaintWarning; 0]);
         supplied.ir_module.source_metadata_input = Some(input);
         assert_eq!(warnings(&supplied).len(), 1);
         supplied.top_level.source_metadata_input = None;
-        assert!(warnings(&supplied).is_empty());
+        assert_eq!(warnings(&supplied), [] as [crate::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -575,14 +602,14 @@ mod tests {
             }
             let mut missing = actual;
             missing.ir_module.source_metadata_input = None;
-            assert!(
+            assert_eq!(
                 find_setter_constraint_warnings_for_module_function(
                     &missing.top_level,
                     &missing.ir_module,
                     owner.commands(),
                     &HashMap::<ValueKey, TaintLattice>::new(),
-                )
-                .is_empty()
+                ),
+                [] as [crate::taint::TaintWarning; 0]
             );
         }
     }

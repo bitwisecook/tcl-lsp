@@ -873,7 +873,7 @@ mod tests {
             verb.answer(&[tcl_engine_api::Value::Int(0), raw.clone()]),
             Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
         ));
-        assert!(sink.drain().is_empty());
+        assert_eq!(sink.drain(), [] as [crate::emit::Emission; 0]);
         assert!(matches!(
             super::alias_emission(&[
                 tcl_engine_api::Value::Int(0),

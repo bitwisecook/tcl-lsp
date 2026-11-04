@@ -782,7 +782,14 @@ mod diagnostics {
             .iter()
             .filter(|(_, _, s)| *s == Severity::Error)
             .collect();
-        assert!(!errs.is_empty());
+        assert_ne!(
+            errs,
+            [] as [&(
+                std::string::String,
+                std::string::String,
+                tcl_compiler::analyser::Severity
+            ); 0]
+        );
         assert!(errs.iter().any(|(_, m, _)| m.contains("Too few")));
     }
 
@@ -794,7 +801,14 @@ mod diagnostics {
             .iter()
             .filter(|(_, _, s)| *s == Severity::Error)
             .collect();
-        assert!(!errs.is_empty());
+        assert_ne!(
+            errs,
+            [] as [&(
+                std::string::String,
+                std::string::String,
+                tcl_compiler::analyser::Severity
+            ); 0]
+        );
         assert!(errs.iter().any(|(_, m, _)| m.contains("Too many")));
     }
 
@@ -852,7 +866,14 @@ mod diagnostics {
             .iter()
             .filter(|(_, _, s)| *s == Severity::Error)
             .collect();
-        assert!(!errs.is_empty());
+        assert_ne!(
+            errs,
+            [] as [&(
+                std::string::String,
+                std::string::String,
+                tcl_compiler::analyser::Severity
+            ); 0]
+        );
         assert!(
             errs.iter()
                 .any(|(_, m, _)| m.to_lowercase().contains("subcommand"))
@@ -1092,7 +1113,7 @@ mod diagnostics {
         // The error anchors at the start of the script. The diagnostic carries
         // a byte `span`; assert it starts at offset 0 (the `set` token).
         let r = Analyser::new().analyse("set", D);
-        assert!(!r.diagnostics.is_empty());
+        assert_ne!(r.diagnostics, [] as [tcl_compiler::analyser::Diagnostic; 0]);
         assert_eq!(r.diagnostics[0].span.start(), 0);
     }
 
@@ -1403,7 +1424,7 @@ mod control_flow {
     fn if_expr_records_var_reference() {
         let r = Analyser::new().analyse("set x 1\nif {$x > 0} { set y 1 }", D);
         let xv = r.global_scope.variables.get("x").expect("x defined");
-        assert!(!xv.references.is_empty());
+        assert_ne!(xv.references, [] as [tcl_lexer::Span; 0]);
     }
 
     #[test]
@@ -1527,14 +1548,26 @@ mod regex_patterns {
 
     #[test]
     fn switch_glob_exact_default_record_no_regex() {
-        assert!(pats("switch -glob $x { a* {puts a} b* {puts b} }").is_empty());
-        assert!(pats("switch -exact $x { hello {puts hi} }").is_empty());
-        assert!(pats("switch $x { hello {puts hi} }").is_empty());
+        assert_eq!(
+            pats("switch -glob $x { a* {puts a} b* {puts b} }"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            pats("switch -exact $x { hello {puts hi} }"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            pats("switch $x { hello {puts hi} }"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
     fn no_regex_in_other_commands() {
-        assert!(pats("set x 1\nputs hello\nif {$x > 0} { puts yes }").is_empty());
+        assert_eq!(
+            pats("set x 1\nputs hello\nif {$x > 0} { puts yes }"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -1590,10 +1623,19 @@ mod regex_patterns {
 
     #[test]
     fn dynamic_or_interpolated_pattern_not_recorded() {
-        assert!(pats("set pat $dynamic_value\nregexp $pat $str").is_empty());
-        assert!(pats("set pat \"^$prefix\"\nregexp $pat $str").is_empty());
+        assert_eq!(
+            pats("set pat $dynamic_value\nregexp $pat $str"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            pats("set pat \"^$prefix\"\nregexp $pat $str"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         // Reassigned to non-constant loses tracking.
-        assert!(pats("set pat {^\\d+}\nset pat $other\nregexp $pat $str").is_empty());
+        assert_eq!(
+            pats("set pat {^\\d+}\nset pat $other\nregexp $pat $str"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -1652,17 +1694,15 @@ mod package_require {
 
     #[test]
     fn provide_and_unrelated_not_recorded() {
-        assert!(
+        assert_eq!(
             Analyser::new()
                 .analyse("package provide mylib 1.0", D)
-                .package_requires
-                .is_empty()
+                .package_requires,
+            [] as [tcl_compiler::signature_scan::types::SignaturePackageRequire; 0]
         );
-        assert!(
-            Analyser::new()
-                .analyse("set x 42", D)
-                .package_requires
-                .is_empty()
+        assert_eq!(
+            Analyser::new().analyse("set x 42", D).package_requires,
+            [] as [tcl_compiler::signature_scan::types::SignaturePackageRequire; 0]
         );
     }
 }
@@ -1694,13 +1734,19 @@ mod unused_proc_parameters {
 
     #[test]
     fn all_params_used_no_warning() {
-        assert!(w214("proc foo {a b} { puts $a; puts $b }").is_empty());
+        assert_eq!(
+            w214("proc foo {a b} { puts $a; puts $b }"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn args_param_not_flagged() {
         // `args` is the variadic catch-all and is never "unused".
-        assert!(w214("proc foo {args} { puts hello }").is_empty());
+        assert_eq!(
+            w214("proc foo {args} { puts hello }"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -1719,15 +1765,21 @@ mod unused_proc_parameters {
 
     #[test]
     fn param_used_in_return_or_branch_condition() {
-        assert!(w214("proc foo {x} { return $x }").is_empty());
-        assert!(w214("proc foo {x} { if {$x > 0} { puts yes } }").is_empty());
+        assert_eq!(
+            w214("proc foo {x} { return $x }"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            w214("proc foo {x} { if {$x > 0} { puts yes } }"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn param_used_in_expr_alias_counts_as_read() {
         // interp alias for expr — refs inside the aliased expr arg are reads.
         let src = "interp alias {} = {} expr\nproc foo {x y} {\n    set result [= {$x + $y}]\n    return $result\n}\n";
-        assert!(w214(src).is_empty());
+        assert_eq!(w214(src), [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -1755,15 +1807,24 @@ mod unused_proc_parameters {
 
     #[test]
     fn param_read_inside_catch_body() {
-        assert!(w214("proc f {x} {\n    catch { puts $x }\n}\n").is_empty());
+        assert_eq!(
+            w214("proc f {x} {\n    catch { puts $x }\n}\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn param_used_only_by_dict_with_or_update() {
         // dict with / dict update mark the dict var VAR_READ+VAR_WRITE; the read
         // must survive the defs filter.
-        assert!(w214("proc f {pdata} {\n    dict with pdata {}\n}\n").is_empty());
-        assert!(w214("proc f {d} {\n    dict update d k v {}\n}\n").is_empty());
+        assert_eq!(
+            w214("proc f {pdata} {\n    dict with pdata {}\n}\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            w214("proc f {d} {\n    dict update d k v {}\n}\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -2625,15 +2686,21 @@ mod unresolved_command {
 
     #[test]
     fn known_builtin_and_user_proc_no_w123() {
-        assert!(w123("set x 1").is_empty());
-        assert!(w123("proc mycommand {x} { puts $x }\nmycommand hello").is_empty());
+        assert_eq!(w123("set x 1"), [] as [std::string::String; 0]);
+        assert_eq!(
+            w123("proc mycommand {x} { puts $x }\nmycommand hello"),
+            [] as [std::string::String; 0]
+        );
         // Forward-defined proc still suppresses.
-        assert!(w123("mycommand hello\nproc mycommand {x} { puts $x }").is_empty());
+        assert_eq!(
+            w123("mycommand hello\nproc mycommand {x} { puts $x }"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn namespace_qualified_and_variable_command_skipped() {
-        assert!(w123("::myns::cmd arg1").is_empty());
+        assert_eq!(w123("::myns::cmd arg1"), [] as [std::string::String; 0]);
         // `$cmd hello` — the head starts with `$`, not a literal command name.
         assert!(
             w123("set cmd puts\n$cmd hello")
@@ -2646,7 +2713,10 @@ mod unresolved_command {
     fn package_require_suppresses_w123() {
         // A `package require` may register the missing command at runtime →
         // suppressed (e.g. `package require Tk` provides `button`).
-        assert!(w123("package require Tk\nbutton .b -text hi").is_empty());
+        assert_eq!(
+            w123("package require Tk\nbutton .b -text hi"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -2675,7 +2745,10 @@ mod unresolved_command {
         assert!(d[0].contains("frobnicate"));
         // A full `*` tail conservatively resolves every bare name (the
         // imported namespace's export set is unknowable single-file).
-        assert!(w123("namespace import ::foo::*\nbar arg").is_empty());
+        assert_eq!(
+            w123("namespace import ::foo::*\nbar arg"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -2736,14 +2809,14 @@ mod unresolved_command {
         // an ordinary user proc via its own namespace) must be unaffected by
         // the new resolution-candidate check, which is a no-op there (the
         // bare-name check above it already resolves it).
-        assert!(
+        assert_eq!(
             w123(
                 "namespace eval ::foo {\n\
                  proc helper {} { return 42 }\n\
                  proc bar {} { return [helper] }\n\
                  }\n"
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
     }
 
@@ -2818,10 +2891,16 @@ mod unresolved_command {
     fn interp_create_name_is_a_known_command() {
         // `interp create NAME` binds NAME as the child interpreter's
         // command — `NAME eval {…}` dispatches on it.
-        assert!(w123("interp create child\nchild eval { puts hi }\n").is_empty());
+        assert_eq!(
+            w123("interp create child\nchild eval { puts hi }\n"),
+            [] as [std::string::String; 0]
+        );
         // The `-safe` flag at the name index is an option, never a name; a
         // missing name is auto-generated — nothing to record, nothing fires.
-        assert!(w123("interp create -safe\n").is_empty());
+        assert_eq!(
+            w123("interp create -safe\n"),
+            [] as [std::string::String; 0]
+        );
         let r = Analyser::new().analyse("interp create -safe\n", D);
         assert!(
             !r.created_instance_commands.contains("-safe"),
@@ -2839,13 +2918,25 @@ mod unresolved_command {
         assert_eq!(w123("rename puts myputs\nputs x\n").len(), 1);
         // The rename target stays known, and calls lexically BEFORE the
         // rename still resolve to the builtin.
-        assert!(w123("rename puts myputs\nmyputs x\n").is_empty());
-        assert!(w123("puts before\nrename puts myputs\n").is_empty());
+        assert_eq!(
+            w123("rename puts myputs\nmyputs x\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            w123("puts before\nrename puts myputs\n"),
+            [] as [std::string::String; 0]
+        );
         // A re-binding after the deletion makes the name callable again.
-        assert!(w123("rename puts {}\nproc puts {args} {}\nputs x\n").is_empty());
+        assert_eq!(
+            w123("rename puts {}\nproc puts {args} {}\nputs x\n"),
+            [] as [std::string::String; 0]
+        );
         // A rename buried in a proc body is conditional — it runs only if
         // the proc is ever called — so the builtin stays known at top level.
-        assert!(w123("proc hook {} { rename puts _p }\nputs hi\n").is_empty());
+        assert_eq!(
+            w123("proc hook {} { rename puts _p }\nputs hi\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -2952,19 +3043,25 @@ mod unresolved_command {
         // 9.0.4: `rename puts myputs; info commands myputs` lists it), so a
         // call to the renamed name must not draw W123 — while a genuinely
         // unknown name in the same file still does.
-        assert!(w123("rename puts myputs\nmyputs hello").is_empty());
+        assert_eq!(
+            w123("rename puts myputs\nmyputs hello"),
+            [] as [std::string::String; 0]
+        );
         assert_eq!(w123("rename puts myputs\nmyputz hello").len(), 1);
     }
 
     #[test]
     fn stub_directive_suppresses_w123() {
         let src = "# tcl-lsp: stubs-begin\n# tcl-lsp: stub mycommand {arg1 arg2}\n# tcl-lsp: stubs-end\nmycommand x y\n";
-        assert!(w123(src).is_empty());
+        assert_eq!(w123(src), [] as [std::string::String; 0]);
     }
 
     #[test]
     fn alias_command_no_w123_and_alias_in_did_you_mean() {
-        assert!(w123("interp alias {} = {} expr\n= {1 + 2}").is_empty());
+        assert_eq!(
+            w123("interp alias {} = {} expr\n= {1 + 2}"),
+            [] as [std::string::String; 0]
+        );
         let d = w123("interp alias {} myput {} puts stdout\nmyptu hello");
         assert_eq!(d.len(), 1);
         assert!(d[0].contains("myput"));
@@ -2983,7 +3080,7 @@ mod unresolved_command {
             .collect();
         assert_eq!(d.len(), 1);
         assert!(d[0].message.contains("puts"));
-        assert!(!d[0].fixes.is_empty());
+        assert_ne!(d[0].fixes, [] as [tcl_compiler::analyser::CodeFix; 0]);
         assert_eq!(d[0].fixes[0].new_text, "puts");
     }
 
@@ -2999,7 +3096,7 @@ mod unresolved_command {
     #[test]
     fn unknown_proc_switch_dispatch_covers_targets() {
         let handled = "proc unknown {cmd args} {\n    switch $cmd {\n        foo { puts foo }\n        bar { puts bar }\n    }\n}\nfoo x\nbar y\n";
-        assert!(w123(handled).is_empty());
+        assert_eq!(w123(handled), [] as [std::string::String; 0]);
         let unhandled = "proc unknown {cmd args} {\n    switch $cmd {\n        foo { puts foo }\n    }\n}\nfoo x\nbaz y\n";
         let d = w123(unhandled);
         assert_eq!(d.len(), 1);
@@ -3029,7 +3126,7 @@ mod unresolved_command {
     #[test]
     fn unknown_if_else_chains_original_suppresses() {
         let src = "proc unknown {cmd args} {\n    if {$cmd eq \"foo\"} {\n        puts foo\n    } else {\n        _original_unknown $cmd {*}$args\n    }\n}\nbaz x\n";
-        assert!(w123(src).is_empty());
+        assert_eq!(w123(src), [] as [std::string::String; 0]);
         let r = Analyser::new().analyse(src, D);
         let upi = r.unknown_proc_info.as_ref().expect("upi");
         assert!(upi.chains_original);
@@ -4080,7 +4177,7 @@ mod canonicalisation_matrix {
             .filter(|d| d.code.to_string() == "W216")
             .collect();
         assert_eq!(w216.len(), 1);
-        assert!(!w216[0].fixes.is_empty());
+        assert_ne!(w216[0].fixes, [] as [tcl_compiler::analyser::CodeFix; 0]);
         assert_eq!(w216[0].fixes[0].new_text, "$arr(name)");
     }
 

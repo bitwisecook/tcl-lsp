@@ -1282,7 +1282,10 @@ mod tests {
         assert!(dispatch.compiled_execution.admission.is_none());
         assert!(dispatch.compiled_execution.admitted.is_none());
         assert!(dispatch.compiled_execution.policy.is_none());
-        assert!(dispatch.compiled_execution.proofs.is_empty());
+        assert_eq!(
+            dispatch.compiled_execution.proofs,
+            [] as [crate::command_binding::compiled_invocation::SourceCompiledInvocationProof; 0]
+        );
         assert!(dispatch.compiled_execution.structured.is_none());
         assert!(dispatch.state.baseline.compilation_dialect().is_none());
         assert!(dispatch.state.baseline.native_entry.is_none());

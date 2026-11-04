@@ -296,7 +296,7 @@ mod tests {
                 "point compatibility alone cannot fill the missing child owner",
             );
             let retained = child.clone();
-            assert!(!std::ptr::eq(child, &retained));
+            assert!(!std::ptr::eq(child, &raw const retained));
             assert!(continuation.matches_child_analysis(&retained));
             let child_owner = child
                 .retained_command_realm()

@@ -229,7 +229,7 @@ mod tests {
                 analyser.result.diagnostics
             );
             assert_eq!(&source[found[0].span.as_range()], value);
-            assert!(found[0].fixes.is_empty());
+            assert_eq!(found[0].fixes, [] as [crate::irules_checks::CodeFix; 0]);
             let Some(DiagnosticSubject::RegistrySource(subject)) = found[0].subject() else {
                 panic!("original credential subject")
             };
@@ -239,7 +239,7 @@ mod tests {
             );
             assert_eq!(subject.argument(), Some(argument));
             assert_eq!(subject.written_argument(), written);
-            assert!(subject.supplemental_literals().is_empty());
+            assert_eq!(subject.supplemental_literals(), []);
         }
     }
 
@@ -285,7 +285,10 @@ mod tests {
         assert!(Arc::ptr_eq(current.commands(), older.commands()));
         let source = "credential_current -headers VALUE";
         assert_eq!(findings(&analyse(source, &input).result).len(), 1);
-        assert!(findings(&analyse(source, &self::input(older)).result).is_empty());
+        assert_eq!(
+            findings(&analyse(source, &self::input(older)).result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
         let mut analyser = analyse(source, &input);
         let segment = crate::segmenter::segment_commands_with_offset_and_config(
             source,
@@ -327,7 +330,10 @@ mod tests {
             segment.args(),
             segment.arg_tokens(),
         );
-        assert!(findings(&analyser.result).is_empty());
+        assert_eq!(
+            findings(&analyser.result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
@@ -347,7 +353,13 @@ mod tests {
                 "lexical policy supplies no selected command proof"
             );
         }
-        assert!(findings(&analyse("mycmd -password $value", &input).result).is_empty());
-        assert!(findings(&analyse("mycmd -token [produce]", &input).result).is_empty());
+        assert_eq!(
+            findings(&analyse("mycmd -password $value", &input).result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
+        assert_eq!(
+            findings(&analyse("mycmd -token [produce]", &input).result),
+            [] as [&crate::analyser::types::Diagnostic; 0]
+        );
     }
 }

@@ -2325,7 +2325,10 @@ mod tests {
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         // The class proc is declared, but never in the class object's
         // two-word dispatch table.
-        assert!(class_object_member_names(&analysis).is_empty());
+        assert_eq!(
+            class_object_member_names(&analysis),
+            [] as [std::vec::Vec<u8>; 0]
+        );
         assert!(
             analysis
                 .original_class_declarations()

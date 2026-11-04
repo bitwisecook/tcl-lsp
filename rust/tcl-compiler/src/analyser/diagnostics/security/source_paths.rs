@@ -404,12 +404,12 @@ mod tests {
             .len(),
             1
         );
-        assert!(
+        assert_eq!(
             findings(
                 &analyse("source -encoding utf-8 $path", &input(older)).result,
                 DiagCode::W300
-            )
-            .is_empty()
+            ),
+            [] as [&crate::analyser::types::Diagnostic; 0]
         );
         assert_eq!(
             findings(
@@ -419,12 +419,12 @@ mod tests {
             .len(),
             1
         );
-        assert!(
+        assert_eq!(
             findings(
                 &analyse("source -nopkg $path", &current).result,
                 DiagCode::W300
-            )
-            .is_empty()
+            ),
+            [] as [&crate::analyser::types::Diagnostic; 0]
         );
         for (source, code) in [
             ("proc open args {return CUSTOM}; open $path", DiagCode::W103),

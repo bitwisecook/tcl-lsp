@@ -9834,7 +9834,7 @@ mod original_receiver_method_facts_tests {
         }
         let entry = function_source_entry(&cfg, Some(&overlay));
         assert!(entry.instance_vars.is_empty());
-        assert!(entry.instance_owner.is_empty());
+        assert_eq!(entry.instance_owner, "");
         assert_eq!(entry.execution, original.execution);
         assert_eq!(entry.interpreter, original.interpreter);
     }

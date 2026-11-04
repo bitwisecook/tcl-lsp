@@ -396,7 +396,7 @@ mod defs_from_expr_out_vars {
     #[test]
     fn no_command_substitution_yields_no_defs() {
         // A pure arithmetic expression has no command writers.
-        assert!(defs("$a + $b * 2").is_empty());
+        assert_eq!(defs("$a + $b * 2"), [] as [std::string::String; 0]);
     }
 }
 

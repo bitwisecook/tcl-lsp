@@ -1275,7 +1275,7 @@ mod tests {
         assert_eq!(compared, 26);
         let unavailable = fatal_tail_frame_bytes(b"set x [bad", 0, "missing \"".into(), Some(6));
         assert!(unavailable.compilation_command_text.is_none());
-        assert!(unavailable.command_text.is_empty());
+        assert_eq!(unavailable.command_text, [] as [u8; 0]);
     }
 
     type ParseTailCase<'a> = (&'a [u8], &'a [u8], &'a [u8], u32);
@@ -2102,7 +2102,10 @@ mod tests {
                 })
             }));
             if entered {
-                assert!(ir.future_call_sites.is_empty());
+                assert_eq!(
+                    ir.future_call_sites,
+                    [] as [crate::command_binding::future_bodies::SourceFutureCallSite; 0]
+                );
                 assert!(ir.body_units.is_empty());
                 assert!(ir.methods.is_empty());
             }
@@ -2158,7 +2161,10 @@ mod tests {
             );
             if entered {
                 assert!(tokens.evaluated_body().is_none());
-                assert!(ir.future_call_sites.is_empty());
+                assert_eq!(
+                    ir.future_call_sites,
+                    [] as [crate::command_binding::future_bodies::SourceFutureCallSite; 0]
+                );
                 assert!(ir.methods.is_empty());
             }
             let prepared = prepare_cfg_context_bundle(&ir, registry);

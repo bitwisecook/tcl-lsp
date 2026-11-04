@@ -792,7 +792,7 @@ mod quiet_variable_normal_graph_controls {
                 .expect("genuine quiet root");
             let offset = u32::try_from(source.find("host_old 7").unwrap()).unwrap();
             let issued = tape.native_procedure_call_at(offset).unwrap();
-            assert!(issued.uncertain_operations().is_empty());
+            assert_eq!(issued.uncertain_operations(), []);
             let calls =
                 crate::registry_invocation::source_structure::source_original_procedure_calls(
                     source, &analysis,
@@ -867,7 +867,7 @@ mod quiet_variable_normal_graph_controls {
                     .is_some_and(|head| head.span().start() == offset)
             })
             .unwrap();
-        assert!(!call.uncertain_operations().is_empty());
+        assert_ne!(call.uncertain_operations(), []);
     }
 }
 
@@ -1064,7 +1064,7 @@ mod nested_source_point_controls {
         assert!(point.matches_child_analysis(&child));
         assert!(child.all_procs.contains_key("::app::child"));
         assert!(!child.all_procs.contains_key("::child"));
-        assert!(!point.obligations().is_empty());
+        assert_ne!(point.obligations(), []);
         let source = "namespace eval ::app {unknown_writer; source child.tcl}";
         let parent = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("source child").unwrap()).unwrap();

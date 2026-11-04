@@ -1214,7 +1214,7 @@ mod tests {
             binding.original_lexer_config_for_tokens(tokens),
             Some(config)
         );
-        assert!(!advice.targets().is_empty());
+        assert_ne!(advice.targets(), []);
         assert!(
             binding.execution_is_unknown(),
             "lexical lookup must retain opaque runtime dispatch"

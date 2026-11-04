@@ -210,7 +210,10 @@ fn original_package_unknown_and_loader_restore_before_original_currency_settleme
                     vm.package_loading_version_bytes(b"original-package")
                         .is_none()
                 );
-                assert!(vm.take_package_file_scope().is_empty());
+                assert_eq!(
+                    vm.take_package_file_scope(),
+                    [] as [tcl_core_types::NameBytes; 0]
+                );
                 assert_eq!(
                     vm.package_version_bytes(b"retained-effect")
                         .unwrap()

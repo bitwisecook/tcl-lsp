@@ -1971,7 +1971,7 @@ mod tests {
         );
         let mut literal = Vec::new();
         command_reads("puts {$value}", &context, &mut literal, &registry);
-        assert!(literal.is_empty());
+        assert_eq!(literal, [] as [crate::place::Place; 0]);
     }
 }
 
@@ -2003,19 +2003,19 @@ mod retained_mutation_metadata_tests {
                     })
             })
             .unwrap();
-        assert!(
-            !super::statement_destruction_places_at(statement, block, index, points, registry)
-                .is_empty()
+        assert_ne!(
+            super::statement_destruction_places_at(statement, block, index, points, registry),
+            [] as [crate::place::Place; 0]
         );
-        assert!(
+        assert_eq!(
             super::statement_destruction_places_with_continuation_with_metadata_context(
                 statement,
                 points.before_statement(block, index),
                 points.after_statement(block, index),
                 registry,
                 None,
-            )
-            .is_empty()
+            ),
+            [] as [crate::place::Place; 0]
         );
     }
 }

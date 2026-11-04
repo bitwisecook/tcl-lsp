@@ -2064,7 +2064,7 @@ fn legacy_gvn_cse_detection() {
     // the second computation is provably redundant.)
     let dup = "set x hello\nset a [string length $x]\nset b [string length $x]";
     assert!(legacy_gvn_codes(dup).iter().any(|c| c == "O105"));
-    assert!(!legacy_gvn_codes(dup).is_empty());
+    assert_ne!(legacy_gvn_codes(dup), [] as [std::string::String; 0]);
 
     // Different arguments ⇒ not flagged.
     assert_eq!(
@@ -2099,9 +2099,12 @@ fn legacy_gvn_cse_detection() {
 #[test]
 fn edge_cases_no_crash() {
     // Empty / comment / whitespace sources ⇒ no optimisations.
-    assert!(opt_codes("", TCL).is_empty());
-    assert!(opt_codes("# just a comment", TCL).is_empty());
-    assert!(opt_codes("   \n\n  ", TCL).is_empty());
+    assert_eq!(opt_codes("", TCL), [] as [std::string::String; 0]);
+    assert_eq!(
+        opt_codes("# just a comment", TCL),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(opt_codes("   \n\n  ", TCL), [] as [std::string::String; 0]);
     assert_eq!(optimised("", TCL), "");
 
     // Nested proc definitions ⇒ no crash.
@@ -2142,7 +2145,7 @@ fn edge_cases_loops_and_namespaces() {
     let loop_src =
         "set total 0\nfor {set i 0} {$i < 5} {incr i} {\n    set total [expr {$total + $i}]\n}\n";
     assert_eq!(optimised(loop_src, TCL), loop_src);
-    assert!(opt_codes(loop_src, TCL).is_empty());
+    assert_eq!(opt_codes(loop_src, TCL), [] as [std::string::String; 0]);
 
     // Deeply nested namespace proc folds at the call site. tclsh: a::b::c::f == 1.
     let deep = "namespace eval a {\n    namespace eval b {\n        namespace eval c {\n            proc f {} { return 1 }\n        }\n    }\n}\nset v [a::b::c::f]\n";

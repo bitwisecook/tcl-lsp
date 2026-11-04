@@ -1551,7 +1551,10 @@ mod tests {
             }
             let binding = withdrawn.invocation_at_source("ensure", offset);
             assert!(binding.unknown);
-            assert!(binding.targets.is_empty());
+            assert_eq!(
+                binding.targets,
+                [] as [crate::command_binding::SourceCommandTarget; 0]
+            );
             assert!(binding.proved_handler_target().is_none());
         }
         let dynamic = final_binding(
@@ -1559,7 +1562,10 @@ mod tests {
             &input,
         );
         assert!(dynamic.unknown);
-        assert!(dynamic.targets.is_empty());
+        assert_eq!(
+            dynamic.targets,
+            [] as [crate::command_binding::SourceCommandTarget; 0]
+        );
     }
 
     #[test]
@@ -1602,7 +1608,10 @@ mod tests {
         }
         let withdrawn = bindings.invocation_at_source("package", 0);
         assert!(withdrawn.unknown);
-        assert!(withdrawn.targets.is_empty());
+        assert_eq!(
+            withdrawn.targets,
+            [] as [crate::command_binding::SourceCommandTarget; 0]
+        );
         assert!(withdrawn.declared_command.is_none());
         assert!(withdrawn.catalogue_command.is_none());
     }

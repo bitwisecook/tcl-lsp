@@ -14676,8 +14676,19 @@ mod tests {
             target.symbol().checked_c_namespace_key().as_deref(),
             Some("::shared")
         );
-        assert!(analysis.original_variable_alias_receipts.is_empty());
-        assert!(analysis.original_variable_alias_operands.is_empty());
+        assert_eq!(
+            analysis.original_variable_alias_receipts,
+            [] as [crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt; 0]
+        );
+        assert_eq!(
+            analysis.original_variable_alias_operands,
+            [] as [(
+                u32,
+                tcl_lexer::Span,
+                tcl_lexer::Span,
+                crate::registry_invocation::declaration_assistance::DeclarationVariableAliasPurpose
+            ); 0]
+        );
 
         let source = "upvar #0 $unknown local";
         let analysis = Analyser::new().analyse(source, "tcl");
@@ -14688,8 +14699,14 @@ mod tests {
                 .get("local")
                 .is_none_or(|variable| variable.link_target.is_none())
         );
-        assert!(!analysis.original_variable_name_unknowns.is_empty());
-        assert!(analysis.original_variable_alias_receipts.is_empty());
+        assert_ne!(
+            analysis.original_variable_name_unknowns,
+            [] as [tcl_lexer::Span; 0]
+        );
+        assert_eq!(
+            analysis.original_variable_alias_receipts,
+            [] as [crate::signature_scan::variable_symbol::OriginalVariableAliasReceipt; 0]
+        );
     }
 
     #[test]
@@ -20520,7 +20537,10 @@ mod original_registry_symbol_tests {
             "proc ::tcltest::test args {}; tcltest::test ordinary {description} -body {}",
             "tcl8.6",
         );
-        assert!(shadow.all_defined_symbols.is_empty());
+        assert_eq!(
+            shadow.all_defined_symbols,
+            [] as [crate::analyser::types::DefinedSymbol; 0]
+        );
     }
 
     #[test]
@@ -20536,7 +20556,7 @@ mod original_registry_symbol_tests {
             let metadata = card
                 .conditional_metadata()
                 .expect("unknown package execution stays explicit");
-            assert!(!metadata.obligations().is_empty());
+            assert_ne!(metadata.obligations(), []);
             assert!(metadata.matches_source(
                 &tcl_lexer::SourceImage::document(source),
                 result.body_lexer_config.unwrap()
@@ -20609,11 +20629,17 @@ mod original_registry_symbol_tests {
         );
         assert!(result.all_defined_symbols[0].original_name_input.is_none());
         let invalid = Analyser::new().analyse("when HTTP_REQUEST set", "f5-irules");
-        assert!(invalid.all_defined_symbols.is_empty());
+        assert_eq!(
+            invalid.all_defined_symbols,
+            [] as [crate::analyser::types::DefinedSymbol; 0]
+        );
         let shadowed =
             Analyser::new().analyse("proc when {args} {}; when HTTP_REQUEST {}", "f5-irules");
         assert_eq!(shadowed.original_vendor_symbol_declarations().count(), 0);
-        assert!(shadowed.all_defined_symbols.is_empty());
+        assert_eq!(
+            shadowed.all_defined_symbols,
+            [] as [crate::analyser::types::DefinedSymbol; 0]
+        );
         let uncertain =
             Analyser::new().analyse("unknown_mutator; when HTTP_REQUEST {}", "f5-irules");
         assert_eq!(

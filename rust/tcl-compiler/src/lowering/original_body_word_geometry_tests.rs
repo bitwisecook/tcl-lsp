@@ -193,7 +193,10 @@ fn assert_geometry_binding(original: &CommandTokens, config: tcl_lexer::LexerCon
         Some(config)
     );
     assert!(binding.unknown);
-    assert!(binding.targets.is_empty());
+    assert_eq!(
+        binding.targets,
+        [] as [crate::command_binding::SourceCommandTarget; 0]
+    );
     assert!(binding.lookup_state.is_none());
     assert!(binding.compiler_lookup_state.is_none());
     assert!(

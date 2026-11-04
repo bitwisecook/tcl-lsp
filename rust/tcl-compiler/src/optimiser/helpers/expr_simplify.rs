@@ -2817,8 +2817,8 @@ mod tests {
         let substitutions =
             tcl_syntax::expr::checked_source_expression_substitutions(&result.text, &context)
                 .unwrap();
-        assert!(substitutions.variables.is_empty());
-        assert!(substitutions.commands.is_empty());
+        assert_eq!(substitutions.variables, [] as [tcl_lexer::Span; 0]);
+        assert_eq!(substitutions.commands, [] as [tcl_lexer::Span; 0]);
     }
 
     #[test]

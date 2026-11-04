@@ -4544,7 +4544,7 @@ mod tests {
         let advice = binding.declaration_operand_layout_advice(&tokens).expect(
             "same original lexical declaration can retain operand geometry across repetitions",
         );
-        assert!(!advice.targets().is_empty());
+        assert_ne!(advice.targets(), []);
         let original = binding
             .admitted_inline_invocation()
             .expect("unchanged original expression compiler registration");
@@ -4629,7 +4629,7 @@ mod tests {
                 !advice.closed_lookup(),
                 "declaration namespace cannot supply an unknown activation namespace"
             );
-            assert!(!advice.targets().is_empty());
+            assert_ne!(advice.targets(), []);
         }
         let mut state = original.state.clone();
         state.variable_frame = VariableExecutionFrame::NamespaceIdentity {
@@ -5207,14 +5207,14 @@ mod tests {
         );
         let mut changed = tokens.clone();
         changed.variable_accesses[0].original_spelling = "$different".to_owned();
-        assert!(
+        assert_eq!(
             changed
                 .source_binding
                 .as_ref()
                 .unwrap()
                 .declaration_read_occurrences(registry, &changed)
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [crate::command_binding::declaration_layout::DeclarationReadOccurrenceAdvice; 0]
         );
         for source in [
             "proc p {missing} {return $missing}",
@@ -5377,7 +5377,7 @@ mod tests {
             }
         }
         let advice = advice.expect("original declaration-owned operand layout");
-        assert!(!advice.targets().is_empty());
+        assert_ne!(advice.targets(), []);
         assert!(
             tokens
                 .source_binding
@@ -5554,7 +5554,12 @@ mod original_nested_root_activation_purpose_tests {
                     OriginalDiagnosticFrameEntry::RootScript { .. }
                 ))
         );
-        assert!(nested.original_script_activations.is_empty());
+        assert_eq!(
+            nested.original_script_activations,
+            [] as [std::sync::Arc<
+                crate::command_binding::declaration_layout::OriginalDiagnosticFrameEntry,
+            >; 0]
+        );
         let whole = SourceCommandBindings::analyse_image_in_frame_with_options(
             &body_at_zero,
             &frame,
@@ -5644,7 +5649,10 @@ mod original_logical_declaration_receipt_tests {
             let binding = tokens.source_binding.as_ref().unwrap();
             assert!(binding.lookup_state.is_none());
             assert!(binding.unknown);
-            assert!(binding.targets.is_empty());
+            assert_eq!(
+                binding.targets,
+                [] as [crate::command_binding::SourceCommandTarget; 0]
+            );
             assert!(binding.original_logical_declaration_targets.is_some());
             let targets = binding
                 .original_logical_declaration_call_targets(

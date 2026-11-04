@@ -85,7 +85,7 @@ fn assert_expression_candidate_has_no_edit(source: &str, code: &str) {
         .iter()
         .filter(|candidate| candidate.code.as_str() == code)
         .collect::<Vec<_>>();
-    assert!(!candidates.is_empty());
+    assert_ne!(candidates.len(), 0);
     assert!(
         candidates
             .iter()

@@ -1297,10 +1297,16 @@ mod tests {
             registry,
             Some(test_context())
         ));
-        assert!(crate::ssa::defs_of_with_registry(&native, Some(registry)).is_empty());
+        assert_eq!(
+            crate::ssa::defs_of_with_registry(&native, Some(registry)),
+            [] as [std::string::String; 0]
+        );
         let mut scanner =
             crate::var_refs::VarReferenceScanner::new(crate::var_refs::VarScanOptions::default());
-        assert!(crate::ssa::uses_of(&native, &mut scanner, registry).is_empty());
+        assert_eq!(
+            crate::ssa::uses_of(&native, &mut scanner, registry),
+            [] as [std::string::String; 0]
+        );
         assert!(native.source_edit_span().is_none());
         assert!(crate::gvn::statement_writes_state(
             registry,

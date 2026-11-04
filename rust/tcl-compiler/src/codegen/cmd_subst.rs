@@ -3433,7 +3433,7 @@ mod tests {
         codegen.with_invocation_tokens(Some(&tokens), |codegen| {
             assert!(codegen.entered_command_surrogate("lappend").is_none());
             assert!(!codegen.try_emit_expanded_native_call(&parts));
-            assert!(codegen.instructions.is_empty());
+            assert_eq!(codegen.instructions, [] as [tcl_bytecode::Instruction; 0]);
         });
         codegen.with_invocation_tokens(None, |codegen| {
             assert!(codegen.entered_command_surrogate("lappend").is_none());
@@ -4683,7 +4683,7 @@ mod tests {
         ] {
             let mut context = CodegenCtx::new(false, &[], &registry);
             assert!(!context.try_list_expand_concat(source), "{source}");
-            assert!(context.instructions.is_empty());
+            assert_eq!(context.instructions, [] as [tcl_bytecode::Instruction; 0]);
             assert!(context.command_binding_requirements.is_empty());
         }
         let source = "[list {*}${a{b}c} {*}$other]";
@@ -4704,7 +4704,7 @@ mod tests {
             ..context.lexer_config()
         });
         assert!(!context.try_list_expand_concat("[list {*}$a {*}$b]"));
-        assert!(context.instructions.is_empty());
+        assert_eq!(context.instructions, [] as [tcl_bytecode::Instruction; 0]);
         assert!(context.command_binding_requirements.is_empty());
     }
 

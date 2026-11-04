@@ -892,7 +892,10 @@ mod tests {
         let (bindings, registry) = analyse(source);
         let factory = bindings
             .invocation_at_source("D", u32::try_from(source.find("D new").unwrap()).unwrap());
-        assert!(factory.class_factory_candidates(&registry).is_empty());
+        assert_eq!(
+            factory.class_factory_candidates(&registry),
+            [] as [&crate::command_binding::SourceCommandTarget; 0]
+        );
     }
 
     #[test]
@@ -908,7 +911,10 @@ mod tests {
                 crate::registry_invocation::EffectiveInvocationWord::Dynamic,
             );
         }
-        assert!(factory.class_factory_candidates(&registry).is_empty());
+        assert_eq!(
+            factory.class_factory_candidates(&registry),
+            [] as [&crate::command_binding::SourceCommandTarget; 0]
+        );
     }
 
     #[test]

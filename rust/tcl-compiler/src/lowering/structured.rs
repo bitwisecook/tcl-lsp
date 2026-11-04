@@ -2596,7 +2596,7 @@ mod original_body_word_caller_tests {
                         )
                         .expect("authentic selected immediate-body namespace");
                     assert_eq!(body.namespace_context.as_deref(), Some(&namespace));
-                    assert!(!body.statements.is_empty());
+                    assert_ne!(body.statements, [] as [crate::ir::Statement; 0]);
                     assert!(body.statements.iter().all(|statement| !matches!(
                         statement, Statement::Barrier { reason, .. }
                             if reason == "original body namespace context is unavailable"
@@ -2834,7 +2834,7 @@ mod original_dict_name_tests {
         else {
             panic!("original nonmutating dictionary dispatch")
         };
-        assert!(defs.is_empty());
+        assert_eq!(defs, []);
         assert!(!reads_own_defs && !safe_on_uninit);
     }
 
@@ -2843,7 +2843,7 @@ mod original_dict_name_tests {
         let module = module("dict set $receiver key VALUE");
         let statement = &module.top_level.statements[0];
         match statement {
-            Statement::Call { defs, .. } => assert!(defs.is_empty()),
+            Statement::Call { defs, .. } => assert_eq!(defs, []),
             Statement::Barrier { .. } => {}
             _ => panic!("original dynamic dictionary dispatch"),
         }

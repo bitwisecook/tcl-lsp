@@ -1222,7 +1222,7 @@ mod tests {
         let selected = hosted_source_taint_invocation(registry, sink)
             .expect("nested hosted source metadata keeps the actual original owner");
         assert_eq!(selected.metadata.shape().command(), "HTTP::respond");
-        assert!(!selected.metadata.obligations().is_empty());
+        assert_ne!(selected.metadata.obligations(), []);
         assert!(
             super::super::resolved_tokens_invocation(registry, None, sink).is_none(),
             "source advice supplies no native handler"
@@ -1277,7 +1277,7 @@ mod tests {
             .unwrap()
             .stamp_original_tokens(&mut tokens);
         let selected = hosted_source_taint_invocation(registry, &tokens).unwrap();
-        assert!(!selected.metadata.obligations().is_empty());
+        assert_ne!(selected.metadata.obligations(), []);
         assert_eq!(selected.metadata.shape().command(), "HTTP::respond");
         assert_eq!(selected.effective.origins.len(), 4);
         assert!(

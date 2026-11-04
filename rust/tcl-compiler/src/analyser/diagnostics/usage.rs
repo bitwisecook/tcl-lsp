@@ -2063,7 +2063,10 @@ mod original_expression_grammar_tests {
         }
         // The BOM in extracted brace content is a command character, so the
         // following # is an argument rather than the start of a comment.
-        assert!(comment_regions_recursive("\u{feff}# prose", input.lexer_config()).is_empty());
+        assert_eq!(
+            comment_regions_recursive("\u{feff}# prose", input.lexer_config()),
+            [] as [std::ops::Range<usize>; 0]
+        );
         let comments = comment_regions_recursive("# prose\n{# nested}", input.lexer_config());
         assert_eq!(comments, [0..7, 9..17]);
     }
@@ -2334,7 +2337,7 @@ mod selected_nested_expression_controls {
             .iter()
             .find(|finding| finding.code == DiagCode::W114)
             .unwrap();
-        assert!(finding.fixes.is_empty());
+        assert_eq!(finding.fixes, [] as [crate::irules_checks::CodeFix; 0]);
         let source = "expr {[expr {42}] + 1}";
         let mut analyser = Analyser::new();
         analyser.analyse(source, "tcl8.6");

@@ -5934,7 +5934,7 @@ mod tests {
         else {
             unreachable!()
         };
-        assert!(!arguments.is_empty());
+        assert_ne!(arguments, []);
         changed_arguments.clear();
         assert!(
             binding

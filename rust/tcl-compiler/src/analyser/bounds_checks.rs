@@ -1768,7 +1768,10 @@ mod tests {
         );
         assert_eq!(loop_verdicts("while {$x < 10} {puts hi}\n"), ["W242"]);
         // A counter the body advances is never proven either way.
-        assert!(loop_verdicts("proc p {} {\n set i 0\n while {$i < 3} {incr i}\n}\n").is_empty());
+        assert_eq!(
+            loop_verdicts("proc p {} {\n set i 0\n while {$i < 3} {incr i}\n}\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// A loop's own test decided false names the loop in its I230, beside the
@@ -1932,12 +1935,18 @@ mod tests {
             declared_loop_codes(&format!("{spin} -loop"), "spin 0 {puts hi}"),
             [DiagCode::W240]
         );
-        assert!(declared_loop_codes(spin, "spin 1 {puts hi}").is_empty());
+        assert_eq!(
+            declared_loop_codes(spin, "spin 1 {puts hi}"),
+            [] as [tcl_core_types::DiagCode; 0]
+        );
         // Nearest wins: a document that redeclares `while` answers for it, so
         // a declaration stating no loop body is not a loop, and one stating
         // it is.
         let redeclared = "while {cond:expr body:body}";
-        assert!(declared_loop_codes(redeclared, "while 1 {puts hi}").is_empty());
+        assert_eq!(
+            declared_loop_codes(redeclared, "while 1 {puts hi}"),
+            [] as [tcl_core_types::DiagCode; 0]
+        );
         assert_eq!(
             declared_loop_codes(&format!("{redeclared} -loop"), "while 1 {puts hi}"),
             [DiagCode::W241]
@@ -2340,16 +2349,19 @@ mod tests {
     /// {}` leaves three elements (#2054).
     #[test]
     fn w231_length_follows_the_cell_updates() {
-        assert!(code_msgs("set xs {}\nlappend xs a b c\nlset xs 2 X\n", "W231").is_empty());
+        assert_eq!(
+            code_msgs("set xs {}\nlappend xs a b c\nlset xs 2 X\n", "W231"),
+            [] as [std::string::String; 0]
+        );
         let m = code_msgs("set xs {}\nlappend xs a b c\nlset xs 5 Y\n", "W231");
         assert_eq!(m.len(), 1, "{m:?}");
         assert!(m[0].contains("(list has 3 elements)"), "{}", m[0]);
-        assert!(
+        assert_eq!(
             code_msgs(
                 "set xs {}\nlappend xs a\nlappend xs {b c} d\nlset xs 3 X\n",
                 "W231"
-            )
-            .is_empty()
+            ),
+            [] as [std::string::String; 0]
         );
         let m = code_msgs(
             "set xs {}\nlappend xs a\nlappend xs {b c} d\nlset xs 4 X\n",
@@ -2361,8 +2373,14 @@ mod tests {
         );
         // A write the walk cannot evaluate forgets the length rather than
         // reporting against a stale one.
-        assert!(code_msgs("set xs {a b}\nlappend xs $v\nlset xs 9 X\n", "W231").is_empty());
-        assert!(code_msgs("set xs {a b}\nappend xs $v\nlset xs 9 X\n", "W231").is_empty());
+        assert_eq!(
+            code_msgs("set xs {a b}\nlappend xs $v\nlset xs 9 X\n", "W231"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            code_msgs("set xs {a b}\nappend xs $v\nlset xs 9 X\n", "W231"),
+            [] as [std::string::String; 0]
+        );
         // A string append changes the list too: `a b` then `append xs c`
         // is `a bc`, two elements.
         let m = code_msgs("set xs {a b}\nappend xs c\nlset xs 5 X\n", "W231");
@@ -2378,7 +2396,10 @@ mod tests {
     /// the list had two elements, and W231 reported a raise at index 3.
     #[test]
     fn w231_reads_an_appended_escape_as_tcl_substitutes_it() {
-        assert!(code_msgs("set xs {a b}\nappend xs \"\\tc\"\nlset xs 2 X\n", "W231").is_empty());
+        assert_eq!(
+            code_msgs("set xs {a b}\nappend xs \"\\tc\"\nlset xs 2 X\n", "W231"),
+            [] as [std::string::String; 0]
+        );
         let m = code_msgs("set xs {a b}\nappend xs \"\\tc\"\nlset xs 5 X\n", "W231");
         assert!(
             m.len() == 1 && m[0].contains("(list has 3 elements)"),
@@ -2545,7 +2566,10 @@ mod tests {
     fn w231_end_plus_one_follows_the_release() {
         let src = "set x {a b c}\nlset x end+1 Z\n";
         assert_eq!(code_msgs_for(src, "tcl8.5", "W231").len(), 1);
-        assert!(code_msgs_for(src, "tcl8.4", "W231").is_empty());
+        assert_eq!(
+            code_msgs_for(src, "tcl8.4", "W231"),
+            [] as [std::string::String; 0]
+        );
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
             assert!(code_msgs_for(src, dialect, "W231").is_empty(), "{dialect}");
         }
@@ -2561,7 +2585,10 @@ mod tests {
     fn w231_abstains_at_the_length_when_no_release_is_selected() {
         let at = "set x {a b c}\nlset x 3 Z\n";
         let past = "set x {a b c}\nlset x 4 Z\n";
-        assert!(code_msgs_for(at, "tcl", "W231").is_empty());
+        assert_eq!(
+            code_msgs_for(at, "tcl", "W231"),
+            [] as [std::string::String; 0]
+        );
         assert_eq!(code_msgs_for(past, "tcl", "W231").len(), 1);
     }
 

@@ -504,7 +504,10 @@ mod tests {
                 .get(&fixture_id(&module.procedures, "::p"))
                 .expect("authored fixture body")
                 .body;
-            assert!(body.implicit_math_invocations.is_empty());
+            assert_eq!(
+                body.implicit_math_invocations,
+                [] as [crate::command_binding::math_occurrence::SourceMathInvocation; 0]
+            );
             // Reached preparation precedes the missing-variable failure; it
             // supplies neither a normal result nor admission of the Return.
             assert_eq!(

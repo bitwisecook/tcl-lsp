@@ -466,8 +466,14 @@ mod tests {
         );
         assert!(candidates.has_unknown_residual());
         assert!(candidates.contents_versions_are_unioned());
-        assert!(analysis.object_handle_facts.proven_reads.is_empty());
-        assert!(analysis.object_handle_facts.physical_type_reads.is_empty());
+        assert_eq!(
+            analysis.object_handle_facts.proven_reads,
+            [] as [crate::object_types::ObjectHandleRead; 0]
+        );
+        assert_eq!(
+            analysis.object_handle_facts.physical_type_reads,
+            [] as [crate::object_types::PhysicalObjectTypeReadEvidence; 0]
+        );
         assert!(
             analysis
                 .object_handle_facts
@@ -553,8 +559,14 @@ mod tests {
             .expect("unrelated original proc cannot withdraw the top-level source owner");
         assert!(candidates.classes().any(|class| class == "::C"));
         assert!(candidates.has_unknown_residual());
-        assert!(analysis.object_handle_facts.proven_reads.is_empty());
-        assert!(analysis.object_handle_facts.physical_type_reads.is_empty());
+        assert_eq!(
+            analysis.object_handle_facts.proven_reads,
+            [] as [crate::object_types::ObjectHandleRead; 0]
+        );
+        assert_eq!(
+            analysis.object_handle_facts.physical_type_reads,
+            [] as [crate::object_types::PhysicalObjectTypeReadEvidence; 0]
+        );
     }
 
     #[test]
@@ -581,8 +593,14 @@ mod tests {
                 assert!(classes.classes().any(|class| class == "::C"));
                 assert!(classes.has_unknown_residual());
             }
-            assert!(analysis.object_handle_facts.proven_reads.is_empty());
-            assert!(analysis.object_handle_facts.physical_type_reads.is_empty());
+            assert_eq!(
+                analysis.object_handle_facts.proven_reads,
+                [] as [crate::object_types::ObjectHandleRead; 0]
+            );
+            assert_eq!(
+                analysis.object_handle_facts.physical_type_reads,
+                [] as [crate::object_types::PhysicalObjectTypeReadEvidence; 0]
+            );
             assert!(
                 analysis
                     .object_handle_facts

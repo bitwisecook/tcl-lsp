@@ -134,11 +134,11 @@ mod tests {
             .as_mut()
             .unwrap()
             .original_variable_operands = None;
-        assert!(
+        assert_eq!(
             crate::registry_invocation::normal_transfer_invocation(registry, None, &missing)
                 .unwrap()
-                .written_definition_places(&left.variable_context, registry)
-                .is_empty()
+                .written_definition_places(&left.variable_context, registry),
+            [] as [(usize, crate::place::Place); 0]
         );
 
         let origin = bindings.root_origin.clone().unwrap();

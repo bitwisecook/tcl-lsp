@@ -105,7 +105,7 @@ fn an_emitted_module_carries_its_identity_manifest() {
             manifest.intrinsic_table_hash,
             tcl_registry::intrinsic_table_hash()
         );
-        assert!(manifest.packs.is_empty());
+        assert_eq!(manifest.packs, [] as [tcl_runtime_api::PackFactStamp; 0]);
     }
 }
 
@@ -1455,7 +1455,7 @@ fn a_module_that_binds_nothing_keeps_its_old_shape() {
     let mut module = compile_native("set a 1\nincr a\n");
     assert!(!module.import_table);
     assert!(module.globals.is_empty());
-    assert!(module.elem_declared.is_empty());
+    assert_eq!(module.elem_declared, [] as [u32; 0]);
     assert!(!module.to_wat().contains("table.grow"));
 }
 

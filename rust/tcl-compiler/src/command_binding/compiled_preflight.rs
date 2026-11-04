@@ -1996,7 +1996,11 @@ mod tests {
         );
         assert!(!inventory.has_site(0));
         assert!(!inventory.native_compilation_provider_required_at(0));
-        assert!(!failure.dependencies.is_empty());
+        assert_ne!(
+            failure.dependencies,
+            [] as [crate::command_binding::compiled_preflight::SourceNativeCompilationDependency;
+                0]
+        );
     }
 
     #[test]

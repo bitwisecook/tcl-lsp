@@ -2553,7 +2553,10 @@ mod tests {
                 .is_some()
         );
         let inert = "interp create -safe s; interp eval s {set data {method m {} {source a.tcl}}}";
-        assert!(subjects(&Analyser::new().analyse(inert, "tcl8.6")).is_empty());
+        assert_eq!(
+            subjects(&Analyser::new().analyse(inert, "tcl8.6")),
+            [] as [&crate::analyser::interp_visibility::ConditionalInterpreterVisibilitySubject; 0]
+        );
     }
 
     #[test]
@@ -2659,14 +2662,17 @@ mod tests {
                 );
             }
             let exposed = "interp create -safe s; rename s moved; interp expose s source; interp eval s {source a.tcl}";
-            assert!(subjects(&Analyser::new().analyse(exposed, dialect)).is_empty());
+            assert_eq!(subjects(&Analyser::new().analyse(exposed, dialect)), [] as [&crate::analyser::interp_visibility::ConditionalInterpreterVisibilitySubject; 0]);
             let deleted =
                 "interp create -safe s; rename s moved; interp delete s; moved eval {source a.tcl}";
-            assert!(subjects(&Analyser::new().analyse(deleted, dialect)).is_empty());
+            assert_eq!(subjects(&Analyser::new().analyse(deleted, dialect)), [] as [&crate::analyser::interp_visibility::ConditionalInterpreterVisibilitySubject; 0]);
         }
         let unknown =
             "interp create -safe s; rename s moved; mystery; interp eval s {source a.tcl}";
-        assert!(subjects(&Analyser::new().analyse(unknown, "tcl8.6")).is_empty());
+        assert_eq!(
+            subjects(&Analyser::new().analyse(unknown, "tcl8.6")),
+            [] as [&crate::analyser::interp_visibility::ConditionalInterpreterVisibilitySubject; 0]
+        );
     }
 
     #[test]

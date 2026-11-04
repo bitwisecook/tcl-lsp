@@ -10203,7 +10203,7 @@ mod tests {
                     .map(|(&symbol, &version)| (symbol, version))
             })
             .collect();
-        assert!(!keys.is_empty());
+        assert_ne!(keys, [] as [(crate::ssa::Symbol, u32); 0]);
         assert!(
             keys.iter()
                 .all(|key| taints.get(key) == Some(&TaintLattice::tainted()))
@@ -10620,7 +10620,7 @@ mod tests {
                 tokens,
             )
             .unwrap();
-        assert!(topology.arguments.is_empty());
+        assert_eq!(topology.arguments, [] as [usize; 0]);
     }
 
     fn source_regexp_warnings(
@@ -10678,7 +10678,10 @@ mod tests {
         let mut missing_snapshot = unit.clone();
         missing_snapshot.ir_module.registry_snapshot = None;
         for refused in vec![missing, changed, missing_snapshot].into_boxed_slice() {
-            assert!(find_taint_warnings_for_cu_base(&refused, registry, None).is_empty());
+            assert_eq!(
+                find_taint_warnings_for_cu_base(&refused, registry, None),
+                [] as [crate::taint::TaintWarning; 0]
+            );
         }
         assert_eq!(
             find_taint_warnings_for_cu_base(&unit, registry, None),
@@ -10704,7 +10707,10 @@ mod tests {
                 .any(|warning| warning.code == DiagCode::T103 && warning.variable == "payload")
         );
         let missing = TaintSourceContext::for_input(registry, None, source.config);
-        assert!(source_regexp_warnings(&unit, registry, missing).is_empty());
+        assert_eq!(
+            source_regexp_warnings(&unit, registry, missing),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         let input = unit.top_level.source_metadata_input().unwrap();
         let foreign = crate::analyser::ResolvedAnalysisInput::new(
             input.analyser_profile(),
@@ -10713,13 +10719,22 @@ mod tests {
             input.lexer_config(),
         );
         let foreign = TaintSourceContext::for_input(registry, Some(&foreign), source.config);
-        assert!(source_regexp_warnings(&unit, registry, foreign).is_empty());
+        assert_eq!(
+            source_regexp_warnings(&unit, registry, foreign),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         let mut stale = source.config;
         stale.strict_quoting = !stale.strict_quoting;
         let stale = TaintSourceContext::for_input(registry, Some(input), stale);
-        assert!(source_regexp_warnings(&unit, registry, stale).is_empty());
+        assert_eq!(
+            source_regexp_warnings(&unit, registry, stale),
+            [] as [crate::taint::TaintWarning; 0]
+        );
         let standalone = TaintSourceContext::standalone(registry, registry.profile());
-        assert!(!source_regexp_warnings(&unit, registry, standalone).is_empty());
+        assert_ne!(
+            source_regexp_warnings(&unit, registry, standalone),
+            [] as [crate::taint::TaintWarning; 0]
+        );
     }
 
     #[test]
@@ -11422,7 +11437,7 @@ mod tests {
                 (source.config, grammar),
             );
             assert_eq!(hits.len(), 1);
-            assert!(hits[0].name.is_empty());
+            assert_eq!(hits[0].name, "");
             assert!(hits[0].variable.is_some());
             assert_eq!(hits[0].rel_span, Some((0, 3)));
         }
@@ -13301,7 +13316,7 @@ mod tests {
             }
             let mut warnings = Vec::new();
             emit_dynamic_command_head_warning(None, &statement, &taints, &mut warnings, &ssa);
-            assert!(warnings.is_empty());
+            assert_eq!(warnings, [] as [crate::taint::TaintWarning; 0]);
             let word = crate::value_shapes::value_word_with_config("${a{b}c}", config).unwrap();
             assert_eq!(
                 original_scalar_reference_name(&word, config),
@@ -13725,7 +13740,10 @@ mod tests {
         for refused in vec![missing, changed].into_boxed_slice() {
             reset_callback_replay_build_count();
             reset_callback_replay_name_search_count();
-            assert!(find_callback_substitution_warnings(&refused, &registry, None, &[]).is_empty());
+            assert_eq!(
+                find_callback_substitution_warnings(&refused, &registry, None, &[]),
+                [] as [crate::taint::TaintWarning; 0]
+            );
             assert_eq!(callback_replay_build_count(), 0);
             assert_eq!(callback_replay_name_search_count(), 0);
         }
@@ -15510,12 +15528,12 @@ mod tests {
         let registry = context.commands();
         let (_owner, unit) = retained_warning_unit("set value 1", &context);
         let current = taint_warning_report_for_cu(&unit, registry, None);
-        assert!(current.warnings.is_empty());
+        assert_eq!(current.warnings, [] as [crate::taint::TaintWarning; 0]);
         assert!(current.replays.is_complete());
         let mut withdrawn = unit.clone();
         withdrawn.ir_module.retained_source_bindings = None;
         let missing = taint_warning_report_for_cu(&withdrawn, registry, None);
-        assert!(missing.warnings.is_empty());
+        assert_eq!(missing.warnings, [] as [crate::taint::TaintWarning; 0]);
         assert!(!missing.replays.is_complete());
         assert!(matches!(
             missing.replays,
@@ -16076,7 +16094,7 @@ mod original_script_contents_coverage_tests {
                 .ssa
                 .original_script_source_symbols()
                 .collect::<Vec<_>>();
-            assert!(!roots.is_empty());
+            assert_ne!(roots, [] as [crate::ssa::Symbol; 0]);
             for ((symbol, _), value) in unit.top_level.taints.iter() {
                 if roots.contains(symbol) {
                     assert_eq!(*value, TaintLattice::tainted(), "{text}");

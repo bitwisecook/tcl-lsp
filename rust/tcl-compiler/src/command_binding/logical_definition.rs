@@ -582,7 +582,10 @@ proc p "other {last default}" {return SECOND}"#;
             // call unrepresented. The retained realm keeps the source input;
             // it does not manufacture a reached lookup at the missing point.
             assert!(binding.unknown);
-            assert!(binding.targets.is_empty());
+            assert_eq!(
+                binding.targets,
+                [] as [crate::command_binding::SourceCommandTarget; 0]
+            );
         }
         assert!(binding.original_recorded_head_name_input().is_none());
         binding.selected_slot_diagnostic_presence()

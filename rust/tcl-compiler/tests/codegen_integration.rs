@@ -1210,7 +1210,10 @@ fn missing_expression_preparation_cannot_license_an_execution_fold() {
     let mut cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
         &ir, false, registry, config,
     );
-    assert!(!cfg.top_level.expression_preparations.is_empty());
+    assert_ne!(
+        cfg.top_level.expression_preparations,
+        [] as [tcl_compiler::command_binding::SourceExpressionPreparation; 0]
+    );
     cfg.top_level.expression_preparations.clear();
     let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     assert_eq!(

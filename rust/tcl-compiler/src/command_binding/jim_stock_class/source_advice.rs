@@ -315,7 +315,7 @@ mod controls {
         );
         let changed = "proc alias {args} {return CLOSED}\nclass Point {x 0}\nproc {Point move} {dx} {return $dx}\n";
         let changed_analysis = analysed(changed);
-        assert!(seed(&changed_analysis).stock_source_effects.is_empty());
+        assert_eq!(seed(&changed_analysis).stock_source_effects.len(), 0);
         assert!(!member(changed, &changed_analysis).supports_member_association(&changed_analysis));
     }
 }

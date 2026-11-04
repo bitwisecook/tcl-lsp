@@ -3378,7 +3378,10 @@ mod tests {
 
     #[test]
     fn irule5004_ignores_a_dns_return_in_a_dead_arm() {
-        assert!(drop_codes("when DNS_REQUEST { if {0} { DNS::return \"1.2.3.4\" } }").is_empty());
+        assert_eq!(
+            drop_codes("when DNS_REQUEST { if {0} { DNS::return \"1.2.3.4\" } }"),
+            [] as [std::string::String; 0]
+        );
         assert!(
             drop_codes("when DNS_REQUEST { if {$x} { DNS::return \"1.2.3.4\" } }")
                 .contains(&"IRULE5004".to_owned())
@@ -4579,13 +4582,13 @@ mod tests {
             1
         );
         unit.ir_module.source = tcl_lexer::SourceImage::document("foreign source");
-        assert!(
+        assert_eq!(
             find_generic_static_name_warnings(
                 &unit,
                 Some(SurfaceQuery::any_release(Family::F5Irules)),
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
         );
     }
 
@@ -4625,7 +4628,10 @@ mod tests {
     /// that runs.
     #[test]
     fn irule4002_ignores_a_static_in_a_dead_arm() {
-        assert!(generic_warnings("when RULE_INIT { if {0} { set static::debug 1 } }").is_empty());
+        assert_eq!(
+            generic_warnings("when RULE_INIT { if {0} { set static::debug 1 } }"),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
         assert!(
             generic_warnings("when RULE_INIT { if {$x} { set static::debug 1 } }")
                 .iter()
@@ -4930,11 +4936,17 @@ mod original_getter_source_config_tests {
         for function in cu.procedures.values_mut() {
             function.source_metadata_input = None;
         }
-        assert!(find_unnormalised_getter_warnings(&cu, context.commands(), query).is_empty());
+        assert_eq!(
+            find_unnormalised_getter_warnings(&cu, context.commands(), query),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
         let foreign = tcl_registry::model::resolve_known_environment("tcl9.1")
             .unwrap()
             .default_context_registry();
-        assert!(find_unnormalised_getter_warnings(&original, foreign.commands(), query).is_empty());
+        assert_eq!(
+            find_unnormalised_getter_warnings(&original, foreign.commands(), query),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
         assert_eq!(
             find_unnormalised_getter_warnings(&original, context.commands(), query).len(),
             1
@@ -5027,8 +5039,14 @@ mod original_collection_source_tests {
                 .obligations()
                 .any(|current| matches!(current, CollectionSourceObligationKind::EffectOnly(_)))
         );
-        assert!(find_unguarded_drop_warnings(&unit, surface).is_empty());
-        assert!(find_http_flow_warnings(&unit, surface).is_empty());
+        assert_eq!(
+            find_unguarded_drop_warnings(&unit, surface),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
+        assert_eq!(
+            find_http_flow_warnings(&unit, surface),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
         for source in [
             "when HTTP_REQUEST {set value [return]suffix[drop]}",
             "when HTTP_REQUEST {if {$condition} {drop}}",
@@ -5170,13 +5188,13 @@ mod original_collection_source_tests {
                 .obligations
                 .contains(&CollectionSourceObligationKind::UnknownTarget)
         );
-        assert!(
+        assert_eq!(
             find_collect_flow_warnings(
                 &unit,
                 context.commands(),
                 Some(environment.unit_profile().surface_query())
-            )
-            .is_empty()
+            ),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
         );
         let mut changed = false;
         for function in unit.procedures.values_mut() {
@@ -5675,8 +5693,14 @@ mod original_event_owner_tests {
         let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
         assert_eq!(events(&source), Some(Vec::new()));
         assert_eq!(event_mutation_counts(&source), Some(HashMap::new()));
-        assert!(collect_flow_state(&source).unwrap().1.is_empty());
-        assert!(event_warnings(&unit, context.commands()).is_empty());
+        assert_eq!(
+            collect_flow_state(&source).unwrap().1,
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            event_warnings(&unit, context.commands()),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
         assert!(event_anchor_span(&unit, context.commands(), "HTTP_REQUEST").is_none());
     }
 
@@ -5742,7 +5766,10 @@ mod original_event_owner_tests {
         );
         let original = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
         assert_eq!(events(&original), Some(vec!["HTTP_REQUEST".to_owned()]));
-        assert!(!event_warnings(&unit, context.commands()).is_empty());
+        assert_ne!(
+            event_warnings(&unit, context.commands()),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
         for axis in 0..10 {
             let mut changed = unit.clone();
             match axis {
@@ -5820,7 +5847,10 @@ mod original_event_owner_tests {
             .clone();
         let source = IrulesSourceQuery::capture(&donated, context.commands()).unwrap();
         assert!(events(&source).is_none());
-        assert!(event_warnings(&donated, context.commands()).is_empty());
+        assert_eq!(
+            event_warnings(&donated, context.commands()),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
     }
 
     #[test]
@@ -5852,9 +5882,9 @@ mod original_event_owner_tests {
             .irules_event_body = None;
         let source = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
         assert!(events(&source).is_none());
-        assert!(
-            find_unguarded_drop_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules)))
-                .is_empty()
+        assert_eq!(
+            find_unguarded_drop_warnings(&unit, Some(SurfaceQuery::any_release(Family::F5Irules))),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
         );
     }
 }

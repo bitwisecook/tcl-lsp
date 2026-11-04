@@ -427,7 +427,10 @@ mod variable_declaration_indices_tests {
 
     #[test]
     fn skips_substituted_names() {
-        assert!(variable_declaration_indices(&v(&["$dynamic", "0"])).is_empty());
+        assert_eq!(
+            variable_declaration_indices(&v(&["$dynamic", "0"])),
+            [] as [usize; 0]
+        );
     }
 }
 
@@ -488,7 +491,10 @@ mod upvar_local_declaration_indices_tests {
     #[test]
     fn skips_substituted_names() {
         // Pair with a $-prefixed side is dropped.
-        assert!(upvar_local_declaration_indices("upvar", &v(&["1", "$dyn", "local"])).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &v(&["1", "$dyn", "local"])),
+            [] as [usize; 0]
+        );
     }
 
     #[test]
@@ -512,6 +518,9 @@ mod upvar_local_declaration_indices_tests {
 
     #[test]
     fn empty_args() {
-        assert!(upvar_local_declaration_indices("upvar", &[]).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices("upvar", &[]),
+            [] as [usize; 0]
+        );
     }
 }

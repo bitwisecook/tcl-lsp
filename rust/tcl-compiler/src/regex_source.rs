@@ -640,14 +640,14 @@ mod tests {
         }
         let foreign = CommandRegistry::build_default();
         assert!(regex_pattern_word(pattern, &unit.ir_module, &foreign).is_none());
-        assert!(
+        assert_eq!(
             regex_source_literal_spans(
                 "set re OTHER; regexp -- $re subject",
                 &unit,
                 context.commands(),
                 profile
-            )
-            .is_empty()
+            ),
+            [] as [tcl_lexer::Span; 0]
         );
         let options = "regsub -command -- $re subject callback out";
         let current = logical_regex_unit(options, &context, config);

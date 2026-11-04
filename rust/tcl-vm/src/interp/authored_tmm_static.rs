@@ -1121,7 +1121,10 @@ mod tests {
         );
         assert!(vm.delete_interp(b));
         let retired = vm.in_interp(a, |vm| vm.authored_static_compilation_context().unwrap());
-        assert!(retired.recipients.is_empty());
+        assert_eq!(
+            retired.recipients,
+            [] as [tcl_runtime_api::authored_tmm::AuthoredTmmStaticRecipient; 0]
+        );
     }
     use std::cell::Cell;
     use tcl_runtime_api::{

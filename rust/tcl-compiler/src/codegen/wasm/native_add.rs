@@ -759,7 +759,7 @@ mod tests {
     fn a_selected_addition_records_no_decline() {
         let plan = plan_of(SEALED, options(&REQUIRED_PASSES));
         assert!(matches!(plan, WasmCodegenPlan::NativeI64Add { .. }));
-        assert!(plan.native_declines().is_empty());
+        assert_eq!(plan.native_declines(), []);
     }
 
     #[test]

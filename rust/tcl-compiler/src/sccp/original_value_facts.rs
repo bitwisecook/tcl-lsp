@@ -4209,7 +4209,10 @@ mod tests {
                     expression.required_math_invocations.contains(requirement)
                 }));
             }
-            assert!(unit.top_level.sccp.required_math_invocations.is_empty());
+            assert_eq!(
+                unit.top_level.sccp.required_math_invocations,
+                [] as [crate::command_binding::math_occurrence::SourceMathInvocation; 0]
+            );
         }
     }
 
@@ -4227,11 +4230,9 @@ mod tests {
         let result = &semantic.result;
         assert_eq!(result.required_math_invocations.len(), 0);
         assert_eq!(result.required_expression_preparations.len(), 1);
-        assert!(
-            unit.top_level
-                .sccp
-                .required_expression_preparations
-                .is_empty()
+        assert_eq!(
+            unit.top_level.sccp.required_expression_preparations,
+            [] as [crate::command_binding::expression_preparation::SourceExpressionPreparation; 0]
         );
         let preparation = &result.required_expression_preparations[0];
         assert_eq!(preparation.witness.source(), "0 && future_function(1)");

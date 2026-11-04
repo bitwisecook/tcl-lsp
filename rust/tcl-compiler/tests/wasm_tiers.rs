@@ -740,7 +740,7 @@ fn a_failed_native_add_names_every_rejected_premise() {
             .map(|decline| (decline.premise, decline.reason.as_str()))
             .collect::<Vec<_>>()
     );
-    assert!(selected.native_declines().is_empty());
+    assert_eq!(selected.native_declines(), []);
 
     let mut partial = requested;
     partial.disable(SemanticOptimisationPassId::DirectProc);

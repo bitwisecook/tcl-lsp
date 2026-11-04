@@ -657,7 +657,7 @@ mod event_function_owner_tests {
             .iter()
             .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::Irule6001)
             .collect::<Vec<_>>();
-        assert!(!diagnostics.is_empty());
+        assert_ne!(diagnostics, [] as [&crate::analyser::types::Diagnostic; 0]);
         assert!(
             diagnostics
                 .iter()

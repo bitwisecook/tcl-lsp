@@ -6289,8 +6289,8 @@ mod tests {
             let producer = words
                 .captured_argument_values()
                 .expect("separate conditional source-value purpose");
-            assert!(!producer.lineage().is_empty());
-            assert!(!producer.obligations().is_empty());
+            assert_ne!(producer.lineage(), []);
+            assert_ne!(producer.obligations(), []);
             assert!(
                 source_registry_words(
                     &(source.to_owned() + " "),
@@ -6784,7 +6784,10 @@ mod tests {
             crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
         let words = source_registry_words(source, &analysis, &command).unwrap();
         let context = analysis.resolved_input.as_ref().unwrap().context_registry();
-        assert!(words.source_script_bodies(&context).is_empty());
+        assert_eq!(
+            words.source_script_bodies(&context),
+            [] as [crate::registry_invocation::source_scoped_body::OriginalSourceScriptBody; 0]
+        );
     }
 
     #[test]
@@ -7706,7 +7709,7 @@ mod conditional_native_case_receipt_tests {
         assert!(advice.obligations().contains(
             &crate::command_binding::SourceCommandTransitionObligation::UnknownEarlierMutation
         ));
-        assert!(!advice.uncertain_operations().is_empty());
+        assert_ne!(advice.uncertain_operations(), []);
         let candidates = words.conditional_source_case_bodies(&context).unwrap();
         assert!(candidates.selection_unknown());
         assert!(candidates.matches_source(syntax.source_image(), input.lexer_config()));

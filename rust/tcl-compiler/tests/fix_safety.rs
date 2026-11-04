@@ -204,7 +204,14 @@ fn fp_did_you_mean_suggestions_require_review() {
 
 #[test]
 fn tn_clean_source_carries_no_fixes_at_all() {
-    assert!(fixes("set x 1\nputs $x\n", "tcl9.0").is_empty());
+    assert_eq!(
+        fixes("set x 1\nputs $x\n", "tcl9.0"),
+        [] as [(
+            tcl_core_types::DiagCode,
+            std::string::String,
+            tcl_compiler::analyser::FixSafety
+        ); 0]
+    );
 }
 
 #[test]
@@ -238,6 +245,6 @@ fn every_fix_reports_a_label() {
         FixSafety::StyleOnly,
         FixSafety::RequiresReview,
     ] {
-        assert!(!safety.as_str().is_empty());
+        assert_ne!(safety.as_str(), "");
     }
 }
