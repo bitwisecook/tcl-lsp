@@ -121,6 +121,22 @@ impl SourceInvocationBinding {
         state.retained_original_source_purpose(metadata, registry)
     }
 
+    /// Original, static declaration-name operand whose complete original argv
+    /// evaluation is retained. This supplies no handler or dispatch authority.
+    pub(crate) fn original_completed_static_declaration_name(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> bool {
+        use crate::ir::{WordExpr, WordPart};
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        self.original_argument_completion.is_normal()
+            && matches!(tokens.words().get(1), Some(WordExpr::Template { parts, rejected: None, .. }) if !parts.is_empty() && parts.iter().all(|part| matches!(part, WordPart::Text { .. })))
+            && matches!(
+                self.original_written_name_input(tokens, 1),
+                Some(SignatureSourceNameInput::OriginalWord(_))
+            )
+    }
+
     /// Source instance owning this immutable execution point.
     #[must_use]
     pub fn source_origin(&self) -> Option<&Arc<SourceOriginId>> {

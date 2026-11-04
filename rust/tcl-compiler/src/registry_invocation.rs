@@ -1794,11 +1794,14 @@ pub fn original_authored_procedure_declaration_for_source_coverage(
         .as_ref()?
         .original_source_advice_purpose(tokens, context, registry)?
         != crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
-        || tokens.words().iter().any(|word| {
+        || tokens.words().iter().enumerate().any(|(ordinal, word)| {
             !matches!(
                 word,
                 WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
-            )
+            ) && !(ordinal == 1
+                && tokens.source_binding.as_ref().is_some_and(|binding| {
+                    binding.original_completed_static_declaration_name(tokens)
+                }))
         })
     {
         return None;
@@ -13769,6 +13772,56 @@ mod authored_simulation_structure_controls {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn authored_declaration_coverage_keeps_completed_static_original_name() {
+        for (source, expected) in [
+            (r"proc p\uD800 {} {return VALUE}", true),
+            ("proc helper {} {return VALUE}", true),
+            ("proc $name {} {return VALUE}", false),
+            ("proc [unknown] {} {return VALUE}", false),
+            ("proc {*}$names {} {return VALUE}", false),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.4");
+            let input = analysis.resolved_input.as_ref().unwrap();
+            let registry = input.borrowed_context_registry().commands();
+            let config = input.lexer_config();
+            let context = InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                config,
+                Some(input.unit_profile()),
+            )
+            .unwrap();
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let mut tokens =
+                CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &command);
+            analysis
+                .retained_command_realm()
+                .unwrap()
+                .stamp_original_tokens(&mut tokens);
+            assert_eq!(
+                original_authored_procedure_declaration_for_source_coverage(
+                    registry, context, &tokens
+                )
+                .is_some(),
+                expected,
+                "{source}"
+            );
+            if expected {
+                let mut changed = tokens.clone();
+                changed.argv_texts[1] = "other".to_owned();
+                assert!(
+                    original_authored_procedure_declaration_for_source_coverage(
+                        registry, context, &changed
+                    )
+                    .is_none()
+                );
+            }
+        }
     }
 
     #[test]
