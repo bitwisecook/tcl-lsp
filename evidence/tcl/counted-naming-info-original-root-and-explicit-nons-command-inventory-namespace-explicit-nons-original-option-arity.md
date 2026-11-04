@@ -1,0 +1,154 @@
+# Tcl counted-source execution evidence
+
+## Question
+
+> The inventory result of a rooted written head remains sensitive to the actual caller context. Root execution and explicit Jim -nons source controls need independent measured option, arity and command-name values, including names containing a literal space.
+
+> How do original info commands option and reported-name results differ between actual root execution and explicit -nons inside a nonroot namespace, including exact -all and caller-owned names containing a space?
+
+This script is one recorded source in the stated question; it does not by itself establish results for other sources or environments.
+
+## Assumptions
+
+Recorded scope and limits:
+
+> Eight unchanged original ASCII LF sources retain genuine root versus nonroot activation, explicit original -nons words, caller-owned global/local commands and a literal-space command name. Counted C API evaluation introduces no outer source envelope. All exact inputs/requests/driver/launcher/ELFs/whole streams/receipts and independently required provider/archive/header/build/source pins are retained, with full Jim source and exact excerpt as separate source inspection. The two nonroot question records retain their own limited public forwarding answers. BIG-IP and executed software tests are not tested. Linked Runtime and VM controls execute the unchanged source fixtures and compare all138 whole ORIGINAL completion/result windows across the four inventory/helper groups per backend, with private identity and META/version excluded from the behavioural result. Their linked status records source coverage, not an executed software pass. This policy control grants no selected operation success, original handler table, Native entry or inventory execution outcome. Whole original inventory comparisons retain independent request and executable provenance. The shared body has138 public code/result comparisons across23 unchanged originals, but each question owns only its matching fixture group. It selects an actual software core/compiler and explicitly installs NamespaceEnsemble; this does not infer a full distribution, current helper roster, token/cache identity, native opcode or entered external handler. It launches no new original process and supplies no assertion outcome. Existing independent original channels remain unchanged.
+
+Other assumptions were not separately recorded. The retained driver evaluated this single counted Tcl source without a prelude or query source; its process exit is separate from Tcl's completion code.
+
+## Script
+
+```tcl-visible
+proc ::r2286_global {} {return GLOBAL}
+proc {::r2286 spaced} {} {return SPACE}
+namespace eval ::r2286_holder {
+    proc r2286_local {} {return LOCAL}
+}
+namespace eval ::r2286_holder {
+    set abbreviated [catch {::info -nons commands -al r2286*} abbreviated_result]
+    set extra [catch {::info -nons commands -all r2286* EXTRA} extra_result]
+    list $abbreviated $abbreviated_result $extra $extra_result
+}
+```
+
+## Results
+
+### tcl8.4, run 1
+
+- Recorded version: 8.4.20
+- Recorded input channel: counted-source native C API driver.
+- Exit status: 0
+- Standard output:
+
+```text-visible
+VERSION|0|382e342e3230
+ORIGINAL|0|31207b626164206f7074696f6e20222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d2031207b626164206f7074696f6e20222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d
+```
+
+- Standard error: empty.
+
+Tcl completion code for the original source: 0. The following block decodes the ORIGINAL result payload from standard output.
+
+```text-visible
+1 {bad option "-nons": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars} 1 {bad option "-nons": must be args, body, cmdcount, commands, complete, default, exists, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}⟦EOF⟧
+```
+
+### tcl8.5, run 2
+
+- Recorded version: 8.5.19
+- Recorded input channel: counted-source native C API driver.
+- Exit status: 0
+- Standard output:
+
+```text-visible
+VERSION|0|382e352e3139
+ORIGINAL|0|31207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d2031207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c2064656661756c742c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d
+```
+
+- Standard error: empty.
+
+Tcl completion code for the original source: 0. The following block decodes the ORIGINAL result payload from standard output.
+
+```text-visible
+1 {unknown or ambiguous subcommand "-nons": must be args, body, cmdcount, commands, complete, default, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars} 1 {unknown or ambiguous subcommand "-nons": must be args, body, cmdcount, commands, complete, default, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, patchlevel, procs, script, sharedlibextension, tclversion, or vars}⟦EOF⟧
+```
+
+### tcl8.6, run 3
+
+- Recorded version: 8.6.18
+- Recorded input channel: counted-source native C API driver.
+- Exit status: 0
+- Standard output:
+
+```text-visible
+VERSION|0|382e362e3138
+ORIGINAL|0|31207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d2031207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636f6d6d616e64732c20636f6d706c6574652c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d
+```
+
+- Standard error: empty.
+
+Tcl completion code for the original source: 0. The following block decodes the ORIGINAL result payload from standard output.
+
+```text-visible
+1 {unknown or ambiguous subcommand "-nons": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars} 1 {unknown or ambiguous subcommand "-nons": must be args, body, class, cmdcount, commands, complete, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}⟦EOF⟧
+```
+
+### tcl9.0, run 4
+
+- Recorded version: 9.0.4
+- Recorded input channel: counted-source native C API driver.
+- Exit status: 0
+- Standard output:
+
+```text-visible
+VERSION|0|392e302e34
+ORIGINAL|0|31207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d2031207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d
+```
+
+- Standard error: empty.
+
+Tcl completion code for the original source: 0. The following block decodes the ORIGINAL result payload from standard output.
+
+```text-visible
+1 {unknown or ambiguous subcommand "-nons": must be args, body, class, cmdcount, cmdtype, commands, complete, constant, consts, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars} 1 {unknown or ambiguous subcommand "-nons": must be args, body, class, cmdcount, cmdtype, commands, complete, constant, consts, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}⟦EOF⟧
+```
+
+### tcl9.1, run 5
+
+- Recorded version: 9.1.0
+- Recorded input channel: counted-source native C API driver.
+- Exit status: 0
+- Standard output:
+
+```text-visible
+VERSION|0|392e312e30
+ORIGINAL|0|31207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d2031207b756e6b6e6f776e206f7220616d626967756f757320737562636f6d6d616e6420222d6e6f6e73223a206d75737420626520617267732c20626f64792c20636c6173732c20636d64636f756e742c20636d64747970652c20636f6d6d616e64732c20636f6d706c6574652c20636f6e7374616e742c20636f6e7374732c20636f726f7574696e652c2064656661756c742c206572726f72737461636b2c206578697374732c206672616d652c2066756e6374696f6e732c20676c6f62616c732c20686f73746e616d652c206c6576656c2c206c6962726172792c206c6f616465642c206c6f63616c732c206e616d656f6665786563757461626c652c206f626a6563742c2070617463686c6576656c2c2070726f63732c207363726970742c207368617265646c6962657874656e73696f6e2c2074636c76657273696f6e2c206f7220766172737d
+```
+
+- Standard error: empty.
+
+Tcl completion code for the original source: 0. The following block decodes the ORIGINAL result payload from standard output.
+
+```text-visible
+1 {unknown or ambiguous subcommand "-nons": must be args, body, class, cmdcount, cmdtype, commands, complete, constant, consts, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars} 1 {unknown or ambiguous subcommand "-nons": must be args, body, class, cmdcount, cmdtype, commands, complete, constant, consts, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars}⟦EOF⟧
+```
+
+### jim, run 6
+
+- Recorded version: 0.84-9-g5bac7c9
+- Recorded input channel: counted-source native C API driver.
+- Exit status: 0
+- Standard output:
+
+```text-visible
+VERSION|0|302e38342d392d6735626163376339
+ORIGINAL|0|31207b77726f6e67202320617267733a2073686f756c642062652022696e666f20636f6d6d616e6473203f2d616c6c3f203f7061747465726e3f227d2031207b77726f6e67202320617267733a2073686f756c6420626520222d6e6f6e7320636f6d6d616e6473203f2d616c6c3f203f7061747465726e3f227d
+```
+
+- Standard error: empty.
+
+Tcl completion code for the original source: 0. The following block decodes the ORIGINAL result payload from standard output.
+
+```text-visible
+1 {wrong # args: should be "info commands ?-all? ?pattern?"} 1 {wrong # args: should be "-nons commands ?-all? ?pattern?"}⟦EOF⟧
+```
