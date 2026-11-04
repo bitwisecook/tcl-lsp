@@ -198,6 +198,21 @@ pub struct RegistrySourceDiagnosticSubject {
     supplemental_literals: Vec<(usize, String)>,
 }
 impl RegistrySourceDiagnosticSubject {
+    /// The same index access under one retained source invocation. Advisory
+    /// values and presentation do not change that access or grant execution.
+    pub(in crate::analyser) fn same_index_access(&self, other: &Self) -> bool {
+        self.kind == RegistrySourceDiagnosticKind::IndexBounds
+            && other.kind == RegistrySourceDiagnosticKind::IndexBounds
+            && Arc::ptr_eq(&self.words, &other.words)
+            && self.argument == other.argument
+            && self.written_argument == other.written_argument
+            && self.list_element_path == other.list_element_path
+            && self.span == other.span
+            && self.owning_package == other.owning_package
+            && self.required_package == other.required_package
+            && self.required_package_key == other.required_package_key
+    }
+
     /// Effective source operands whose advisory value is supplied by the
     /// actual SSA lattice. They do not replace the original written words or
     /// prove a native argument value, successful dispatch or completion.

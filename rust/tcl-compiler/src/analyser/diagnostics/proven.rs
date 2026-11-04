@@ -42,6 +42,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 
 use crate::analyser::state::Analyser;
+use crate::analyser::types::Diagnostic;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::value_transfer::{
     OriginalDiagnosticValues, StatementId, SubstitutionHost, proven_return_word_value,
@@ -638,11 +639,9 @@ impl Analyser {
     ) {
         let written_diagnostics = super::super::bounds_checks::original_index_diagnostics(written);
         for diagnostic in super::super::bounds_checks::original_index_diagnostics(proven) {
-            let drawn = written_diagnostics.iter().any(|seen| {
-                seen.code == diagnostic.code
-                    && seen.span == diagnostic.span
-                    && seen.message == diagnostic.message
-            });
+            let drawn = written_diagnostics
+                .iter()
+                .any(|seen| same_index_access(seen, &diagnostic));
             if !drawn && !self.interval_reported(site, words.host, &diagnostic) {
                 self.result.diagnostics.push(diagnostic);
             }
@@ -676,9 +675,108 @@ impl Analyser {
     }
 }
 
+fn same_index_access(left: &Diagnostic, right: &Diagnostic) -> bool {
+    left.code == right.code
+        && left.span == right.span
+        && left
+            .registry_source()
+            .zip(right.registry_source())
+            .is_some_and(|(left, right)| left.same_index_access(right))
+}
+
 #[cfg(test)]
 mod source_value_projection_tests {
     use super::*;
+
+    fn original_index_invocation(
+        source: &str,
+    ) -> crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation {
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse_and_retain_result_for_test(source, "tcl9.0");
+        assert!(result.analysis_context_unavailable.is_none());
+        let command = crate::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            analyser.lexer_config(),
+        )
+        .pop()
+        .expect("the original index call");
+        analyser
+            .original_diagnostic_call_at(command.argv[0], command.arg_tokens())
+            .expect("the retained source index selection")
+    }
+
+    #[test]
+    fn index_duplicate_identity_ignores_wording_and_advisory_values() {
+        let source = "set tail 0; lindex {a b} 9 $tail";
+        let original = original_index_invocation(source);
+        let projection = original
+            .with_supplemental_literals(&[(2, "0".to_owned())])
+            .expect("the proven value of the original final index");
+        let written = super::super::super::bounds_checks::original_index_diagnostics(&original);
+        let proven = super::super::super::bounds_checks::original_index_diagnostics(&projection);
+        let [written] = written.as_slice() else {
+            panic!("the first index is genuinely out of range");
+        };
+        let [proven] = proven.as_slice() else {
+            panic!("the proven final index retains that same access");
+        };
+        assert!(
+            written
+                .registry_source()
+                .unwrap()
+                .supplemental_literals()
+                .is_empty()
+        );
+        assert_eq!(
+            proven.registry_source().unwrap().supplemental_literals(),
+            &[(2, "0".to_owned())]
+        );
+        for wording in ["", "translated warning", "quotes ' and \" are presentation"] {
+            let mut changed = proven.clone();
+            wording.clone_into(&mut changed.message);
+            assert!(same_index_access(written, &changed));
+            assert!(same_index_access(&changed, written));
+        }
+    }
+
+    #[test]
+    fn index_duplicate_identity_requires_shared_original_subject() {
+        let source = "set tail 0; lindex {a b} 9 $tail";
+        let first = original_index_invocation(source);
+        let second = original_index_invocation(source);
+        let first = super::super::super::bounds_checks::original_index_diagnostics(&first);
+        let second = super::super::super::bounds_checks::original_index_diagnostics(&second);
+        let [first] = first.as_slice() else {
+            panic!("the first owner reports the out-of-range access");
+        };
+        let [second] = second.as_slice() else {
+            panic!("the independent owner reports its access");
+        };
+        assert_eq!(first.code, second.code);
+        assert_eq!(first.span, second.span);
+        assert_eq!(first.message, second.message);
+        assert!(!same_index_access(first, second));
+        let mut absent = first.clone();
+        absent.subject = None;
+        assert!(!same_index_access(first, &absent));
+        assert!(!same_index_access(&absent, &absent));
+    }
+
+    #[test]
+    fn index_checks_emit_one_report_for_written_and_proven_same_access() {
+        let mut analyser = Analyser::new();
+        let result = analyser
+            .analyse_and_retain_result_for_test("set tail 0; lindex {a b} 9 $tail", "tcl9.0");
+        assert!(result.analysis_context_unavailable.is_none());
+        let indices: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W230)
+            .collect();
+        assert_eq!(indices.len(), 1);
+        assert!(indices[0].registry_source().is_some());
+    }
 
     #[test]
     fn supplemental_values_preserve_original_alias_operands_and_source_subjects() {
