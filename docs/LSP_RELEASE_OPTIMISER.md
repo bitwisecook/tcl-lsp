@@ -23,8 +23,11 @@ integration. Independent review added agreement between the
 selected native operation and the effective semantic operation; refusal
 fixtures include an actual selected form hiding raw extra effects. The frozen
 child is `/tmp/lsp-940-conditional_list_append.rs`, SHA-256
-`4fd01fa1229564283924212eddcde54c492e7ffdf93d3043b5594ab0389b7e76`.
-Its six fixed-input Rust tests and compiler integration have not run. The
+`d402002e415b27516753e8e9a9b16c1a9d876ceb1c9aec11005eddc8c9739f85`.
+Its latest ten fixed-input Rust controls and compiler integration remain
+unverified. The previous frozen six-test run passed five and exposed the
+catch-all shadow fixture selecting the scoped builtin; the corrected fixture
+retains matching availability and asserts actual generic selection first. The
 prior List requirement does not certify physical coercion of the existing
 object or justify a new append S100 finding.
 The final narrow append boundary patch also checks raw world/state absence
@@ -32,6 +35,29 @@ and excludes NUL from definite malformed-list proof. Its added control uses an
 actual altered registry descriptor followed by an explicit public effective
 carrier reset; no ordinary constructor defect is claimed. The patch and exact
 base/new hashes are retained in `/tmp/lsp-940-append-raw-boundary.json`.
+The latest isolated direct-kernel proposal is
+`/tmp/lsp-940-append-direct-phase.patch`, indexed by its adjacent JSON receipt.
+It names the earlier captured receiver's current target read after ordered
+arguments, the evaluated value range and conditional lookup preservation.
+The exact original stock trait bits are shared with the declaration; raw and
+effective traits, frame/body metadata, native compilation and successful
+handler contracts must agree. Generic facts/effects and Native/Normal authority
+stay unchanged, and no whole-handler quietness or append S100 is granted.
+This proposal is under static review and has not passed a fresh runtime gate.
+
+The actual registry failures are preserved in
+`/tmp/lsp-940-list2-conditional_list_append.log` (5/6) and
+`/tmp/lsp-940-list2-conditional_list_index.log` (6/7). The latter's old
+all-domain transition intentionally triggers command-trace callbacks, so its
+no-callback precondition was false. The test-only correction keeps that
+callback-bearing refusal and adds a genuine VariableCells-only no-callback
+case. All cases are labelled, no refusal was weakened, and production prefixes
+are byte-identical for that correction. Exact patches and hashes are in
+`/tmp/lsp-940-list-registry-control-correction.json`; corrected tests are unrun.
+The read-only foreach initial-phase audit is retained in
+`/tmp/lsp-940-foreach-initial-phase-audit.md`. C9 numeric cache preservation
+precludes an unconditional physical List conversion claim; that route is
+parked while append is prioritised.
 
 The handoff manifest is `/tmp/lsp-940-conditional-list-append-manifest.json`.
 It links pinned C source reviews and four standalone Tcl execution records,
@@ -54,7 +80,7 @@ retain exact nested-body custody and expression conversion effects. The
 source-only expression parser cannot supply Native preparation. No if source
 change is implemented. A separate temporary registry child,
 `/tmp/lsp-940-conditional_list_index.rs` (SHA-256
-`b8c2e8c06f23814df0ce493fac403a60e4b02a7acbaa9e6423810bad6ebb7cd4`),
+`c5d9d5f284a3f1f5b5616a9aed31b6bcbf44232bc886867373a68b5c4b57f6d6`),
 projects one fixed literal index through the shared list/index owners. Unknown
 container bytes remain unknown and numeric-looking elements establish no
 result intrep. Independent review found that the world-barrier query excludes
