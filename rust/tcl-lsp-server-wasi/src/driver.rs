@@ -726,7 +726,6 @@ mod cooperation_tests {
         owner: Arc<AnalysisCooperation>,
         entered: Arc<tokio::sync::Notify>,
     }
-    #[tower_lsp_server::async_trait]
     impl tower_lsp_server::LanguageServer for WaitingServer {
         async fn initialize(
             &self,
