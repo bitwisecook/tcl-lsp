@@ -396,6 +396,7 @@ struct CurrentPublishedSuppression<'a> {
 struct CurrentPublishedReportChecks<'a> {
     reports: Vec<PublishedDiagnosticReport>,
     workspace_sources: Vec<Arc<WorkspaceDiagnosticSources>>,
+    checked_policy_sources: Vec<Arc<DiagnosticPass>>,
     checked_inputs: Vec<(
         &'a CurrentDiagnosticInput,
         &'a DiagnosticReportExpectation,
@@ -593,8 +594,13 @@ impl DiagInputs {
         let f5_model =
             Backend::is_bigip_dialect(&job.dialect) || is_apl_source(uri, &job.language_id);
         // A scheduled run defers the checked open-document registry to this
-        // drain: without the document's current input the pass is withheld.
-        let registry = if self.registry_at_drain && !f5_model {
+        // drain: an analysis pass requires the document's current input.
+        // Policy-clear receipts retain source currency independently.
+        let registry = if self.registry_at_drain
+            && !f5_model
+            && self.toggles.diagnostics_enabled
+            && !self.toggles.excluded
+        {
             input
                 .as_ref()?
                 .borrowed_context_registry()
@@ -1955,6 +1961,7 @@ impl Backend {
             reports: Vec::with_capacity(expected.len()),
             workspace_sources: Vec::new(),
             checked_inputs: Vec::new(),
+            checked_policy_sources: Vec::new(),
             checked_configurations: Vec::with_capacity(expected.len()),
         };
         for (((source, admission), current), configuration) in expected
@@ -2045,6 +2052,9 @@ impl Backend {
         checks
             .checked_configurations
             .push((*configuration, pass.configuration.clone()));
+        if suppression.is_some() {
+            checks.checked_policy_sources.push(Arc::clone(pass));
+        }
         if suppression.is_none() && !pass.f5_model {
             let current = current.as_ref().map_err(|reason| *reason)?;
             if pass.source_file != Some(current.file)
@@ -2134,6 +2144,7 @@ impl Backend {
                     reports,
                     workspace_sources,
                     checked_inputs,
+                    checked_policy_sources,
                     checked_configurations,
                 },
         } = finalization;
@@ -2161,6 +2172,11 @@ impl Backend {
                 .source_path_admissions
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
+            for pass in checked_policy_sources {
+                if !pass.matches_source_publication(&db, &files, &published) {
+                    return Ok(Err(DiagnosticUnavailable::Stale));
+                }
+            }
             for (current, source, admission) in checked_inputs {
                 if let Err(reason) =
                     current.matches_locked(&source.uri, admission, &db, &files, &published)
@@ -2314,6 +2330,25 @@ struct ProducedDirectDiagnosticReport {
 }
 
 impl DiagnosticPass {
+    fn matches_source_publication(
+        &self,
+        db: &tcl_lsp_db::TclDatabase,
+        files: &HashMap<Uri, tcl_lsp_db::SourceFile>,
+        published: &HashMap<Uri, PublishedSourcePath>,
+    ) -> bool {
+        let Some(file) = self.source_file else {
+            return self.f5_model;
+        };
+        let uri = self.path_admission.uri();
+        files.get(uri) == Some(&file)
+            && published.get(uri).is_some_and(|retained| {
+                retained.file == file && retained.admission.as_ref() == self.path_admission.as_ref()
+            })
+            && file.path(db).as_deref() == self.path_admission.analyser_path()
+            && file.text(db) == tcl_lexer::normalise_lone_cr(&self.source).as_ref()
+            && file.dialect(db) == &self.dialect
+    }
+
     /// The checked open-document registry this pass's input carries.
     pub(super) fn checked_registry(&self) -> Option<Arc<CommandRegistry>> {
         if self.f5_model {
@@ -3817,6 +3852,11 @@ mod tests {
             source: String::new(),
         };
         open_source(&backend, &expected).await;
+        run_provider(&backend, &expected.uri).await;
+        assert!(matches!(
+            backend.current_diagnostics(&expected).await.unwrap(),
+            CurrentDiagnostics::Complete { .. }
+        ));
         {
             let config = backend.resolved_db_config(&expected.uri).await;
             let mut db = backend.db.lock().await;
@@ -3829,7 +3869,25 @@ mod tests {
             .set
             .insert("diagnostics".into(), false);
         backend.invalidate_diag_inputs();
-        run_provider(&backend, &expected.uri).await;
+        for registry_at_drain in [false, true] {
+            let inputs = backend
+                .diag_inputs_with(
+                    &expected.uri,
+                    tcl_lsp_core::profile_for_dialect("tcl8.6"),
+                    registry_at_drain,
+                )
+                .await;
+            let job = inputs.capture_job(&expected.uri).await.unwrap();
+            assert!(job.diagnostic_pass.as_ref().unwrap().input.is_none());
+            assert!(run_diagnostics_core(inputs, &expected.uri, job).await);
+            assert!(matches!(
+                backend.current_diagnostics(&expected).await.unwrap(),
+                CurrentDiagnostics::Suppressed {
+                    reason: DiagnosticSuppression::Disabled,
+                    ..
+                }
+            ));
+        }
         assert!(matches!(
             backend.current_diagnostics(&expected).await.unwrap(),
             CurrentDiagnostics::Suppressed {
@@ -3837,19 +3895,124 @@ mod tests {
                 ..
             }
         ));
+        assert_policy_receipt_checks_source_and_configuration(&backend, &expected).await;
+        let admission = backend
+            .document_path_admission(&expected.uri)
+            .await
+            .unwrap();
+        assert!(matches!(
+            backend
+                .current_diagnostic_input(&expected, &admission)
+                .await,
+            Err(DiagnosticUnavailable::Context)
+        ));
         backend
             .feature_toggles
             .lock()
             .await
             .set
             .insert("diagnostics".into(), true);
+        *backend.diagnostics_exclude.lock().await = vec!["*.tcl".into()];
         backend.invalidate_diag_inputs();
-        run_provider(&backend, &expected.uri).await;
+        for registry_at_drain in [false, true] {
+            let inputs = backend
+                .diag_inputs_with(
+                    &expected.uri,
+                    tcl_lsp_core::profile_for_dialect("tcl8.6"),
+                    registry_at_drain,
+                )
+                .await;
+            let job = inputs.capture_job(&expected.uri).await.unwrap();
+            assert!(job.diagnostic_pass.as_ref().unwrap().input.is_none());
+            assert!(run_diagnostics_core(inputs, &expected.uri, job).await);
+            assert!(matches!(
+                backend.current_diagnostics(&expected).await.unwrap(),
+                CurrentDiagnostics::Suppressed {
+                    reason: DiagnosticSuppression::Excluded,
+                    ..
+                }
+            ));
+        }
+        backend.diagnostics_exclude.lock().await.clear();
+        backend.invalidate_diag_inputs();
+        let inputs = backend
+            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .await;
+        let job = inputs.capture_job(&expected.uri).await.unwrap();
+        assert!(job.diagnostic_pass.is_none());
+        assert!(run_diagnostics_core(inputs, &expected.uri, job).await);
         assert!(matches!(
             backend.current_diagnostics(&expected).await.unwrap(),
             CurrentDiagnostics::Unavailable { .. }
         ));
     }
+    async fn assert_policy_receipt_checks_source_and_configuration(
+        backend: &Backend,
+        expected: &DiagnosticSourceExpectation,
+    ) {
+        use salsa::Setter as _;
+        let foreign = DiagnosticSourceExpectation {
+            uri: expected.uri.clone(),
+            version: expected.version + 1,
+            source: expected.source.clone(),
+        };
+        assert!(matches!(
+            backend.current_diagnostics(&foreign).await.unwrap(),
+            CurrentDiagnostics::Unavailable {
+                reason: DiagnosticUnavailable::Stale
+            }
+        ));
+        let epoch = backend.diag_inputs_epoch();
+        backend
+            .db_set_source(&expected.uri, "set changed 1\n", "tcl8.6".into())
+            .await
+            .unwrap();
+        assert!(matches!(
+            backend.current_diagnostics(expected).await.unwrap(),
+            CurrentDiagnostics::Unavailable {
+                reason: DiagnosticUnavailable::Stale
+            }
+        ));
+        backend
+            .db_set_source(&expected.uri, &expected.source, "tcl8.6".into())
+            .await
+            .unwrap();
+        let file = *backend.db_files.lock().await.get(&expected.uri).unwrap();
+        {
+            let mut db = backend.db.lock().await;
+            file.set_path(&mut *db)
+                .to(Some("/foreign/source.tcl".into()));
+        }
+        assert!(matches!(
+            backend.current_diagnostics(expected).await.unwrap(),
+            CurrentDiagnostics::Unavailable {
+                reason: DiagnosticUnavailable::Stale
+            }
+        ));
+        backend
+            .db_set_source(&expected.uri, &expected.source, "tcl8.6".into())
+            .await
+            .unwrap();
+        let config = backend.resolved_db_config(&expected.uri).await;
+        {
+            let mut db = backend.db.lock().await;
+            config
+                .set_targets(&mut *db)
+                .to(vec![("tcl".into(), "8.4-9.0".into())]);
+        }
+        assert_eq!(backend.diag_inputs_epoch(), epoch);
+        assert!(matches!(
+            backend.current_diagnostics(expected).await.unwrap(),
+            CurrentDiagnostics::Unavailable {
+                reason: DiagnosticUnavailable::Stale
+            }
+        ));
+        {
+            let mut db = backend.db.lock().await;
+            config.set_targets(&mut *db).to(Vec::new());
+        }
+    }
+
     fn pull_params(uri: &Uri, previous: Option<&str>) -> DocumentDiagnosticParams {
         serde_json::from_value(serde_json::json!({
             "textDocument": { "uri": uri },

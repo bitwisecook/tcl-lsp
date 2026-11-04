@@ -28139,7 +28139,12 @@ impl Backend {
             let current = self.spec_packs.lock().await;
             current.seq == pack_generation && Arc::ptr_eq(&current.packs, &pack_set)
         };
-        if self.diag_inputs_epoch() == epoch && publication_is_current && registry_is_current {
+        // A policy-clear receipt retains source and configuration currency
+        // without claiming that analysis preparation succeeded.
+        if self.diag_inputs_epoch() == epoch
+            && publication_is_current
+            && (registry_is_current || !diagnostics_enabled || excluded)
+        {
             inputs.inputs_epoch = Some(epoch);
         }
         inputs
