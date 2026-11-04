@@ -215,3 +215,10 @@ commands expire inherited guards. The draft includes unknown-entry safe/unsafe
 regressions and mutation-order owner checks, but has not been compiled or run.
 It is stashed for this integration; no new passing result is claimed. The
 canonical repair is published as `a6408fb3e`; #2376 remains open.
+
+The 16:30 UTC checkpoint records the first read-local attempt in
+[`w210-short-circuit-read-local-attempt`](../rust/tcl-compiler/tests/data/w210-short-circuit-read-local-attempt/README.md).
+The cleanly built production matrix passes 175/175 assertions with 41,094
+unchanged file hashes. The expanded owner suite is 6/7: a same-array-element
+positive has no guard. Subsequent trace/other-element owner cases did not run.
+The failing draft is stashed; no product fix is published or closure claimed.
