@@ -237,6 +237,7 @@ jobs:
         env:
           NODE_OPTIONS: --require=${{ github.workspace }}/scripts/dev/manual-lsp-rpc-capture.cjs
           LSP_RPC_RESPONSE_LOG: ${{ runner.temp }}/lsp-wasi-diagnostics/responses.jsonl
+          LSP_WASI_CHILD_STDERR_LOG: ${{ runner.temp }}/lsp-wasi-diagnostics/wasmtime-stderr.jsonl
           TCL_LSP_WASI_LIFECYCLE_TRACE: "1"
           LSP_WASI_LIFECYCLE_DIR: ${{ runner.temp }}/lsp-wasi-diagnostics/lifecycle
         run: |
