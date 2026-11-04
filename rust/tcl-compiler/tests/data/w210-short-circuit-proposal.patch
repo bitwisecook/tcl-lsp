@@ -1,0 +1,50 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -13381,7 +13381,12 @@
+             if let Some(coercion) = condition_coercion {
+                 coercion.apply(state);
+             }
+-            let truth = source_expression_truth(left, state, context.registry);
++            let truth = source_completed_expression_truth(
++                left,
++                outcomes.normal_value.as_deref(),
++                state.baseline.dialect,
++            )
++            .or_else(|| source_expression_truth(left, state, context.registry));
+             if short.is_some() && truth == short {
+                 outcomes.join(&SourceOutcomes::normal(state));
+             } else {
+@@ -13698,6 +13703,33 @@
+     let value = operands.arguments.literal_at(index)?;
+     let expression = parse_source_expression(value, state, registry);
+     source_expression_truth(&expression, state, registry)
++}
++
++/// Only a command expression, optionally negated, owns these completed bytes.
++fn source_completed_expression_truth(
++    expression: &crate::expr_ast::ExprNode,
++    value: Option<&native_result::EvaluatedSourceValue>,
++    dialect: Option<tcl_registry::InvocationDialect>,
++) -> Option<bool> {
++    let value = value?;
++    let mut expression = expression;
++    let mut negated = false;
++    while let crate::expr_ast::ExprNode::Unary {
++        op: crate::expr_ast::UnaryOp::Not,
++        operand,
++    } = expression
++    {
++        expression = operand;
++        negated = !negated;
++    }
++    if !matches!(expression, crate::expr_ast::ExprNode::Command { .. }) {
++        return None;
++    }
++    let truth = dialect.map_or_else(
++        || tcl_syntax::boolean::truthiness_in_every_release(&value.text),
++        |dialect| tcl_syntax::boolean::truthiness_with(&value.text, dialect.numbers),
++    )?;
++    Some(truth ^ negated)
+ }
+ 
+ fn source_expression_truth(

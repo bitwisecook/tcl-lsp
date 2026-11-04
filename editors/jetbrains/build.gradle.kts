@@ -98,9 +98,9 @@ intellijPlatform {
             // bundled Web Browser dependency. Keep a >=2026.1 target for the
             // LspClient API and a 263 target for LSP4J 1.0 diagnostic messages.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.3.6.1")
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.3")
-            // LSP4J 1.0 changes Diagnostic.getMessage's return type in 2026.3.
-            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "263.7031.23")
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.4")
+            // Verify the 2026.3 RC, where LSP4J 1.0 changes Diagnostic.getMessage.
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "263.7307.112")
             // This exact product/version is where JCEF is isolated behind
             // the bundled Web Browser plugin.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.CLion, "2026.2.3.1")

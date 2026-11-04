@@ -59,6 +59,22 @@ fn analyse(source: &str, dialect: &str) -> tcl_compiler::analyser::AnalysisResul
     result
 }
 
+fn diagnostic_summaries(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Vec<(tcl_core_types::DiagCode, tcl_lexer::Span, &str)> {
+    analysis
+        .diagnostics
+        .iter()
+        .map(|diagnostic| {
+            (
+                diagnostic.code,
+                diagnostic.span,
+                diagnostic.message.as_str(),
+            )
+        })
+        .collect()
+}
+
 fn observed(tclsh: &std::path::Path, source: &str) -> tcl_test_support::ScriptOutcome {
     let word = tcl_compiler::codegen::helpers::tcl_list_element(source);
     let script =
@@ -675,7 +691,7 @@ fn issue_2384() {
             .iter()
             .any(|diagnostic| { diagnostic.code == tcl_core_types::DiagCode::W240 }),
         "{:?}",
-        control.diagnostics
+        diagnostic_summaries(&control)
     );
     for body in [
         "set i 5",
@@ -693,7 +709,7 @@ fn issue_2384() {
                     .iter()
                     .all(|diagnostic| { diagnostic.code != tcl_core_types::DiagCode::W240 }),
                 "{source}: {:?}",
-                result.diagnostics
+                diagnostic_summaries(&result)
             );
         }
     }
@@ -710,7 +726,7 @@ fn issue_2384_literal_false_loop_is_still_reported() {
                     .iter()
                     .any(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W240),
                 "{dialect}: {source}: {:?}",
-                result.diagnostics
+                diagnostic_summaries(&result)
             );
         }
     }
@@ -735,7 +751,7 @@ fn issue_2384_shadowed_loop_heads_are_not_reported() {
                         | tcl_core_types::DiagCode::W242
                 )),
                 "{dialect}: {source}: {:?}",
-                result.diagnostics
+                diagnostic_summaries(&result)
             );
         }
     }

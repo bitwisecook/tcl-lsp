@@ -126,3 +126,12 @@ production edit has been made. The production baseline/regression driver is
 prepared but remains uncompiled while #940/provider work has exclusive compiler
 priority. This checkpoint publishes native evidence and planned acceptance;
 it is not a product-fix or green-gate claim.
+
+A concrete review-only proposal is archived as
+[`w210-short-circuit-proposal.patch`](../rust/tcl-compiler/tests/data/w210-short-circuit-proposal.patch).
+It accepts completed values only for a command AST or its logical negations,
+uses the shared boolean-context acceptor with the actual invocation numeric
+syntax (unanimous release agreement when absent), and leaves all existing
+abrupt outcomes and fallback expression analysis intact. The production file
+is unchanged; the proposal is neither compiled nor claimed to fix the current
+report. Its iterative negation walk adds no parser or name interpretation.
