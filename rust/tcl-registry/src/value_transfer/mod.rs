@@ -104,6 +104,28 @@ pub use route::{
     LanguageProfileId, NativeEvalId, OptionEvaluation,
 };
 
+/// Representation relations under a successful original source handler.
+/// Cell relations additionally assume ordinary cells without write observers;
+/// a trace or alias may replace the value. These descriptions grant no
+/// dispatch, completion, observer absence or physical-object proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionalSourceRepresentation {
+    /// A successful handler produces an integer representation for its result; when present, the
+    /// same result is stored in the named read-modify-write target.
+    IntegerResult {
+        /// Conditional store target, if this is a cell update.
+        target: Option<TargetId>,
+    },
+    /// A successful write forwards the captured value object to its target
+    /// and result. This does not infer a representation from its bytes.
+    ForwardValue {
+        /// Source operand, captured before the handler runs.
+        value: OperandId,
+        /// Target of the conditional store.
+        target: TargetId,
+    },
+}
+
 /// What a registry-owned specialisation supplies for one invocation.
 ///
 /// Returned plans and facts are preferred to callbacks because a plan can
@@ -117,6 +139,17 @@ pub trait CommandSemantics: Sync + Send {
 
     /// The declared evaluator route.
     fn route(&self) -> EvalRoute;
+
+    /// A narrowly audited source-only representation relation. The returned
+    /// shape is conditional on the original handler completing successfully;
+    /// it does not evaluate operands or establish any native permission.
+    fn conditional_source_representation(
+        &self,
+        input: &dyn AnalysisInputs,
+    ) -> Option<ConditionalSourceRepresentation> {
+        let _ = input;
+        None
+    }
 
     /// Bodies, scopes, binders, control and completion protocol, declared
     /// structural effects — consumed at construction time.
@@ -203,6 +236,79 @@ pub trait CommandSemantics: Sync + Send {
     /// the host plan binds a declared implementation's body into.
     fn as_declared(&self) -> Option<&declared::DeclaredSemantics> {
         None
+    }
+}
+
+#[cfg(test)]
+mod conditional_source_representation_tests {
+    use super::*;
+
+    #[test]
+    fn audited_result_relations_keep_source_value_and_arity_distinct() {
+        let unknown_length =
+            LiteralInputs::new("string", Some("length"), &["$s"], None).with_dynamic(OperandId(1));
+        assert_eq!(
+            builtins::STRING_LENGTH.conditional_source_representation(&unknown_length),
+            Some(ConditionalSourceRepresentation::IntegerResult { target: None })
+        );
+        let missing = LiteralInputs::new("string", Some("length"), &[], None);
+        assert_eq!(
+            builtins::STRING_LENGTH.conditional_source_representation(&missing),
+            None
+        );
+        let literal = LiteralInputs::new("string", Some("length"), &["abc"], None);
+        assert_eq!(
+            builtins::STRING_LENGTH.conditional_source_representation(&literal),
+            None,
+            "the native compiler can emit a pooled literal result"
+        );
+        let unproven_literal = LiteralInputs::new("string", Some("length"), &["abc"], None)
+            .with_unproven(OperandId(1));
+        assert_eq!(
+            builtins::STRING_LENGTH.conditional_source_representation(&unproven_literal),
+            None,
+            "unavailable value facts cannot change original word kind"
+        );
+        assert_eq!(
+            builtins::STRING_RANGE.conditional_source_representation(&unknown_length),
+            None
+        );
+
+        let write = LiteralInputs::new("set", None, &["x", "$value"], None)
+            .with_role(OperandId(0), crate::ArgRole::VarWrite)
+            .with_unproven(OperandId(1));
+        assert_eq!(
+            cell_write::CELL_WRITE.conditional_source_representation(&write),
+            Some(ConditionalSourceRepresentation::ForwardValue {
+                target: TargetId(OperandId(0)),
+                value: OperandId(1),
+            })
+        );
+        let read = LiteralInputs::new("set", None, &["x"], None)
+            .with_role(OperandId(0), crate::ArgRole::VarRead);
+        assert_eq!(
+            cell_write::CELL_WRITE.conditional_source_representation(&read),
+            None
+        );
+
+        let update = cell_update::CellUpdateSemantics {
+            update: crate::native_lowering::CellUpdate::Increment,
+            creates_absent: None,
+        };
+        let args = LiteralInputs::new("incr", None, &["x"], None);
+        assert_eq!(
+            update.conditional_source_representation(&args),
+            Some(ConditionalSourceRepresentation::IntegerResult {
+                target: Some(TargetId(OperandId(0))),
+            })
+        );
+        let append = cell_update::CellUpdateSemantics {
+            update: crate::native_lowering::CellUpdate::ListAppend,
+            creates_absent: None,
+        };
+        assert_eq!(append.conditional_source_representation(&args), None);
+        let extra = LiteralInputs::new("incr", None, &["x", "1", "2"], None);
+        assert_eq!(update.conditional_source_representation(&extra), None);
     }
 }
 

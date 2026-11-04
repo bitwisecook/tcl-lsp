@@ -183,6 +183,18 @@ impl CommandSemantics for CellWriteSemantics {
         }
     }
 
+    fn conditional_source_representation(
+        &self,
+        input: &dyn AnalysisInputs,
+    ) -> Option<super::ConditionalSourceRepresentation> {
+        match Self::form(input)? {
+            Form::Write { target, value } => {
+                Some(super::ConditionalSourceRepresentation::ForwardValue { value, target })
+            }
+            Form::Read { .. } => None,
+        }
+    }
+
     /// The read form's target: the write form reads nothing it stores.
     fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
         match Self::form(input) {

@@ -151,6 +151,15 @@ impl<'a> LiteralInputs<'a> {
         self
     }
 
+    #[cfg(test)]
+    pub(super) fn with_dynamic(mut self, id: OperandId) -> Self {
+        if let Some(operand) = self.view.operands.get_mut(id.0) {
+            operand.kind = InvocationWordKind::Dynamic;
+        }
+        self.unproven.push(id);
+        self
+    }
+
     /// The value the scalar place `name` holds before the invocation runs.
     #[must_use]
     pub fn with_prior(mut self, name: &str, value: ExactValue) -> Self {

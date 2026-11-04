@@ -1202,6 +1202,16 @@ representation*, and their `None` is authoritative rather than a fall-back
 to the static type. They are adapters into the same form semantics, kept
 with those guarantees, not superseded by a value table.
 
+`conditional_source_representation` is a separate, opt-in registry contract
+for source diagnostics. Under a successful original-handler premise it can
+describe an integer result or forward a captured value to a cell and result.
+Cell relations additionally assume an ordinary cell without write observers;
+aliases and traces may replace the value. The contract supplies no entered
+handler, completion, native compiler permission or current physical object.
+The string-length relation accepts a dynamic subject only: native compilers
+can replace a literal subject with a pooled result whose intrep is unknown.
+The declaration does not describe conversion of the string-length input.
+
 **Provenance is never fabricated.** A folded value enters
 `value_provenance` with `literal_span: None`, rename abstains on it, and a
 computed pattern is explained as computed rather than painted at a token

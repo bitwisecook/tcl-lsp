@@ -41,7 +41,76 @@ pub(crate) struct DeclarationInvocationFlow {
     pub aliases: Vec<String>,
     pub caller_frame_aliases: Vec<String>,
     pub caller_alias_operands: Vec<crate::ir::WordExpr>,
+    /// Exact conditional schema, retained only by the representation graph.
+    pub representation_words: Option<super::source_structure::OriginalRegistryWords>,
+    /// Original point has the shared quiet scalar-context receipt.
+    pub representation_quiet: bool,
     pub effects: DeclarationEffectKnowledge,
+}
+
+impl DeclarationInvocationFlow {
+    /// Compare complete flow, allowing only the already checked metadata-head
+    /// coordinate to differ. This does not alter either retained carrier.
+    fn representation_flow_corresponds(&self, other: &Self) -> bool {
+        let Self {
+            effective,
+            flow,
+            completion,
+            quoted_operands,
+            writes,
+            possible_output_writes,
+            reads,
+            name_queries,
+            loop_bindings,
+            literal_stores,
+            literal_store_operand,
+            increments,
+            first_list_iteration,
+            list_loop,
+            accumulator_writes,
+            removes,
+            removal_arguments,
+            aliases,
+            caller_frame_aliases,
+            caller_alias_operands,
+            representation_words,
+            representation_quiet: _,
+            effects,
+        } = self;
+        let Some(left_head) = effective.words.first() else {
+            return false;
+        };
+        let Some(right_head) = other.effective.words.first() else {
+            return false;
+        };
+        left_head.source() == right_head.source()
+            && effective.words.get(1..) == other.effective.words.get(1..)
+            && effective.origins == other.effective.origins
+            && effective.binding_prefix == other.effective.binding_prefix
+            && flow == &other.flow
+            && completion == &other.completion
+            && quoted_operands == &other.quoted_operands
+            && writes == &other.writes
+            && possible_output_writes == &other.possible_output_writes
+            && reads == &other.reads
+            && name_queries == &other.name_queries
+            && loop_bindings == &other.loop_bindings
+            && literal_stores == &other.literal_stores
+            && literal_store_operand == &other.literal_store_operand
+            && increments == &other.increments
+            && first_list_iteration == &other.first_list_iteration
+            && list_loop == &other.list_loop
+            && accumulator_writes == &other.accumulator_writes
+            && removes == &other.removes
+            && removal_arguments == &other.removal_arguments
+            && aliases == &other.aliases
+            && caller_frame_aliases == &other.caller_frame_aliases
+            && caller_alias_operands == &other.caller_alias_operands
+            && representation_words.is_some()
+            && other.representation_words.is_none()
+            && !other.representation_quiet
+            && effects.representation_effects_correspond(&other.effects)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,6 +141,22 @@ pub(crate) struct DeclarationEffectKnowledge {
 }
 
 impl DeclarationEffectKnowledge {
+    fn representation_effects_correspond(&self, other: &Self) -> bool {
+        let Self {
+            unknown_writes,
+            unknown_reads,
+            lookup_stable,
+            schema_origin,
+            frame_reach,
+        } = self;
+        *schema_origin == DeclarationSchemaOrigin::OriginalSourceCatalogue
+            && other.schema_origin == DeclarationSchemaOrigin::OriginalLayout
+            && unknown_writes == &other.unknown_writes
+            && unknown_reads == &other.unknown_reads
+            && lookup_stable == &other.lookup_stable
+            && frame_reach == &other.frame_reach
+    }
+
     pub(crate) fn frame_reachable(&self) -> bool {
         self.frame_reach == DeclarationFrameReach::OtherFrame
     }
@@ -173,6 +258,20 @@ pub(crate) fn declaration_invocation_flow(
     tokens: &CommandTokens,
     advice: &crate::command_binding::OriginalCompilationLookupAdvice,
 ) -> Option<DeclarationInvocationFlow> {
+    declaration_invocation_flow_in_frame(
+        registry,
+        tokens,
+        advice,
+        tcl_registry::VariableAliasFrame::Procedure,
+    )
+}
+
+pub(crate) fn declaration_invocation_flow_in_frame(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    advice: &crate::command_binding::OriginalCompilationLookupAdvice,
+    frame: tcl_registry::VariableAliasFrame,
+) -> Option<DeclarationInvocationFlow> {
     let metadata = advice
         .original_declaration_metadata_context(registry, tokens)
         .ok()?;
@@ -205,7 +304,7 @@ pub(crate) fn declaration_invocation_flow(
         let invocation =
             InvocationWords::structured(*words.first()?, &words[1..]).with_dialect(dialect);
         let mut selected = declaration_flow_for_original_schema(
-            registry, effective, &values, &facts, invocation, dialect,
+            registry, effective, &values, &facts, invocation, dialect, frame,
         )?;
         if facts
             .state_transitions
@@ -232,12 +331,101 @@ pub(crate) fn declaration_invocation_flow(
     agreed
 }
 
+/// Compare two original source selections under their retained metadata, without
+/// granting handler or execution identity. Every declared target must agree.
+pub(crate) fn declaration_source_flow_corresponds(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    advice: &crate::command_binding::OriginalCompilationLookupAdvice,
+    source_flow: &DeclarationInvocationFlow,
+    observed_flow: &DeclarationInvocationFlow,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<()> {
+    let source = source_flow.representation_words.as_ref()?;
+    let crate::ir::WordExpr::Literal { text, .. } = source_flow.effective.words.first()? else {
+        return None;
+    };
+    if text != source.command()
+        || source_flow.effective.origins.first() != Some(&super::InvocationWordOrigin::ResolvedHead)
+        || !source_flow.representation_flow_corresponds(observed_flow)
+    {
+        return None;
+    }
+    let metadata = advice
+        .original_declaration_metadata_context(registry, tokens)
+        .ok()??;
+    if !std::ptr::eq(metadata.context(), context.context()) {
+        return None;
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let site = binding.invocation_site()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let image = site.source.source_image();
+    let native = super::original_native_compiler_words(image, tokens.words(), site.offset, config)?;
+    let head = source.head_source()?.word()?;
+    if !source.matches_source(image, config)
+        || Some(head) != native.first()
+        || head.span() != tokens.words().first()?.source().span
+        || head.group().expand
+    {
+        return None;
+    }
+    let dialect = advice.dialect();
+    let mut seen = false;
+    for target in advice.targets() {
+        seen = true;
+        let effective = effective_words_for_target(tokens, target)?;
+        if effective != observed_flow.effective {
+            return None;
+        }
+        let mut values = vec![effective_invocation_word(
+            effective.words.first()?,
+            dialect.lexer_grammar.escapes,
+            dialect.word_values,
+        )];
+        values.extend(declared_argument_words(tokens, &effective, dialect));
+        let words: Vec<_> = values
+            .iter()
+            .map(EffectiveInvocationWord::as_registry_word)
+            .collect();
+        let invocation =
+            InvocationWords::structured(*words.first()?, &words[1..]).with_dialect(dialect);
+        let resolved =
+            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
+                registry,
+                Some(metadata.context()),
+                invocation,
+                advice.realm(),
+            )
+            .resolved()?;
+        let matches = source.with_source_schema(context, |source_schema| {
+            let left = resolved.authored_source_descriptors();
+            let right = source_schema.authored_source_descriptors();
+            let same_subcommand = match (left.subcommand, right.subcommand) {
+                (None, None) => true,
+                (Some(left), Some(right)) => std::ptr::eq(left, right),
+                _ => false,
+            };
+            std::ptr::eq(left.command, right.command)
+                && same_subcommand
+                && resolved.semantics.argument_offset == source_schema.semantics.argument_offset
+                && tcl_registry::command_descriptor_labels_match(&target.command, source.command())
+        })?;
+        if !matches {
+            return None;
+        }
+    }
+    seen.then_some(())
+}
+
 /// Readonly declaration flow from the exact shared original-body catalogue.
 /// The result retains conditional source effects, never execution admission.
 pub(crate) fn declaration_source_read_flow(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
     scope: &crate::command_binding::SourceReadScope,
+    frame: tcl_registry::VariableAliasFrame,
+    retain_representation_words: bool,
 ) -> Option<DeclarationInvocationFlow> {
     let advice = scope.advice();
     let source = advice.site().source.source_image().try_text().ok()?;
@@ -247,6 +435,26 @@ pub(crate) fn declaration_source_read_flow(
         scope.context(),
         advice.clone(),
     )?;
+    declaration_original_words_flow(
+        registry,
+        tokens,
+        words,
+        scope.context(),
+        frame,
+        retain_representation_words,
+    )
+}
+
+/// Project the same retained original Registry words without changing their
+/// source variant or applicability obligations.
+pub(crate) fn declaration_original_words_flow(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    words: super::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+    frame: tcl_registry::VariableAliasFrame,
+    retain_representation_words: bool,
+) -> Option<DeclarationInvocationFlow> {
     let dialect = words.dialect()?;
     let mut values = vec![EffectiveInvocationWord::Literal(words.command().to_owned())];
     values.extend(words.arguments().iter().map(|word| {
@@ -267,7 +475,7 @@ pub(crate) fn declaration_source_read_flow(
     if effective.origins.get(1..) != words.origins().get(1..) {
         return None;
     }
-    words.with_source_schema(scope.context(), |schema| {
+    let mut selected = words.with_source_schema(context, |schema| {
         let facts = schema.facts();
         // Caller links and lifecycle phases retain their independent owners.
         if facts
@@ -291,10 +499,17 @@ pub(crate) fn declaration_source_read_flow(
             &facts,
             schema.words,
             dialect,
+            frame,
         )?;
         selected.effects.schema_origin = DeclarationSchemaOrigin::OriginalSourceCatalogue;
         (selected.flow != ScriptBodyFlow::CapturedLifecycle).then_some(selected)
-    })?
+    })??;
+    if retain_representation_words {
+        selected.representation_quiet =
+            super::authored_source_structure::authored_script_scalar_context_is_quiet(tokens);
+        selected.representation_words = Some(words);
+    }
+    Some(selected)
 }
 
 fn declaration_flow_for_original_schema(
@@ -304,6 +519,7 @@ fn declaration_flow_for_original_schema(
     facts: &tcl_registry::InvocationFacts,
     invocation: InvocationWords<'_>,
     dialect: tcl_registry::InvocationDialect,
+    frame: tcl_registry::VariableAliasFrame,
 ) -> Option<DeclarationInvocationFlow> {
     let arguments = invocation.arguments();
     let flow = tcl_registry::case_bodies::script_body_flow_in_registry(registry, facts, arguments);
@@ -313,16 +529,13 @@ fn declaration_flow_for_original_schema(
         return None;
     }
     let completion = registry
-        .native_registration_completion_route(
-            invocation,
-            tcl_registry::VariableAliasFrame::Procedure,
-        )
+        .native_registration_completion_route(invocation, frame)
         .or_else(|| {
             registry.invocation_completion_route_in_frame(
                 &facts.canonical_command,
                 arguments,
                 dialect.authoring_query(),
-                tcl_registry::VariableAliasFrame::Procedure,
+                frame,
             )
         })?;
     let quoted_operands = declared_quoted_operands(facts, arguments, &flow)?;
@@ -363,6 +576,8 @@ fn declaration_flow_projection(
         aliases: Vec::new(),
         caller_frame_aliases: Vec::new(),
         caller_alias_operands: Vec::new(),
+        representation_words: None,
+        representation_quiet: false,
         effects: DeclarationEffectKnowledge {
             unknown_writes: false,
             unknown_reads: facts.traits.contains(Traits::PERFORMS_SUBSTITUTION)

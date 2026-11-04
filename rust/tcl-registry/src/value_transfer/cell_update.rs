@@ -292,6 +292,16 @@ impl CommandSemantics for CellUpdateSemantics {
         }
     }
 
+    fn conditional_source_representation(
+        &self,
+        input: &dyn AnalysisInputs,
+    ) -> Option<super::ConditionalSourceRepresentation> {
+        (self.update == CellUpdate::Increment && self.accepts(input.invocation().operands.len()))
+            .then_some(super::ConditionalSourceRepresentation::IntegerResult {
+                target: Some(Self::TARGET),
+            })
+    }
+
     fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
         let operands = input.invocation().operands.len();
         if !self.accepts(operands) {

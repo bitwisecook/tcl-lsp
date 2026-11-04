@@ -423,6 +423,20 @@ impl CommandSemantics for StringLengthSemantics {
         }
     }
 
+    fn conditional_source_representation(
+        &self,
+        input: &dyn AnalysisInputs,
+    ) -> Option<super::ConditionalSourceRepresentation> {
+        let invocation = input.invocation();
+        (invocation.operands.len() == 2
+            && invocation
+                .operand(super::OperandId(1))
+                .is_some_and(|operand| {
+                    operand.kind == crate::invocation_words::InvocationWordKind::Dynamic
+                }))
+        .then_some(super::ConditionalSourceRepresentation::IntegerResult { target: None })
+    }
+
     fn transfer(
         &self,
         domain: FactDomain,

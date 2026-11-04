@@ -8,6 +8,8 @@
 //! Missing observations preserve unknown writers. Body sources and command
 //! sites retain the original image, logical grammar and declaration frame.
 
+pub(super) mod representation;
+
 use super::declaration_layout::DeclarationLayouts;
 use super::source_read_scope::{trace_rbs_refusal, trace_rbs_required};
 use super::{
@@ -27,6 +29,7 @@ pub(super) struct DeclarationFlowInventory {
     reports: DeclarationFlowReports,
     source_seed: Option<super::source_transition_advice::OriginalSourceTransitionSeed>,
     source_catalogue: OnceLock<Option<Arc<super::source_read_scope::SourceReadCatalogue>>>,
+    representation_catalogue: OnceLock<Option<Arc<super::source_read_scope::SourceReadCatalogue>>>,
     source_catalogue_memo: Arc<super::source_read_scope::SourceReadCatalogueMemo>,
     layouts: Arc<DeclarationLayouts>,
     accesses: Arc<super::SourceVariableAccesses>,
@@ -39,13 +42,24 @@ impl DeclarationFlowInventory {
     fn source_read_catalogue(
         &self,
         registry: &tcl_registry::CommandRegistry,
+        purpose: DeclarationFlowPurpose,
     ) -> Option<&super::source_read_scope::SourceReadCatalogue> {
         let seed = self.source_seed.as_ref()?;
         // Foreign requests cannot poison the independently retained cache.
         seed.matches_registry(registry).then_some(())?;
-        self.source_catalogue
-            .get_or_init(|| self.source_catalogue_memo.get_or_prepare(seed, registry))
-            .as_deref()
+        match purpose {
+            DeclarationFlowPurpose::Reads => self
+                .source_catalogue
+                .get_or_init(|| self.source_catalogue_memo.get_or_prepare(seed, registry))
+                .as_deref(),
+            DeclarationFlowPurpose::Representation => self
+                .representation_catalogue
+                .get_or_init(|| {
+                    super::source_read_scope::SourceReadCatalogue::prepare(seed, registry)
+                        .map(Arc::new)
+                })
+                .as_deref(),
+        }
     }
 
     pub(super) fn new(
@@ -59,6 +73,7 @@ impl DeclarationFlowInventory {
             reports: DeclarationFlowReports::default(),
             source_seed: None,
             source_catalogue: OnceLock::new(),
+            representation_catalogue: OnceLock::new(),
             source_catalogue_memo: Arc::default(),
             layouts,
             accesses,
@@ -72,6 +87,18 @@ impl DeclarationFlowInventory {
 impl PartialEq for DeclarationFlowInventory {
     fn eq(&self, other: &Self) -> bool {
         self.source_seed == other.source_seed
+            && match (&self.source_seed, &other.source_seed) {
+                (Some(left), Some(right)) => {
+                    Arc::ptr_eq(&left.origin, &right.origin)
+                        && match (&left.analysis_owner, &right.analysis_owner) {
+                            (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                            (None, None) => true,
+                            _ => false,
+                        }
+                }
+                (None, None) => true,
+                _ => false,
+            }
             && self.layouts == other.layouts
             && self.accesses == other.accesses
             && self.origin_accesses == other.origin_accesses
@@ -149,6 +176,14 @@ struct DeclarationFlowKey {
     config: tcl_lexer::LexerConfig,
     dialect: tcl_registry::InvocationDialect,
     registry: tcl_registry::RegistrySemanticKey,
+    purpose: DeclarationFlowPurpose,
+    retained_module_realm: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeclarationFlowPurpose {
+    Reads,
+    Representation,
 }
 #[derive(Default)]
 struct DeclarationFlowReports(Mutex<Vec<(DeclarationFlowKey, Arc<DeclarationFlowReport>)>>);
@@ -186,6 +221,60 @@ impl DeclarationFlowReports {
     }
 }
 impl super::SourceCommandBindings {
+    /// Conditional source-only representation observations from this exact
+    /// retained module. No executable or physical-value fact is returned.
+    pub(crate) fn conditional_representation_observations(
+        &self,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Vec<super::SourceConversionObservation> {
+        let Some(input) = module.source_metadata_input.as_ref() else {
+            return Vec::new();
+        };
+        let source_current =
+            self.matches_original_source_image(&module.source, input.lexer_config());
+        let owner_current = self
+            .original_analysis_owner()
+            .is_some_and(|owner| owner.matches(self, input));
+        if !source_current || !owner_current {
+            return Vec::new();
+        }
+        let Some(realm) = crate::realm::document_realm_bindings_for_module(module, registry) else {
+            return Vec::new();
+        };
+        for (site, observations) in &self.declaration_layouts {
+            let Some(rows) = super::declaration_layout::original_declaration_layouts(observations)
+            else {
+                continue;
+            };
+            if !rows.clone().all(|row| {
+                matches!(
+                    row.entry.as_ref(),
+                    super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { .. }
+                )
+            }) {
+                continue;
+            }
+            let binding = self.invocation_at_source("", site.offset);
+            let Some((_, mut tokens)) = binding.original_recorded_command() else {
+                continue;
+            };
+            self.stamp_original_tokens(&mut tokens);
+            let Some(report) = tokens.source_binding.as_ref().and_then(|binding| {
+                binding.declaration_representation_flow_report(
+                    &tokens,
+                    input,
+                    registry,
+                    Some(&realm),
+                )
+            }) else {
+                continue;
+            };
+            return report.representation_occurrences.clone();
+        }
+        Vec::new()
+    }
+
     pub(super) fn current_declaration_flow_inventory(&self) -> Arc<DeclarationFlowInventory> {
         let mut next = DeclarationFlowInventory::new(
             self.declaration_layouts.shared(),
@@ -223,9 +312,12 @@ impl Hash for DeclarationFlowInventory {
 /// graph and cannot be withdrawn by any query on this report.
 pub(crate) struct DeclarationFlowReport {
     source: Arc<super::SourceOriginId>,
+    representation_occurrences: Vec<representation::SourceConversionObservation>,
     reads: BTreeMap<String, tcl_lexer::Span>,
     reached: BTreeSet<u32>,
     represented: BTreeSet<u32>,
+    #[cfg(test)]
+    conditional_handler_sites: BTreeSet<u32>,
     unavailable_before: BTreeSet<u32>,
     unavailable: bool,
     unknown_reads: bool,
@@ -536,6 +628,15 @@ impl SourceInvocationBinding {
         &self,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<Arc<DeclarationFlowReport>> {
+        self.declaration_flow_report_for(registry, DeclarationFlowPurpose::Reads, None)
+    }
+
+    fn declaration_flow_report_for(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        purpose: DeclarationFlowPurpose,
+        representation_realm: Option<&crate::realm::CommandBindingRealm>,
+    ) -> Option<Arc<DeclarationFlowReport>> {
         let observations = super::declaration_layout::original_declaration_layouts(
             self.declaration_layout_observations.as_deref()?,
         )?;
@@ -560,6 +661,8 @@ impl SourceInvocationBinding {
             config,
             dialect,
             registry: registry.snapshot().semantic_key(),
+            purpose,
+            retained_module_realm: representation_realm.is_some(),
         };
         if let Some(report) = inventory.reports.get(&key) {
             return Some(report);
@@ -572,6 +675,8 @@ impl SourceInvocationBinding {
             config,
             dialect,
             entry: &frame,
+            purpose,
+            representation_realm,
             nodes: vec![Node::default()],
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
@@ -593,6 +698,61 @@ impl SourceInvocationBinding {
             builder.script(&job);
         }
         Some(inventory.reports.retain(key, builder.evaluate(entry)))
+    }
+
+    /// Representation observations are conditional source evidence only.
+    /// They do not publish runtime command or variable-cell authority.
+    fn declaration_representation_flow_report(
+        &self,
+        tokens: &CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+        representation_realm: Option<&crate::realm::CommandBindingRealm>,
+    ) -> Option<Arc<DeclarationFlowReport>> {
+        if tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || tokens.source_binding.as_ref() != Some(self)
+        {
+            return None;
+        }
+        self.original_invocation_metadata_for_input(tokens, input, registry)?;
+        let seed = self
+            .declaration_flow_inventory
+            .as_ref()?
+            .source_seed
+            .as_ref()?;
+        if !Arc::ptr_eq(
+            self.original_analysis_owner.as_ref()?,
+            seed.analysis_owner.as_ref()?,
+        ) || seed.baseline.metadata_context.source_analysis_input() != Some(input)
+            || seed.config != input.lexer_config()
+        {
+            return None;
+        }
+        if let Some(realm) = representation_realm {
+            let bindings = realm.source_bindings_ref();
+            if !realm.matches_resolved_analysis_input(input)
+                || !realm.matches_original_source_image(seed.origin.source_image(), seed.config)
+                || !seed.matches_registry(registry)
+                || !bindings
+                    .source_origin()
+                    .is_some_and(|origin| Arc::ptr_eq(origin, &seed.origin))
+                || !bindings.original_analysis_owner().is_some_and(|owner| {
+                    seed.analysis_owner
+                        .as_ref()
+                        .is_some_and(|original| Arc::ptr_eq(owner, original))
+                })
+                || bindings.current_declaration_flow_inventory().as_ref()
+                    != self.declaration_flow_inventory.as_deref()?
+            {
+                return None;
+            }
+        }
+        self.declaration_flow_report_for(
+            registry,
+            DeclarationFlowPurpose::Representation,
+            representation_realm,
+        )
     }
 }
 
@@ -623,6 +783,8 @@ impl super::SourceCommandBindings {
             config,
             dialect,
             registry: registry.snapshot().semantic_key(),
+            purpose: DeclarationFlowPurpose::Reads,
+            retained_module_realm: false,
         };
         if let Some(report) = inventory.reports.get(&key) {
             return Some(report);
@@ -638,6 +800,8 @@ impl super::SourceCommandBindings {
             config,
             dialect,
             entry: &frame,
+            purpose: DeclarationFlowPurpose::Reads,
+            representation_realm: None,
             nodes: vec![Node::default()],
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
@@ -741,6 +905,7 @@ struct Node {
     increments: Vec<(String, String)>,
     accumulator_writes: Vec<String>,
     unknown_list_first: Option<usize>,
+    representation_events: Vec<representation::Event>,
 }
 #[derive(Default)]
 struct NodeAvailability {
@@ -830,11 +995,27 @@ struct DeclarationSelectionScope<'a> {
     config: tcl_lexer::LexerConfig,
 }
 
+struct ConditionalRepresentationPlan {
+    source: Arc<crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    captures: VecDeque<representation::CaptureSource>,
+    relation: Option<tcl_registry::value_transfer::ConditionalSourceRepresentation>,
+    target: Option<(
+        tcl_registry::value_transfer::TargetId,
+        crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    )>,
+    coercion: Option<tcl_registry::representation::ConditionalSourceListIndexCoercion>,
+}
+
 /// Only a conditional source read may use a declared-body frame without a
 /// per-command ordinary layout. This never creates a lookup snapshot or frame.
 enum DeclarationReadPointScope<'a> {
     Observed(Vec<DeclarationSelectionScope<'a>>),
     ConditionalDeclared(&'a super::declaration_preview::DeclaredProcedureBody),
+    ConditionalRoot(&'a super::declaration_layout::OriginalDiagnosticFrameEntry),
+    ConditionalRootRelated {
+        root: &'a super::declaration_layout::OriginalDiagnosticFrameEntry,
+        bodies: Vec<tcl_lexer::Span>,
+    },
 }
 
 impl DeclarationReadPointScope<'_> {
@@ -844,6 +1025,8 @@ impl DeclarationReadPointScope<'_> {
                 .iter()
                 .any(|scope| scope.snapshot.state.variable_frame == *frame),
             Self::ConditionalDeclared(body) => body.frame == *frame,
+            Self::ConditionalRoot(entry) => entry.frame() == frame,
+            Self::ConditionalRootRelated { root, .. } => root.frame() == frame,
         }
     }
 
@@ -853,8 +1036,10 @@ impl DeclarationReadPointScope<'_> {
         config: tcl_lexer::LexerConfig,
     ) -> bool {
         match self {
-            Self::Observed(_) => true,
             Self::ConditionalDeclared(body) => body.matches_logical_read_scope(scope, config),
+            Self::Observed(_) | Self::ConditionalRoot(_) | Self::ConditionalRootRelated { .. } => {
+                true
+            }
         }
     }
 }
@@ -902,18 +1087,320 @@ struct Builder<'a> {
     config: tcl_lexer::LexerConfig,
     dialect: tcl_registry::InvocationDialect,
     entry: &'a DeclarationFlowFrame,
+    purpose: DeclarationFlowPurpose,
+    representation_realm: Option<&'a crate::realm::CommandBindingRealm>,
     nodes: Vec<Node>,
     jobs: Vec<Job>,
     conditional_overwrites: Vec<(usize, DeclaredOverwrite)>,
     read_sites: BTreeSet<CommandAllocationSite>,
 }
 impl Builder<'_> {
+    /// Naming geometry at this exact original root command. Later commands
+    /// retain their own source and namespace applicability.
+    fn representation_root_naming_scope(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+    ) -> Option<(
+        crate::signature_scan::scope::SignatureNamespaceScope,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )> {
+        use super::declaration_layout::OriginalDiagnosticFrameEntry;
+        let DeclarationFlowFrame::Existing(
+            entry @ OriginalDiagnosticFrameEntry::RootScript {
+                source,
+                frame,
+                namespace,
+            },
+        ) = self.entry
+        else {
+            return None;
+        };
+        let seed = self.inventory.source_seed.as_ref()?;
+        let owner = seed.analysis_owner.as_ref()?;
+        let input = seed.baseline.metadata_context.source_analysis_input()?;
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            self.registry,
+            input,
+            self.config,
+            Some(input.unit_profile()),
+        )?;
+        if *frame != crate::var_resolve::VariableExecutionFrame::Global
+            || source.mapping != (ExecutedScriptMapping::Contiguous { base: 0 })
+            || source.text != *source.origin.source_image()
+            || !Arc::ptr_eq(&source.origin, &seed.origin)
+            || !Arc::ptr_eq(&source.origin, &owner.source)
+            || !Arc::ptr_eq(&site.source, &source.origin)
+            || seed.config != self.config
+            || owner.config != self.config
+            || input.lexer_config() != self.config
+            || owner.metadata != seed.baseline.metadata_context
+            || owner.metadata.source_analysis_input() != Some(input)
+            || seed.logical_input.is_some()
+            || !seed.matches_registry(self.registry)
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || !matches!(
+                self.source_read_point_scope(tokens, site)?,
+                DeclarationReadPointScope::Observed(_)
+            )
+        {
+            return None;
+        }
+        let rows = super::declaration_layout::original_declaration_layouts(
+            self.inventory.layouts.get(site)?,
+        )?;
+        let mut selected = None;
+        for row in rows {
+            if row.entry.as_ref() != entry
+                || !Arc::ptr_eq(&row.entry.source().origin, &source.origin)
+                || row.config != self.config
+                || row.namespace != *namespace
+                || row.snapshot.state.variable_frame != *frame
+                || row.words.as_ref() != tokens.words()
+                || !row
+                    .snapshot
+                    .state
+                    .current_source_origin
+                    .as_ref()
+                    .is_some_and(|origin| Arc::ptr_eq(origin, &source.origin))
+                || row
+                    .snapshot
+                    .state
+                    .retained_original_source_purpose(metadata, self.registry)
+                    != Some(super::OriginalInvocationSourcePurpose::AuthoredSimulation)
+                || crate::registry_invocation::original_native_compiler_words(
+                    source.origin.source_image(),
+                    &row.words,
+                    site.offset,
+                    self.config,
+                )
+                .is_none()
+            {
+                return None;
+            }
+            let policy = row
+                .snapshot
+                .state
+                .baseline
+                .execution_name_policy?
+                .native_recipe()?;
+            if policy.authority() != tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation {
+                return None;
+            }
+            let scope = row
+                .snapshot
+                .state
+                .original_namespace_geometry(namespace, policy)?;
+            let current = (scope, policy);
+            if selected.as_ref().is_some_and(|prior| prior != &current) {
+                return None;
+            }
+            selected = Some(current);
+        }
+        selected
+    }
+
+    fn representation_plan(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+    ) -> Option<ConditionalRepresentationPlan> {
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+            SignatureSourceVariableSymbol,
+        };
+        use tcl_registry::value_transfer::{
+            AnalysisContext, ConditionalSourceRepresentation, InvocationLayout,
+        };
+        if !Self::representation_is_applicable(tokens, selected) {
+            return None;
+        }
+        let words = selected.representation_words.as_ref()?;
+        if words.arguments().len() + 1 != tokens.words().len()
+            || tokens.argv_texts.len() != tokens.words().len()
+            || !crate::registry_invocation::source_cut_declaration_origins(words)
+        {
+            return None;
+        }
+        let (namespace, policy) = self.representation_root_naming_scope(tokens, site)?;
+        if !namespace.is_root() {
+            return None;
+        }
+        let seed = self.inventory.source_seed.as_ref()?;
+        let input = seed.baseline.metadata_context.source_analysis_input()?;
+        let context = seed.source_context(self.registry)?;
+        let source = Arc::new(words.clone());
+        let captures = Self::representation_captures(tokens, words, &namespace, policy)?;
+        let argument_words: Vec<_> = words
+            .arguments()
+            .iter()
+            .map(|word| {
+                crate::registry_invocation::source_structure::source_schema_word(
+                    word.as_registry_word(),
+                )
+            })
+            .collect();
+        let texts: Vec<_> = tokens
+            .argv_texts
+            .iter()
+            .skip(1)
+            .map(String::as_str)
+            .collect();
+        let (relation, target, coercion) = words.with_source_schema(&context, |schema| {
+            let view = crate::value_transfer::view_of(
+                schema,
+                &texts,
+                &argument_words,
+                InvocationLayout::Source,
+            );
+            let analysis = AnalysisContext::detached(Some(input.unit_profile()));
+            let structure = crate::value_transfer::StructureInputs::new(view, &analysis);
+            let relation = schema
+                .semantics
+                .value
+                .semantics()
+                .and_then(|semantics| semantics.conditional_source_representation(&structure));
+            let target_id = match relation {
+                Some(ConditionalSourceRepresentation::IntegerResult { target }) => target,
+                Some(ConditionalSourceRepresentation::ForwardValue { target, .. }) => Some(target),
+                None => None,
+            };
+            let target = if let Some(target) = target_id {
+                let name = words.original_argument_value_input(target.0.0)?;
+                if tcl_syntax::naming::split_element_ref_bytes(name.bytes()).is_some() {
+                    return None;
+                }
+                let form = schema.authored_source_variable_receiver_operand_form(target.0.0)?;
+                let symbol = SignatureSourceVariableSymbol::from_original_input(
+                    name,
+                    &namespace,
+                    OriginalVariableSymbolPurpose::NamespaceStorage,
+                    OriginalVariableSymbolReceiver::Operand(form),
+                )?;
+                Some((target, symbol))
+            } else {
+                None
+            };
+            let coercion = schema
+                .semantics
+                .representation_effect
+                .conditional_source_list_index_coercion(
+                    schema.words.arguments(),
+                    schema.semantics.argument_offset,
+                )
+                .filter(|coercion| coercion.is_single_literal_zero());
+            Some((relation, target, coercion))
+        })??;
+        (relation.is_some() || coercion.is_some()).then_some(ConditionalRepresentationPlan {
+            source,
+            captures,
+            relation,
+            target,
+            coercion,
+        })
+    }
+
+    fn representation_is_applicable(
+        tokens: &CommandTokens,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+    ) -> bool {
+        selected.representation_quiet
+            && !selected.effects.unknown_writes
+            && !selected.effects.unknown_reads
+            && selected.effects.lookup_stable
+            && selected.aliases.is_empty()
+            && selected.caller_frame_aliases.is_empty()
+            && selected.removes.is_empty()
+            && selected.possible_output_writes.is_empty()
+            && matches!(selected.flow, ScriptBodyFlow::None)
+            && tokens.synthetic.is_none()
+            && tokens.original_words_match_argv_text()
+    }
+
+    fn representation_captures(
+        tokens: &CommandTokens,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        namespace: &crate::signature_scan::scope::SignatureNamespaceScope,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Option<VecDeque<representation::CaptureSource>> {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        use crate::signature_scan::variable_symbol::{
+            OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+            SignatureSourceVariableSymbol,
+        };
+        let mut captures = VecDeque::with_capacity(words.arguments().len());
+        for (index, expression) in tokens.words().iter().skip(1).enumerate() {
+            let word = words.original_argument_word(index)?;
+            let capture = if expression.sole_variable_substitution().is_some() {
+                let reference =
+                    tcl_lexer::word_parts::whole_var_ref(word.bytes(), word.config()).ok()??;
+                if reference.index.is_some()
+                    || reference.name.contains(&0)
+                    || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+                {
+                    return None;
+                }
+                let root = crate::signature_scan::variable_name::SignatureSourceVariableRoot::from_original_word(
+                    word, word.span(),
+                    tcl_syntax::word_rules::WordValueRules::from_config(&word.config()), policy,
+                )?;
+                if root.is_separate_array_root() {
+                    return None;
+                }
+                let name = SignatureSourceNameInput::OriginalVariableRoot(root);
+                let symbol = SignatureSourceVariableSymbol::from_original_input(
+                    &name,
+                    namespace,
+                    OriginalVariableSymbolPurpose::NamespaceStorage,
+                    OriginalVariableSymbolReceiver::LexicalRoot,
+                )?;
+                representation::CaptureSource::Variable {
+                    symbol,
+                    span: word.span(),
+                }
+            } else if expression.sole_command_substitution().is_some() {
+                representation::CaptureSource::LastResult
+            } else if matches!(
+                expression,
+                WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. }
+            ) {
+                representation::CaptureSource::Unknown
+            } else {
+                return None;
+            };
+            captures.push_back(capture);
+        }
+        Some(captures)
+    }
+
+    fn completion_frame(&self) -> tcl_registry::VariableAliasFrame {
+        if self.purpose == DeclarationFlowPurpose::Representation
+            && matches!(
+                self.entry,
+                DeclarationFlowFrame::Existing(
+                    super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { .. }
+                )
+            )
+        {
+            tcl_registry::VariableAliasFrame::Global
+        } else {
+            tcl_registry::VariableAliasFrame::Procedure
+        }
+    }
+
     fn placeholder(&mut self) -> usize {
         let id = self.nodes.len();
         self.nodes.push(Node::default());
         id
     }
     fn unknown(&mut self, id: usize, next: usize) {
+        if self.purpose == DeclarationFlowPurpose::Representation {
+            self.nodes[id]
+                .representation_events
+                .push(representation::Event::Barrier);
+        }
         self.nodes[id].unknown = true;
         self.nodes[id].availability.unavailable_declared_prefix = true;
         self.nodes[id].successors = vec![next];
@@ -1156,6 +1643,152 @@ impl Builder<'_> {
         })
     }
 
+    fn conditional_root_scope(
+        &self,
+        catalogue: &super::source_read_scope::SourceReadCatalogue,
+        entry: &super::declaration_layout::OriginalDiagnosticFrameEntry,
+        site: &CommandAllocationSite,
+        tokens: &CommandTokens,
+        required_bodies: &[tcl_lexer::Span],
+    ) -> Option<super::source_read_scope::SourceReadScope> {
+        use super::declaration_layout::OriginalDiagnosticFrameEntry;
+        let OriginalDiagnosticFrameEntry::RootScript { source, frame, .. } = entry else {
+            return None;
+        };
+        let seed = self.inventory.source_seed.as_ref()?;
+        let owner = seed.analysis_owner.as_ref()?;
+        let input = seed.baseline.metadata_context.source_analysis_input()?;
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            self.registry,
+            input,
+            self.config,
+            Some(input.unit_profile()),
+        )?;
+        if *frame != crate::var_resolve::VariableExecutionFrame::Global
+            || source.mapping != (ExecutedScriptMapping::Contiguous { base: 0 })
+            || source.text != *source.origin.source_image()
+            || !Arc::ptr_eq(&source.origin, &seed.origin)
+            || !Arc::ptr_eq(&source.origin, &owner.source)
+            || !Arc::ptr_eq(&source.origin, &site.source)
+            || owner.config != self.config
+            || seed.config != self.config
+            || input.lexer_config() != self.config
+            || seed.logical_input.is_some()
+            || owner.metadata != seed.baseline.metadata_context
+            || owner.metadata.source_analysis_input() != Some(input)
+            || !seed.matches_registry(self.registry)
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+        {
+            return None;
+        }
+        catalogue.scope_with_ancestry(site, tokens, self.config, |advice, context| {
+            if !std::ptr::eq(Arc::as_ptr(&input.context_registry()), context) {
+                return false;
+            }
+            let seen_bodies = std::cell::RefCell::new(Vec::new());
+            let valid = |candidate: &super::OriginalSourceCommandTransitionAdvice| {
+                let current = Arc::ptr_eq(&candidate.site().source, &source.origin)
+                    && catalogue.admits_original_site(candidate.site())
+                    && candidate.matches_context(context)
+                    && candidate.matches_source(source.origin.source_image(), self.config)
+                    && candidate.logical_source_input().is_none()
+                    && candidate
+                        .original_words()
+                        .iter()
+                        .all(|word| !word.group().expand)
+                    && candidate
+                        .arguments()
+                        .iter()
+                        .enumerate()
+                        .all(|(index, word)| {
+                            word.origin
+                                == crate::registry_invocation::InvocationWordOrigin::Written(
+                                    index + 1,
+                                )
+                        });
+                if current && let Some(body) = candidate.original_catalogue_source_body() {
+                    seen_bodies.borrow_mut().push(body.content_span());
+                }
+                current
+            };
+            let endpoint = |candidate: &super::OriginalSourceCommandTransitionAdvice| {
+                self.conditional_root_endpoint(
+                    candidate,
+                    entry,
+                    metadata,
+                    required_bodies,
+                    &seen_bodies.borrow(),
+                )
+            };
+            super::source_read_scope::matches_read_body_ancestry_until(
+                advice,
+                context,
+                self.config,
+                true,
+                valid,
+                endpoint,
+            )
+        })
+    }
+
+    fn conditional_root_endpoint(
+        &self,
+        candidate: &super::OriginalSourceCommandTransitionAdvice,
+        entry: &super::declaration_layout::OriginalDiagnosticFrameEntry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        required_bodies: &[tcl_lexer::Span],
+        seen_bodies: &[tcl_lexer::Span],
+    ) -> bool {
+        use super::declaration_layout::OriginalDiagnosticFrameEntry;
+        let OriginalDiagnosticFrameEntry::RootScript {
+            source,
+            frame,
+            namespace,
+        } = entry
+        else {
+            return false;
+        };
+        if required_bodies
+            .iter()
+            .any(|body| !seen_bodies.contains(body))
+        {
+            return false;
+        }
+        let Some(rows) = self.inventory.layouts.get(candidate.site()) else {
+            return false;
+        };
+        let Some(rows) = super::declaration_layout::original_declaration_layouts(rows) else {
+            return false;
+        };
+        rows.into_iter().all(|row| {
+            row.entry.as_ref() == entry
+                && Arc::ptr_eq(&row.entry.source().origin, &source.origin)
+                && row.namespace == *namespace
+                && row.config == self.config
+                && row.snapshot.state.variable_frame == *frame
+                && row
+                    .snapshot
+                    .state
+                    .retained_original_source_purpose(metadata, self.registry)
+                    == Some(super::OriginalInvocationSourcePurpose::AuthoredSimulation)
+                && row
+                    .snapshot
+                    .state
+                    .current_source_origin
+                    .as_ref()
+                    .is_some_and(|origin| Arc::ptr_eq(origin, &source.origin))
+                && crate::registry_invocation::original_native_compiler_words(
+                    source.origin.source_image(),
+                    &row.words,
+                    candidate.site().offset,
+                    self.config,
+                )
+                .as_deref()
+                    == Some(candidate.original_words())
+        })
+    }
+
     fn source_read_point_scope(
         &self,
         tokens: &CommandTokens,
@@ -1164,10 +1797,92 @@ impl Builder<'_> {
         if let Some(scopes) = self.selection_scopes(tokens, site) {
             return Some(DeclarationReadPointScope::Observed(scopes));
         }
+        if self.purpose == DeclarationFlowPurpose::Representation
+            && let DeclarationFlowFrame::Existing(
+                root @ super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+                    source,
+                    frame,
+                    namespace,
+                },
+            ) = self.entry
+            && let Some(rows) = self.inventory.layouts.get(site)
+        {
+            let input = self
+                .inventory
+                .source_seed
+                .as_ref()?
+                .baseline
+                .metadata_context
+                .source_analysis_input()?;
+            let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                self.registry,
+                input,
+                self.config,
+                Some(input.unit_profile()),
+            )?;
+            let rows = super::declaration_layout::original_declaration_layouts(rows)?;
+            let mut bodies = Vec::new();
+            for row in rows {
+                let super::declaration_layout::OriginalDiagnosticFrameEntry::ScriptActivation {
+                    source: child,
+                    frame: child_frame,
+                    namespace: child_namespace,
+                    config,
+                } = row.entry.as_ref()
+                else {
+                    return None;
+                };
+                let ExecutedScriptMapping::Contiguous { base } = child.mapping else {
+                    return None;
+                };
+                let end = base.checked_add(u32::try_from(child.text.len()).ok()?)?;
+                if !Arc::ptr_eq(&child.origin, &source.origin)
+                    || !Arc::ptr_eq(&child.origin, &site.source)
+                    || child_frame != frame
+                    || child_namespace != namespace
+                    || *config != self.config
+                    || row.config != self.config
+                    || row.words.as_ref() != tokens.words()
+                    || row.namespace != *namespace
+                    || row.snapshot.state.variable_frame != *frame
+                    || row
+                        .snapshot
+                        .state
+                        .retained_original_source_purpose(metadata, self.registry)
+                        != Some(super::OriginalInvocationSourcePurpose::AuthoredSimulation)
+                    || !row
+                        .snapshot
+                        .state
+                        .current_source_origin
+                        .as_ref()
+                        .is_some_and(|origin| Arc::ptr_eq(origin, &source.origin))
+                    || !row.entry.owns_source(&site.source, site.offset)
+                    || source
+                        .origin
+                        .source_image()
+                        .bytes()
+                        .get(base as usize..end as usize)
+                        != Some(child.text.bytes())
+                {
+                    return None;
+                }
+                bodies.push(tcl_lexer::Span::new(base, end));
+            }
+            return Some(DeclarationReadPointScope::ConditionalRootRelated { root, bodies });
+        }
         // An original row that is present but invalid cannot borrow source
         // absence. Only an independently retained declaration may proceed.
         if self.inventory.layouts.contains_key(site) {
             return None;
+        }
+        if self.purpose == DeclarationFlowPurpose::Representation
+            && let DeclarationFlowFrame::Existing(
+                entry @ super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+                    ..
+                },
+            ) = self.entry
+        {
+            return Some(DeclarationReadPointScope::ConditionalRoot(entry));
         }
         let DeclarationFlowFrame::Existing(
             super::declaration_layout::OriginalDiagnosticFrameEntry::DeclaredProcedure(body),
@@ -1178,18 +1893,19 @@ impl Builder<'_> {
         Some(DeclarationReadPointScope::ConditionalDeclared(body))
     }
 
-    fn source_read_selection(
-        &self,
-        tokens: &CommandTokens,
-        site: &CommandAllocationSite,
-    ) -> Option<crate::registry_invocation::DeclarationInvocationFlow> {
-        let body = match self.entry {
+    fn source_read_body(&self, site: &CommandAllocationSite) -> Option<tcl_lexer::Span> {
+        Some(match self.entry {
             DeclarationFlowFrame::Existing(entry) => {
-                if !matches!(
+                if !(matches!(
                     entry.frame(),
                     crate::var_resolve::VariableExecutionFrame::Procedure { .. }
                         | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
-                ) {
+                ) || self.purpose == DeclarationFlowPurpose::Representation
+                    && matches!(
+                        entry,
+                        super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { .. }
+                    ))
+                {
                     trace_rbs_refusal(site.offset, "selection.frame");
                     return None;
                 }
@@ -1217,7 +1933,15 @@ impl Builder<'_> {
                     "selection.read-body",
                 )?
             }
-        };
+        })
+    }
+
+    fn source_read_selection(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+    ) -> Option<crate::registry_invocation::DeclarationInvocationFlow> {
+        let body = self.source_read_body(site)?;
         // Original layout corruption is terminal even for a source-only query.
         let scopes = trace_rbs_required(
             self.source_read_point_scope(tokens, site),
@@ -1240,6 +1964,12 @@ impl Builder<'_> {
                 point.dispatch
                     && point.offset == site.offset
                     && point.state.current_source_origin.as_ref() == Some(&site.source)
+                    && (self.purpose != DeclarationFlowPurpose::Representation
+                        || point
+                            .state
+                            .current_source_origin
+                            .as_ref()
+                            .is_some_and(|origin| Arc::ptr_eq(origin, &site.source)))
                     && scopes.matches_frame(&point.state.variable_frame)
             });
         let mut points = points.peekable();
@@ -1247,13 +1977,29 @@ impl Builder<'_> {
             retained.source_binding =
                 Some(super::SourceCommandBindings::query_dispatch_points(points));
         }
+        let catalogue = trace_rbs_required(
+            self.inventory
+                .source_read_catalogue(self.registry, self.purpose),
+            site.offset,
+            "selection.catalogue",
+        )?;
         let scope = trace_rbs_required(
-            trace_rbs_required(
-                self.inventory.source_read_catalogue(self.registry),
-                site.offset,
-                "selection.catalogue",
-            )?
-            .scope(site, &retained, body, self.config),
+            match self.entry {
+                DeclarationFlowFrame::Existing(
+                    entry @ super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+                        ..
+                    },
+                ) if self.purpose == DeclarationFlowPurpose::Representation => {
+                    let bodies = match &scopes {
+                        DeclarationReadPointScope::ConditionalRootRelated { bodies, .. } => {
+                            bodies.as_slice()
+                        }
+                        _ => &[],
+                    };
+                    self.conditional_root_scope(catalogue, entry, site, &retained, bodies)
+                }
+                _ => catalogue.scope(site, &retained, body, self.config),
+            },
             site.offset,
             "selection.scope",
         )?;
@@ -1269,6 +2015,8 @@ impl Builder<'_> {
                 self.registry,
                 &retained,
                 &scope,
+                self.completion_frame(),
+                self.purpose == DeclarationFlowPurpose::Representation,
             ),
             site.offset,
             "selection.flow",
@@ -1283,16 +2031,96 @@ impl Builder<'_> {
         crate::registry_invocation::DeclarationInvocationFlow,
         Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
     )> {
+        if self.purpose == DeclarationFlowPurpose::Representation {
+            let Some(source) = self.source_read_selection(tokens, site) else {
+                let fallback = self.representation_observed_selection(tokens, site);
+                return fallback.map(|selected| (selected, None));
+            };
+            if matches!(
+                self.source_read_point_scope(tokens, site)?,
+                DeclarationReadPointScope::Observed(_)
+            ) {
+                let (_, lifecycle) =
+                    self.original_layout_selection_checked(tokens, site, Some(&source))?;
+                if lifecycle.is_some() {
+                    return None;
+                }
+            }
+            return Some((source, None));
+        }
         self.original_layout_selection(tokens, site).or_else(|| {
             self.source_read_selection(tokens, site)
                 .map(|selected| (selected, None))
         })
     }
 
+    /// Reuse the retained module realm for an already observed root command.
+    /// The original word-source variant and all of its obligations remain held.
+    fn representation_observed_selection(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+    ) -> Option<crate::registry_invocation::DeclarationInvocationFlow> {
+        if !matches!(
+            self.entry,
+            DeclarationFlowFrame::Existing(
+                super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { .. }
+            )
+        ) || !matches!(
+            self.source_read_point_scope(tokens, site)?,
+            DeclarationReadPointScope::Observed(_)
+        ) {
+            return None;
+        }
+        let (observed, lifecycle) = self.original_layout_selection(tokens, site)?;
+        if lifecycle.is_some()
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+        {
+            return None;
+        }
+        let realm = self.representation_realm?;
+        let input = self
+            .inventory
+            .source_seed
+            .as_ref()?
+            .baseline
+            .metadata_context
+            .source_analysis_input()?;
+        let mut retained = tokens.clone();
+        realm.stamp_original_tokens(&mut retained);
+        let words = crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(
+            realm, input, &retained,
+        );
+        let words = words?;
+        let source = crate::registry_invocation::declaration_original_words_flow(
+            self.registry,
+            &retained,
+            words,
+            input.borrowed_context_registry(),
+            self.completion_frame(),
+            true,
+        )?;
+        let (verified, _) = self.original_layout_selection_checked(tokens, site, Some(&source))?;
+        (verified == observed).then_some(source)
+    }
+
     fn original_layout_selection(
         &self,
         tokens: &CommandTokens,
         site: &CommandAllocationSite,
+    ) -> Option<(
+        crate::registry_invocation::DeclarationInvocationFlow,
+        Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
+    )> {
+        self.original_layout_selection_checked(tokens, site, None)
+    }
+
+    fn original_layout_selection_checked(
+        &self,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        source: Option<&crate::registry_invocation::DeclarationInvocationFlow>,
     ) -> Option<(
         crate::registry_invocation::DeclarationInvocationFlow,
         Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
@@ -1333,11 +2161,29 @@ impl Builder<'_> {
                 retained.source_binding =
                     Some(super::SourceCommandBindings::query_dispatch_points(points));
             }
-            let selected = crate::registry_invocation::declaration_invocation_flow(
+            let selected = crate::registry_invocation::declaration_invocation_flow_in_frame(
                 self.registry,
                 &retained,
                 &advice,
+                self.completion_frame(),
             )?;
+            if let Some(source) = source {
+                let input = self
+                    .inventory
+                    .source_seed
+                    .as_ref()?
+                    .baseline
+                    .metadata_context
+                    .source_analysis_input()?;
+                crate::registry_invocation::declaration_source_flow_corresponds(
+                    self.registry,
+                    &retained,
+                    &advice,
+                    source,
+                    &selected,
+                    input.borrowed_context_registry(),
+                )?;
+            }
             let lifecycle = if selected.flow == ScriptBodyFlow::CapturedLifecycle {
                 Some(match self.entry {
                     DeclarationFlowFrame::Existing(entry) => advice
@@ -1365,6 +2211,16 @@ impl Builder<'_> {
     ) {
         self.nodes[id].site = Some(site.offset);
         let selected = self.selection(tokens, site);
+        let mut representation_plan = if self.purpose == DeclarationFlowPurpose::Representation {
+            self.nodes[id]
+                .representation_events
+                .push(representation::Event::ClearResult);
+            selected
+                .as_ref()
+                .and_then(|(selected, _)| self.representation_plan(tokens, site, selected))
+        } else {
+            None
+        };
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_RBS_SOURCE_OWNER").is_some() {
             if let Some((flow, _)) = &selected {
@@ -1388,8 +2244,32 @@ impl Builder<'_> {
         }
         let dispatch = self.placeholder();
         let mut operands = Vec::new();
-        for word in tokens.words() {
+        for (index, word) in tokens.words().iter().enumerate() {
+            let first_event = operands.len();
             self.word_events(word, site, &mut operands);
+            if let Some(plan) = &mut representation_plan
+                && index > 0
+            {
+                let Some(from) = plan.captures.pop_front() else {
+                    operands.push(Event::Representation(representation::Event::Barrier));
+                    continue;
+                };
+                if matches!(&from, representation::CaptureSource::Variable { .. }) {
+                    for event in &mut operands[first_event..] {
+                        if matches!(event, Event::ReadUnavailable) {
+                            *event = Event::ConditionalReadUnavailable;
+                        }
+                    }
+                }
+                operands.push(Event::Representation(representation::Event::Capture {
+                    into: representation::OperandSnapshot {
+                        site: site.offset,
+                        operand: tcl_registry::value_transfer::OperandId(index - 1),
+                    },
+                    from,
+                    source: Arc::clone(&plan.source),
+                }));
+            }
         }
         let next = self.events_before(operands, dispatch, exits);
         self.nodes[id].successors = vec![next];
@@ -1397,6 +2277,20 @@ impl Builder<'_> {
             self.unknown(dispatch, exits.normal);
             return;
         };
+        let after = self.selected_effect_nodes(id, dispatch, site, &selected, exits.normal);
+        self.representation_completion(representation_plan, tokens, site, after, dispatch);
+        let successors = self.command_flow(site, &selected, lifecycle.as_ref(), after, exits);
+        self.nodes[dispatch].successors = successors;
+    }
+
+    fn selected_effect_nodes(
+        &mut self,
+        id: usize,
+        dispatch: usize,
+        site: &CommandAllocationSite,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+        next: usize,
+    ) -> usize {
         self.nodes[id].availability.schema_origin = selected.effects.schema_origin;
         for &operand in &selected.quoted_operands {
             match self.quoted_mentions(site, &selected.effective, operand) {
@@ -1431,9 +2325,48 @@ impl Builder<'_> {
             .accumulator_writes
             .clone_from(&selected.accumulator_writes);
         self.nodes[after].removes.clone_from(&selected.removes);
-        self.nodes[after].successors = vec![exits.normal];
-        let successors = self.command_flow(site, &selected, lifecycle.as_ref(), after, exits);
-        self.nodes[dispatch].successors = successors;
+        self.nodes[after].successors = vec![next];
+        after
+    }
+
+    fn representation_completion(
+        &mut self,
+        representation_plan: Option<ConditionalRepresentationPlan>,
+        tokens: &CommandTokens,
+        site: &CommandAllocationSite,
+        after: usize,
+        dispatch: usize,
+    ) {
+        if self.purpose == DeclarationFlowPurpose::Representation {
+            if let (Some(plan), Some(first)) = (representation_plan, tokens.words().first()) {
+                let span = first.source().span;
+                if let Some(relation) = plan.relation {
+                    self.nodes[after]
+                        .representation_events
+                        .push(representation::Event::Apply {
+                            site: site.offset,
+                            span,
+                            relation,
+                            target: plan.target,
+                            source: Arc::clone(&plan.source),
+                        });
+                }
+                if let Some(coercion) = plan.coercion {
+                    self.nodes[after].representation_events.push(
+                        representation::Event::ListIndex {
+                            site: site.offset,
+                            span,
+                            coercion,
+                            source: plan.source,
+                        },
+                    );
+                }
+            } else {
+                self.nodes[dispatch]
+                    .representation_events
+                    .push(representation::Event::Barrier);
+            }
+        }
     }
 
     fn command_flow(
@@ -1798,17 +2731,34 @@ impl Builder<'_> {
                     self.nodes[id].reads.push((name, span));
                     self.nodes[id].successors = vec![next];
                 }
-                Event::Script(source) => self.jobs.push(Job {
-                    source,
-                    purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                    entry: id,
-                    exits: Exits {
-                        normal: next,
-                        ..exits
-                    },
-                }),
+                Event::Script(source) => {
+                    if self.purpose == DeclarationFlowPurpose::Representation {
+                        self.nodes[id]
+                            .representation_events
+                            .push(representation::Event::ClearResult);
+                    }
+                    self.jobs.push(Job {
+                        source,
+                        purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                        entry: id,
+                        exits: Exits {
+                            normal: next,
+                            ..exits
+                        },
+                    });
+                }
+                Event::Representation(event) => {
+                    self.nodes[id].representation_events.push(event);
+                    self.nodes[id].successors = vec![next];
+                }
                 Event::ReadUnavailable => {
                     self.unknown(id, next);
+                    self.nodes[id].declared_read_unavailable = true;
+                    self.nodes[id].availability.unavailable_declared_prefix = false;
+                }
+                Event::ConditionalReadUnavailable => {
+                    self.nodes[id].unknown = true;
+                    self.nodes[id].successors = vec![next];
                     self.nodes[id].declared_read_unavailable = true;
                     self.nodes[id].availability.unavailable_declared_prefix = false;
                 }
@@ -2342,11 +3292,23 @@ impl Builder<'_> {
     }
     fn evaluate(self, entry: usize) -> DeclarationFlowReport {
         let source = Arc::clone(self.entry.origin());
+        let representation_occurrences = if self.purpose == DeclarationFlowPurpose::Representation {
+            representation::project(&self, entry)
+        } else {
+            Vec::new()
+        };
         let mut report = DeclarationFlowReport {
             source,
+            representation_occurrences,
             reads: BTreeMap::new(),
             reached: BTreeSet::new(),
             represented: self.nodes.iter().filter_map(|node| node.site).collect(),
+            #[cfg(test)]
+            conditional_handler_sites: self
+                .nodes
+                .iter()
+                .filter_map(|node| node.handler_site)
+                .collect(),
             unavailable_before: BTreeSet::new(),
             unavailable: false,
             unknown_reads: false,
@@ -2840,6 +3802,8 @@ enum Event {
     AuthoredRead(String, tcl_lexer::Span),
     Read(String, tcl_lexer::Span),
     Script(ExecutedScriptSource),
+    Representation(representation::Event),
+    ConditionalReadUnavailable,
     ReadUnavailable,
     Unknown,
 }
@@ -2867,6 +3831,518 @@ mod tests {
     use crate::interprocedural::test_body_identity::fixture_id_if_present;
 
     use super::*;
+
+    #[test]
+    fn conditional_root_naming_is_scoped_to_the_original_command() {
+        let source = "set s abc; set n [string length $s]; set m $n; lindex $m 0; lindex $n 0";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let realm = analysis.retained_command_realm().unwrap();
+        let image = tcl_lexer::SourceImage::document(source);
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut anchor = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+        realm
+            .source_bindings_ref()
+            .stamp_original_tokens(&mut anchor);
+        let binding = anchor.source_binding.as_ref().unwrap();
+        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
+        let root_site = binding.invocation_site().unwrap();
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory.layouts.get(root_site).unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+        let builder = Builder {
+            inventory,
+            registry,
+            config,
+            dialect: observation
+                .snapshot
+                .state
+                .source_variables
+                .invocation_dialect
+                .unwrap(),
+            entry: &frame,
+            purpose: DeclarationFlowPurpose::Representation,
+            representation_realm: Some(realm),
+            nodes: Vec::new(),
+            jobs: Vec::new(),
+            conditional_overwrites: Vec::new(),
+            read_sites: BTreeSet::new(),
+        };
+        let earlier = &segments[3];
+        let later = &segments[4];
+        let earlier_site = CommandAllocationSite {
+            source: Arc::clone(frame.origin()),
+            offset: earlier.argv[0].span.start(),
+        };
+        let later_site = CommandAllocationSite {
+            source: Arc::clone(frame.origin()),
+            offset: later.argv[0].span.start(),
+        };
+        let earlier_tokens = CommandTokens::from_segmented(&image.source_map(), config, earlier);
+        let later_tokens = CommandTokens::from_segmented(&image.source_map(), config, later);
+        assert!(
+            builder
+                .representation_root_naming_scope(&earlier_tokens, &earlier_site)
+                .is_some()
+        );
+        assert!(
+            builder
+                .representation_root_naming_scope(&later_tokens, &later_site)
+                .is_none()
+        );
+        let mut changed = earlier_tokens.clone();
+        changed.argv_texts[1] = "$foreign".to_owned();
+        assert!(
+            builder
+                .representation_root_naming_scope(&changed, &earlier_site)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_representation_head_correspondence_checks_original_receipts() {
+        let source = "set n 1";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let realm = analysis.retained_command_realm().unwrap();
+        let bindings = realm.source_bindings_ref();
+        let image = tcl_lexer::SourceImage::document(source);
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
+        let site = binding.invocation_site().unwrap().clone();
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory.layouts.get(&site).unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+        let builder = Builder {
+            inventory,
+            registry,
+            config,
+            dialect: observation
+                .snapshot
+                .state
+                .source_variables
+                .invocation_dialect
+                .unwrap(),
+            entry: &frame,
+            purpose: DeclarationFlowPurpose::Representation,
+            representation_realm: Some(realm),
+            nodes: Vec::new(),
+            jobs: Vec::new(),
+            conditional_overwrites: Vec::new(),
+            read_sites: BTreeSet::new(),
+        };
+        let (observed, _) = builder.original_layout_selection(&tokens, &site).unwrap();
+        let words = crate::registry_invocation::source_structure::original_registry_words_for_supplied_tokens(realm, input, &tokens).unwrap();
+        let original = crate::registry_invocation::declaration_original_words_flow(
+            registry,
+            &tokens,
+            words,
+            input.borrowed_context_registry(),
+            builder.completion_frame(),
+            true,
+        )
+        .unwrap();
+        let scope = builder
+            .selection_scopes(&tokens, &site)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let advice = super::super::original_site_operand_layout_advice(
+            &site,
+            &tokens,
+            scope.snapshot,
+            scope.namespace,
+            scope.config,
+        )
+        .unwrap();
+        let check =
+            |source: &crate::registry_invocation::DeclarationInvocationFlow,
+             observed: &crate::registry_invocation::DeclarationInvocationFlow| {
+                crate::registry_invocation::declaration_source_flow_corresponds(
+                    registry,
+                    &tokens,
+                    &advice,
+                    source,
+                    observed,
+                    input.borrowed_context_registry(),
+                )
+                .is_some()
+            };
+        assert_ne!(
+            original.effective.words.first(),
+            observed.effective.words.first()
+        );
+        assert!(check(&original, &observed));
+        let mut changed = original.clone();
+        if let crate::ir::WordExpr::Literal { text, .. } = &mut changed.effective.words[0] {
+            *text = "foreign".to_owned();
+        } else {
+            panic!("expected source head");
+        }
+        assert!(!check(&changed, &observed));
+        let mut changed = original.clone();
+        if let crate::ir::WordExpr::Literal { source, .. } = &mut changed.effective.words[0] {
+            *source = crate::ir::SourceSite::opaque(tcl_lexer::Span::new(1, 2));
+        } else {
+            panic!("expected source head");
+        }
+        assert!(!check(&changed, &observed));
+        let mut changed = original.clone();
+        changed.effective.words[1] = changed.effective.words[2].clone();
+        assert!(!check(&changed, &observed));
+        let mut changed = original.clone();
+        changed.effective.origins[0] = crate::registry_invocation::InvocationWordOrigin::Written(0);
+        assert!(!check(&changed, &observed));
+        let mut changed = original.clone();
+        changed.effective.binding_prefix.push(
+            crate::registry_invocation::EffectiveInvocationWord::Literal("foreign".to_owned()),
+        );
+        assert!(!check(&changed, &observed));
+        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        let foreign_input = foreign.resolved_input.as_ref().unwrap();
+        assert!(!std::ptr::eq(
+            input.borrowed_context_registry().context(),
+            foreign_input.borrowed_context_registry().context(),
+        ));
+        assert!(
+            crate::registry_invocation::declaration_source_flow_corresponds(
+                registry,
+                &tokens,
+                &advice,
+                &original,
+                &observed,
+                foreign_input.borrowed_context_registry(),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn conditional_root_representation_flow_covers_reported_foreach() {
+        let source = "set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; if {$y > 2} {lappend ys $y; lappend pts $pt}}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let realm = analysis.retained_command_realm().unwrap();
+        let bindings = realm.source_bindings_ref();
+        let image = tcl_lexer::SourceImage::document(source);
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut tokens = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+        bindings.stamp_original_tokens(&mut tokens);
+        let report = tokens
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .declaration_representation_flow_report(&tokens, input, registry, Some(realm))
+            .expect("the original root input owns the conditional representation graph");
+        for command in [
+            "foreach pt",
+            "set y [lindex",
+            "lindex $pt 1",
+            "if {$y",
+            "lappend ys $y",
+            "lappend pts $pt",
+        ] {
+            let offset = u32::try_from(source.find(command).unwrap()).unwrap();
+            assert!(
+                report.conditional_handler_sites.contains(&offset),
+                "missing conditional source handler at {command}"
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_root_source_scope_uses_its_original_parent_and_input() {
+        let source = "set ys {}; foreach pt {{1 2} {3 4}} {lappend ys $pt}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = input.borrowed_context_registry().commands();
+        let config = input.lexer_config();
+        let realm = analysis.retained_command_realm().unwrap();
+        let bindings = realm.source_bindings_ref();
+        let image = tcl_lexer::SourceImage::document(source);
+        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut anchor = CommandTokens::from_segmented(&image.source_map(), config, &segments[0]);
+        bindings.stamp_original_tokens(&mut anchor);
+        let binding = anchor.source_binding.as_ref().unwrap();
+        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory
+                .layouts
+                .get(binding.invocation_site().unwrap())
+                .unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let frame = DeclarationFlowFrame::Existing(observation.entry.as_ref().clone());
+        assert!(matches!(
+            frame,
+            DeclarationFlowFrame::Existing(
+                super::super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript { .. }
+            )
+        ));
+        let dialect = observation
+            .snapshot
+            .state
+            .source_variables
+            .invocation_dialect
+            .unwrap();
+        let offset = u32::try_from(source.find("lappend").unwrap()).unwrap();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            "lappend ys $pt",
+            offset,
+            config,
+        )
+        .remove(0);
+        let child = CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        let site = CommandAllocationSite {
+            source: Arc::clone(frame.origin()),
+            offset,
+        };
+        macro_rules! builder {
+            ($purpose:expr, $inventory:expr) => {
+                Builder {
+                    inventory: $inventory,
+                    registry,
+                    config,
+                    dialect,
+                    entry: &frame,
+                    purpose: $purpose,
+                    representation_realm: None,
+                    nodes: Vec::new(),
+                    jobs: Vec::new(),
+                    conditional_overwrites: Vec::new(),
+                    read_sites: BTreeSet::new(),
+                }
+            };
+        }
+        assert!(
+            builder!(DeclarationFlowPurpose::Reads, inventory)
+                .source_read_selection(&child, &site)
+                .is_none()
+        );
+        let root_builder = builder!(DeclarationFlowPurpose::Representation, inventory);
+        let related = root_builder
+            .source_read_point_scope(&child, &site)
+            .expect("actual nested activation is related to the root");
+        assert!(
+            matches!(related, DeclarationReadPointScope::ConditionalRootRelated { ref bodies, .. }
+            if !bodies.is_empty() && bodies.iter().all(|span| *span == tcl_lexer::Span::new(offset, offset + 14)))
+        );
+        let selected = builder!(DeclarationFlowPurpose::Representation, inventory)
+            .source_read_selection(&child, &site)
+            .expect("conditional original body schema");
+        assert!(selected.accumulator_writes.iter().any(|name| name == "ys"));
+        let foreign_analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let foreign_realm = foreign_analysis.retained_command_realm().unwrap();
+        assert!(
+            binding
+                .declaration_representation_flow_report(
+                    &anchor,
+                    input,
+                    registry,
+                    Some(foreign_realm)
+                )
+                .is_none(),
+            "equal text from a different source owner cannot warm the report cache"
+        );
+        let report = binding
+            .declaration_representation_flow_report(&anchor, input, registry, Some(realm))
+            .expect("same original analysis owns the conditional report");
+        assert!(
+            report.conditional_handler_sites.contains(&offset),
+            "the body handler must be modelled"
+        );
+        assert!(
+            binding
+                .declaration_representation_flow_report(&anchor, input, registry, Some(realm))
+                .is_some(),
+            "the original source owner remains usable after a foreign request"
+        );
+        assert!(
+            binding
+                .declaration_representation_flow_report(
+                    &anchor,
+                    input,
+                    registry,
+                    Some(foreign_realm)
+                )
+                .is_none(),
+            "a cached original report cannot be borrowed by a foreign owner"
+        );
+
+        let mut synthetic = child.clone();
+        synthetic.synthetic = Some(crate::ir::SyntheticMarker::Condition);
+        assert!(
+            builder!(DeclarationFlowPurpose::Representation, inventory)
+                .source_read_selection(&synthetic, &site)
+                .is_none()
+        );
+        let mut changed = child.clone();
+        changed.argv_texts[1] = "foreign".to_owned();
+        assert!(
+            builder!(DeclarationFlowPurpose::Representation, inventory)
+                .source_read_selection(&changed, &site)
+                .is_none()
+        );
+
+        let mut missing = DeclarationFlowInventory::new(
+            Arc::new(BTreeMap::new()),
+            Arc::clone(&inventory.accesses),
+            Arc::clone(&inventory.origin_accesses),
+            Arc::clone(&inventory.points),
+            Arc::clone(&inventory.origin_points),
+        );
+        missing.source_seed = inventory.source_seed.clone();
+        assert!(
+            builder!(DeclarationFlowPurpose::Representation, &missing)
+                .source_read_selection(&child, &site)
+                .is_none()
+        );
+        let mut corrupt = inventory.layouts.as_ref().clone();
+        corrupt.get_mut(&site).unwrap()[0].words = Arc::from([]);
+        let mut corrupt = DeclarationFlowInventory::new(
+            Arc::new(corrupt),
+            Arc::clone(&inventory.accesses),
+            Arc::clone(&inventory.origin_accesses),
+            Arc::clone(&inventory.points),
+            Arc::clone(&inventory.origin_points),
+        );
+        corrupt.source_seed = inventory.source_seed.clone();
+        assert!(
+            builder!(DeclarationFlowPurpose::Representation, &corrupt)
+                .source_read_selection(&child, &site)
+                .is_none()
+        );
+        for axis in 0..3 {
+            let mut changed = inventory.layouts.as_ref().clone();
+            for row in changed.get_mut(&site).unwrap() {
+                let mut state = row.snapshot.state.clone();
+                let baseline = Arc::make_mut(&mut state.baseline);
+                match axis {
+                    0 => baseline.unknown_entry = true,
+                    1 => baseline.registry_snapshot = None,
+                    _ => {
+                        baseline.metadata_context =
+                            crate::registry_invocation::OwnedInvocationMetadataContext::Standalone
+                    }
+                }
+                row.snapshot = Arc::new(super::super::SourceLookupSnapshot::in_realm(
+                    state,
+                    row.snapshot.realm,
+                ));
+            }
+            let mut changed = DeclarationFlowInventory::new(
+                Arc::new(changed),
+                Arc::clone(&inventory.accesses),
+                Arc::clone(&inventory.origin_accesses),
+                Arc::clone(&inventory.points),
+                Arc::clone(&inventory.origin_points),
+            );
+            changed.source_seed = inventory.source_seed.clone();
+            assert!(
+                builder!(DeclarationFlowPurpose::Representation, &changed)
+                    .source_read_selection(&child, &site)
+                    .is_none(),
+                "changed child baseline axis {axis}"
+            );
+        }
+        let mut no_parent = inventory.layouts.as_ref().clone();
+        let parent_site = CommandAllocationSite {
+            source: Arc::clone(&site.source),
+            offset: u32::try_from(source.find("foreach").unwrap()).unwrap(),
+        };
+        assert!(no_parent.remove(&parent_site).is_some());
+        let mut no_parent = DeclarationFlowInventory::new(
+            Arc::new(no_parent),
+            Arc::clone(&inventory.accesses),
+            Arc::clone(&inventory.origin_accesses),
+            Arc::clone(&inventory.points),
+            Arc::clone(&inventory.origin_points),
+        );
+        no_parent.source_seed = inventory.source_seed.clone();
+        assert!(
+            builder!(DeclarationFlowPurpose::Representation, &no_parent)
+                .source_read_selection(&child, &site)
+                .is_none()
+        );
+
+        for axis in 0..4 {
+            let mut changed = inventory.layouts.as_ref().clone();
+            for row in changed.get_mut(&site).unwrap() {
+                let mut entry = row.entry.as_ref().clone();
+                let super::super::declaration_layout::OriginalDiagnosticFrameEntry::ScriptActivation {
+                    source: activation, frame, namespace, config,
+                } = &mut entry else { panic!("genuine script activation expected"); };
+                match axis {
+                    0 => {
+                        *activation = ExecutedScriptSource::contiguous_image(
+                            Arc::clone(&site.source),
+                            site.source.source_image().clone(),
+                            0,
+                        )
+                        .unwrap()
+                    }
+                    1 => {
+                        *frame = crate::var_resolve::VariableExecutionFrame::Namespace(
+                            "::foreign".to_owned(),
+                        )
+                    }
+                    2 => *namespace = super::super::SourceNamespaceKey::authored("::foreign"),
+                    _ => config.expand_syntax = !config.expand_syntax,
+                }
+                row.entry = Arc::new(entry);
+            }
+            let mut changed = DeclarationFlowInventory::new(
+                Arc::new(changed),
+                Arc::clone(&inventory.accesses),
+                Arc::clone(&inventory.origin_accesses),
+                Arc::clone(&inventory.points),
+                Arc::clone(&inventory.origin_points),
+            );
+            changed.source_seed = inventory.source_seed.clone();
+            if axis == 0 {
+                assert!(
+                    builder!(DeclarationFlowPurpose::Representation, &changed)
+                        .source_read_point_scope(&child, &site)
+                        .is_some(),
+                    "wider source reaches the ancestry gate"
+                );
+            }
+            assert!(
+                builder!(DeclarationFlowPurpose::Representation, &changed)
+                    .source_read_selection(&child, &site)
+                    .is_none(),
+                "changed activation axis {axis}"
+            );
+        }
+        let mut foreign = site.clone();
+        foreign.source = Arc::new(super::super::SourceOriginId::authored_image(image.clone()));
+        assert!(
+            builder!(DeclarationFlowPurpose::Representation, inventory)
+                .source_read_selection(&child, &foreign)
+                .is_none()
+        );
+    }
 
     #[test]
     fn lifecycle_subcommand_schedules_its_original_phase_scripts() {
@@ -2932,6 +4408,8 @@ mod tests {
             config,
             dialect: tcl_registry::InvocationDialect::of_profile(profile),
             entry: &frame,
+            purpose: DeclarationFlowPurpose::Reads,
+            representation_realm: None,
             nodes: Vec::new(),
             jobs: Vec::new(),
             conditional_overwrites: Vec::new(),
@@ -2987,6 +4465,8 @@ mod tests {
                 config,
                 dialect,
                 entry: &frame,
+                purpose: DeclarationFlowPurpose::Reads,
+                representation_realm: None,
                 nodes: Vec::new(),
                 jobs: Vec::new(),
                 conditional_overwrites: Vec::new(),
@@ -3073,6 +4553,8 @@ mod tests {
                 config,
                 dialect,
                 entry: &frame,
+                purpose: DeclarationFlowPurpose::Reads,
+                representation_realm: None,
                 nodes: Vec::new(),
                 jobs: Vec::new(),
                 conditional_overwrites: Vec::new(),
@@ -3920,7 +5402,7 @@ mod declared_procedure_source_read_occurrence_tests {
 
 #[cfg(test)]
 mod conditional_declared_read_point_tests {
-    use super::{Builder, DeclarationFlowFrame, DeclarationFlowInventory};
+    use super::{Builder, DeclarationFlowFrame, DeclarationFlowInventory, DeclarationFlowPurpose};
     use crate::command_binding::{
         CommandAllocationSite, SourceAnalysisOptions, SourceCommandBindings,
     };
@@ -4035,6 +5517,8 @@ mod conditional_declared_read_point_tests {
                 config: self.config,
                 dialect: self.dialect,
                 entry: &self.frame,
+                purpose: DeclarationFlowPurpose::Reads,
+                representation_realm: None,
                 nodes: Vec::new(),
                 jobs: Vec::new(),
                 conditional_overwrites: Vec::new(),
