@@ -325,6 +325,12 @@ silently misses something:
 to locate a member in a file the editor never opened.  Cross-file *dispatch*
 needs none of those spans; they are carried for the picker alone.
 
+The first workspace-symbol request waits for the initial folder scan to finish,
+including package discovery and publication of the index. The wait is cancellable
+and does not occupy a request admission slot. Startup failure and shutdown wake
+waiting requests with an error rather than an apparently complete empty result.
+Later requests also wait for an in-flight folder scan before reading the index.
+
 ## How the tables are stored
 
 The tables are held **per document** (`DocumentRecords`, one slot per URI)

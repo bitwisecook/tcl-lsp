@@ -3549,23 +3549,6 @@ const WORKSPACE_ANALYSIS_MAX_CONCURRENCY: usize = 16;
 /// boundary.
 const SCAN_MERGE_BATCH_SIZE: usize = 200;
 
-/// How long a workspace-wide query waits for the initial folder scan before
-/// answering from whatever the index already holds (see
-/// [`Backend::wait_for_workspace_scan`]).  Generous enough to cover a real
-/// project's startup scan — the alternative is a confidently empty answer to
-/// the very first `workspace/symbol` of a session — but bounded, so a
-/// pathological workspace degrades to a stale answer instead of hanging the
-/// picker.  Paid at most once per session: after the first scan completes the
-/// wait is a relaxed atomic load.
-const INITIAL_WORKSPACE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
-
-/// How long a workspace-wide query waits for the initial folder scan to
-/// *begin*, before [`INITIAL_WORKSPACE_SCAN_WAIT`] times the scan itself.
-/// `initialized` first pulls the config and registers file watchers, each
-/// bounded by [`CLIENT_REQUEST_TIMEOUT`], then loads the spec packs, so this
-/// covers both round-trips with the pack load to spare.
-const PRE_SCAN_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
-
 /// Debounce window for coalescing `workspace/semanticTokens/refresh` pushes
 /// (see [`SemanticTokensRefreshCtx::request_refresh_coalesced`]). Comparable
 /// to [`DIAGNOSTICS_DEBOUNCE`]: many cold large documents finishing their
@@ -10770,36 +10753,51 @@ impl Drop for EditTurn<'_> {
 /// flight" both wait.
 #[derive(Debug, Default)]
 struct WorkspaceScanReadiness {
-    started: OneShotSignal,
     complete: OneShotSignal,
+    /// 0 while pending, 1 after a completed scan, 2 after startup failed.
+    outcome: std::sync::atomic::AtomicU8,
+    shutdown: OneShotSignal,
 }
 
 impl WorkspaceScanReadiness {
-    /// Record that a scan pass has begun and wake every waiter.
-    fn mark_started(&self) {
-        self.started.raise();
-    }
-
     /// Record that a scan pass has finished and wake every waiter.
     fn mark_complete(&self) {
+        self.outcome.store(1, std::sync::atomic::Ordering::Release);
         self.complete.raise();
     }
 
     fn is_complete(&self) -> bool {
-        self.complete.is_raised()
+        self.outcome.load(std::sync::atomic::Ordering::Acquire) == 1
     }
 
-    /// Wait until the first scan pass has begun: what `initialized` does
-    /// before it scans is bounded on its own, so this always ends.
-    async fn wait_started(&self) {
-        self.started.wait().await;
+    fn mark_failed(&self) {
+        if self
+            .outcome
+            .compare_exchange(
+                0,
+                2,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            self.complete.raise();
+        }
     }
 
-    /// Wait until the first scan pass has completed.  Callers bound this with
-    /// their own timeout — a workspace scan is disk-bound and a request must
-    /// degrade to a stale answer rather than hang.
-    async fn wait(&self) {
+    /// Wait until the initial scan succeeds or startup fails.
+    async fn wait(&self) -> bool {
         self.complete.wait().await;
+        self.is_complete()
+    }
+}
+
+/// Wake startup waiters if `initialized` returns early or is cancelled.
+struct WorkspaceStartupGuard<'a>(&'a WorkspaceScanReadiness);
+
+impl Drop for WorkspaceStartupGuard<'_> {
+    fn drop(&mut self) {
+        self.0.mark_failed();
     }
 }
 
@@ -30166,7 +30164,7 @@ impl Backend {
         )
     }
 
-    /// Wait (bounded) for the workspace index to reflect a completed folder
+    /// Wait for the workspace index to reflect a completed folder
     /// scan before answering a workspace-wide query.
     ///
     /// Covers both halves of the startup race: the readiness signal covers
@@ -30178,19 +30176,33 @@ impl Backend {
     ///
     /// A session with no workspace folders has no scan worth waiting for, so
     /// it returns immediately rather than burning the budget.
-    async fn wait_for_workspace_scan(&self) {
+    async fn wait_for_workspace_scan(&self) -> jsonrpc::Result<()> {
         if !self.workspace_scan_ready.is_complete() && self.workspace_folder_urls().await.is_empty()
         {
-            return;
+            return Ok(());
         }
-        // The budget is the scan's own: what runs before it is a machine's
-        // load away from fitting in it, and would leave the query no time.
-        let _ = crate::rt::timeout(PRE_SCAN_WAIT, self.workspace_scan_ready.wait_started()).await;
-        let _ = crate::rt::timeout(INITIAL_WORKSPACE_SCAN_WAIT, async {
-            self.workspace_scan_ready.wait().await;
-            drop(self.workspace_scan_gate.lock().await);
+        crate::transport_liveness::await_outside_request_admission(async {
+            tokio::select! {
+                biased;
+                () = self.workspace_scan_ready.shutdown.wait() => Err(jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: "Workspace scan stopped during shutdown".into(),
+                    data: None,
+                }),
+                result = async {
+                    if !self.workspace_scan_ready.wait().await {
+                        return Err(jsonrpc::Error {
+                            code: jsonrpc::ErrorCode::InternalError,
+                            message: "Workspace startup scan failed".into(),
+                            data: None,
+                        });
+                    }
+                    drop(self.workspace_scan_gate.lock().await);
+                    Ok(())
+                } => result,
+            }
         })
-        .await;
+        .await
     }
 
     /// Load a closed document solely for workspace-symbol span mapping.
@@ -30526,7 +30538,6 @@ impl Backend {
         workspace_scan_trace!("scan.gate.wait");
         let _scan_guard = self.workspace_scan_gate.lock().await;
         workspace_scan_trace!("scan.gate.acquired");
-        self.workspace_scan_ready.mark_started();
         self.workspace_index
             .write()
             .await
@@ -33690,6 +33701,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        let _startup_guard = WorkspaceStartupGuard(&self.workspace_scan_ready);
         self.client
             .log_message(MessageType::INFO, "tcl-lsp-server initialised")
             .await;
@@ -33773,6 +33785,7 @@ impl LanguageServer for Backend {
     }
 
     async fn shutdown(&self) -> jsonrpc::Result<()> {
+        self.workspace_scan_ready.shutdown.raise();
         let retired = self.studio_sources.lock().await.close();
         if retired {
             self.reload_spec_packs(ReloadTrigger::StudioSource).await?;
@@ -35922,7 +35935,7 @@ impl LanguageServer for Backend {
         // barrier comes first for the same reason every other reader takes it:
         // a query issued after an open must observe that open.
         self.edits_settled().await;
-        self.wait_for_workspace_scan().await;
+        self.wait_for_workspace_scan().await?;
         let query = params.query.as_str();
         readonly_reference_reports::retry_readonly_attempt(None, move || {
             self.workspace_symbol_attempt(query)
@@ -61394,6 +61407,64 @@ proc p {} {
             2,
             "library declaration + internal call: {lib_edits:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_readiness_waits_for_completion_and_releases_on_failure() {
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_str("file:///workspace").unwrap()];
+        let mut waiting = Box::pin(backend.wait_for_workspace_scan());
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(20), &mut waiting)
+                .await
+                .is_err()
+        );
+        backend.workspace_scan_ready.mark_complete();
+        crate::rt::timeout(std::time::Duration::from_secs(5), waiting)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let failed = test_backend();
+        *failed.workspace_folders.lock().await = vec![Uri::from_str("file:///workspace").unwrap()];
+        let guard = WorkspaceStartupGuard(&failed.workspace_scan_ready);
+        let mut waiting = Box::pin(failed.wait_for_workspace_scan());
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(20), &mut waiting)
+                .await
+                .is_err()
+        );
+        drop(guard);
+        let error = crate::rt::timeout(std::time::Duration::from_secs(5), waiting)
+            .await
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.message, "Workspace startup scan failed");
+    }
+
+    #[tokio::test]
+    async fn workspace_symbol_readiness_releases_on_shutdown_and_cancellation() {
+        let backend = test_backend();
+        *backend.workspace_folders.lock().await = vec![Uri::from_str("file:///workspace").unwrap()];
+        let mut cancelled = Box::pin(backend.wait_for_workspace_scan());
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(20), &mut cancelled)
+                .await
+                .is_err()
+        );
+        drop(cancelled);
+        let mut waiting = Box::pin(backend.wait_for_workspace_scan());
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(20), &mut waiting)
+                .await
+                .is_err()
+        );
+        backend.shutdown().await.unwrap();
+        let error = crate::rt::timeout(std::time::Duration::from_secs(5), waiting)
+            .await
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.message, "Workspace scan stopped during shutdown");
     }
 
     /// `ensure_autoload_indexed` must wait out an

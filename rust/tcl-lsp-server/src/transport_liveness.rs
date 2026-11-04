@@ -422,6 +422,77 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn workspace_scan_waiters_do_not_starve_unrelated_requests_2295() {
+        #[derive(Clone)]
+        struct ScanService {
+            backend: Arc<crate::Backend>,
+            calls: Arc<AtomicUsize>,
+            started: Arc<Semaphore>,
+        }
+        impl Service<Request> for ScanService {
+            type Response = ();
+            type Error = Infallible;
+            type Future = Pin<Box<dyn Future<Output = Result<(), Infallible>> + Send>>;
+
+            fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+                Poll::Ready(Ok(()))
+            }
+
+            fn call(&mut self, _: Request) -> Self::Future {
+                let call = self.calls.fetch_add(1, Ordering::SeqCst);
+                let backend = Arc::clone(&self.backend);
+                let started = Arc::clone(&self.started);
+                Box::pin(async move {
+                    if call < DEFAULT_HANDLER_CONCURRENCY {
+                        started.add_permits(1);
+                        let _ = backend.wait_for_workspace_scan().await;
+                    }
+                    Ok(())
+                })
+            }
+        }
+
+        let backend = Arc::new(crate::tests::test_backend());
+        *backend.workspace_folders.lock().await = vec!["file:///workspace".parse().unwrap()];
+        let started = Arc::new(Semaphore::new(0));
+        let mut service = DeferredConcurrency::new(
+            ScanService {
+                backend: Arc::clone(&backend),
+                calls: Arc::new(AtomicUsize::new(0)),
+                started: Arc::clone(&started),
+            },
+            DEFAULT_HANDLER_CONCURRENCY,
+        );
+        let mut waiters = Vec::new();
+        for _ in 0..DEFAULT_HANDLER_CONCURRENCY {
+            waiters.push(tokio::spawn(service.call(request("workspace/symbol"))));
+        }
+        for _ in 0..DEFAULT_HANDLER_CONCURRENCY {
+            tokio::time::timeout(Duration::from_secs(5), started.acquire())
+                .await
+                .unwrap()
+                .unwrap()
+                .forget();
+        }
+        tokio::time::timeout(Duration::from_secs(5), service.call(request("unrelated")))
+            .await
+            .expect("scan waiters stranded an unrelated request")
+            .unwrap();
+        assert!(waiters.iter().all(|waiter| !waiter.is_finished()));
+        let cancelled = waiters.pop().unwrap();
+        cancelled.abort();
+        assert!(cancelled.await.unwrap_err().is_cancelled());
+        backend.workspace_scan_ready.mark_complete();
+        for waiter in waiters {
+            tokio::time::timeout(Duration::from_secs(5), waiter)
+                .await
+                .expect("scan waiter did not resume")
+                .unwrap()
+                .unwrap();
+        }
+    }
+
     impl Service<Request> for InitiallyPendingService {
         type Response = ();
         type Error = Infallible;
