@@ -1,5 +1,7 @@
 # BIG-IP variable lifecycle results
 
+> This historical summary is development material. The 61 sequential control scripts and their results are recorded in the per-script Tcl evidence. Start with the [last case](../../../../evidence/tcl/bigip-r2286vl1-scan-rebind-frame-zero.md) and follow the links to its predecessors.
+
 These are measured results from real TMM iRule execution on the active
 standalone lab appliance. Standalone `tclsh`, tmsh scripts, iApps and iCall
 were not substituted for TMM execution.
@@ -50,28 +52,10 @@ and
 The request block was extracted from
 [`VARIABLE_LIFECYCLE_CHECKS.md`](VARIABLE_LIFECYCLE_CHECKS.md), not retyped.
 All original generic-consumer programs were copied byte-for-byte. Event
-adaptations and generated controls are separately named and hashed. Generated
+adaptations and generated controls are separately named. Generated
 configuration source is ASCII/LF with no literal NUL; runtime NUL and
 decomposed names are produced by the request's Tcl expressions.
 
-| Item | SHA-256 |
-| --- | --- |
-| Request Markdown | `25fca270d76f2d33a292bc01bcdf70525536df9a59f735e5d589d75dafb5128c` |
-| Extracted request block | `9070692d96ad4ed5ce889d922a6049fe4a94fc140ee99a896e0890e51ae85230` |
-| Token-substituted exact rule body | `c2de31571f7f7d5f0d08d27fa37bae3af8595060193dd5a352f22ad36cb3c2ee` |
-| Exact literal wrapper | `f8c2fe92bf428f8948e34eb4844a840eb5dcfbaa305767372f811f60588816cf` |
-| Supported runtime-eval wrapper | `55d51a96a7f0e4063373ed18e2736b43a44c9fbddc4906a5de0868d5ac0be893` |
-| 61-case HTTP_REQUEST controls | `c26a2bef1b6893b7bd2a076329b7937470e5aea2a70c109b548f48f5949ee731` |
-| `static::` rule | `f3a60b0859bc8fc2e7f2c4727dd3b5da270f2cf1c659e0125cdf7fdd33267097` |
-| RULE_INIT/CLIENT_ACCEPTED wrapper | `d1e1884a2a722017cbe79513338ca5d9d59699b7df754f7a9dddc9de472ab90a` |
-| Array callback-argument payload | `6bd4ddc2bac3d57610d1084032212844f38f3034777b6b122f1e6d85d0ba3878` |
-| Array callback-argument rule | `bb8171639b0d74490fd6d13adcaa0f139727bd1a990551c32a18067b1d54b3cd` |
-| Final fixture archive | `64a293b9500394b037ffd8d08242bc7971331ff495f18cf161f97bc316abc545` |
-
-The final manifest is
-[`manifest.json`](evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json),
-and appliance-side `sha256sum -c` output is
-[`vl-v4-verify.stdout`](evidence/r2286_20261007vllex/appliance/vl-v4-verify.stdout).
 Earlier exact-load and supported-wrapper archives are retained in the same
 evidence directory because their loader outcomes are part of the result.
 
@@ -117,8 +101,7 @@ through
 ## Control matrix
 
 The full matrix contains 61 cases on each of the four actual TMMs. After
-removing only the group/unit columns, all four decoded matrices have SHA-256
-`117f2950bdaaf49a947ba687d9b144bfd417b4bb3430e972d0712f37cd7d8d63`.
+removing only the group/unit columns, all four decoded matrices are identical.
 The complete rows are retained as
 [`vl-controls-42100.tsv`](evidence/r2286_20261007vllex/decoded/vl-controls-42100.tsv)
 and the peer `42101`–`42103` files.
@@ -195,7 +178,6 @@ initialization markers are in the continuous LTM capture.
 ```sh
 python3 generate-variable-lifecycle-fixtures.py \
   --out /tmp/r2286vl1-fixtures --source-commit 88198d83d3ef944670d7a1f24a3ada1b11187f69
-(cd /tmp/r2286vl1-fixtures && sha256sum -c SHA256SUMS)
 tmsh load sys config merge file sources/identity.conf
 tmsh load sys config merge file sources/main-supported.conf
 tmsh load sys config merge file sources/controls.conf
@@ -217,8 +199,7 @@ tclsh decode-variable-lifecycle.tcl vl-controls-42101.body vl-controls-42101.tsv
 ## Evidence and cleanup
 
 The retained bundle is
-[`evidence/r2286_20261007vllex`](evidence/r2286_20261007vllex/). Its per-file
-inventory is [`SHA256SUMS`](evidence/r2286_20261007vllex/SHA256SUMS). Raw
+[`evidence/r2286_20261007vllex`](evidence/r2286_20261007vllex/). Raw
 `/var/log/ltm` was captured before creation through each traffic phase and
 cleanup in
 [`ltm-continuous.log`](evidence/r2286_20261007vllex/appliance/ltm-continuous.log).
