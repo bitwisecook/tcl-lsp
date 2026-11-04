@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,6 +25,33 @@ SPEC.loader.exec_module(migration)
 
 
 class EvidenceMigrationTests(unittest.TestCase):
+    def test_legacy_check_entry_point_uses_the_new_evidence_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            destination = root / "evidence/tcl"
+            destination.mkdir(parents=True)
+            sample = (
+                Path(__file__).resolve().parents[2]
+                / "evidence/tcl/fresh-local-variable-existence.md"
+            )
+            (destination / "sample.md").write_bytes(sample.read_bytes())
+            legacy = root / migration.LEGACY
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text('{"proofs": [{"sha256": "stale"}]}')
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT.with_name("check-name-resolution-proofs.py")),
+                    "--root",
+                    str(root),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Checked 1 Tcl execution evidence file", result.stdout)
+
     def fixture(self, root: Path) -> tuple[dict, bytes, bytes]:
         script = 'puts "Привет\u00a0мир"\n'.encode()
         stdout = "Привет\u00a0мир\n".encode()

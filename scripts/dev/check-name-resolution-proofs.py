@@ -2,9 +2,10 @@
 # tcl-lsp — a language server and toolchain for Tcl
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Validate per-question proof records and the complete retained corpus census.
+"""Compatibility entry point for the Tcl execution evidence check.
 
-This checks retained evidence, not native execution or Rust test results.
+Legacy functions remain available to read historical proof records during
+migration. They are not the evidence gate.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import ast
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -901,36 +903,27 @@ def main() -> int:
     parser.add_argument(
         "--structure-only",
         action="store_true",
-        help="Audit structure while explicitly reporting pending completion obligations.",
+        help="Retired legacy option; use the Tcl evidence check instead.",
     )
     parser.add_argument(
         "--write-inventory",
         action="store_true",
-        help="Reviewable inventory refresh; preserve classifications only for exact unchanged bytes.",
+        help="Retired legacy option; do not create digest inventories.",
     )
     args = parser.parse_args()
-    root = args.root.resolve()
-    if args.write_inventory:
-        target = root / DIRECTORY / "corpus-inventory.json"
-        old = json.loads(target.read_text()) if target.exists() else None
-        target.write_text(json.dumps(inventory(root, old), indent=2) + "\n")
-        print(
-            f"Wrote {target}; classify each pending candidate before the complete gate."
+    if args.structure_only or args.write_inventory:
+        parser.error(
+            "the legacy proof inventory and structural audit are retired; use check-tcl-evidence.py"
         )
-        return 0
-    try:
-        errors, summary = validate(root, args.structure_only)
-    except (ValueError, OSError, KeyError, TypeError) as exc:
-        print(f"Proof gate cannot inspect required evidence: {exc}", file=sys.stderr)
-        return 1
-    print(json.dumps(summary, sort_keys=True))
-    for error in errors:
-        print(error, file=sys.stderr)
-    if args.structure_only and not errors:
-        print(
-            "Structural audit completed; this is not a complete-coverage or execution result."
-        )
-    return int(bool(errors))
+    return subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("check-tcl-evidence.py")),
+            "--root",
+            str(args.root.resolve()),
+        ],
+        check=False,
+    ).returncode
 
 
 if __name__ == "__main__":

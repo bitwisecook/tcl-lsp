@@ -188,5 +188,29 @@
     "archive": "../experiments/name-handling/lsp-2243-coverage/README.md",
     "active_test_cleanup": "Removed the failing ownership/activity probes and the blanket clean-argc assertion from active CI. The remaining exact-source test compares checked memo/uncached report values only; active taint controls remain separate. No assertion treats missing source coverage as desired behaviour.",
     "archived_ci_shard_4_bootstrap_stub": "passed for the archived DB-lib source-owner probe; final active bootstrap selection requires shard 2 only"
+  },
+  "package_provision_audit": {
+    "native_evidence": [
+      "../evidence/tcl/lsp-2243-core-package-header.md",
+      "../evidence/tcl/lsp-2243-provided-package-loader-boundary.md"
+    ],
+    "reproducible_inputs": "../experiments/name-handling/lsp-2243-package-provision/README.md",
+    "exact_jim_head": "82fb4d0caf90240d94352a31fcbd16adf52658a7",
+    "exact_header": "package require Tcl 8.5 9",
+    "header_success": [
+      "C Tcl 8.5.19",
+      "C Tcl 8.6.18",
+      "C Tcl 9.0.4",
+      "C Tcl 9.1.0"
+    ],
+    "header_arity_rejection": [
+      "C Tcl 8.4.20",
+      "Jim 0.84-10-g82fb4d0"
+    ],
+    "provided_package_controls": "All C5 rows skip loaders for compatible and incompatible already-provided requests. Incompatible requests error without a loader. External and explicitly forgotten-core packages execute their registered loaders and create commands.",
+    "jim_limit": "ifneeded is unsupported, so external/forgotten cases are unrun. Provided-package versions differ from the C protocol.",
+    "source_owner_limits": "CorePackage is an authored release survey, not an actual package-state receipt. NativeCompilationEntry excludes package providers. Any preservation rule needs its own current source-purpose/provision ownership and must preserve external-package, observer and Native barriers.",
+    "implementation_change": "none",
+    "evidence_gate": "passed; 1437 captures and 17 unit tests; /tmp/lsp-2243-package-evidence-gate.log"
   }
 }
