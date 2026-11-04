@@ -1042,6 +1042,14 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
+      - name: Free disk space for the browser toolchain
+        if: env.RUN_EXT_WEB == 'true'
+        run: |
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          # These hosted-runner SDKs are unused by the Rust/Node browser suite.
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
       # The browser server is built here rather than fetched from the
       # `lsp-server-wasm` job: that job step-skips on its own narrower path
       # filter, so depending on its artefact would make this suite skip
