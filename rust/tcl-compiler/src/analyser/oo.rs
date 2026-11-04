@@ -1272,7 +1272,8 @@ impl Analyser {
         // `TclOO` method bodies resolve bare commands globally (object-ns
         // semantics — see `Scope::oo_global_resolution`); snit / itcl
         // members resolve in the type / class namespace.
-        let oo_global = matches!(grammar.family, tcl_registry::definer::DefinerFamily::TclOo);
+        let oo_global =
+            grammar.member_current_namespace() == MemberCurrentNamespace::RuntimeReceiver;
         // The class-level `initialise` body runs first and in a scope of its
         // own, so the class-scoped variables it declares are visible to this
         // class's own method / accessor bodies below — and to no other

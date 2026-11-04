@@ -187,6 +187,12 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "crc/pkgIndex.tcl",
     },
     TcllibModule {
+        package: "clay",
+        trains: &["0.8.8"],
+        core_floor: Some("8.6"),
+        evidence: "clay/pkgIndex.tcl",
+    },
+    TcllibModule {
         package: "cmdline",
         trains: &["1.5.3"],
         core_floor: Some("8.5"),

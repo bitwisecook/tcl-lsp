@@ -821,6 +821,76 @@ mod tests {
     use super::*;
     use std::fmt::Write as _;
 
+    #[test]
+    fn clay_outline_retains_source_class_and_unchanged_method_sites() {
+        let source = "clay::define ::Probe {\n  method connect {} {}\n  method use {} {my connect}\n}\n::Probe new\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let symbols = document_symbols_from_analysis(source, &analysis);
+        let class = symbols
+            .iter()
+            .find(|symbol| symbol.kind == SymbolKind::Class)
+            .expect("Clay source class in the outline");
+        assert_eq!(class.name, "Probe");
+        assert_eq!(
+            (
+                class.selection_range.start_line,
+                class.selection_range.start_character,
+                class.selection_range.end_line,
+                class.selection_range.end_character
+            ),
+            (0, 13, 0, 20)
+        );
+        let method = class
+            .children
+            .iter()
+            .find(|symbol| symbol.name == "connect")
+            .expect("original unchanged method in the outline");
+        assert_eq!(method.kind, SymbolKind::Method);
+        assert_eq!(
+            (
+                method.selection_range.start_line,
+                method.selection_range.start_character,
+                method.selection_range.end_line,
+                method.selection_range.end_character
+            ),
+            (1, 9, 1, 16)
+        );
+        assert_eq!(
+            class
+                .children
+                .iter()
+                .filter(|symbol| symbol.kind == SymbolKind::Method)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn clay_outline_does_not_admit_receiver_dispatch_or_rename() {
+        let source = "clay::define ::Probe {\n  method connect {} {}\n  method use {} {my connect}\n}\n::Probe new\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let profile = environment.analyser_profile();
+        let registry = environment.default_context_registry();
+        assert!(analysis.original_class_declarations().next().is_some());
+        assert!(crate::definition::definition(source, 2, 20, &analysis).is_empty());
+        for (line, column) in [(0, 13), (1, 9), (2, 20)] {
+            assert!(crate::rename::prepare_rename(source, line, column, &analysis).is_none());
+            assert!(
+                crate::rename::rename(
+                    source,
+                    profile,
+                    line,
+                    column,
+                    "changed",
+                    &analysis,
+                    Some(registry.commands())
+                )
+                .is_empty()
+            );
+        }
+    }
+
     fn names(symbols: &[DocumentSymbol]) -> Vec<&str> {
         symbols.iter().map(|s| s.name.as_str()).collect()
     }

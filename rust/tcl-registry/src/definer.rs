@@ -36,7 +36,9 @@
 //! [`CommandSpec`]: crate::CommandSpec
 //! [`CommandSpec::definition_body`]: crate::CommandSpec::definition_body
 
+mod clay;
 mod jim_source_stock;
+pub use clay::CLAY_GRAMMAR;
 pub use jim_source_stock::{
     SourceJimClassHelper, SourceJimObjectCommandFootprint, SourceJimStockClassRecipe,
 };
@@ -1550,6 +1552,9 @@ pub enum DefinerFamily {
     Snit,
     /// [incr Tcl] `itcl::class` (and the bare `class` alias).
     Itcl,
+    /// Clay's conditional source class inventory. Its provider may create or
+    /// extend a class; this family supplies no installed dispatcher receipt.
+    Clay,
     /// Jim Tcl's `class NAME ?BASES? {vars}` (`oo.tcl`, shipped with every
     /// `jimsh`).
     ///
@@ -1792,7 +1797,10 @@ impl DefinerFamily {
     /// predicate instead of maintaining their own family lists.
     #[must_use]
     pub const fn manufactures_runtime_commands(self) -> bool {
-        matches!(self, Self::TclOo | Self::Snit | Self::Itcl | Self::JimClass)
+        matches!(
+            self,
+            Self::TclOo | Self::Snit | Self::Itcl | Self::Clay | Self::JimClass
+        )
     }
 
     /// Whether a class of this family stores each member as the two-word
@@ -1813,7 +1821,7 @@ impl DefinerFamily {
     #[must_use]
     pub const fn member_current_namespace(self) -> MemberCurrentNamespace {
         match self {
-            Self::TclOo => MemberCurrentNamespace::RuntimeReceiver,
+            Self::TclOo | Self::Clay => MemberCurrentNamespace::RuntimeReceiver,
             Self::Snit | Self::Itcl | Self::JimClass | Self::SpecTcl | Self::SslicTcl => {
                 MemberCurrentNamespace::DefinedEntity
             }
@@ -3936,7 +3944,9 @@ impl DefinitionBodyGrammar {
     #[must_use]
     pub fn member_default_exported_bytes(&self, name: &[u8]) -> bool {
         match self.family {
-            DefinerFamily::TclOo => name.first().is_some_and(u8::is_ascii_lowercase),
+            DefinerFamily::TclOo | DefinerFamily::Clay => {
+                name.first().is_some_and(u8::is_ascii_lowercase)
+            }
             // SpecTcl and SslicTcl declare no members that are ever
             // *dispatched*, so the question is vacuous for them; answering
             // `true` keeps the visible
@@ -6538,6 +6548,7 @@ mod tests {
             DefinerFamily::TclOo,
             DefinerFamily::Snit,
             DefinerFamily::Itcl,
+            DefinerFamily::Clay,
             DefinerFamily::JimClass,
         ] {
             assert!(family.manufactures_runtime_commands());
@@ -6557,6 +6568,7 @@ mod tests {
             DefinerFamily::TclOo,
             DefinerFamily::Snit,
             DefinerFamily::Itcl,
+            DefinerFamily::Clay,
             DefinerFamily::SpecTcl,
             DefinerFamily::SslicTcl,
         ] {

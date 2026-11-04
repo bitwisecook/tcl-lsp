@@ -69,6 +69,7 @@ mod original_definer;
 mod original_members;
 pub mod param_traits;
 pub mod per_item;
+mod provider_definition;
 pub mod recovery;
 pub mod scope;
 pub mod snapshot;

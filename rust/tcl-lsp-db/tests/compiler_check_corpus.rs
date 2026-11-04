@@ -40,7 +40,7 @@ use tcl_lsp_db::{
     AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
     compiler_check_diagnostics_if_available, compiler_check_diagnostics_uncached,
 };
-use tcl_test_support::fixed_corpus::{FixedCorpusSource, TCLLIB_2_0_IMAP4};
+use tcl_test_support::fixed_corpus::{FixedCorpusSource, TCLLIB_2_0_HTTPD, TCLLIB_2_0_IMAP4};
 
 mod common;
 use common::Progress;
@@ -63,6 +63,61 @@ fn default_config(db: &TclDatabase) -> AnalyserConfig {
         Vec::new(),
         Vec::new(),
     )
+}
+
+#[test]
+fn clay_source_inventory_retains_exact_httpd_server_method_sites_1956() {
+    use tcl_compiler::analyser::Analyser;
+    use tcl_lexer::{SourceImage, Span};
+    use tcl_registry::definer::DefinitionMemberNamePurpose;
+
+    let corpus = std::env::var_os("TCLLIB_2_0_DIR")
+        .map_or_else(|| repo_root().join("tmp/tcllib-2.0"), PathBuf::from);
+    let held = FixedCorpusSource::read(&corpus, &TCLLIB_2_0_HTTPD)
+        .expect("#1956 requires the pinned Tcllib 2.0 HTTPD input");
+    let source = std::str::from_utf8(held.bytes()).expect("HTTPD source is UTF-8");
+    let analysis = Analyser::new().analyse(source, "tcl8.6");
+    let declaration = analysis
+        .original_class_declarations()
+        .find(|declaration| declaration.metadata().qualified_name == "::httpd::server")
+        .expect("actual original HTTPD server declaration");
+    assert_eq!(declaration.declaration_site().offset, 20_371);
+    let class = declaration.metadata();
+    assert_eq!(class.name_span, Span::new(20_386, 20_401));
+    let method = class
+        .original_members
+        .declarations()
+        .find(|method| method.original_name_input().bytes() == b"connect")
+        .expect("actual original connect method words");
+    assert_eq!(method.metadata().name_span, Span::new(21_872, 21_879));
+    assert_eq!(
+        method.name_purpose(),
+        DefinitionMemberNamePurpose::SourceValue
+    );
+    let parameters = method.parameters_word().expect("original method formals");
+    let body = method.body_word().expect("original unchanged method body");
+    let image = SourceImage::document(source);
+    assert_eq!(parameters.image(), &image);
+    assert_eq!(body.image(), &image);
+    assert_eq!(parameters.span().start(), 21_880);
+    assert_eq!(body.span().start(), 21_895);
+    assert_eq!(
+        method
+            .metadata()
+            .params
+            .iter()
+            .map(|parameter| parameter.name.as_str())
+            .collect::<Vec<_>>(),
+        ["sock", "ip", "port"]
+    );
+    assert!(class.inheritance_unknown && class.member_set_incomplete);
+    assert!(class.factory.is_none());
+    assert!(
+        tcl_compiler::registry_invocation::source_structure::source_class_declaration_at(
+            source, &analysis, 20_371
+        )
+        .is_none()
+    );
 }
 
 fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {

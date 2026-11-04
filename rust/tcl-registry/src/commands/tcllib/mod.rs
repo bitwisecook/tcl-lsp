@@ -22,6 +22,7 @@
 
 mod base64__decode;
 mod base64__encode;
+mod clay__define;
 mod cmdline__getargv0;
 mod cmdline__getfiles;
 mod cmdline__getknownopt;
@@ -282,7 +283,7 @@ use tcl_dialect::model::SpecSurface;
 /// assert the resulting set is identical.
 #[must_use]
 pub fn tcllib_command_specs() -> Vec<CommandSpec> {
-    let mut specs = Vec::new();
+    let mut specs = vec![clay__define::spec()];
     specs.extend(base64_cmdline_control_csv_dns_specs());
     specs.extend(fileutil_html_ip_json_specs());
     specs.extend(logger_math_specs());
