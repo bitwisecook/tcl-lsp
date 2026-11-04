@@ -479,7 +479,8 @@ fn original_jim_body_source_point_remains_without_a_proved_execution_target() {
 }
 
 fn folded_fixture(environment: &str) -> (Fixture, CommandTokens) {
-    let source = "if {$condition} {set result \\\n café}";
+    // The `${…}` comment keeps the folded body a derived source.
+    let source = "if {$condition} {set result \\\n café;#${kept}}";
     let environment = tcl_registry::model::ingress::resolve_known_environment(environment).unwrap();
     let context = environment.default_context_registry();
     let profile = environment.unit_profile();

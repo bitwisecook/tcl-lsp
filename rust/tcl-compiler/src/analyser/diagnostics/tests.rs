@@ -18698,10 +18698,21 @@ fn w100_suggests_scan_for_a_hexadecimal_conversion_2507() {
 
 #[test]
 fn w301_list_built_uplevel_script_is_silent_across_lines_2505() {
+    let quoted = crate::analyser::Analyser::new().analyse(
+        "proc f {x} {\n    uplevel #0 \"puts $x \\\n    \"\n}\n",
+        "tcl8.6",
+    );
+    assert!(
+        quoted.diagnostics.iter().any(|d| d.code == DiagCode::W301),
+        "an interpolated script in a folded body still warns: {:?}",
+        quoted.diagnostics
+    );
     for source in [
         "uplevel #0 [list \\\n    puts hello \\\n]\n",
         "uplevel #0 [list puts hello]\n",
         "set x 1\nuplevel #0 [list \\\n    puts $x \\\n]\n",
+        "proc f {x} {\n    uplevel #0 [list \\\n        puts $x \\\n    ]\n}\n",
+        "proc f {x} {\n    uplevel #0 [list puts $x \\\n    ]\n}\n",
     ] {
         let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
         assert!(

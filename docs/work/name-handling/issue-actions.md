@@ -1,6 +1,6 @@
 # Current naming issue actions
 
-The 3 November external-reporter sweep fixed or guarded #2506, #2503, #2499, #2497, #2289, #2507, #2288 and #2181, and added regressions for the reports already correct on `work` ([issues.md](issues.md#external-reporter-issue-sweep--3-november-2026)). No issue state was changed. #2505's proc-body residual remains open.
+The 3 November external-reporter sweep fixed or guarded #2506, #2503, #2499, #2497, #2289, #2507, #2288 and #2181, and added regressions for the reports already correct on `work` ([issues.md](issues.md#external-reporter-issue-sweep--3-november-2026)). No issue state was changed. #2505's proc-body residual and W105 emission were fixed afterwards.
 
 [#2286](https://github.com/bitwisecook/tcl-lsp/issues/2286) stays OPEN. Its unchanged original selector ran first in M12 and passed in 71.841791191 seconds within the original 180-second budget. This does not close the complete issue acceptance, other naming consumers or required negative/import/shared-read/refusal obligations. Preserve both original `$absent` expectations and original init/Tcltest/support pairings.
 
