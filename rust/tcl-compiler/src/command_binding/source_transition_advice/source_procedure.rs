@@ -355,7 +355,7 @@ impl OriginalSourceProcedureBody {
     }
 }
 impl AdviceGraph {
-    fn original_procedure(
+    pub(super) fn original_procedure(
         &self,
         head: &SourceAdviceNameInput,
     ) -> Option<Arc<OriginalSourceProcedureBody>> {

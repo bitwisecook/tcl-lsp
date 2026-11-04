@@ -9,7 +9,7 @@ use super::{
     OriginalSourceCommandTransitionAdvice, OriginalSourceTransitionAdviceTape, SourceAdviceWord,
 };
 use crate::analyser::AnalysisResult;
-use crate::signature_scan::scope::{SignatureSourceNameInput, SignatureSourceNameKey};
+use crate::signature_scan::scope::SignatureSourceNameKey;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use tcl_core_types::{ByteCommandSlot, ByteNamespacePath, NameBytes};

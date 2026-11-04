@@ -6572,7 +6572,7 @@ mod closed_source_child_ingress_tests {
     }
     #[tokio::test]
     async fn conditional_external_source_autoload_preserves_original_saved_byte_receipts() {
-        let (protocol, store) = conditional_autoload_protocol(AUTO_MAIN);
+        let (mut protocol, store) = conditional_autoload_protocol(AUTO_MAIN);
         let providers = protocol
             .backend
             .capture_conditional_autoload_providers(vec![std::path::PathBuf::from(
@@ -6625,7 +6625,7 @@ mod closed_source_child_ingress_tests {
 
     #[tokio::test]
     async fn conditional_external_source_autoload_does_not_cross_donate_indexed_provider_headers() {
-        let (protocol, store) = conditional_autoload_protocol(AUTO_MAIN);
+        let (mut protocol, store) = conditional_autoload_protocol(AUTO_MAIN);
         store.upsert_uri(
             "file:///ws/tmp/mypkg/other.tcl",
             "/ws/tmp/mypkg/other.tcl",
