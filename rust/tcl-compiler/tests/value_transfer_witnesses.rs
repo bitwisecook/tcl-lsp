@@ -2788,14 +2788,20 @@ fn a_materialised_child_carries_its_factory_call_span() {
     let source = "proc Configure {name default description} {\n    \
                   proc $name {x} [subst -nocommands {return $default}]\n}\n\
                   Configure port 8080 {the port}\n";
+    let call_start = source.find("Configure port 8080 {the port}").unwrap();
+    let call_end = call_start + "Configure port 8080 {the port}".len();
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
         let reported = Analyser::new().analyse(source, dialect).diagnostics;
-        let lines: Vec<usize> = reported
+        let spans: Vec<_> = reported
             .iter()
             .filter(|d| d.code == DiagCode::W214 && d.message.contains("'::port'"))
-            .map(|d| source[..d.span.start() as usize].matches('\n').count() + 1)
+            .map(|d| d.span)
             .collect();
-        assert_eq!(lines, [4], "{dialect}: {reported:?}");
+        assert_eq!(
+            spans,
+            [tcl_lexer::Span::new(call_start as u32, call_end as u32)],
+            "{dialect}: {reported:?}"
+        );
     }
     prints_under_every_release(&format!("{source}puts [port ignored]\n"), "8080\n");
 }

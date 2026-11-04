@@ -185,14 +185,23 @@ fn a_later_unset_does_not_kill_stores_read_by_a_callee() {
 
 #[test]
 fn materialised_factory_commands_are_visible_to_unknown_command_checks() {
+    let without_call = FACTORY.replacen("Configure port 8080 {the port}\n", "", 1);
+    assert_ne!(without_call, FACTORY);
     for version in TclVersion::ALL {
-        let reported = diagnostics(FACTORY, version.dialect_name());
+        let dialect = version.dialect_name();
+        let reported = diagnostics(FACTORY, dialect);
         assert!(
             !reported
                 .iter()
                 .any(|(code, message)| *code == DiagCode::W123 && message.contains("port")),
-            "{}: {reported:?}",
-            version.dialect_name()
+            "{dialect}: {reported:?}"
+        );
+        let absent = diagnostics(&without_call, dialect);
+        assert!(
+            absent
+                .iter()
+                .any(|(code, message)| *code == DiagCode::W123 && message.contains("port")),
+            "{dialect}: factory call absent: {absent:?}"
         );
     }
     original_and_rewritten_print(FACTORY, "8080");
