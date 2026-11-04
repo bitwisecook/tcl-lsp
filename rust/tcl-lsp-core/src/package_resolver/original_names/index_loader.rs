@@ -1040,7 +1040,7 @@ mod abstention_tests {
 
     #[test]
     fn reused_root_abstention_keeps_the_complete_current_word_vector() {
-        let source = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\n";
+        let source = "set auto_index(a) [list source [file join $dir a.tcl]]\nset auto_index(b) [list source [file join $dir b.tcl]]\nset auto_index(c) [list source [file join $dir c.tcl]]\n";
         let context = source_context(source, tcl_dialect::TclVersion::V8_6);
         let config = context.editing_input().lexer_config();
         let plan = tcl_lexer::native_script_words_in(
@@ -1050,7 +1050,20 @@ mod abstention_tests {
         )
         .unwrap();
         let query = IndexLoader::from_source_context(source, &context).unwrap();
-        let root = &plan.commands[1].words;
+        let root = &plan.commands[2].words;
+        let offset = root[0].span().start();
+        assert!(context.registration_words_at(offset).is_none());
+        let full = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(context.editing_input().clone())
+            .structure_only()
+            .analyse(source, "tcl8.6");
+        assert!(source_registry_words_at(source, &full, offset).is_none());
+        for root in &plan.commands[..2] {
+            let offset = root.words[0].span().start();
+            assert!(context.registration_words_at(offset).is_some());
+            assert!(source_registry_words_at(source, &full, offset).is_some());
+            assert!(query.registration_abstention(&root.words).is_none());
+        }
         for _ in 0..2 {
             let receipt = query
                 .registration_abstention(root)
@@ -1058,11 +1071,6 @@ mod abstention_tests {
             assert_eq!(receipt.original_words(), root.as_slice());
             assert!(receipt.matches_source_context(source, &context));
         }
-        assert!(
-            query
-                .registration_abstention(&plan.commands[0].words)
-                .is_none()
-        );
         let mut changed = root.to_vec();
         changed[2] = plan.commands[0].words[2].clone();
         assert_eq!(changed[0], root[0]);
@@ -1084,7 +1092,7 @@ mod abstention_tests {
             .unwrap();
             assert!(
                 query
-                    .registration_abstention(&changed.commands[1].words)
+                    .registration_abstention(&changed.commands[2].words)
                     .is_none()
             );
         }

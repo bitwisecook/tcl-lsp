@@ -446,7 +446,7 @@ mod tests {
         let owner = context(&source, tcl_dialect::TclVersion::V8_6);
         let survey = owner.standalone_schema_abstentions().unwrap();
         let roots = &survey.plan.commands;
-        let missing: Vec<_> = roots[1..]
+        let missing: Vec<_> = roots[2..]
             .iter()
             .map(|root| root.words[0].span().start())
             .collect();
@@ -456,12 +456,18 @@ mod tests {
         );
         assert!(survey.missing_roots.len() <= survey.plan.commands.len());
         assert!(survey.plan.commands.len() <= MAX_COMMANDS);
-        assert!(survey.at(roots[0].words[0].span().start()).is_none());
         let full = Analyser::new()
             .with_resolved_input(owner.editing_input().clone())
             .structure_only()
             .analyse(&source, "tcl8.6");
+        for root in &roots[..2] {
+            let offset = root.words[0].span().start();
+            assert!(owner.registration_words_at(offset).is_some());
+            assert!(source_registry_words_at(&source, &full, offset).is_some());
+            assert!(survey.at(offset).is_none());
+        }
         for offset in missing {
+            assert!(owner.registration_words_at(offset).is_none());
             let retained = &survey.missing_roots[&offset];
             let first = survey.at(offset).unwrap();
             let repeated = survey.at(offset).unwrap();
@@ -474,25 +480,34 @@ mod tests {
             source.find("set auto_index(b) [list").unwrap() + "set auto_index(b) [".len(),
         )
         .unwrap();
+        assert!(owner.registration_words_at(nested).is_none());
+        assert!(source_registry_words_at(&source, &full, nested).is_none());
         let first = survey.at(nested).unwrap();
         let repeated = survey.at(nested).unwrap();
         assert!(!Arc::ptr_eq(&first.original, &repeated.original));
         assert!(!survey.missing_roots.contains_key(&nested));
         assert!(survey.at(nested + 1).is_none());
-        assert_eq!(survey.missing_roots.len(), 2);
+        assert_eq!(survey.missing_roots.len(), 1);
     }
 
     #[test]
     fn retained_root_receipt_rejects_changed_capture_axes() {
-        let owner = context(TWO_ROWS, tcl_dialect::TclVersion::V8_6);
+        let source = format!("{TWO_ROWS}set auto_index(c) [list source [file join $dir c.tcl]]\n");
+        let owner = context(&source, tcl_dialect::TclVersion::V8_6);
         let survey = owner.standalone_schema_abstentions().unwrap();
-        let offset = survey.plan.commands[1].words[0].span().start();
+        let offset = survey.plan.commands[2].words[0].span().start();
+        assert!(owner.registration_words_at(offset).is_none());
+        let full = Analyser::new()
+            .with_resolved_input(owner.editing_input().clone())
+            .structure_only()
+            .analyse(&source, "tcl8.6");
+        assert!(source_registry_words_at(&source, &full, offset).is_none());
         let receipt = survey.at(offset).unwrap();
         assert!(Arc::ptr_eq(
             &receipt.original,
             &survey.missing_roots[&offset].original
         ));
-        assert!(!receipt.matches_source_context(&format!("{TWO_ROWS}# changed"), &owner));
+        assert!(!receipt.matches_source_context(&format!("{source}# changed"), &owner));
         let input = owner.editing_input();
         let profile = input.unit_profile();
         let base = input.context_registry();
@@ -521,15 +536,15 @@ mod tests {
         ] {
             assert_ne!(&changed, input);
             let replacement =
-                OriginalSourceRegistryContext::capture_standalone_structure(TWO_ROWS, changed);
-            assert!(!receipt.matches_source_context(TWO_ROWS, &replacement));
+                OriginalSourceRegistryContext::capture_standalone_structure(&source, changed);
+            assert!(!receipt.matches_source_context(&source, &replacement));
         }
-        let realm = context(TWO_ROWS, tcl_dialect::TclVersion::V8_6);
+        let realm = context(&source, tcl_dialect::TclVersion::V8_6);
         assert_eq!(realm.editing_input(), input);
-        assert!(!receipt.matches_source_context(TWO_ROWS, &realm));
-        let general = OriginalSourceRegistryContext::capture(TWO_ROWS, input.clone());
+        assert!(!receipt.matches_source_context(&source, &realm));
+        let general = OriginalSourceRegistryContext::capture(&source, input.clone());
         assert!(general.standalone_schema_abstentions().is_none());
-        assert!(!receipt.matches_source_context(TWO_ROWS, &general));
+        assert!(!receipt.matches_source_context(&source, &general));
     }
 
     #[test]
