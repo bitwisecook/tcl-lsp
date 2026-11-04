@@ -30,6 +30,7 @@ use tcl_registry::TclType;
 use tcl_registry::iteration_entry::ConditionalSourceFiniteIteration;
 use tcl_registry::representation::ConditionalSourceListIndexCoercion;
 use tcl_registry::value_transfer::{
+    ConditionalSourceListAppend, ConditionalSourceLiteralListIndex,
     ConditionalSourceRepresentation, ConditionalSourceTargetUpdate, OperandId, TargetId,
 };
 
@@ -108,6 +109,14 @@ pub(super) enum Event {
         site: u32,
         span: Span,
         coercion: ConditionalSourceListIndexCoercion,
+        literal: Option<ConditionalSourceLiteralListIndex>,
+        source: Arc<OriginalRegistryWords>,
+    },
+    ListAppend {
+        site: u32,
+        span: Span,
+        relation: ConditionalSourceListAppend,
+        target: (TargetId, SignatureSourceVariableSymbol),
         source: Arc<OriginalRegistryWords>,
     },
     Reset {
@@ -626,6 +635,96 @@ impl State {
         observation
     }
 
+    fn list_append(
+        &mut self,
+        site: u32,
+        span: Span,
+        relation: ConditionalSourceListAppend,
+        target: &(TargetId, SignatureSourceVariableSymbol),
+        source: &Arc<OriginalRegistryWords>,
+    ) {
+        let (target_id, symbol) = target;
+        if relation.target() != *target_id
+            || relation.appended_operand_count() == 0
+            || relation.prior_representation_requirement() != TclType::List
+            || relation.stored_representation() != TclType::List
+            || relation.result_representation() != TclType::List
+            || self
+                .literals
+                .cells
+                .get(symbol)
+                .is_some_and(|literal| relation.definitely_rejects_literal(&literal.bytes))
+        {
+            self.invalidate();
+            return;
+        }
+        // This is storage/result provenance, not object identity. Only the
+        // separately proved integer-result lineage can enter coercion sharing.
+        let mut value = Value {
+            producer: span,
+            commitment: CommitState::committed(relation.stored_representation(), Some(span)),
+            integer_result: false,
+            premises: vec![Arc::clone(source)],
+        };
+        for prior in self.cells.get(symbol).into_iter().chain(
+            self.snapshots
+                .iter()
+                .filter(|(slot, _)| slot.site == site)
+                .map(|(_, captured)| &captured.value),
+        ) {
+            for premise in &prior.premises {
+                value.add_premise(premise);
+            }
+        }
+        for prior in self.literals.cells.get(symbol).into_iter().chain(
+            self.literals
+                .snapshots
+                .iter()
+                .filter(|(slot, _)| slot.site == site)
+                .map(|(_, literal)| literal),
+        ) {
+            for premise in &prior.premises {
+                value.add_premise(premise);
+            }
+        }
+        // Read the current target after operand substitutions. Its new bytes
+        // and possible sharing are independent of the appended element facts.
+        self.forget_representations();
+        self.literals.control(source);
+        self.literals.cells.remove(symbol);
+        self.literals.snapshots.retain(|slot, _| slot.site != site);
+        self.cells.insert(symbol.clone(), value.clone());
+        self.last_result = Some(value);
+    }
+
+    fn indexed_literal_result(
+        &mut self,
+        site: u32,
+        coercion: ConditionalSourceListIndexCoercion,
+        literal: Option<&ConditionalSourceLiteralListIndex>,
+        source: &Arc<OriginalRegistryWords>,
+    ) -> Option<LiteralValue> {
+        let literal = literal?;
+        if literal.container_operand() != OperandId(coercion.argument()) {
+            self.invalidate();
+            return None;
+        }
+        let captured = self.literals.snapshots.get(&OperandSnapshot {
+            site,
+            operand: literal.container_operand(),
+        })?;
+        if literal.definitely_rejects_literal(&captured.bytes) {
+            self.invalidate();
+            return None;
+        }
+        let mut value = LiteralValue {
+            bytes: literal.project_literal(Some(&captured.bytes))?,
+            premises: captured.premises.clone(),
+        };
+        value.add_premise(source);
+        Some(value)
+    }
+
     fn step(&mut self, event: &Event) -> Option<SourceConversionObservation> {
         if self.blocked {
             return None;
@@ -669,15 +768,29 @@ impl State {
                 site,
                 span,
                 coercion,
+                literal,
                 source,
             } => {
+                let literal_result =
+                    self.indexed_literal_result(*site, *coercion, literal.as_ref(), source);
+                if self.blocked {
+                    return None;
+                }
                 let observation = self.list_index(*site, *span, *coercion, source);
                 self.last_result = None;
                 self.snapshots.retain(|slot, _| slot.site != *site);
                 self.literals.control(source);
                 self.literals.snapshots.retain(|slot, _| slot.site != *site);
+                self.literals.last_result = literal_result;
                 return observation;
             }
+            Event::ListAppend {
+                site,
+                span,
+                relation,
+                target,
+                source,
+            } => self.list_append(*site, *span, *relation, target, source),
             Event::Reset { targets, source } => {
                 self.cells.retain(|symbol, _| !targets.contains(symbol));
                 self.literals
@@ -720,6 +833,7 @@ pub(super) fn assert_body_context_state_laws(
     context: &Arc<super::ConditionalRepresentationBodyContext>,
     source: &Arc<OriginalRegistryWords>,
 ) {
+    assert_substitution_context_state_laws(context);
     let enter = Event::BodyContext {
         context: Arc::clone(context),
     };
@@ -767,6 +881,156 @@ pub(super) fn assert_body_context_state_laws(
     assert!(entered.blocked);
     assert!(entered.body_contexts.is_empty());
     assert!(entered.entered_body_contexts.is_empty());
+}
+
+#[cfg(test)]
+fn assert_substitution_context_state_laws(
+    context: &Arc<super::ConditionalRepresentationBodyContext>,
+) {
+    let Some(substitution) = &context.substitution else {
+        return;
+    };
+    let enter_parent = Event::BodyContext {
+        context: Arc::clone(&substitution.parent),
+    };
+    let require_parent = Event::RequireBodyContext {
+        context: Arc::clone(&substitution.parent),
+    };
+    let enter_child = Event::BodyContext {
+        context: Arc::clone(context),
+    };
+    let require_child = Event::RequireBodyContext {
+        context: Arc::clone(context),
+    };
+    let mut entered = State::default();
+    let _ = entered.step(&enter_parent);
+    let mut valid = entered.clone();
+    for event in [&require_parent, &enter_child, &require_child] {
+        let _ = valid.step(event);
+    }
+    assert!(!valid.blocked);
+    assert!(valid.entered_body_contexts.contains(&substitution.parent));
+    assert!(valid.entered_body_contexts.contains(context));
+    assert!(valid.body_contexts.contains(&substitution.parent));
+    assert!(valid.body_contexts.contains(context));
+
+    let mut joined = entered.clone();
+    let _ = joined.join(&State::default());
+    let mut reverse_joined = State::default();
+    let _ = reverse_joined.join(&entered);
+    let _ = entered.step(&Event::Barrier);
+    for mut refused in [State::default(), joined, reverse_joined, entered] {
+        let _ = refused.step(&require_parent);
+        assert!(refused.blocked);
+        let _ = refused.step(&enter_child);
+        let _ = refused.step(&require_child);
+        assert!(refused.blocked);
+        assert!(refused.body_contexts.is_empty());
+        assert!(refused.entered_body_contexts.is_empty());
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ListEventKind {
+    Append,
+    Index,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ListEventState {
+    pub(super) site: u32,
+    pub(super) kind: ListEventKind,
+    pub(super) blocked_before: bool,
+    pub(super) blocked_after: bool,
+    /// Handler-time target for Append; frozen container snapshot for Index.
+    pub(super) input_literal: Option<Vec<u8>>,
+    pub(super) operand_literals: Vec<(usize, Vec<u8>)>,
+    pub(super) stored_representation: Option<TclType>,
+    pub(super) result_representation: Option<TclType>,
+    pub(super) result_literal: Option<Vec<u8>>,
+    pub(super) result_is_integer: bool,
+}
+
+/// Inspect the same settled source graph used by production projection.
+#[cfg(test)]
+pub(super) fn inspect_list_events(
+    builder: &super::Builder<'_>,
+    entry: usize,
+) -> Vec<ListEventState> {
+    let states = settled_states(builder, entry);
+    let mut observations = Vec::new();
+    for (node, incoming) in builder.nodes.iter().zip(states) {
+        let Some(mut state) = incoming else {
+            continue;
+        };
+        for event in &node.representation_events {
+            let inspected = match event {
+                Event::ListAppend { site, target, .. } => Some((
+                    *site,
+                    ListEventKind::Append,
+                    state.literals.cells.get(&target.1),
+                    Some(&target.1),
+                )),
+                Event::ListIndex { site, coercion, .. } => Some((
+                    *site,
+                    ListEventKind::Index,
+                    state.literals.snapshots.get(&OperandSnapshot {
+                        site: *site,
+                        operand: OperandId(coercion.argument()),
+                    }),
+                    None,
+                )),
+                _ => None,
+            }
+            .map(|(site, kind, input, target)| {
+                (site, kind, input.map(|value| value.bytes.clone()), target)
+            });
+            let mut operand_literals: Vec<_> = inspected
+                .as_ref()
+                .into_iter()
+                .flat_map(|(site, ..)| {
+                    state
+                        .literals
+                        .snapshots
+                        .iter()
+                        .filter(move |(slot, _)| slot.site == *site)
+                        .map(|(slot, value)| (slot.operand.0, value.bytes.clone()))
+                })
+                .collect();
+            operand_literals.sort_by_key(|(operand, _)| *operand);
+            let blocked_before = state.blocked;
+            let _ = state.step(event);
+            if let Some((site, kind, input_literal, target)) = inspected {
+                observations.push(ListEventState {
+                    site,
+                    kind,
+                    blocked_before,
+                    blocked_after: state.blocked,
+                    input_literal,
+                    operand_literals,
+                    stored_representation: target
+                        .and_then(|symbol| state.cells.get(symbol))
+                        .and_then(|value| value.commitment.single_committed()),
+                    result_representation: state
+                        .last_result
+                        .as_ref()
+                        .and_then(|value| value.commitment.single_committed()),
+                    result_literal: state
+                        .literals
+                        .last_result
+                        .as_ref()
+                        .map(|value| value.bytes.clone()),
+                    result_is_integer: state
+                        .last_result
+                        .as_ref()
+                        .is_some_and(|value| value.integer_result),
+                });
+            }
+        }
+    }
+    observations
 }
 
 /// Reuse the declaration graph's ordering and edges. Findings are collected
@@ -887,6 +1151,7 @@ impl CycleState {
             Event::Capture { source, .. }
             | Event::Apply { source, .. }
             | Event::ListIndex { source, .. }
+            | Event::ListAppend { source, .. }
             | Event::Reset { source, .. }
             | Event::Control { source } => self.retain_premise(source),
             Event::ClearResult
@@ -894,11 +1159,18 @@ impl CycleState {
             | Event::RequireBodyContext { .. }
             | Event::Barrier => {}
         }
-        if let Event::Apply {
-            target: Some((_, symbol)),
-            ..
-        } = event
-        {
+        let written = match event {
+            Event::Apply {
+                target: Some((_, symbol)),
+                ..
+            }
+            | Event::ListAppend {
+                target: (_, symbol),
+                ..
+            } => Some(symbol),
+            _ => None,
+        };
+        if let Some(symbol) = written {
             self.first.remove(symbol);
             if self
                 .carry

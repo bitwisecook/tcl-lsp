@@ -97,6 +97,27 @@ impl SourceReadCatalogue {
         !self.tape.blocks_registry_source(site.offset)
     }
 
+    /// Rejoin advice to this catalogue's actually issued original record.
+    pub(super) fn owns_original_advice(
+        &self,
+        site: &CommandAllocationSite,
+        advice: &OriginalSourceCommandTransitionAdvice,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        let Some(current) = self.read_advice(site.offset) else {
+            return false;
+        };
+        self.admits_original_site(site)
+            && Arc::ptr_eq(&current.site().source, &site.source)
+            && Arc::ptr_eq(&advice.site().source, &site.source)
+            && current.site().offset == site.offset
+            && advice.site().offset == site.offset
+            && current.shares_original_record(advice)
+            && current == advice
+            && advice.matches_source(site.source.source_image(), config)
+            && advice.matches_context(&self.context)
+    }
+
     /// A retained Logical body receipt owns its declared frame; the separate
     /// syntax catalogue deliberately carries no such interpretation. Prefer
     /// that existing receipt only when both original vectors and inputs agree.

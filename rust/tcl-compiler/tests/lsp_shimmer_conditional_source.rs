@@ -105,15 +105,38 @@ fn dynamic_length_result_is_converted_by_list_index() {
     let source = "set s abc; set n [string length $s]; lindex $n 0";
     for version in tcl_dialect::TclVersion::ALL {
         let found = warnings_for(source, version.dialect_profile_name());
-        let warning = found
+        let matching: Vec<_> = found
             .iter()
-            .find(|warning| warning.code == DiagCode::S100 && warning.variable == "n")
-            .unwrap_or_else(|| panic!("{version:?}: {found:?}"));
+            .filter(|warning| warning.code == DiagCode::S100 && warning.variable == "n")
+            .collect();
+        assert_eq!(matching.len(), 1, "{version:?}: {found:?}");
+        let warning = matching[0];
         assert_eq!(
             (warning.from_type, warning.to_type),
             (TclType::Int, TclType::List)
         );
         assert_eq!(warning.span.start() as usize, source.rfind("$n").unwrap());
+        assert_eq!(warning.span.end() as usize, source.rfind("$n").unwrap() + 2);
+    }
+}
+
+#[test]
+fn dynamic_integer_result_is_converted_by_literal_index_one() {
+    let source = "set s abc; set n [string length $s]; lindex $n 1";
+    for version in tcl_dialect::TclVersion::ALL {
+        let found = warnings_for(source, version.dialect_profile_name());
+        let matching: Vec<_> = found
+            .iter()
+            .filter(|warning| warning.code == DiagCode::S100 && warning.variable == "n")
+            .collect();
+        assert_eq!(matching.len(), 1, "{version:?}: {found:?}");
+        let warning = matching[0];
+        assert_eq!(
+            (warning.from_type, warning.to_type),
+            (TclType::Int, TclType::List)
+        );
+        assert_eq!(warning.span.start() as usize, source.rfind("$n").unwrap());
+        assert_eq!(warning.span.end() as usize, source.rfind("$n").unwrap() + 2);
     }
 }
 
