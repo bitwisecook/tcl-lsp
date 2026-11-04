@@ -66,6 +66,85 @@ pub struct RetainedSourceModuleBindings {
     installed_procedures:
         std::collections::BTreeMap<crate::ir::ProcedureId, OriginalProcedureSource>,
     methods: std::collections::BTreeMap<crate::ir::ProcedureId, OriginalMethodSource>,
+    realms: ModuleRealmMemo,
+}
+
+/// The document realm over `positioned`, built once per command store and
+/// metadata input instead of once per query: a fresh realm starts with empty
+/// advice caches, so rebuilding it re-prepared the whole-program advice tape
+/// for every command. Derived state only; not part of the identity.
+#[derive(Clone, Default)]
+pub(crate) struct ModuleRealmMemo(
+    Arc<
+        std::sync::Mutex<
+            Vec<(
+                RegistrySemanticKey,
+                Option<crate::analyser::ResolvedAnalysisInput>,
+                Arc<crate::realm::CommandBindingRealm>,
+            )>,
+        >,
+    >,
+);
+
+impl std::fmt::Debug for ModuleRealmMemo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ModuleRealmMemo")
+    }
+}
+
+impl PartialEq for ModuleRealmMemo {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for ModuleRealmMemo {}
+
+impl RetainedSourceModuleBindings {
+    /// The shared document realm for `module`, validated exactly as
+    /// [`Self::positioned_for_module`] validates the bindings it wraps.
+    pub(crate) fn document_realm_for_module(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+        build: impl FnOnce(&SourceCommandBindings) -> crate::realm::CommandBindingRealm,
+    ) -> Option<Arc<crate::realm::CommandBindingRealm>> {
+        let bindings = self.positioned_for_module(module, registry)?;
+        let key = registry.snapshot().semantic_key();
+        let input = &module.source_metadata_input;
+        let find = |entries: &[(
+            RegistrySemanticKey,
+            Option<crate::analyser::ResolvedAnalysisInput>,
+            Arc<crate::realm::CommandBindingRealm>,
+        )]| {
+            entries
+                .iter()
+                .find(|(owned, owned_input, _)| owned == &key && owned_input == input)
+                .map(|(_, _, realm)| Arc::clone(realm))
+        };
+        if let Some(realm) = find(
+            &self
+                .realms
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        ) {
+            return Some(realm);
+        }
+        let realm = Arc::new(build(bindings));
+        let mut entries = self
+            .realms
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(retained) = find(&entries) {
+            return Some(retained);
+        }
+        if entries.len() < 4 {
+            entries.push((key, input.clone(), Arc::clone(&realm)));
+        }
+        Some(realm)
+    }
 }
 
 /// Original header and body coordinates retained by the real Module producer.
@@ -344,6 +423,7 @@ impl RetainedSourceModuleBindings {
                 .filter(|(id, _)| module.procedure_ids.owns(**id))
                 .map(|(id, method)| (*id, OriginalMethodSource::retain(method)))
                 .collect(),
+            realms: ModuleRealmMemo::default(),
         }))
     }
 
