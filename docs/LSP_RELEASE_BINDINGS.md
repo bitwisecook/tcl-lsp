@@ -68,3 +68,10 @@ Unverified implementation work and the earlier failing/debug audit fixture are
 preserved in the local stash named
 `bindings-unverified-w210-drafts-before-external-validation`, with independent
 recovery copies under `/tmp`. They were excluded from every new validation.
+
+The independent #940 review matrix is in
+[`shimmer-940-source-owner`](../rust/tcl-compiler/tests/data/shimmer-940-source-owner/README.md).
+It records exact source inputs, warning/IR expectations and source-purpose,
+provider-obligation and codegen negative controls. These are planned assertions,
+not new passing product evidence. No production fix or pre-candidate build is
+included in that data-only checkpoint.
