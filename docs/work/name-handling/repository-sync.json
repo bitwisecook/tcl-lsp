@@ -1,8 +1,8 @@
 {
-  "checked_at": "2026-11-04T06:30:57.580223+00:00",
+  "checked_at": "2026-11-04T06:35:57.585794+00:00",
   "branch": "work",
-  "head_before_status_commit": "4daf0615bf04fee5260ccfa269b29fa5a096c28a",
-  "remote_head_at_fetch": "4daf0615bf04fee5260ccfa269b29fa5a096c28a",
+  "head_before_status_commit": "aca63203d4acb6b9f304e61e8218f374da2f87f9",
+  "remote_head_at_fetch": "aca63203d4acb6b9f304e61e8218f374da2f87f9",
   "sync": "no new remote commits",
   "release_ready": false,
   "required_gates": "failed or incomplete; see timestamped manual snapshot",
@@ -11,6 +11,8 @@
   "working_tree_at_check": [
     " M docs/design/analysis/name-resolution-proofs/README.md",
     " M docs/design/analysis/name-resolution-proofs/corpus-inventory.json",
+    " M rust/tcl-lsp-core/src/original_command_rename/source_coverage.rs",
+    " M rust/tcl-lsp-server-wasm/test/e2e.mjs",
     "?? docs/design/analysis/name-resolution-proofs/derived-public-projections/authored-fixture-source-contract.json",
     "?? docs/design/analysis/name-resolution-proofs/derived-public-projections/authored-fixture-source-review.json",
     "?? scripts/dev/check-authored-fixture-source-review.py"
