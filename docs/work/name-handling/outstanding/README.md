@@ -1,13 +1,14 @@
 # Outstanding LSP release work
 
-Updated 04 November 2026, 02:03 UTC. Work is active. The [current snapshot](../current-state.md) records exact sources, receipts and limits; historical handoffs do not certify current execution.
+Updated 04 November 2026, 02:20 UTC. The [current snapshot](../current-state.md) records exact source, receipt and scope; no PR or release exists.
 
 | Owner/work | Open acceptance |
 | --- | --- |
-| Root | Current-source builds/integration, truthful state, five-minute fetch/push, required gates, full E2E, editor/browser/WASI, proof and packaging. V10 build passes, selected controls70/72 pass. Rename-prefix guard and formatter style-premise corrections remain private; original five-case rename, primary-version and all5 ingress controls pass. Syntax5/5 and native stdio hover15/15/rename18/18 pass only within their recorded cohorts. |
-| Startup indexing, Sol6.1 + Terra6.1 review | Adopted typed standalone structural abstention certificate. Both current startup A/B servers still time out before scan.ready. Public installed-schema probe15/15 passes. Actual Core vectors, failed adversary diagnosis and startup/navigation acceptance remain required. |
-| Server lint, Sol6.1 | Eight server findings remain in latest all-target request. Adopted helper extraction; V8 caught an Arc argument mismatch, now corrected; V10 compiles; current lint rerun pending. |
-| Cross-file/CI triage, Sol6.1 | Definitions, hover, closed symbols/tclIndex and rename coverage failures. Closed-child disk ingress adopted; final-call completion, hover and rename remain open. |
-| Other required work | Primary-version lifecycle fixture execution, source-reference recovery, computed Native positive coverage, compatibility consumers, performance, packaging, global proof/drift, rust-check and prep-pr. |
+| Root | Current Clippy, native rebuild, actual startup/wire, current units/CI, required gates, truthful state and five-minute sync/push. V10 selected70/72; subsequent guard/style fixes need rerun. |
+| Source navigation | Definition-only suffix patch adopted after controlled host positives;12/13 experiment controls, with sole existing failure reproduced on V10. References/rename/world completion stay strict. Actual native protocol pending. |
+| Hover, Sol6.1 + Terra6.1 review | Private source-owner metadata/applicability work; must preserve baseline ordinary factory, schema, env and class cards. No new hover pass yet. |
+| Autoload, Sol6.1 | Actual vectors15/15 pass in recorded experiment.8.4 encoding fallback remains expensive; new grammar-negative proof under investigation. Actual startup still times out. |
+| Core fixture, Sol6.1 | Public80-case probe confirms prior-puts uncertainty; retain negative and verified Unicode positive without production debt weakening. Private patch pending. |
+| Required gates | Full current E2E/compatibility/browser/WASI/editor, proof/drift, performance, packaging, rust-check and prep-pr remain open. |
 
-Separate VM/BIG-IP feature development is deferred. Required linked dependencies and mandatory gates remain in scope. The global proof gate has no accepted reduced release profile; scoped source controls grant no Native/provider authority. No PR or release exists.
+Separate VM/BIG-IP feature work is deferred; linked dependencies and mandatory gates remain in scope. Scoped source advice grants no Native/provider execution authority. Temporary ledgers must be removed before merge per AGENTS.
