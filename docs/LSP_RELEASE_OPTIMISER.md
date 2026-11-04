@@ -65,6 +65,22 @@ inputs: no pinned original-report parse refusal was reproduced. Any new
 source-expression fallback remains parked while existing checked-condition and
 effect topology are reused first.
 
+The next reviewed if seam is a temporary field-only prototype:
+`/tmp/lsp-940-source_conditional_control.rs`, SHA-256
+`516d3e0708bd42bad5746629a53b3bc21e2683e86452ddf512af6308b96e036a`.
+It adds an opaque default-None source-control descriptor without changing
+`SemanticsDeclaration`, `InvocationSemantics` or `InvocationFacts`. Exact
+literal condition/body values and the existing clause ordinals are retained
+in an owned receipt; outer dynamic/expanded words decline. Five unrun fixed
+controls include unchanged generic None/effects/completion/body topology,
+literal0/1 and lazy/substitution text, raw/effective descriptor refusals and
+receipt lifetime. The seven-file metadata wiring includes an explicit SpecTcl
+GAPS exclusion and passes apply-check; child rustfmt passes. All product source
+remains under `/tmp`, with no Cargo or new Tcl execution. Paths and hashes are
+in `/tmp/lsp-940-if-field-manifest.json`. Exact distinct if-body Job custody
+and condition conversion/exit ordering remain the values lane's obligations;
+fixed boolean truth does not establish representation-inert condition objects.
+
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,
 8.6.18, 9.0.4 and 9.1.0 interpreters. Latest JimTcl is available for applicable
