@@ -41,7 +41,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use tcl_registry::InvocationWordKind;
 use tcl_registry::pack_hooks::{
-    HookAnswer, HookCall, HookFamily, HookSlot, HookWord, PackHookHost,
+    HookAnswer, HookCall, HookFamily, HookSlot, HookWord, PackHookHost, TabulationPlan,
 };
 use tcl_registry::value_transfer::ImplementationBudget;
 
@@ -72,7 +72,7 @@ fn next_generation() -> u64 {
 mod transport {
     use super::{
         Arc, HookAnswer, HookCall, HookPlan, HookSlot, HookWord, HostState, ImplementationBudget,
-        InvocationWordKind, Mutex, PoisonError, next_generation,
+        InvocationWordKind, Mutex, PoisonError, TabulationPlan, next_generation,
     };
     use std::sync::mpsc;
     use tcl_registry::pack_hooks::{ConstraintCallCtx, OptionCallCtx};
@@ -188,6 +188,7 @@ mod transport {
             plan: Arc<HookPlan>,
             eager: bool,
             generation: u64,
+            tables: TabulationPlan,
         },
         Invoke {
             slot: HookSlot,
@@ -200,7 +201,7 @@ mod transport {
     /// to be restarted comes back serving the same plan.
     struct Service {
         sender: Option<mpsc::Sender<Message>>,
-        plan: Option<(Arc<HookPlan>, bool, u64)>,
+        plan: Option<(Arc<HookPlan>, bool, u64, TabulationPlan)>,
     }
 
     static SERVICE: Mutex<Service> = Mutex::new(Service {
@@ -227,11 +228,12 @@ mod transport {
             sender.clone()
         } else {
             let sender = spawn();
-            if let Some((plan, eager, generation)) = &service.plan {
+            if let Some((plan, eager, generation, tables)) = &service.plan {
                 let _ = sender.send(Message::Install {
                     plan: Arc::clone(plan),
                     eager: *eager,
                     generation: *generation,
+                    tables: tables.clone(),
                 });
             }
             service.sender = Some(sender.clone());
@@ -248,14 +250,15 @@ mod transport {
         true
     }
 
-    pub(super) fn install(plan: Arc<HookPlan>, eager: bool) {
+    pub(super) fn install(plan: Arc<HookPlan>, eager: bool, tables: TabulationPlan) {
         let generation = next_generation();
         SERVICE.lock().unwrap_or_else(PoisonError::into_inner).plan =
-            Some((Arc::clone(&plan), eager, generation));
+            Some((Arc::clone(&plan), eager, generation, tables.clone()));
         let _ = send(Message::Install {
             plan,
             eager,
             generation,
+            tables,
         });
     }
 
@@ -280,8 +283,9 @@ mod transport {
                     plan,
                     eager,
                     generation,
+                    tables,
                 } => {
-                    state = HostState::new(plan, eager, generation);
+                    state = HostState::new(plan, eager, generation, tables);
                     if eager {
                         state.prepare();
                     }
@@ -300,14 +304,18 @@ mod transport {
 /// answered from a shipped table; when they are every body the plan has, the
 /// host is built only if a call falls outside a table. WASM defers all host
 /// construction until invocation, after publication releases its plan lock.
-pub(crate) fn install(plan: Arc<HookPlan>, precompiled: &BTreeSet<HookSlot>) {
+pub(crate) fn install(
+    plan: Arc<HookPlan>,
+    precompiled: &BTreeSet<HookSlot>,
+    tables: TabulationPlan,
+) {
     let eager = plan.packs().iter().any(|programs| {
         programs
             .programs
             .iter()
             .any(|program| program.slot.is_none_or(|slot| !precompiled.contains(&slot)))
     });
-    transport::install(plan, eager);
+    transport::install(plan, eager, tables);
 }
 
 /// A worker thread's host: every call goes to the service.
@@ -350,14 +358,22 @@ pub(crate) fn build_host(plan: &HookPlan) -> Rc<dyn PackHookHost> {
 #[derive(Default)]
 struct HostState {
     generation: u64,
+    tables: Option<TabulationPlan>,
+    slots: Vec<HookSlot>,
     host: Option<Rc<dyn PackHookHost>>,
     deferred: Option<(Arc<HookPlan>, bool)>,
 }
 
 impl HostState {
-    fn new(plan: Arc<HookPlan>, eager: bool, generation: u64) -> Self {
+    fn new(plan: Arc<HookPlan>, eager: bool, generation: u64, tables: TabulationPlan) -> Self {
         Self {
             generation,
+            tables: Some(tables),
+            slots: plan
+                .packs()
+                .iter()
+                .flat_map(|pack| pack.programs.iter().filter_map(|p| p.slot))
+                .collect(),
             host: None,
             deferred: (!plan.is_empty()).then_some((plan, eager)),
         }
@@ -367,7 +383,11 @@ impl HostState {
         if let Some((plan, tabulate_now)) = self.deferred.take() {
             let host = build_host(&plan);
             if tabulate_now {
-                tabulate(host.as_ref(), &plan);
+                tabulate(
+                    host.as_ref(),
+                    &plan,
+                    self.tables.as_ref().expect("installed table owner"),
+                );
             }
             self.host = Some(host);
         }
@@ -380,9 +400,19 @@ impl HostState {
         };
         let answer = host.invoke(slot, call);
         if !host.is_available(slot) {
+            let unavailable: Vec<_> = self
+                .slots
+                .iter()
+                .copied()
+                .filter(|slot| !host.is_available(*slot))
+                .collect();
+            if let Some(tables) = &self.tables {
+                let _retired =
+                    tcl_registry::pack_hooks::quarantine_tabulations(tables, &unavailable);
+            }
             let mut quarantine = QUARANTINED.lock().unwrap_or_else(PoisonError::into_inner);
             if quarantine.generation == self.generation {
-                quarantine.slots.insert(slot);
+                quarantine.slots.extend(unavailable);
             }
         }
         answer
@@ -391,7 +421,9 @@ impl HostState {
 
 #[cfg(any(test, target_arch = "wasm32"))]
 mod inline {
-    use super::{Arc, HookAnswer, HookCall, HookPlan, HookSlot, HostState, next_generation};
+    use super::{
+        Arc, HookAnswer, HookCall, HookPlan, HookSlot, HostState, TabulationPlan, next_generation,
+    };
     use std::cell::{Cell, RefCell};
 
     #[derive(Default)]
@@ -417,10 +449,10 @@ mod inline {
     }
 
     impl Service {
-        pub(super) fn install(&self, plan: Arc<HookPlan>, eager: bool) {
+        pub(super) fn install(&self, plan: Arc<HookPlan>, eager: bool, tables: TabulationPlan) {
             // Defer bootstrap until invocation: publication still holds its
             // plan mutex, and VM compilation may itself query the registry.
-            *self.state.borrow_mut() = Some(HostState::new(plan, eager, next_generation()));
+            *self.state.borrow_mut() = Some(HostState::new(plan, eager, next_generation(), tables));
         }
 
         pub(super) fn is_active(&self) -> bool {
@@ -485,6 +517,12 @@ mod inline {
             }
         }
 
+        fn install(service: &Service, plan: Arc<HookPlan>) {
+            let tables = pack_hooks::begin_tabulation_plan();
+            assert!(pack_hooks::activate_tabulation_plan(&tables));
+            service.install(plan, false, tables);
+        }
+
         fn family_programs() -> Vec<HookProgram> {
             let fixtures = [
                 (
@@ -543,7 +581,7 @@ mod inline {
             let plan = plan(family_programs());
             let direct = build_host(&plan);
             let service = Service::default();
-            service.install(Arc::clone(&plan), false);
+            install(&service, Arc::clone(&plan));
             assert!(service.state.borrow().as_ref().unwrap().host.is_none());
             let words = [HookWord {
                 value: "x",
@@ -619,9 +657,9 @@ mod inline {
                     .as_ref()
                     .unwrap()
             ));
-            service.install(Arc::new(HookPlan::default()), false);
+            install(&service, Arc::new(HookPlan::default()));
             assert_eq!(service.invoke(fold, &call(&words)), HookAnswer::Abstain);
-            service.install(Arc::clone(&plan), false);
+            install(&service, Arc::clone(&plan));
             assert_eq!(
                 service.invoke(fold, &call(&words)),
                 HookAnswer::Fold("x".to_owned())
@@ -641,7 +679,7 @@ mod inline {
                 assert!(self.service.is_active());
                 assert_eq!(self.service.invoke(slot, call), HookAnswer::Abstain);
                 // Publication while the old receiver is leased is retained.
-                self.service.install(Arc::new(HookPlan::default()), false);
+                install(&self.service, Arc::new(HookPlan::default()));
                 assert_eq!(self.service.invoke(slot, call), HookAnswer::Abstain);
                 HookAnswer::Fold("outer".to_owned())
             }
@@ -662,6 +700,8 @@ mod inline {
                 })),
                 deferred: None,
                 generation,
+                tables: None,
+                slots: vec![slot],
             });
             assert_eq!(
                 service.invoke(slot, &call(&[])),
@@ -694,7 +734,7 @@ mod inline {
             let spin = plan.packs()[0].programs[0].slot.unwrap();
             let healthy = plan.packs()[0].programs[1].slot.unwrap();
             let service = Service::default();
-            service.install(plan, false);
+            install(&service, plan);
             let words = [HookWord {
                 value: "still-live",
                 kind: InvocationWordKind::Literal,
@@ -741,11 +781,11 @@ mod inline {
 
 #[cfg(target_arch = "wasm32")]
 mod transport {
-    use super::{Arc, HookAnswer, HookCall, HookPlan, HookSlot, inline::Service};
+    use super::{Arc, HookAnswer, HookCall, HookPlan, HookSlot, TabulationPlan, inline::Service};
     thread_local! { static SERVICE: Service = Service::default(); }
 
-    pub(super) fn install(plan: Arc<HookPlan>, eager: bool) {
-        SERVICE.with(|service| service.install(plan, eager));
+    pub(super) fn install(plan: Arc<HookPlan>, eager: bool, tables: TabulationPlan) {
+        SERVICE.with(|service| service.install(plan, eager, tables));
     }
 
     pub(super) fn invoke(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
@@ -791,14 +831,14 @@ pub(crate) fn reads_only_word_count(parameters: &[String], body: &str) -> bool {
 }
 
 /// Tabulate every count-only resolver of `plan` on `host` ([`table_for`]).
-fn tabulate(host: &dyn PackHookHost, plan: &HookPlan) {
+fn tabulate(host: &dyn PackHookHost, plan: &HookPlan, tables: &TabulationPlan) {
     for programs in plan.packs() {
         for program in &programs.programs {
             if let Some(slot) = program.slot
                 && is_tabulable(program)
                 && let Some(answers) = table_for(host, slot)
             {
-                tcl_registry::pack_hooks::tabulate(slot, answers);
+                let _published = tcl_registry::pack_hooks::tabulate(tables, slot, answers);
             }
         }
     }

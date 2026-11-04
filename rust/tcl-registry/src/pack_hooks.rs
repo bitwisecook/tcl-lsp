@@ -1718,27 +1718,104 @@ macro_rules! n17_live_trace {
     };
 }
 
-/// Answers computed ahead of time for hooks whose answer depends on the
-/// word count alone, indexed by that count ([`tabulate`]).
-static TABULATED: std::sync::RwLock<
-    Option<rustc_hash::FxHashMap<HookSlot, std::sync::Arc<[HookAnswer]>>>,
-> = std::sync::RwLock::new(None);
+/// An exact publication's table ownership, independent of source hashes.
+/// Cloning retains that publication; a later publication cannot reuse it.
+/// This is memo ownership only and grants no execution or source authority.
+#[derive(Clone)]
+pub struct TabulationPlan(std::sync::Arc<()>);
+
+struct Tabulations {
+    plan: Option<TabulationPlan>,
+    active: bool,
+    answers: Option<rustc_hash::FxHashMap<HookSlot, std::sync::Arc<[HookAnswer]>>>,
+    quarantined: std::collections::BTreeSet<HookSlot>,
+}
+
+static TABULATED: std::sync::RwLock<Tabulations> = std::sync::RwLock::new(Tabulations {
+    plan: None,
+    active: false,
+    answers: None,
+    quarantined: std::collections::BTreeSet::new(),
+});
 static ANY_TABULATED: AtomicBool = AtomicBool::new(false);
 
-/// Record `answers[n]` as `slot`'s answer to every call with `n` words and no
-/// option or constraint context.
-///
-/// For a hook the publisher has shown reads its call only through the count
-/// of its words: [`dispatch`] then answers from the table on any thread,
-/// with no host. A slot names one hook for the life of the process, so a
-/// table never outlives what it was computed from.
-pub fn tabulate(slot: HookSlot, answers: Vec<HookAnswer>) {
-    TABULATED
+/// Retire the previous publication's tables and issue the new plan's owner.
+/// A delayed host can still finish computing, but cannot publish old answers.
+#[must_use]
+pub fn begin_tabulation_plan() -> TabulationPlan {
+    let plan = TabulationPlan(std::sync::Arc::new(()));
+    let mut tables = TABULATED
         .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    tables.plan = Some(plan.clone());
+    tables.active = false;
+    tables.answers = None;
+    tables.quarantined.clear();
+    ANY_TABULATED.store(false, Ordering::Release);
+    plan
+}
+
+/// Expose staged tables only after their plan and evaluator epoch commit.
+#[must_use]
+pub fn activate_tabulation_plan(plan: &TabulationPlan) -> bool {
+    let mut tables = TABULATED
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !tables
+        .plan
+        .as_ref()
+        .is_some_and(|current| std::sync::Arc::ptr_eq(&current.0, &plan.0))
+    {
+        return false;
+    }
+    tables.active = true;
+    true
+}
+
+/// Record count-only answers only while their exact published plan is current.
+/// Returns false when another plan retired this host's table ownership.
+#[must_use]
+pub fn tabulate(plan: &TabulationPlan, slot: HookSlot, answers: Vec<HookAnswer>) -> bool {
+    let mut tables = TABULATED
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !tables
+        .plan
+        .as_ref()
+        .is_some_and(|current| std::sync::Arc::ptr_eq(&current.0, &plan.0))
+        || tables.quarantined.contains(&slot)
+    {
+        return false;
+    }
+    tables
+        .answers
         .get_or_insert_with(rustc_hash::FxHashMap::default)
         .insert(slot, std::sync::Arc::from(answers));
     ANY_TABULATED.store(true, Ordering::Release);
+    true
+}
+
+/// Retire unavailable slots only for the host's own current publication.
+/// Late probes on that same owner cannot restore a quarantined table.
+#[must_use]
+pub fn quarantine_tabulations(plan: &TabulationPlan, slots: &[HookSlot]) -> bool {
+    let mut tables = TABULATED
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !tables
+        .plan
+        .as_ref()
+        .is_some_and(|current| std::sync::Arc::ptr_eq(&current.0, &plan.0))
+    {
+        return false;
+    }
+    tables.quarantined.extend(slots.iter().copied());
+    if let Some(answers) = &mut tables.answers {
+        for slot in slots {
+            answers.remove(slot);
+        }
+    }
+    true
 }
 
 fn tabulated(slot: HookSlot, call: &HookCall<'_>) -> Option<HookAnswer> {
@@ -1746,13 +1823,45 @@ fn tabulated(slot: HookSlot, call: &HookCall<'_>) -> Option<HookAnswer> {
     {
         return None;
     }
-    TABULATED
+    let tables = TABULATED
         .read()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !tables.active {
+        return None;
+    }
+    tables
+        .answers
         .as_ref()?
         .get(&slot)?
         .get(call.words.len())
         .cloned()
+}
+
+struct TableObservation(Option<TabulationPlan>);
+
+impl TableObservation {
+    fn capture() -> Option<Self> {
+        let tables = TABULATED
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if tables.plan.is_some() && !tables.active {
+            return None;
+        }
+        Some(Self(tables.plan.clone()))
+    }
+
+    fn is_current(&self) -> bool {
+        let tables = TABULATED
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match (&self.0, &tables.plan) {
+            (None, None) => true,
+            (Some(observed), Some(current)) => {
+                tables.active && std::sync::Arc::ptr_eq(&observed.0, &current.0)
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Invoke a pack hook after synchronizing its actual published plan receiver.
@@ -1764,8 +1873,15 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     if external_evaluators_blocked() {
         return HookAnswer::Abstain;
     }
+    let Some(publication) = TableObservation::capture() else {
+        return HookAnswer::Abstain;
+    };
     if let Some(answer) = tabulated(slot, call) {
-        return answer;
+        return if publication.is_current() {
+            answer
+        } else {
+            HookAnswer::Abstain
+        };
     }
     n17_live_trace!("dispatch-entry slot={slot:?}");
     if !ANY_HOST.load(Ordering::Relaxed) && INSTALLER.get().is_none() {
@@ -1778,9 +1894,18 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         n17_live_trace!("decline=dispatch-no-receiver slot={slot:?}");
         return HookAnswer::Abstain;
     };
-    if host.requires_uncached_dispatch() {
-        return host.invoke(slot, call);
+    if !host.is_available(slot) {
+        return HookAnswer::Abstain;
     }
+    if host.requires_uncached_dispatch() {
+        let answer = host.invoke(slot, call);
+        return if publication.is_current() {
+            answer
+        } else {
+            HookAnswer::Abstain
+        };
+    }
+    let generation = GENERATION.with(Cell::get);
     let mode = cache_mode(slot);
     let key = (mode != CacheMode::None)
         .then(|| shape_key(slot, call, mode))
@@ -1800,11 +1925,23 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         })
     {
         n17_live_trace!("dispatch-cache-hit slot={slot:?} answer={hit:?}");
-        return hit;
+        return if publication.is_current() && host.is_available(slot) {
+            hit
+        } else {
+            HookAnswer::Abstain
+        };
     }
     n17_live_trace!("dispatch-host-call slot={slot:?}");
     let answer = host.invoke(slot, call);
     n17_live_trace!("dispatch-host-return slot={slot:?} answer={answer:?}");
+    // A callback may replace this receiver. A concurrent plan publication
+    // is visible through the pending generation without installing a host.
+    if !publication.is_current() || !host.is_available(slot) {
+        return HookAnswer::Abstain;
+    }
+    if !current_host_is(&host) || evaluator_generation() != generation {
+        return answer;
+    }
     if let Some(key) = key {
         SHAPE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
@@ -2364,6 +2501,28 @@ mod tests {
         pub(super) static FORCED_CONTENT_HASH: Cell<Option<u64>> = const { Cell::new(None) };
     }
 
+    #[test]
+    fn replaced_receiver_cannot_seed_the_replacements_cache() {
+        struct ReplacingHost;
+        impl PackHookHost for ReplacingHost {
+            fn invoke(&self, _slot: HookSlot, _call: &HookCall<'_>) -> HookAnswer {
+                install_host(Rc::new(FixedHost(HookAnswer::Fold("new".into()))));
+                HookAnswer::Fold("old".into())
+            }
+        }
+        std::thread::spawn(|| {
+            let slot = allocate(HookFamily::ConstFold, &HookInputs::parse(&["words"])).unwrap();
+            let fold = const_fold_fn(slot).unwrap();
+            install_host(Rc::new(ReplacingHost));
+            assert_eq!(fold(&["same"]), Some("old".into()));
+            assert_eq!(fold(&["same"]), Some("new".into()));
+            assert_eq!(fold(&["same"]), Some("new".into()));
+            assert_eq!(cache_stats().hits, 1);
+            clear_host();
+        })
+        .join()
+        .unwrap();
+    }
     struct FixedHost(HookAnswer);
 
     impl PackHookHost for FixedHost {

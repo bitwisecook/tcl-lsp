@@ -323,6 +323,13 @@ gen-bundled-manifests` and compiled into the server binary
 the body), so every editor that ships the binary answers them without ever
 starting a VM (`hooks::hosts_built` stays zero).
 
+Tables belong to an exact published plan, rather than to its stable source
+slots alone. Publishing retires the previous table owner before installing
+new answers; a delayed old host cannot restore them after a body edit.
+Quarantine removes a hook's owned tables as well as preventing worker cache
+hits, including calls inside a table after a larger fallback call exhausted
+its budget. A healthy replacement plan can answer again.
+
 ### Lazy bundled packs
 
 A bundled pack whose every command requires a closed-world vendor package

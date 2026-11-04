@@ -634,6 +634,10 @@ thread_local! {
 /// retires the previous one: threads clear their host on their next
 /// [`ensure_thread_host`] and every pack hook abstains again.
 pub fn publish(packs: &PackSet) {
+    publish_with_before_commit(packs, || {});
+}
+
+fn publish_with_before_commit(packs: &PackSet, before_commit: impl FnOnce()) {
     let plan = plan_for(packs);
     let mut published = match PUBLISHED.lock() {
         Ok(published) => published,
@@ -649,8 +653,10 @@ pub fn publish(packs: &PackSet) {
     // Bodies whose answers ship precompiled are tabulated now; the one host
     // that runs the rest is built on the hook service, not by whichever
     // worker first needs it.
-    let precompiled = apply_precompiled_tables(&plan);
-    service::install(Arc::clone(&plan), &precompiled);
+    let tables = pack_hooks::begin_tabulation_plan();
+    let precompiled = apply_precompiled_tables(&plan, &tables);
+    service::install(Arc::clone(&plan), &precompiled, tables.clone());
+    before_commit();
     *published = Some(plan);
     PUBLICATION.store(publication, Ordering::Release);
     // A new plan is new evaluators for every thread that serves it: a memo
@@ -663,12 +669,16 @@ pub fn publish(packs: &PackSet) {
     // cost one `OnceLock` read.
     pack_hooks::set_installer(ensure_thread_host);
     pack_hooks::set_pending_host(pending_thread_host);
+    let _activated = pack_hooks::activate_tabulation_plan(&tables);
 }
 
 /// Tabulate every argument-role resolver of `plan` whose answers were
 /// precompiled into the binary ([`crate::bundled_manifest::BUNDLED_ROLE_TABLES`]),
 /// returning their slots.
-fn apply_precompiled_tables(plan: &HookPlan) -> std::collections::BTreeSet<HookSlot> {
+fn apply_precompiled_tables(
+    plan: &HookPlan,
+    tables: &pack_hooks::TabulationPlan,
+) -> std::collections::BTreeSet<HookSlot> {
     let mut applied = std::collections::BTreeSet::new();
     for programs in plan.packs() {
         for program in &programs.programs {
@@ -685,7 +695,8 @@ fn apply_precompiled_tables(plan: &HookPlan) -> std::collections::BTreeSet<HookS
             else {
                 continue;
             };
-            pack_hooks::tabulate(
+            let tabulated = pack_hooks::tabulate(
+                tables,
                 slot,
                 row.answers
                     .iter()
@@ -696,7 +707,9 @@ fn apply_precompiled_tables(plan: &HookPlan) -> std::collections::BTreeSet<HookS
                     })
                     .collect(),
             );
-            applied.insert(slot);
+            if tabulated {
+                applied.insert(slot);
+            }
         }
     }
     applied
@@ -857,6 +870,74 @@ speclib hooked 1 {
         }])
     }
 
+    #[test]
+    fn a_staged_actor_plan_cannot_answer_under_the_previous_publication() {
+        use tcl_registry::pack_hooks::{HookAnswer, HookCall, HookWord, PackHookHost};
+        let _cache = cache_guard();
+        let old = pack_set("staged-publication", SOURCE);
+        publish(&old);
+        let plan = plan_for(&old);
+        let old_command = old.packs[0].command("hooked::strlen").unwrap();
+        let fold = specialise(old_command, &plan).const_fold.unwrap();
+        let slot = plan.packs()[0].programs[0].slot.unwrap();
+        let changed = pack_set(
+            "staged-publication",
+            &SOURCE.replace("fold [string length [lindex $words 0]]", "fold 99"),
+        );
+        assert_eq!(plan_for(&changed).packs()[0].programs[0].slot, Some(slot));
+        let (ready, waiting) = std::sync::mpsc::sync_channel(0);
+        let (test_stage, stage_requested) = std::sync::mpsc::sync_channel(0);
+        let (observed, stage_observed) = std::sync::mpsc::sync_channel(0);
+        let (committed, after_commit) = std::sync::mpsc::sync_channel(0);
+        let worker = std::thread::spawn(move || {
+            assert_eq!(fold(&["x"]), Some("1".to_owned()));
+            assert_eq!(fold(&["x"]), Some("1".to_owned()));
+            ready.send(()).unwrap();
+            stage_requested.recv().unwrap();
+            assert_eq!(
+                fold(&["x"]),
+                None,
+                "a warm old answer cannot cross a staged publication"
+            );
+            assert_eq!(
+                fold(&["not-warm"]),
+                None,
+                "an old-generation miss cannot reach the staged actor"
+            );
+            observed.send(()).unwrap();
+            after_commit.recv().unwrap();
+            assert_eq!(fold(&["x"]), Some("99".to_owned()));
+        });
+        waiting.recv().unwrap();
+        publish_with_before_commit(&changed, || {
+            // The actual new actor has installed and run its body, while the
+            // public generation still names the old plan.
+            let words = [HookWord {
+                value: "x",
+                kind: tcl_registry::InvocationWordKind::Literal,
+            }];
+            let call = HookCall {
+                words: &words,
+                version: None,
+                in_event_body: false,
+                option: None,
+                constraints: None,
+                dialect: None,
+                targets: &[],
+                budget: Default::default(),
+                depends: &[],
+            };
+            assert_eq!(
+                service::Proxy.invoke(slot, &call),
+                HookAnswer::Fold("99".to_owned())
+            );
+            test_stage.send(()).unwrap();
+            stage_observed.recv().unwrap();
+        });
+        committed.send(()).unwrap();
+        worker.join().unwrap();
+        publish(&PackSet::default());
+    }
     /// A reload that changes nothing must not spend a slot: 64 per family is
     /// a compile-time bound, and an editor reloads a pack on every save.
     #[test]
