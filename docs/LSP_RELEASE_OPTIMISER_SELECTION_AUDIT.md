@@ -4,6 +4,12 @@ This source audit starts at
 `010452b74b79db2fe2ff0412b7259e4cb8c9bc1f`. The next candidate is local and
 unverified. No heavy build or Tcl execution was run for this work.
 
+The candidate is parked for priority #940 work in stash
+`e2fd5783914859c032ff4aebc66a4dbf15b790b9`; the patch and pending measurement
+receipt remain at `/tmp/lsp-2426-optimiser-selection-candidate.patch` and
+`/tmp/lsp-2426-optimiser-selection-evidence.json`. No workload counts are
+available and no product change from this candidate has landed.
+
 ## Existing facts and equality
 
 `optimiser::Optimisation` retains typed code, source span, group partition and

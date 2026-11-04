@@ -12,6 +12,16 @@ The next optimiser arbitration residual is tracked in
 Its conservative tie-refusal candidate is local and unverified; fixed-workload
 impact counts are required before it can land.
 
+Priority #940 now takes this lane: a separate registry child is being prepared
+with the values lane for nonempty list-append container representations. The
+approved interface retains the selected handler/profile/shape and states only
+a conditional List requirement/store/result for the target container. Ordinary
+objects, unobserved storage, original source/receiver custody and successful
+handling remain separate premises; appended element representations are never
+copied to the target. The prototype remains under `/tmp` while the values
+source snapshot is frozen. Compiler controls and source/execution evidence are
+still being assembled; this checkpoint claims no verified implementation.
+
 The lane verifies compiler and source-optimiser issues against the current
 `work` branch, with fixed-input regressions and the pinned Tcl 8.4.20, 8.5.19,
 8.6.18, 9.0.4 and 9.1.0 interpreters. Latest JimTcl is available for applicable
