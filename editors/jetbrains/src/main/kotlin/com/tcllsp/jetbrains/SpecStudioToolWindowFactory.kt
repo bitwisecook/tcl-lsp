@@ -11,7 +11,7 @@ import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -149,7 +149,7 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
             }
             val file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path) ?: return@executeOnPooledThread
             ApplicationManager.getApplication().invokeLater {
-                FileEditorManager.getInstance(project).openFile(file, true)
+                OpenFileDescriptor(project, file).navigate(true)
             }
         }
     }
