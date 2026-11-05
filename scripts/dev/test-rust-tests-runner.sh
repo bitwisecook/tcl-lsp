@@ -309,6 +309,7 @@ END {
     need(values[shard_job ".env.CARGO_HOME"] == "/home/runner/.cargo" && values[shard_job ".env.RUSTUP_HOME"] == "/home/runner/.rustup", "Rust shards must use canonical Cargo and rustup homes")
     need(!nodes[shard_job ".env.CARGO_TARGET_DIR"] && !nodes[shard_job ".env.RUSTC_WRAPPER"], "target and wrapper must not be correctness-critical at job scope")
     need(values[shard_job ".env.SCCACHE_GHA_ENABLED"] == "true", "Rust shards must enable GHA sccache")
+    need(values[shard_job ".env.SCCACHE_IDLE_TIMEOUT"] == "0", "the sccache server must outlive the test phase so its statistics cover compilation")
 
     changed = "needs.channel.outputs.rust_tests_changed == '\''true'\''"
     # On an already-green tag the shard job stays in the graph so the release
@@ -324,7 +325,8 @@ END {
 
     setup = step(shard_job, "name", "Set up Rust")
     need(setup >= 0 && index(values[shard_job ".steps." setup ".uses"], "actions-rust-lang/setup-rust-toolchain@") == 1 && values[shard_job ".steps." setup ".if"] == active, "Rust setup must remain path- and warm-path-gated")
-    need(values[shard_job ".steps." setup ".with.cache-key"] == "rust-tests-v2" && values[shard_job ".steps." setup ".with.cache-targets"] == "false", "Rust target archives must remain disabled")
+    need(values[shard_job ".steps." setup ".with.cache-key"] == "rust-tests-v3-${{ env.RUNNER_MODE }}", "Rust shard caches must be keyed per runner class (Tank and hosted workspaces differ in depth)")
+    need(values[shard_job ".steps." setup ".with.cache-targets"] == "false", "Rust target archives must remain disabled")
     target_step = step(shard_job, "name", "Prepare persistent Tank Cargo target")
     need(target_step >= 0 && values[shard_job ".steps." target_step ".if"] == active " && env.RUNNER_MODE == '\''tank'\''", "persistent target setup must use actual Tank mode")
     contains(shard_job ".steps." target_step ".run", "persistent-cargo-target.sh prepare tank", "Tank setup must use the persistent target helper")

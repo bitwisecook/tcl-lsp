@@ -15,7 +15,7 @@ for access).
 | 3 | Repository weight on `work` | **Landed**: the evidence prune (`8ab317a`) took the tree from 10.7 GB to 0.34 GB; `make check-tracked-size` in `xtask-check` keeps it there | `scripts/dev/check-tracked-size.py`, `scripts/dev/test_tracked_size.py` |
 | 4 | Monolithic crates compiled twice | **Landed**: the emitters split into `tcl-codegen`; test parity with the base proven | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
 | 5 | Hundreds of fat test binaries | **Landed**: integration tests merged per (crate, shard); no test lost | `rust/*/tests/it_<k>/`, `scripts/dev/rust-test-binary-shards.tsv`, test-tiers contract |
-| 6 | Broken and racing CI caches | Not started (item 2 gives each `rust-check` leg its own cache key) | |
+| 6 | Broken and racing CI caches | **Landed, awaiting first CI run**: shard cache keyed per runner class; sccache outlives the test phase | `.github/workflows/ci.yml`, `scripts/dev/test-rust-tests-runner.sh` |
 | 7 | Exhaustive checks in unoptimised unit tests | Not started | |
 | 8 | Version stamp reruns on every cargo call | Not started | |
 | 9 | Duplicate WASM builds | Not started | |
@@ -243,3 +243,24 @@ Open:
 
 - The CI build-once/archive pipeline for `rust-tests` (plan 5.3) and test
   debuginfo settings (5.2).
+
+## 6. CI caches
+
+- `rust-tests-shard` caches are keyed `rust-tests-v3-<tank|hosted>`. Tank and
+  hosted workspaces sit at different depths, so an archive saved on one
+  restored its workspace-relative `../../../../.cargo` outside the other's home
+  (`tar: Cannot mkdir: Permission denied`, about 4,200 errors, then "No cache
+  found" in run 41810769449).
+- `SCCACHE_IDLE_TIMEOUT=0` keeps the shard's sccache server alive through the
+  10–13 minute test phase; its default idle shutdown erased the statistics, so
+  the compile-phase hit rate was unknown.
+- `rust-check`'s two legs already have separate keys (item 2).
+- `scripts/dev/test-rust-tests-runner.sh` pins both.
+
+Open:
+
+- After the first CI run: confirm the restore succeeds and record the shard
+  sccache hit rate.
+- Five legs still race to save one key per class ("another job may be
+  creating this cache"); that is harmless, but saving from one leg needs the
+  pinned setup action's save option checked first.

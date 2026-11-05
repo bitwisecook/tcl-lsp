@@ -1320,6 +1320,10 @@ jobs:
       CARGO_HOME: /home/runner/.cargo
       RUSTUP_HOME: /home/runner/.rustup
       SCCACHE_GHA_ENABLED: "true"
+      # Keep the server (and its statistics) alive through the test phase,
+      # which outlasts sccache's default ten-minute idle shutdown; otherwise
+      # the closing report shows only the post-test listing's requests.
+      SCCACHE_IDLE_TIMEOUT: "0"
       RUNNER_MODE: ${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || 'hosted' }}
     concurrency:
       group: rust-tests-${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || format('hosted-{0}-{1}', github.run_id, matrix.shard) }}
@@ -1361,7 +1365,11 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
-          cache-key: rust-tests-v2
+          # One cache per runner class: Tank and hosted workspaces sit at
+          # different depths, so an archive saved on one restored its
+          # workspace-relative ../../../../.cargo outside the other's home
+          # ("Cannot mkdir: Permission denied") and the restore was lost.
+          cache-key: rust-tests-v3-${{ env.RUNNER_MODE }}
           # Swatinem's target archive is hundreds of MB and competes with the
           # per-object sccache backend for the repository cache quota. Cargo
           # rebuilds absent targets safely; registry/tool caches and sccache
