@@ -1779,6 +1779,7 @@ impl SourceInvocationBinding {
     /// Authenticate the complete original compiler vector, including source
     /// channel and delimiters. A transformed or truncated token vector abstains.
     #[doc(hidden)]
+    #[must_use]
     pub fn original_compiler_source<'a>(
         &'a self,
         tokens: &crate::ir::CommandTokens,
@@ -1796,6 +1797,7 @@ impl SourceInvocationBinding {
     /// Borrow the original compiler receipt retained before IR expression
     /// transformations. Admission and emitted operation guards remain required.
     #[doc(hidden)]
+    #[must_use]
     pub fn retained_original_compiler_source(
         &self,
     ) -> Option<(&tcl_lexer::SourceImage, &[crate::ir::WordExpr], u32)> {
@@ -1816,12 +1818,14 @@ impl SourceInvocationBinding {
     /// Original word-value policy retained at compiler visitation. This is
     /// source decoding evidence, not a compiler engine or normal-handler proof.
     #[doc(hidden)]
+    #[must_use]
     pub fn compiler_word_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
         self.compiler_policy.as_ref()?.words
     }
 
     /// Original source-string issuer, independent of the installed compiler.
     #[doc(hidden)]
+    #[must_use]
     pub fn compiler_source_protocol(
         &self,
     ) -> Option<tcl_syntax::native_string::NativeStringProtocol> {

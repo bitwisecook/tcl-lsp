@@ -5787,6 +5787,7 @@ impl CompilationUnit {
     /// Select a uniquely named authored test fixture, then its actual issued body.
     #[cfg(any(test, feature = "test-support"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn function(&self, name: &str) -> Option<&FunctionUnit> {
         if name == "::top" {
             return (!self.ir_module.procedures.has_display(name))

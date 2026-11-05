@@ -118,6 +118,7 @@ fn foreach_binding_statement(statement: &Statement) -> Statement {
 /// Exact typed list-iteration header, independently of its reporting head.
 /// The caller must retain the current CFG edges and source-owner correspondence.
 #[doc(hidden)]
+#[must_use]
 pub fn matches_foreach_header(
     original: &Statement,
     statement: &Statement,

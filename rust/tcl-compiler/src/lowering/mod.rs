@@ -7709,6 +7709,7 @@ impl Lowerer<'_> {
     /// compiling a runtime procedure target cannot drift from ordinary module
     /// lowering.
     #[doc(hidden)]
+    #[must_use]
     pub fn finish_module(self, source: &str) -> Module {
         self.finish_module_with(source, true)
     }

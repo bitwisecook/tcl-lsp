@@ -955,6 +955,7 @@ pub fn document_realm_bindings_for_fresh_hosted_source(
 /// configuration. The catalogue's convenience default supplies no replacement
 /// for this input; actual native entries use their independently sealed path.
 #[doc(hidden)]
+#[must_use]
 pub fn document_realm_bindings_with_resolved_input(
     source: &str,
     input: &crate::analyser::ResolvedAnalysisInput,

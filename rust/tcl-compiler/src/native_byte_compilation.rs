@@ -74,6 +74,7 @@ impl NativeByteRegisteredCommand {
     /// Consume the original factory recipe without changing its compiler purpose.
     /// A different source vector or selection basis cannot reuse its preparation.
     #[doc(hidden)]
+    #[must_use]
     pub fn has_generic_preparation(&self) -> bool {
         matches!(
             self.recipe.instruction,
@@ -82,6 +83,7 @@ impl NativeByteRegisteredCommand {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn original_instruction(&self, words: &[NativeWord]) -> Option<&NativeInstructionPlan> {
         let recipe = &self.recipe;
         (recipe.words == words

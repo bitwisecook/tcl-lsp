@@ -706,6 +706,7 @@ impl RetainedSourceModuleBindings {
     /// Exact Module-issued source body for MAY summaries. Reporting labels
     /// do not change the retained original header, body or statement geometry.
     #[doc(hidden)]
+    #[must_use]
     pub fn matches_original_procedure_summary(
         &self,
         id: crate::ir::ProcedureId,

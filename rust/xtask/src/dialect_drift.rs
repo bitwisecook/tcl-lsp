@@ -98,7 +98,11 @@ const SEGMENTER_OWNER: &str = "rust/tcl-compiler/src/segmenter.rs";
 
 /// Crates whose *documents* are Tcl under a dialect, where a bare list
 /// split of a word is a second list grammar (rule 3).
-const DOCUMENT_CRATES: &[&str] = &["rust/tcl-compiler/src/", "rust/tcl-lsp-core/src/"];
+const DOCUMENT_CRATES: &[&str] = &[
+    "rust/tcl-compiler/src/",
+    "rust/tcl-codegen/src/",
+    "rust/tcl-lsp-core/src/",
+];
 
 const WAIVER: &str = "dialect-drift-ok:";
 

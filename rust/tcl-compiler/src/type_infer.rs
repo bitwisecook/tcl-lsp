@@ -155,6 +155,7 @@ pub struct OriginalLiteralArgumentContents {
 
 impl OriginalLiteralArgumentContents {
     #[doc(hidden)]
+    #[must_use]
     pub fn value(&self) -> &str {
         &self.value
     }

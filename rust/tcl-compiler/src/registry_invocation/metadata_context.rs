@@ -245,6 +245,7 @@ impl<'a> InvocationMetadataContext<'a> {
     }
     /// Exact retained source grammar/profile, independently of invocation entry.
     #[doc(hidden)]
+    #[must_use]
     pub const fn source_analysis_input(self) -> Option<&'a crate::analyser::ResolvedAnalysisInput> {
         self.actual_input
     }

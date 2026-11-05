@@ -80,6 +80,7 @@ pub enum SingleCommandSourcePurpose {
 /// Project one complete command through the shared configured word owner.
 /// Missing geometry, malformed tails and multiple commands remain unavailable.
 #[doc(hidden)]
+#[must_use]
 pub fn single_command_source_parts(
     text: &str,
     config: tcl_lexer::LexerConfig,
@@ -370,6 +371,7 @@ fn dependency_parts(
 /// Complete original substitution inventory for effect consumers. A truncated
 /// or unsupported word walk must not establish absence of name effects.
 #[doc(hidden)]
+#[must_use]
 pub fn checked_lifted_calls(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,

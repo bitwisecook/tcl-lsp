@@ -5847,6 +5847,7 @@ pub enum NativeOperationSelectionDecline {
 
 /// Carry exact original namespace identity across compiler/runtime consumers.
 #[doc(hidden)]
+#[must_use]
 pub fn compiled_namespace_context(
     tokens: &CommandTokens,
 ) -> Option<tcl_runtime_api::CompiledNamespaceContext> {
@@ -6033,6 +6034,7 @@ pub enum NativeCompilationDependency {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn native_compilation_dependency(
     dependency: &crate::command_binding::SourceNativeCompilationDependency,
 ) -> NativeCompilationDependency {

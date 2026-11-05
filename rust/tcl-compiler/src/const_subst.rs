@@ -144,6 +144,7 @@ pub struct FoldedInvocation {
 /// is compiled, and a release that compiles a literal index apart (8.6's
 /// `TclIndexEncode`) reads such a word of it otherwise.
 #[doc(hidden)]
+#[must_use]
 pub fn folded_literal_reads_apart(value: &str, release: TclVersion) -> bool {
     tcl_syntax::list::split_list(value).is_ok_and(|words| {
         words

@@ -235,6 +235,7 @@ pub fn is_safe_command_name(name: &str) -> bool {
 /// that drift.
 pub const ANALYSIS_TIER_ROOTS: &[&str] = &[
     "rust/tcl-compiler/src",
+    "rust/tcl-codegen/src",
     "rust/tcl-lsp-core/src",
     "rust/tcl-mcp/src",
     "rust/tcl-cli/src",

@@ -716,6 +716,7 @@ impl SourceOriginId {
     /// Complete config, offset and original vector are matched independently
     /// of every caller's current lookup, input, metadata and Native admission.
     #[doc(hidden)]
+    #[must_use]
     pub fn original_lexical_command(
         &self,
         words: &[crate::ir::WordExpr],

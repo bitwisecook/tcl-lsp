@@ -699,6 +699,7 @@ fn parse_format_parts(inner: &str, escapes: EscapeSyntax) -> Option<Vec<String>>
 /// directly. Without this distinction a word like `x\$y` or list-1.11's
 /// `list e\n} f\$}` would keep its backslashes (real Tcl delivers `x$y` /
 /// `list e\n} f$}`).
+#[must_use]
 pub fn has_unescaped_subst(s: &str) -> bool {
     let b = s.as_bytes();
     let mut i = 0;
@@ -717,6 +718,7 @@ pub fn has_unescaped_subst(s: &str) -> bool {
 /// or landing off a UTF-8 character boundary degrades to an empty slice
 /// rather than panicking — a bad IR span (e.g. from a mis-lowered
 /// dynamic body) must not abort the compiler.
+#[must_use]
 pub fn slice(source: &str, span: Span) -> &str {
     source
         .get(span.start() as usize..span.end() as usize)
@@ -765,6 +767,7 @@ pub fn slice(source: &str, span: Span) -> &str {
 /// left short for any *other* reason (a mis-lowered dynamic body, a rebased
 /// synthetic span) is never silently extended, and a command that is already
 /// whole is returned byte-identical.
+#[must_use]
 pub fn command_text<'a>(
     source: &'a str,
     span: Span,

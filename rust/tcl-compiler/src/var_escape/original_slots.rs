@@ -108,6 +108,7 @@ pub(crate) fn original_procedure_topology<'a>(
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn original_procedure_argument_slots(
     module: &Module,
     procedure: &Procedure,

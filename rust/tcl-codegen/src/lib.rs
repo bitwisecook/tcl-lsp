@@ -57,9 +57,9 @@ pub mod compile_service;
 pub mod inlining;
 
 #[cfg(test)]
-mod seam_tests;
-#[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod smoke {

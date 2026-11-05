@@ -63,6 +63,7 @@ impl SourceNamespaceKey {
     /// Optional compatibility key whose analytical splitter agrees with the
     /// retained geometry. Even this view carries no callable-name authority.
     #[doc(hidden)]
+    #[must_use]
     pub fn advisory_key(&self) -> Option<String> {
         let display = self.display()?;
         if let Some(path) = self.exact_native_path() {
@@ -208,6 +209,7 @@ impl SourceCommandKey {
 
     /// Symbolic document spelling only. Native slots require an independent
     /// callable-spelling receipt rather than a rendered path.
+    #[must_use]
     pub fn authored_spelling(&self) -> Option<&str> {
         match self {
             Self::Authored(text) => Some(text),

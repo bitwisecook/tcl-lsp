@@ -62,6 +62,7 @@ pub fn authoring_invocation_dialect(
 /// A source document is evaluated as a file: native command selection is late.
 /// Bytecode and procedure drivers must supply their own explicit compilation entry.
 #[doc(hidden)]
+#[must_use]
 pub const fn authoring_native_compilation()
 -> tcl_registry::native_compilation::NativeCompilationContext {
     use tcl_registry::native_compilation::{

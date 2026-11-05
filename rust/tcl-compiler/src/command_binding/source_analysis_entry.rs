@@ -585,6 +585,7 @@ pub fn native_entry_config(
 impl SourceAnalysisEntry {
     /// An explicitly supplied entry whose prior interpreter history is unknown.
     #[doc(hidden)]
+    #[must_use]
     pub fn unknown_history_for_test(input: &crate::analyser::ResolvedAnalysisInput) -> Self {
         Self {
             metadata_context:

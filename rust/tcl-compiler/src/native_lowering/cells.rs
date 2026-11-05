@@ -117,6 +117,7 @@ pub(crate) fn whole_reference(spelling: &str, config: tcl_lexer::LexerConfig) ->
 /// Symbolic cell selected by a completed variable-name datum. It supplies no
 /// current frame, physical cell, successful store or observer closure.
 #[doc(hidden)]
+#[must_use]
 pub fn name_data_place(name: &str) -> Option<CellPlace> {
     if name.contains('\0') {
         return None;

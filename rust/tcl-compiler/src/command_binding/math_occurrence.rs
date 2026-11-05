@@ -127,6 +127,7 @@ impl SourceMathInvocation {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn fixed_prerequisite(
         &self,
     ) -> Option<&tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite> {

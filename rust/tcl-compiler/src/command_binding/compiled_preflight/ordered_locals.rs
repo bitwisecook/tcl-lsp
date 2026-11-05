@@ -134,6 +134,7 @@ impl SourceCompilerLocalInventory {
     /// Preserve only already-issued Native slots for a complete arithmetic
     /// program. This issues no new local, runtime read, value or effect fact.
     #[doc(hidden)]
+    #[must_use]
     pub fn retains_existing_expression(
         &self,
         program: &tcl_registry::native_expression_program::NativeExpressionProgram,
@@ -230,6 +231,7 @@ impl SourceCompilerLocalInventory {
     /// Match the retained source owner before exposing its first compiler
     /// primary. Runtime local-cache comparison and physical layouts differ.
     #[doc(hidden)]
+    #[must_use]
     pub fn owns(
         &self,
         site: &CommandAllocationSite,
@@ -253,6 +255,7 @@ impl SourceCompilerLocalInventory {
     /// Only the small-index prefix is exposed; larger slots require the
     /// selected instruction's independent large-index fallback recipe.
     #[doc(hidden)]
+    #[must_use]
     pub fn primary_for(
         &self,
         requested: &[u8],

@@ -73,7 +73,6 @@ impl<'a> OriginalSourceArgument<'a> {
 }
 
 #[doc(hidden)]
-
 pub fn original_source_argument_for_module<'a>(
     registry: &CommandRegistry,
     module: &Module,
@@ -92,6 +91,7 @@ pub fn original_source_argument_for_module<'a>(
 /// instance. This supplies immutable syntax only; caller state, reads, Native
 /// entry and successful evaluation remain independent.
 #[doc(hidden)]
+#[must_use]
 pub fn original_source_argument_for_script<'a>(
     script: &'a Script,
     statement: &'a Statement,
@@ -122,6 +122,7 @@ pub fn original_source_argument_for_script<'a>(
 /// ordinal and expected lowered compatibility shape. The returned effect fact
 /// is lexical only and never grants a dispatch or evaluation result.
 #[doc(hidden)]
+#[must_use]
 pub fn original_argument_command_effect(
     tokens: &CommandTokens,
     argument: usize,
@@ -154,6 +155,7 @@ fn original_source_argument(
 /// Literal data under the exact original whole source vector and grammar.
 /// This immutable syntax projection carries no current Module or execution proof.
 #[doc(hidden)]
+#[must_use]
 pub fn original_literal_argument_data(tokens: &CommandTokens, argument: usize) -> Option<String> {
     let (_, words) = original_command_words(tokens)?;
     let word = words.get(argument.checked_add(1)?)?;
@@ -187,6 +189,7 @@ fn original_variable_reference_syntax(
 /// Reborrow only the selected original expression operand whose complete AST
 /// and source base remain attached to this command or its genuine child.
 #[doc(hidden)]
+#[must_use]
 pub fn original_lowered_expression_syntax(
     expression: &crate::expr_ast::ExprNode,
     expression_base: Option<u32>,

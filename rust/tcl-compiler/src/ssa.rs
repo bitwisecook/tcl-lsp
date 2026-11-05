@@ -9763,6 +9763,7 @@ pub(crate) fn is_arm_writes_marker(stmt: &Statement) -> bool {
 /// inside itself write. It shares its host's span and is no command to run or
 /// plan.
 #[doc(hidden)]
+#[must_use]
 pub fn is_effect_marker(stmt: &Statement) -> bool {
     is_unseen_call_marker(stmt) || is_arm_writes_marker(stmt)
 }

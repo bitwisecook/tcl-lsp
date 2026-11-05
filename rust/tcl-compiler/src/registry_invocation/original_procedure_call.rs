@@ -401,7 +401,6 @@ pub fn original_procedure_scalar_bindings(
 }
 
 #[doc(hidden)]
-
 pub fn original_procedure_parameters(
     module: &Module,
     procedure: &Procedure,

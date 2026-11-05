@@ -148,7 +148,7 @@ and `compile_service`. It depends on `tcl-compiler`; nothing in
   `#[doc(hidden)] pub`: the emitters always used `tcl-compiler` internals.
 - Tests: emitter tests that lived in `tcl-compiler` moved to
   `tcl-codegen` — 19 integration test files and an example, plus unit
-  tests in `src/seam_tests`. Fixtures they need from `tcl-compiler` are
+  tests in `src/tests`. Fixtures they need from `tcl-compiler` are
   behind its `test-support` feature (enabled only by `tcl-codegen`'s
   dev-dependency); fixtures that hold a VM live in
   `tcl_codegen::test_support`, since `tcl-compiler` cannot depend on
@@ -173,6 +173,35 @@ either direction. The work tip's existing failures (for example
 `codegen::helpers` tests run in `tcl-compiler` with `codegen_helpers`.
 Logs: `/tmp/claude-0/…/scratchpad/split/{codegen-tests,base-integ,base-lib}.log`.
 
+Naming and ownership gates. The split first took the emitters out of the
+drift gates' scan roots, so they quietly stopped checking moved code. Now:
+
+- `rust/tcl-codegen/src` is a root of `util::ANALYSIS_TIER_ROOTS`
+  (`value-transfers`, `registry-axes`), `dialect-drift`'s document crates and
+  `diag-emission`'s search roots; `retired-api-gate`'s owned patterns that
+  covered the compiler's codegen cover `tcl-codegen`.
+- The owner-resolution source manifest records 47 rows the split invalidated:
+  rows whose owner and consumer both moved name the `tcl-codegen` package, and
+  owners widened to `#[doc(hidden)] pub` record their actual visibility. Only
+  rows that pass on the base were touched.
+- Four source routes now cross from `tcl-codegen` into `tcl-compiler`, which
+  the route checker cannot follow; they are listed beside the manifest. Two
+  owners keep verified in-crate routes; `original_literal_argument_data_for_module`
+  and `matches_foreach_header` have no checked consumer route until the checker
+  resolves `tcl_compiler::` paths.
+- The moved test code lives in `tcl-codegen/src/tests/`, the path every gate
+  already treats as tests.
+
+Result, run on the base `4be8d9f` and on the split and compared with line
+numbers ignored: `owner-resolution`, `resolution-drift`,
+`segmentation-drift`, `dialect-drift`, `number-drift`, `retired-api-gate`,
+`catalogue-callers`, `value-transfers`, `registry-axes`, `callback-inventory`,
+`command-backing` and `diag-emission-check` report the same findings and exit
+codes on both. Clippy on `tcl-compiler` matches the base too: the 44 widened
+functions carry `#[must_use]`.
+
 Open:
 
+- Teach the source-route checker cross-crate `tcl_compiler::` routes, so the
+  two unchecked routes above become checked (naming workstream's gate).
 - Re-time a cold library build against the base.

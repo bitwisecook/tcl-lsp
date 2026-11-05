@@ -426,6 +426,7 @@ const OWNED: &[OwnedPattern] = &[
         needle: "command_table_transitions",
         owners: &[
             "rust/tcl-compiler/src/",
+            "rust/tcl-codegen/src/",
             "rust/tcl-lsp-core/src/tk_preview.rs",
         ],
     },

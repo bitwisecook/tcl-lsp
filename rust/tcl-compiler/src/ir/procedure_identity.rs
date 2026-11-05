@@ -119,6 +119,7 @@ impl ProcedureInventory {
     /// Select one uniquely named authored test fixture.
     #[cfg(any(test, feature = "test-support"))]
     #[doc(hidden)]
+    #[must_use]
     pub fn unique_display(&self, display: &str) -> Option<(&ProcedureId, &Procedure)> {
         let mut matching = self
             .0

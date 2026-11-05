@@ -66,6 +66,7 @@ const SEARCH_ROOTS: &[&str] = &[
     // Distributed Cloud translator, not by the analyser.
     "rust/f5-xc/src",
     "rust/tcl-bigip/src",
+    "rust/tcl-codegen/src",
     "rust/tcl-compiler/src",
     "rust/tcl-lsp-core/src",
     "rust/tcl-lsp-server/src",

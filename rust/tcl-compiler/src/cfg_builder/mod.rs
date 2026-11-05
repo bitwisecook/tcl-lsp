@@ -3691,6 +3691,7 @@ impl PreparedCfgContext {
     /// Borrow the closed binding lattice shared by downstream CFG and codegen
     /// consumers.
     #[doc(hidden)]
+    #[must_use]
     pub fn command_bindings(&self) -> &ModuleCommandBindings {
         &self.context.3
     }

@@ -27,6 +27,7 @@ use super::helpers::{SubstPart, parse_subst_template};
 use super::values::split_array_ref;
 use super::{CodegenCtx, Op, Operand};
 use tcl_compiler::ir::{Statement, WordExpr};
+use tcl_compiler::registry_invocation;
 use tcl_compiler::word_subst::whole_word_command_tokens;
 use tcl_registry::hooks::InlineCodegenHookId;
 #[path = "statements/native_array.rs"]
@@ -911,14 +912,13 @@ impl CodegenCtx<'_> {
             // bytecode level (the body already ran in the caller's
             // frame in the original ``uplevel`` semantics).
             Statement::Block { body, .. } => {
-                if tcl_compiler::registry_invocation::block_requires_runtime_script(stmt) {
+                if registry_invocation::block_requires_runtime_script(stmt) {
                     if let Some(Statement::Barrier {
                         command,
                         args,
                         tokens,
                         ..
-                    }) =
-                        tcl_compiler::registry_invocation::original_block_runtime_invocation(stmt)
+                    }) = registry_invocation::original_block_runtime_invocation(stmt)
                     {
                         self.emit_call_stmt(&command, &args, tokens.as_ref(), used_generic_invoke);
                     } else {

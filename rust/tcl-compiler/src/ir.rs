@@ -3723,6 +3723,7 @@ pub fn when_event_name(qualified_name: &str) -> &str {
 
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
+#[must_use]
 pub fn native_call_for_test(bytes: &[u8]) -> Statement {
     let image = tcl_lexer::SourceImage::native(bytes);
     let config = tcl_lexer::LexerConfig::default();

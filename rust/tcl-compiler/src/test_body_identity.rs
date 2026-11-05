@@ -72,6 +72,7 @@ pub fn fixture_id_if_present<'a, T: FixtureBodyLabel + 'a>(
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn fixture_proc<'a>(
     analysis: &'a super::InterproceduralAnalysis,
     label: &str,
@@ -80,6 +81,7 @@ pub fn fixture_proc<'a>(
     analysis.procedures.get(&id)
 }
 #[doc(hidden)]
+#[must_use]
 pub fn edge_labels(
     analysis: &super::InterproceduralAnalysis,
     edges: &[ProcedureId],
