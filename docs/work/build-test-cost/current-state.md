@@ -13,7 +13,7 @@ for access).
 | 1 | Long-tail tests driven by `tcl` CLI start-up | **Landed**: reused CLI workers for `rust/tcl-cli/tests` | `rust/tcl-cli-support/src/{worker,sink}.rs`, test-tiers contract rule 9 |
 | 2 | `rust-check` is one serial 16-minute job | **Landed, awaiting first CI run**: `cargo xtask batch`/`make xtask-gates`; `rust-check` split into `lint` and `drift` matrix legs | `rust/xtask/src/main.rs`, `Makefile`, `.github/workflows/ci.yml`, `scripts/dev/test-pr-gate-path.sh` |
 | 3 | Repository weight on `work` | **Landed**: the evidence prune (`8ab317a`) took the tree from 10.7 GB to 0.34 GB; `make check-tracked-size` in `xtask-check` keeps it there | `scripts/dev/check-tracked-size.py`, `scripts/dev/test_tracked_size.py` |
-| 4 | Monolithic crates compiled twice | **Landed, test parity against the base pending**: the emitters split into `tcl-codegen` | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
+| 4 | Monolithic crates compiled twice | **Landed**: the emitters split into `tcl-codegen`; test parity with the base proven | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
 | 5 | Hundreds of fat test binaries | Not started | |
 | 6 | Broken and racing CI caches | Not started (item 2 gives each `rust-check` leg its own cache key) | |
 | 7 | Exhaustive checks in unoptimised unit tests | Not started | |
@@ -165,8 +165,14 @@ apart from two dead-code warnings already on the base; `tcl-vm-wasm` checks
 for the host. `tcl-codegen`'s tests run; no failure is a missing fixture or
 path.
 
+Parity: the same tests run on the base commit `4be8d9f` (as `tcl-compiler`
+unit and integration tests) and on the split (as `tcl-codegen` tests), compared
+by binary and test name: 1,529 tests in 21 binaries, **no outcome changed** in
+either direction. The work tip's existing failures (for example
+`fixture body "::p" absent`) are the same tests on both sides. The 37 former
+`codegen::helpers` tests run in `tcl-compiler` with `codegen_helpers`.
+Logs: `/tmp/claude-0/…/scratchpad/split/{codegen-tests,base-integ,base-lib}.log`.
+
 Open:
 
-- Prove the `tcl-codegen` test failures are the base commit's: run the same
-  tests on `2c04bd9` and compare failure sets by name.
 - Re-time a cold library build against the base.
