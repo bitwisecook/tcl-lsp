@@ -3821,8 +3821,10 @@ mod caller_uniform_literal_seed {
 
     #[test]
     fn agreeing_callers_fold_the_condition() {
-        let src = format!("{LIB}helper prod\n");
-        assert!(fires(&src, D, "I230"), "{:?}", codes(&src, D));
+        for other in ["helper prod", "set c helper; $c prod"] {
+            let src = format!("{LIB}{other}\n");
+            assert!(fires(&src, D, "I230"), "`{other}`: {:?}", codes(&src, D));
+        }
     }
 
     #[test]
@@ -3830,7 +3832,9 @@ mod caller_uniform_literal_seed {
         for other in [
             "helper dev",
             "uplevel #0 {helper dev}",
+            "catch { uplevel #0 { helper dev } }",
             "set c helper; $c dev",
+            "set c [gets stdin]; $c dev",
         ] {
             let src = format!("{LIB}{other}\n");
             assert!(!fires(&src, D, "I230"), "`{other}`: {:?}", codes(&src, D));

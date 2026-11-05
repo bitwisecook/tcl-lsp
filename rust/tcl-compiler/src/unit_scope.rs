@@ -997,6 +997,37 @@ fn word_is_whole_substitution(word: &str, config: tcl_lexer::LexerConfig) -> boo
 /// [`tcl_registry::model::DocumentCommandSurface::arg_indices_for_role`] and
 /// the shared [`crate::segmenter`] rather than hand-rolling a second "which
 /// commands embed scripts" list here.
+/// Whether the unseen code an `<unseen-call>` marker stands for is already
+/// accounted for by its host call (the nearest preceding non-marker
+/// statement): a call to one retained in-module procedure, whose body is
+/// scanned as its own caller, or a computed head, whose dispatch the host's
+/// own scan enumerates or withdraws.
+fn unseen_code_is_scanned_host(
+    func: &crate::cfg::Function,
+    block_id: crate::cfg::BlockId,
+    statements: &[Statement],
+    marker: usize,
+) -> bool {
+    let Some(host) = (0..marker).rev().find(|&index| {
+        statements[index]
+            .tokens()
+            .is_none_or(|tokens| tokens.synthetic.is_none())
+    }) else {
+        return false;
+    };
+    if matches!(&statements[host], Statement::Call { command, .. } if is_dynamic_word(command)) {
+        return true;
+    }
+    func.source_tokens_at(block_id, host)
+        .and_then(|tokens| tokens.source_binding.as_ref())
+        .and_then(crate::command_binding::SourceInvocationBinding::proved_target)
+        .is_some_and(|target| {
+            target.kind == crate::command_binding::BindingKind::Proc
+                && !target.registry_backed
+                && target.implementation_allocation.is_some()
+        })
+}
+
 fn record_call_site_evidence(
     out: &mut CallSiteEvidence,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
@@ -2395,19 +2426,15 @@ fn scan_cfg_callers<'a>(
                 {
                     continue;
                 }
-                // The unseen code beside a call to one retained in-module
-                // procedure is that procedure's body, scanned as its own caller.
+                if stmt.tokens().is_some_and(|tokens| {
+                    tokens.synthetic == Some(crate::ir::SyntheticMarker::CallerFrameOpaque)
+                }) {
+                    // Widens the caller frame for the host call beside it,
+                    // which performs (and is scanned for) the invocation.
+                    continue;
+                }
                 if crate::ssa::is_unseen_call_marker(stmt)
-                    && index > 0
-                    && func
-                        .source_tokens_at(block_id, index - 1)
-                        .and_then(|tokens| tokens.source_binding.as_ref())
-                        .and_then(crate::command_binding::SourceInvocationBinding::proved_target)
-                        .is_some_and(|target| {
-                            target.kind == crate::command_binding::BindingKind::Proc
-                                && !target.registry_backed
-                                && target.implementation_allocation.is_some()
-                        })
+                    && unseen_code_is_scanned_host(func, block_id, &block.statements, index)
                 {
                     continue;
                 }
