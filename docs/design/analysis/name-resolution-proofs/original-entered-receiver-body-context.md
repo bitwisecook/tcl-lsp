@@ -20,55 +20,11 @@ Rust Compiler original method/context transport and source-only unresolved metho
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,9 +34,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/variable_bindings.rs](../../../../rust/tcl-compiler/src/variable_bindings.rs), `replace_source_context`: Prevents original contexts being replenished from unrelated compatibility instance/execution fields.
 - [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union` (linked): Retains exact opaque formal bytes and declines class-label variable union and invented entered receipt.
 - [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::original_receiver_method_facts_tests::original_source_context_never_inherits_compatibility_instance_or_execution_fields` (linked): Does not copy a wrong instance owner, interpreter or worker/epoch/connection from a compatibility overlay into original source facts.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result.

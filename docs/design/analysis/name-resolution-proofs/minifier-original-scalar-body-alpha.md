@@ -20,58 +20,11 @@ Core Native compact and aggressive result transport for the closed-source scalar
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust consumer contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This Rust consumer contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). Current shared owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs). Current shared owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
-- `implementation-2` (implementation): [rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs](../../../../rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs). Current shared owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
-- `implementation-3` (implementation): [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs). Current shared owner, consumer and fixed authored assertions. No Rust or native execution result is implied.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,8 +37,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_scalar_minification_keeps_isolation_and_other_pass_permissions_separate` (linked): The bounded formal change succeeds without public renaming, alias insertion, semantic rewrite or keyword grants.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_scalar_minification_declines_observers_stores_and_open_source` (linked): Extra source/body commands, observers, links, default/rest arguments, concatenation and changed handler topology decline.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors exercise the scoped implementation premises. No Rust execution receipt or native provider observation is attached to this contract. Missing permissions and the bounded complete-source subset remain explicit.
+- [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs)
+- [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs)
+- [rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs](../../../../rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs)
+- [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs)

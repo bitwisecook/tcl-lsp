@@ -20,55 +20,11 @@ Original source applicability and lexical compatibility selection only. Conditio
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source-consumer invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation is attached to this Rust source-consumer invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source-consumer invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source-consumer invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source-consumer invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation is attached to this Rust source-consumer invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation is attached to this Rust source-consumer invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,9 +41,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/inert_text.rs](../../../../rust/tcl-lsp-core/src/inert_text.rs), `inert_text::tests::original_data_classification_keeps_alias_prefix_and_shadow_boundaries` (linked): Original written operands map through captured alias prefixes; known replacement and unknown braced head schema do not borrow nominal command metadata.
 - [rust/tcl-lsp-core/src/inert_text.rs](../../../../rust/tcl-lsp-core/src/inert_text.rs), `inert_text::tests::original_data_classification_declines_stale_or_unowned_inputs` (linked): Changed full bytes, changed complete lexer configuration, default results and incomplete delimiters withdraw source classification.
 - [rust/tcl-lsp-core/src/inert_text.rs](../../../../rust/tcl-lsp-core/src/inert_text.rs), `inert_text::tests::original_expression_contributors_do_not_borrow_independent_data_roles` (linked): First/later written operands and captured alias expression prefixes preserve unknown without joined source ownership; a single original expression still distinguishes actual string-literal and potential substitution source.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked Rust selectors require actual root validation. No native interpreter execution or target semantics are inferred from source geometry.

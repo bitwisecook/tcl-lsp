@@ -2,7 +2,7 @@
 
 These new authored inputs compose an alias to the list builder, `namespace code`
 with `my`, and a one-hop same-frame callback variable. They challenge the pair
-proposed in the [callback acceptance review](../../../../docs/work/name-handling/evidence-review/callback-pattern-acceptance.md).
+proposed in the callback acceptance review.
 They are supplemental experiments, unregistered in the canonical proof owner;
 all existing questions and answers retain their original identities and inputs.
 
@@ -65,9 +65,9 @@ inputs, and no mock callback host is used.
 | Jim `0.84-9-g5bac7c9` | setup error `wrong # args: should be "interp"`; class/question/callback unreached | same alias-API setup error; class/question/callback unreached |
 | BIG-IP/F5 | unanswered in each separately requested host/context | unanswered in each separately requested host/context |
 
-[C5 records](results/records.json) retain the five native C binaries and their
+C5 records retain the five native C binaries and their
 matching `TCL_LIBRARY`, init and namespace-source hashes in
-[provenance](results/provenance.json). Each case retains source copy, exact
+provenance. Each case retains source copy, exact
 wrapper bytes, raw stdout/stderr, catch options and separate background errors.
 C8.4 has no three-variable catch-options API; its errorCode/errorInfo are retained.
 All C processes exited zero, which says only that the capture driver completed.
@@ -82,7 +82,7 @@ alias or OO adaptation replaces these original failed setups.
 
 Two failed Jim driver attempts remain explicit. The first C-style version
 introspection refused at unsupported `package vcompare`, before source setup
-([raw initial records](results/records.json),
+(raw initial records,
 [exact first driver](driver-portability-attempt.py)). The next attempt reached
 source setup's alias error but then assumed global `::errorInfo` existed and
 failed while serialising it ([raw records](jim-native-results/records.json),

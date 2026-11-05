@@ -20,94 +20,29 @@ Complete v2/v3 public C original-object probes with ASCII setup plus ff, eda080 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.4.20. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
-
-Plain and raw-zero suffix w register write; C080 and ff fail byte-exactly; initial raw zero yields modern empty operation-list error.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
+Status: `observed`. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 Plain and raw-zero suffix w register write; C080 and ff fail byte-exactly; initial raw zero yields modern empty operation-list error.
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
-
-Plain and raw-zero suffix w register write; C080 and ff fail byte-exactly; initial raw zero yields modern empty operation-list error.
-
-### tcl9.0
-
-Status: `unsupported`. Version: 9.0.4. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
-
-Legacy variable and vinfo are rejected as retired options.
-
-### tcl9.1
-
-Status: `unsupported`. Version: 9.1.0. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Dialect: Tcl.
+Status: `unsupported`. Channel: Original Tcl_NewStringObj(pointer, count) operands passed to public Tcl_EvalObjv; ASCII Tcl_Eval setup and query source. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Legacy variable and vinfo are rejected as retired options.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual probe executable; compile command, public header, static library, Makefile, source-owner and process stream hashes retained. Executed info patchlevel reports this version.. Channel: ASCII NUL-terminated source passed to Jim_Eval. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: ASCII NUL-terminated source passed to Jim_Eval. Version: jim 0.84-9-g5bac7c9.
 
 The actual trace command is unavailable: invalid command name trace.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this exact question.
-
-## Historical references
-
-- `v2-input` (input): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/probe.c](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/probe.c). Exact public API probe source; Tcl objects use explicit counted original bytes. Jim source controls use Jim_Eval.
-- `v2-aggregate` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/receipt.json). Original complete six-provider correspondence, independently preserving this exact probe variant.
-- `v3-input` (input): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/probe.c](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/probe.c). Exact public API probe source; Tcl objects use explicit counted original bytes. Jim source controls use Jim_Eval.
-- `v3-aggregate` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/receipt.json). Original complete six-provider correspondence, independently preserving this exact probe variant.
-- `v2-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.4.20/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.4.20/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.4.20/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.4.20/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.4.20/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.4.20/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.5.19/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.5.19/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.5.19/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.5.19/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.5.19/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.5.19/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.6.18/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.6.18/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/8.6.18/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.6.18/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.6.18/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/8.6.18/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.0.4/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.0.4/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.0.4/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.0.4/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.0.4/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.0.4/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.1.0/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.1.0/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/9.1.0/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.1.0/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.1.0/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/9.1.0/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/jim/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/jim/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v2-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v2/jim/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2/jim/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/jim/receipt.json). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/jim/stdout.tsv). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-- `v3-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_private_legacy_trace/v3/jim/stderr](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3/jim/stderr). Exact original provider receipt or native process stream; guest failures remain result rows and are distinct from harness exit.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -118,23 +53,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-cmd-core/src/trace.rs](../../../../rust/tcl-cmd-core/src/trace.rs), `trace::tests::legacy_operation_extent_preserves_counted_empty_and_opaque_errors` (linked): Compare the measured operation/result bytes and stored legacy trace report for original counted inputs; keep binary zero distinct from C080 and opaque ff.
 - [runtime/rust/src/cmd_trace/native_command_tests.rs](../../../../runtime/rust/src/cmd_trace/native_command_tests.rs), `cmd_trace::native_command_tests::legacy_operation_objects_match_native_counted_and_cstring_controls` (linked): Compare the observed counted raw-zero, C080 and ff operation errors plus actual stored legacy report on C8.4-C8.6; original operations use selected native getters.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-vm/tests/data/native_private_legacy_trace/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-private-legacy-trace-reconfirmation"
-]
-```
-
-Requires exact pinned public header/static-library/Makefile/source-owner and input hashes. Recompiles both exact probe variants and compares complete exit/stdout/stderr. Guest error rows are expected data, not harness failures. --verify-only checks bytes without native or Rust execution. ErrorCode and cache/refcount/header effects were not inspected. The incomplete first metadata attempt is retained separately without a full provider attribution.
+- [rust/tcl-vm/tests/data/native_private_legacy_trace/v2](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v2)
+- [rust/tcl-vm/tests/data/native_private_legacy_trace/v3](../../../../rust/tcl-vm/tests/data/native_private_legacy_trace/v3)

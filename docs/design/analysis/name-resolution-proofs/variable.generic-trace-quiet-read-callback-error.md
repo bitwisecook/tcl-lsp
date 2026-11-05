@@ -66,7 +66,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The retained transcripts answer only quiet original-name read after an erroring read callback with the exact legacy/modern syntax and reporter sequence. Tcl 9 legacy trace rejection and current Jim trace absence remain actual guest outcomes; the modern C rows independently reach callbacks. Receiver continuity, reported callback names, error code and later stored value are separate fields, with no general callback, compiler or normal-read grant.
@@ -74,60 +73,6 @@ The retained transcripts answer only quiet original-name read after an erroring 
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-read-callback-error.stdout`: tcl8.4 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-read-callback-error.stderr`: tcl8.4 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-quiet-read-callback-error.stdout`: tcl8.4 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-quiet-read-callback-error.stderr`: tcl8.4 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-read-callback-error.stdout`: tcl8.5 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-read-callback-error.stderr`: tcl8.5 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-quiet-read-callback-error.stdout`: tcl8.5 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-quiet-read-callback-error.stderr`: tcl8.5 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-read-callback-error.stdout`: tcl8.6 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-read-callback-error.stderr`: tcl8.6 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-quiet-read-callback-error.stdout`: tcl8.6 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-quiet-read-callback-error.stderr`: tcl8.6 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-read-callback-error.stdout`: tcl9.0 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-read-callback-error.stderr`: tcl9.0 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-quiet-read-callback-error.stdout`: tcl9.0 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-quiet-read-callback-error.stderr`: tcl9.0 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-read-callback-error.stdout`: tcl9.1 quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-read-callback-error.stderr`: tcl9.1 quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-quiet-read-callback-error.stdout`: tcl9.1 modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-quiet-read-callback-error.stderr`: tcl9.1 modern-quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl`: Exact original quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-read-callback-error.stdout`: jim quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-read-callback-error.stderr`: jim quiet-read-callback-error original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-quiet-read-callback-error.tcl`: Exact original modern-quiet-read-callback-error script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-quiet-read-callback-error.stdout`: jim modern-quiet-read-callback-error original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-quiet-read-callback-error.stderr`: jim modern-quiet-read-callback-error original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-read-callback-error.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 All six return FULL SHORT and two enumerated indices. No native pointer or raw source00 relationship is established.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=array-counted-nul-index.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for array-counted-nul-index; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-index.tcl`. Exact 8.4.20 input for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-index.stdout`. Exact 8.4.20 stdout for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/array-counted-nul-index.stderr`. Exact 8.4.20 stderr for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 array-counted-nul-index. JSON pointer `/rows/27`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-index.tcl`. Exact 8.5.19 input for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-index.stdout`. Exact 8.5.19 stdout for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/array-counted-nul-index.stderr`. Exact 8.5.19 stderr for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 array-counted-nul-index. JSON pointer `/rows/67`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-index.tcl`. Exact 8.6.18 input for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-index.stdout`. Exact 8.6.18 stdout for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/array-counted-nul-index.stderr`. Exact 8.6.18 stderr for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 array-counted-nul-index. JSON pointer `/rows/107`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-index.tcl`. Exact 9.0.4 input for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-index.stdout`. Exact 9.0.4 stdout for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/array-counted-nul-index.stderr`. Exact 9.0.4 stderr for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 array-counted-nul-index. JSON pointer `/rows/147`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-index.tcl`. Exact 9.1.0 input for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-index.stdout`. Exact 9.1.0 stdout for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/array-counted-nul-index.stderr`. Exact 9.1.0 stderr for array-counted-nul-index; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 array-counted-nul-index. JSON pointer `/rows/187`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-index.tcl`. Exact Jim input for array-counted-nul-index; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-index.stdout`. Exact Jim stdout for array-counted-nul-index; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/array-counted-nul-index.stderr`. Exact Jim stderr for array-counted-nul-index; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim array-counted-nul-index. JSON pointer `/rows/227`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case array-counted-nul-index --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-array-counted-nul-index.md). A replay is a separate execution and must record its own results.

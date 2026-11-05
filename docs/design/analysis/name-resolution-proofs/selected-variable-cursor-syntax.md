@@ -20,58 +20,11 @@ Seven marked source/API controls cover original nested components, literal dolla
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-core-selected-variable-cursor-syntax-executable_parts.rs` (implementation): [rust/tcl-lexer/src/executable_parts.rs](../../../../rust/tcl-lexer/src/executable_parts.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-core-selected-variable-cursor-syntax-hover.rs` (implementation): [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-core-selected-variable-cursor-syntax-rename.rs` (implementation): [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-core-selected-variable-cursor-syntax-source_structure.rs` (implementation): [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,8 +41,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs), `rename::tests::original_reference_replacement_preserves_closed_elements_and_scalar_parentheses` (linked): Source replacement projection retains complete closed array elements while unmatched/tail parentheses remain scalar, under original selected grammar; no Native edit grant follows.
 - [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs), `rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names` (linked): Coverage obligation for `scalar(open`, `scalar(open)tail`, `cash$name`, `$n` and `café🙂`: ordinary complete rename refuses; the separate conditional single-document source alpha planner retains authentic source/config/input/context and typed naming policy, produces exactly two declaration/reference edits and the exact generated source `set {new} 1\nputs ${new}\n`, and refuses changed complete source. Versioned publication additionally requires a confirmation-required annotation and all three client capabilities. The linked status attaches no test execution, native provider, runtime-observer or workspace-completeness result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-lexer/src/executable_parts.rs](../../../../rust/tcl-lexer/src/executable_parts.rs)
+- [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs)
+- [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs)
+- [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs)

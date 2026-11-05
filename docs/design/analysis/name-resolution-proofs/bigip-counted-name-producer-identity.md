@@ -20,50 +20,19 @@ Recorded hexadecimal dynamic sources and all four TMMs; no general Unicode norma
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Recorded hexadecimal dynamic sources and all four TMMs; no general Unicode normalization or source-literal acceptance claim.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Channel: Recorded hexadecimal dynamic sources and all four TMMs; no general Unicode normalization or source-literal acceptance claim. Version: bigip 21.1.0.1.
 
 Plain and NUL-bearing scalar/array/index names coexist and mutate independently; traces retain counted arguments. The four format/binary spelling products remain distinct. Unbraced scanning stops on the measured non-ASCII bytes, while braced reads reach full names before a second set lookup can fail on the returned value. Dynamic command creation/rename preserves producer separation.
 
 The measured report rows and their limits are:
-
 
 All listed wrappers loaded successfully and returned outer catch status 0 on all four TMMs. Inner catch statuses are stated explicitly.
 
@@ -92,7 +61,7 @@ All listed wrappers loaded successfully and returned outer catch status 0 on all
 
 The NUL-bearing scalar had length 29 versus 27 for its plain control. The array-root variable references had lengths 38 versus 36, and the NUL-bearing index had length 3 versus 1. In every case the names could coexist, be read independently, be targeted by `upvar`, and be unset independently. This is a counterexample to C-string truncation or name canonicalisation at the embedded NUL.
 
-Variable traces accepted dynamically and fired on every actual TMM. For the index case, callbacks received the ASCII root unchanged and index hex `41` or `410042`, including the NUL. For the root case, callbacks received the full root hex with or without `0042` and index `6b`; the `upvar` write callback reported root name hex `616c696173` (`alias`) while mutating the linked counted array. The raw log contains 3,200 `R2286TRACE` rows and preserves the operation letters and TMM identities in [ltm-raw.log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/ltm-raw.log).
+Variable traces accepted dynamically and fired on every actual TMM. For the index case, callbacks received the ASCII root unchanged and index hex `41` or `410042`, including the NUL. For the root case, callbacks received the full root hex with or without `0042` and index `6b`; the `upvar` write callback reported root name hex `616c696173` (`alias`) while mutating the linked counted array. The raw log contains 3,200 `R2286TRACE` rows and preserves the operation letters and TMM identities in `ltm-raw.log`.
 
 ### Unicode producer identity and lexical resolution
 
@@ -102,24 +71,10 @@ Unbraced `$name` parsing did not consume the non-ASCII/control bytes into the le
 
 Dynamic `namespace`, `proc`, `namespace which -command`, invocation, `rename` and exact namespace cleanup all succeeded for both producer families. Cross-producer values prove that similarly rendered names were not aliases.
 
-
-## Historical references
-
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md). Lines 61–99. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md). Lines 9–9. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/ltm-raw.log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/appliance/raw/ltm-raw.log). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `aggregate-3` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006m/decoded-results.json). Inspected exact decoded aggregate, including reached, failed, unreached and cleanup fields; associated report questions preserve the source/context variants. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+- [scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_RESULTS.md)

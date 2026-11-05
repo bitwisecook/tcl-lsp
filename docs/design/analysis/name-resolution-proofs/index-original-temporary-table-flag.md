@@ -20,27 +20,15 @@ Exact public Tcl_GetIndexFromObj on original String a, distinct static tables fi
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6
 
-Status: `not-tested`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C conditional branch did not execute the temporary-table lookup. Dialect: C Tcl.
-
-Original probe compiled out the temporary-table branch; no flag64 call or guest rejection was observed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C conditional branch did not execute the temporary-table lookup. Dialect: C Tcl.
+Status: `not-tested`. Channel: C conditional branch did not execute the temporary-table lookup. Version: tcl8.4 8.4.20 (capture association; launched patchlevel unqueried); tcl8.5 8.5.19 (capture association; launched patchlevel unqueried); tcl8.6 8.6.18 (capture association; launched patchlevel unqueried).
 
 Original probe compiled out the temporary-table branch; no flag64 call or guest rejection was observed.
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `not-tested`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: C conditional branch did not execute the temporary-table lookup. Dialect: C Tcl.
-
-Original probe compiled out the temporary-table branch; no flag64 call or guest rejection was observed.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs.. Dialect: C Tcl.
+Status: `observed`. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs. Version: tcl9.0 9.0.4 (captured release association; launched patchlevel unqueried); tcl9.1 9.1.0 (captured release association; launched patchlevel unqueried).
 
 Exact selected rows:
 
@@ -58,51 +46,11 @@ Exact selected rows:
 ```
 The two regeneration rows report authored code/index constants; they are string/header observations, not additional GetIndex calls.
 
-### tcl9.1
+### jim, bigip
 
-Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: exit_code=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public Tcl_GetIndexFromObj original object with exact retained static table pointers; object duplication/string invalidation uses public APIs.. Dialect: C Tcl.
-
-Exact selected rows:
-
-```json
-[
-  {
-    "case": "temporary-table",
-    "code": 0,
-    "index": 0,
-    "type": "none",
-    "resident": 1,
-    "hex": "61"
-  }
-]
-```
-The two regeneration rows report authored code/index constants; they are string/header observations, not additional GetIndex calls.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation of this exact question is retained for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No observation of this exact question is retained for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-cshim/tests/data/native_index_cache/probe.c](../../../../rust/tcl-cshim/tests/data/native_index_cache/probe.c). Exact static table identities, original API flags and before-string header observer.
-- `receipt` (provider): [rust/tcl-cshim/tests/data/native_index_cache/manifest.json](../../../../rust/tcl-cshim/tests/data/native_index_cache/manifest.json). Original compile arguments, source/archive/output hashes and process status.
-- `rows-tcl8.4` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl). Exact original full output; selected case labels ['temporary-table'].
-- `rows-tcl8.5` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl). Exact original full output; selected case labels ['temporary-table'].
-- `rows-tcl8.6` (observation): [rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl). Exact original full output; selected case labels ['temporary-table'].
-- `rows-tcl9.0` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl). Exact original full output; selected case labels ['temporary-table'].
-- `rows-tcl9.1` (observation): [rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl). Exact original full output; selected case labels ['temporary-table'].
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -110,8 +58,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-cshim/src/index_table.rs](../../../../rust/tcl-cshim/src/index_table.rs), `StaticIndexTable`: Retains the independently supplied table entry reader and native storage lifetime contract.
 - [runtime/rust/src/interp/native_index_lookup.rs](../../../../runtime/rust/src/interp/native_index_lookup.rs), `interp::native_index_lookup::tests::original_index_flags_and_offsets_match_all_native_31_windows` (linked): Independent shared flag/stride/cache controls exercise temporary-table no-install behavior; this test uses its own 31-window corpus rather than claiming to execute the shim probe.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native execution or Rust test result is asserted. A new comparison must compile the exact retained probe against independently identified release headers and archive, preserve its original API/flags and declared observer references, then capture separate process status, stdout and stderr. Original absolute compiler paths are attribution metadata, not a portable replay command. The probe is input source, not an excerpt of the Tcl/Jim implementation.
+- [rust/tcl-cshim/tests/data/native_index_cache/probe.c](../../../../rust/tcl-cshim/tests/data/native_index_cache/probe.c)
+- [rust/tcl-cshim/tests/data/native_index_cache/manifest.json](../../../../rust/tcl-cshim/tests/data/native_index_cache/manifest.json)
+- [rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.4.20.jsonl)
+- [rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.5.19.jsonl)
+- [rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/8.6.18.jsonl)
+- [rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.0.4.jsonl)
+- [rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl](../../../../rust/tcl-cshim/tests/data/native_index_cache/9.1.0.jsonl)

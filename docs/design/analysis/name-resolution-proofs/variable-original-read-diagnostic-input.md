@@ -22,7 +22,7 @@ Six fixed complete ASCII LF source-file CLI forms per actual C8.4.20/8.5.19/8.6.
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls. Version: tcl8.4 8.4.20.
 
 Exact original stdout:
 
@@ -40,7 +40,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls. Version: tcl8.5 8.5.19.
 
 Exact original stdout:
 
@@ -58,7 +58,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls. Version: tcl8.6 8.6.18.
 
 Exact original stdout:
 
@@ -76,7 +76,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls. Version: tcl9.0 9.0.4.
 
 Exact original stdout:
 
@@ -94,7 +94,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls. Version: tcl9.1 9.1.0.
 
 Exact original stdout:
 
@@ -112,7 +112,7 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; original SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; six variable Read controls. Version: jim 0.84-9-g5bac7c9.
 
 Exact original stdout:
 
@@ -130,37 +130,9 @@ Outer process status 0; stderr empty. These finite Read outcomes supply no write
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/probe.tcl](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/probe.tcl). Exact original complete ASCII LF source containing six caught literal/dynamic/procedure Read controls.
-- `runner` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/capture.py](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/capture.py). Exact original Root capture runner; original command vectors and queue dependency retained.
-- `queue` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/queue.json](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/queue.json). Exact provider executable/SDK/header/library/source/environment selection pins.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20/receipt.json). Exact original process argv/status, queried version, source/runner/executable/SDK/environment and raw-stream digests.
-- `tcl8.4-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20/stdout). Exact original complete stdout bytes; six caught Read results are independent of outer process status.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20/stderr). Exact original complete stderr bytes; six caught Read results are independent of outer process status.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19/receipt.json). Exact original process argv/status, queried version, source/runner/executable/SDK/environment and raw-stream digests.
-- `tcl8.5-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19/stdout). Exact original complete stdout bytes; six caught Read results are independent of outer process status.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19/stderr). Exact original complete stderr bytes; six caught Read results are independent of outer process status.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18/receipt.json). Exact original process argv/status, queried version, source/runner/executable/SDK/environment and raw-stream digests.
-- `tcl8.6-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18/stdout). Exact original complete stdout bytes; six caught Read results are independent of outer process status.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18/stderr). Exact original complete stderr bytes; six caught Read results are independent of outer process status.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4/receipt.json). Exact original process argv/status, queried version, source/runner/executable/SDK/environment and raw-stream digests.
-- `tcl9.0-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4/stdout). Exact original complete stdout bytes; six caught Read results are independent of outer process status.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4/stderr). Exact original complete stderr bytes; six caught Read results are independent of outer process status.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0/receipt.json). Exact original process argv/status, queried version, source/runner/executable/SDK/environment and raw-stream digests.
-- `tcl9.1-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0/stdout). Exact original complete stdout bytes; six caught Read results are independent of outer process status.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0/stderr). Exact original complete stderr bytes; six caught Read results are independent of outer process status.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim/receipt.json). Exact original process argv/status, queried version, source/runner/executable/SDK/environment and raw-stream digests.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim/stdout](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim/stdout). Exact original complete stdout bytes; six caught Read results are independent of outer process status.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim/stderr). Exact original complete stderr bytes; six caught Read results are independent of outer process status.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -176,17 +148,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::variable_read_diagnostics_match_five_original_source_controls` (linked): Replay the identical complete original six-form source for each of five C providers and compare every Read result after separate PATCHLEVEL reporting. Literal, dynamic-head and procedure array-root and scalar-element failures retain their exact Read names; this is linked coverage, not an executed result.
 - [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::variable_read_input_preserves_current_jim_dictionary_results` (linked): Replay the identical complete original six-form Jim source and compare its successful dictionary-root reads and failing scalar-element reads after separate PATCHLEVEL reporting. This grants no private receiver or compiler admission and claims no executed result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "/workspace/.proofs/consumer-native-variable-read149/capture.py"
-]
-```
-
-The original runner retains capture-machine source/executable paths and its exact provider queue dependency. Replay requires independently verified matching SDK/source/executable/environment pins and fresh output paths. This review executes no native process or Rust test; these finite guest Read results issue no compiler or private receiver authority.
+- [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original)
+- [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.4.20)
+- [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.5.19)
+- [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/8.6.18)
+- [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.0.4)
+- [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim](../../../../rust/tcl-registry/tests/data/native_variable_read_diagnostic_original/jim)

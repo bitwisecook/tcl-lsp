@@ -26,7 +26,12 @@ unexecuted checks explicit in the active tracking documents. All required
 gates must pass at the PR stage; this exception does not authorise merging.
 
 Commit coherent, reviewed changes regularly, including their current contracts,
-experiment indexes and tracking updates. Before pausing or handing off, record
+experiment indexes and tracking updates. Keep the repository lean: record Tcl
+observations as minimised [execution evidence](docs/design/contracts/tcl-execution-evidence.md)
+(the script that ran and the result the question depends on, with a shared
+fixture for a common harness), never as archives, raw logs, whole
+configurations, build outputs, run receipts, scratch mirrors or progress
+snapshots. Do not record content hashes unless the hash is what was measured. Before pausing or handing off, record
 the current obligations, exact validation/evidence paths, blockers and next
 actions in the project's active coordination documents. Keep these documents
 as a current snapshot; git records the sequence of completed changes. Coordinate

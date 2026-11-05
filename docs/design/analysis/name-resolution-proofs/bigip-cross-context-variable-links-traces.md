@@ -20,50 +20,19 @@ Recorded context programs only; unavailable operations and failed setup remain e
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Recorded context programs only; unavailable operations and failed setup remain explicit and no cross-context capability is borrowed.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Channel: Recorded context programs only; unavailable operations and failed setup remain explicit and no cross-context capability is borrowed. Version: bigip 21.1.0.1.
 
 The retained matrix records results and rejected doors for each context independently. Counted names, callback arguments and alias linkage are observable program facts; they supply neither a source editor span nor an independently entered native frame.
 
 The measured report rows and their limits are:
-
 
 - Scalar names, array roots, and array indexes are counted byte sequences in
   all reached contexts. Embedded NUL did not truncate or alias a longer name.
@@ -84,24 +53,10 @@ The measured report rows and their limits are:
   "TMM::cmp_group"`. The portable wrappers removed only that TMM-specific log
   call and retained all naming operations and callback byte capture.
 
-
-## Historical references
-
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md). Lines 162–182. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md). Lines 12–12. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `aggregate-2` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/decoded-results.json). Inspected exact decoded aggregate, including reached, failed, unreached and cleanup fields; associated report questions preserve the source/context variants. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `aggregate-3` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006naming/r2286t-decoded-results.json). Inspected exact decoded aggregate, including reached, failed, unreached and cleanup fields; associated report questions preserve the source/context variants. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+- [scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/CONTEXT_NAMING_RESULTS.md)

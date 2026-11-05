@@ -24,55 +24,11 @@ The linked assertion definition supplies no executed outcome, Native frame/body 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,13 +38,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/source_command.rs](../../../../rust/tcl-lsp-core/src/refactor/source_command.rs), `refactor::source_command::tests::original_command_cursor_uses_actual_body_geometry_after_reports_are_erased` (linked): Selects the actual nested setter after procedure, invocation and variable reports are cleared across six profiles, and rejects a full-source change elsewhere at the same cursor.
 - [rust/tcl-lsp-core/src/refactor/source_command.rs](../../../../rust/tcl-lsp-core/src/refactor/source_command.rs), `refactor::source_command::tests::original_command_cursor_keeps_lambda_and_substitution_extents_separate` (linked): Keeps lambda-body and command-substitution positions distinct and does not treat a decoded quoted body value as original inner command geometry.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/refactor/inline_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_proc.rs), `original_inline_body`: Select genuine current original procedure/body regions through supplied Logical source context; body source alone cannot certify Native frame or rewrite permission.
 - [rust/tcl-lsp-core/src/refactor/inline_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_proc.rs), `refactor::inline_proc::selected_source_body_tests::logical_inline_call_selection_uses_current_original_body_regions` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
-
-## Replay
-
-Run the exact linked Rust selectors through the maintained workspace test setup. No native provider observation or executed Rust result is attached to this implementation record.

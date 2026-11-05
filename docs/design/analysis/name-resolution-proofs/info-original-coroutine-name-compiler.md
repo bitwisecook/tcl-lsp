@@ -20,75 +20,23 @@ Read-only inspection retains the unchanged question request, all eight independe
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `inspected`. Version: 8.4.20. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
-
-The complete original info table has no coroutine member or compiler hook.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 The complete original info table has no coroutine member or compiler hook.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
-
-Original info table registers TclCompileInfoCoroutineCmd; its complete function rejects numWords !=1, emits one COROUTINE_NAME instruction and returns TCL_OK. This is source declaration/worker interpretation only, not actual installed compiler/token admission or public coroutine output.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Original info table registers TclCompileInfoCoroutineCmd; its complete function rejects numWords !=1, emits one COROUTINE_NAME instruction and returns TCL_OK. This is source declaration/worker interpretation only, not actual installed compiler/token admission or public coroutine output.
 
-### tcl9.1
+### jim, bigip
 
-Status: `inspected`. Version: 9.1.0. Build: Read-only exact pinned original source; no interpreter/compiler/build invocation.. Channel: Complete original C info table and, where registered, complete original TclCompileInfoCoroutineCmd LF function source.. Dialect: Pinned original C release source.
-
-Original info table registers TclCompileInfoCoroutineCmd; its complete function rejects numWords !=1, emits one COROUTINE_NAME instruction and returns TCL_OK. This is source declaration/worker interpretation only, not actual installed compiler/token admission or public coroutine output.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+Status: `not-tested`.
 
 Jim/BIG-IP are not inspected or executed for this original C compiler question. Current software recipe definitions supply no native command/token/frame/holder or completion observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-Jim/BIG-IP are not inspected or executed for this original C compiler question. Current software recipe definitions supply no native command/token/frame/holder or completion observation.
-
-## Historical references
-
-- `info-coroutine-source317-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/request.json](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/request.json). Unchanged original read-only question request with complete source/excerpt pins and original scope; no native launch.
-- `info-coroutine-source317-8.4.20-tclCmdIL.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c). Complete independently pinned original C info table source, reused byte-for-byte from its official retained source copy; no new compile or execution.
-- `info-coroutine-source317-8.4.20-tclCmdIL.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.4.20/tclCmdIL.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.4.20/tclCmdIL.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-8.5.19-tclCmdIL.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c). Complete independently pinned original C info table source, reused byte-for-byte from its official retained source copy; no new compile or execution.
-- `info-coroutine-source317-8.5.19-tclCmdIL.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.5.19/tclCmdIL.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.5.19/tclCmdIL.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-8.6.18-tclCmdIL.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c). Complete independently pinned original C info table source, reused byte-for-byte from its official retained source copy; no new compile or execution.
-- `info-coroutine-source317-8.6.18-tclCmdIL.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCmdIL.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCmdIL.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-8.6.18-tclCompCmdsGR.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.c](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.c). Whole independently pinned original C compiler implementation; original worker shape/opcode source is independent of actual Native admission.
-- `info-coroutine-source317-8.6.18-TclCompileInfoCoroutineCmd.complete.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/TclCompileInfoCoroutineCmd.complete.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/TclCompileInfoCoroutineCmd.complete.excerpt). Independently selected complete LF function excerpt, including original worker rejection and emitted coroutine-name instruction; short request excerpt remains unchanged.
-- `info-coroutine-source317-8.6.18-tclCompCmdsGR.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.6.18/tclCompCmdsGR.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-9.0.4-tclCmdIL.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c). Complete independently pinned original C info table source, reused byte-for-byte from its official retained source copy; no new compile or execution.
-- `info-coroutine-source317-9.0.4-tclCmdIL.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCmdIL.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCmdIL.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-9.0.4-tclCompCmdsGR.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.c](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.c). Whole independently pinned original C compiler implementation; original worker shape/opcode source is independent of actual Native admission.
-- `info-coroutine-source317-9.0.4-TclCompileInfoCoroutineCmd.complete.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/TclCompileInfoCoroutineCmd.complete.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/TclCompileInfoCoroutineCmd.complete.excerpt). Independently selected complete LF function excerpt, including original worker rejection and emitted coroutine-name instruction; short request excerpt remains unchanged.
-- `info-coroutine-source317-9.0.4-tclCompCmdsGR.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.0.4/tclCompCmdsGR.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-9.1.0-tclCmdIL.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c). Complete independently pinned original C info table source, reused byte-for-byte from its official retained source copy; no new compile or execution.
-- `info-coroutine-source317-9.1.0-tclCmdIL.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCmdIL.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCmdIL.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-9.1.0-tclCompCmdsGR.c` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.c](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.c). Whole independently pinned original C compiler implementation; original worker shape/opcode source is independent of actual Native admission.
-- `info-coroutine-source317-9.1.0-TclCompileInfoCoroutineCmd.complete.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/TclCompileInfoCoroutineCmd.complete.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/TclCompileInfoCoroutineCmd.complete.excerpt). Independently selected complete LF function excerpt, including original worker rejection and emitted coroutine-name instruction; short request excerpt remains unchanged.
-- `info-coroutine-source317-9.1.0-tclCompCmdsGR.excerpt` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.excerpt](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/9.1.0/tclCompCmdsGR.excerpt). Exact original independently hashed request excerpt; its bytes and declared LF range remain unchanged.
-- `info-coroutine-source317-source-inspection.json` (source-anchor): [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/source-inspection.json](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/source-inspection.json). Bounded independently verified complete-worker LF source inspection index; no compile receipt or Native execution provenance.
-- `naming-info-original-coroutine-name-compiler-rust-tcl-compiler-src-codegen-native_coroutine.rs` (implementation): [rust/tcl-compiler/src/codegen/native_coroutine.rs](../../../../rust/tcl-compiler/src/codegen/native_coroutine.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-info-original-coroutine-name-compiler-rust-tcl-registry-src-commands-tcl-info_.rs` (implementation): [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-info-original-coroutine-name-compiler-rust-tcl-registry-src-native_compilation.rs` (implementation): [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-info-original-coroutine-name-compiler-rust-tcl-registry-src-native_coroutine_compilation.rs` (implementation): [rust/tcl-registry/src/native_coroutine_compilation.rs](../../../../rust/tcl-registry/src/native_coroutine_compilation.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 
@@ -333,7 +281,6 @@ TclCompileInfoCoroutineCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs), `spec`: Publish the authored info SubCommand table through CommandSpec.subcommands, independently of actual selected original C ensemble/compiler registration.
@@ -342,8 +289,12 @@ TclCompileInfoCoroutineCmd(
 - [rust/tcl-compiler/src/codegen/native_coroutine.rs](../../../../rust/tcl-compiler/src/codegen/native_coroutine.rs), `CodegenCtx::native_coroutine_tasks`: Project the selected Name recipe to the coroutine-name instruction plan without argument work; original compilation/body/execution admission remains independent.
 - [rust/tcl-registry/src/native_coroutine_compilation.rs](../../../../rust/tcl-registry/src/native_coroutine_compilation.rs), `native_coroutine_compilation::coroutine_name_tests::original_coroutine_name_compiler_keeps_zero_operand_recipe_and_native_decline` (linked): Actual selected C release and original public/direct worker operand coordinates retain the zero-operand Name recipe only from C8.6. Extra or expanded arguments decline; C8.4/8.5 remain unavailable. This marked source/API definition executes no external compiler/provider and grants no Native token/frame/holder/result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Read-only whole-source/excerpt/hash inspection and one marked current software recipe definition. No native/compiler/Rust command is run, no compile provenance is manufactured, and public coroutine observations retain their independent original receipts.
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources)
+- [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.4.20](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.4.20)
+- [rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.5.19](../../../../rust/tcl-registry/tests/data/native_info_coroutine_compiler_source317/8.5.19)
+- [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
+- [rust/tcl-compiler/src/codegen](../../../../rust/tcl-compiler/src/codegen)
+- [rust/tcl-registry/src/commands/tcl](../../../../rust/tcl-registry/src/commands/tcl)
+- [rust/tcl-registry/src](../../../../rust/tcl-registry/src)

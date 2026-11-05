@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.4.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl8.4 8.4.20.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -51,7 +51,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.5.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl8.5 8.5.19.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -80,7 +80,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.6.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl8.6 8.6.18.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -109,7 +109,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.0.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl9.0 9.0.4.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -138,7 +138,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.1.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl9.1 9.1.0.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -167,7 +167,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### jim
 
-Status: `observed`. Version: Jim. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: jim.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_EvalObj, Jim_EvalObjVector, Tcl_EvalObjEx, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: jim Jim.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -196,37 +196,21 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-vm/tests/data/native_equality/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_equality/8.4.20.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-vm/tests/data/native_equality/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_equality/8.5.19.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (observation): [rust/tcl-vm/tests/data/native_equality/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_equality/8.6.18.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-3` (observation): [rust/tcl-vm/tests/data/native_equality/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_equality/9.0.4.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (observation): [rust/tcl-vm/tests/data/native_equality/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_equality/9.1.0.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5` (observation): [rust/tcl-vm/tests/data/native_equality/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_equality/Jim.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-6` (observation): [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-6-row-7` (provider): [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json). JSON pointer `/observations/0`. Original provider/capture association at its exact selected row.
-- `file-6-row-8` (provider): [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json). JSON pointer `/observations/1`. Original provider/capture association at its exact selected row.
-- `file-6-row-9` (provider): [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json). JSON pointer `/observations/2`. Original provider/capture association at its exact selected row.
-- `file-6-row-10` (provider): [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json). JSON pointer `/observations/3`. Original provider/capture association at its exact selected row.
-- `file-6-row-11` (provider): [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json). JSON pointer `/observations/4`. Original provider/capture association at its exact selected row.
-- `file-6-row-12` (provider): [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json). JSON pointer `/observations/5`. Original provider/capture association at its exact selected row.
-- `file-13` (input): [rust/tcl-vm/tests/data/native_equality/probe.c](../../../../rust/tcl-vm/tests/data/native_equality/probe.c). Exact retained input/program bytes; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-vm/tests/data/native_equality/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_equality/8.4.20.tsv)
+- [rust/tcl-vm/tests/data/native_equality/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_equality/8.5.19.tsv)
+- [rust/tcl-vm/tests/data/native_equality/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_equality/8.6.18.tsv)
+- [rust/tcl-vm/tests/data/native_equality/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_equality/9.0.4.tsv)
+- [rust/tcl-vm/tests/data/native_equality/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_equality/9.1.0.tsv)
+- [rust/tcl-vm/tests/data/native_equality/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_equality/Jim.tsv)
+- [rust/tcl-vm/tests/data/native_equality/manifest.json](../../../../rust/tcl-vm/tests/data/native_equality/manifest.json)
+- [rust/tcl-vm/tests/data/native_equality/probe.c](../../../../rust/tcl-vm/tests/data/native_equality/probe.c)

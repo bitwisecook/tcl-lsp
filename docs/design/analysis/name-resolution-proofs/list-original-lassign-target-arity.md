@@ -22,7 +22,7 @@ Seven finite forms in one fixed ASCII LF source-file CLI probe per actual C8.4.2
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable; original SDK/header/library/Makefile/source pins, environment and process argv are in the receipt.. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument. Version: tcl8.4 8.4.20.
 
 Exact original stdout:
 
@@ -41,7 +41,7 @@ Outer process status 0; stderr empty. These finite guest results supply no targe
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable; original SDK/header/library/Makefile/source pins, environment and process argv are in the receipt.. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument. Version: tcl8.5 8.5.19.
 
 Exact original stdout:
 
@@ -60,7 +60,7 @@ Outer process status 0; stderr empty. These finite guest results supply no targe
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable; original SDK/header/library/Makefile/source pins, environment and process argv are in the receipt.. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument. Version: tcl8.6 8.6.18.
 
 Exact original stdout:
 
@@ -79,7 +79,7 @@ Outer process status 0; stderr empty. These finite guest results supply no targe
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable; original SDK/header/library/Makefile/source pins, environment and process argv are in the receipt.. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument. Version: tcl9.0 9.0.4.
 
 Exact original stdout:
 
@@ -98,7 +98,7 @@ Outer process status 0; stderr empty. These finite guest results supply no targe
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable; original SDK/header/library/Makefile/source pins, environment and process argv are in the receipt.. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument. Version: tcl9.1 9.1.0.
 
 Exact original stdout:
 
@@ -117,7 +117,7 @@ Outer process status 0; stderr empty. These finite guest results supply no targe
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; original SDK/header/library/Makefile/source pins, environment and process argv are in the receipt.. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Fixed original complete ASCII LF lassign-only source-file CLI argument. Version: jim 0.84-9-g5bac7c9.
 
 Exact original stdout:
 
@@ -136,37 +136,9 @@ Outer process status 0; stderr empty. These finite guest results supply no targe
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/probe.tcl](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/probe.tcl). Exact original fixed complete ASCII LF source-file script containing seven independently caught forms.
-- `capture-runner` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/capture.py](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/capture.py). Exact Root runner, with original absolute queue dependency preserved.
-- `provider-queue` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/queue.json](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/queue.json). Exact selected provider SDK/source/library/header/build/environment queue; actual receipts identify the six launched processes.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20/receipt.json). Original process argv/exit, actual patchlevel, source/runner/executable/SDK/environment and raw stream digests; copied input_channel label is not a trace observation.
-- `tcl8.4-stdout` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20/stdout). Exact complete original stdout bytes; seven caught source results remain distinct from outer process status.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20/stderr). Exact complete original stderr bytes; seven caught source results remain distinct from outer process status.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19/receipt.json). Original process argv/exit, actual patchlevel, source/runner/executable/SDK/environment and raw stream digests; copied input_channel label is not a trace observation.
-- `tcl8.5-stdout` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19/stdout). Exact complete original stdout bytes; seven caught source results remain distinct from outer process status.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19/stderr). Exact complete original stderr bytes; seven caught source results remain distinct from outer process status.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18/receipt.json). Original process argv/exit, actual patchlevel, source/runner/executable/SDK/environment and raw stream digests; copied input_channel label is not a trace observation.
-- `tcl8.6-stdout` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18/stdout). Exact complete original stdout bytes; seven caught source results remain distinct from outer process status.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18/stderr). Exact complete original stderr bytes; seven caught source results remain distinct from outer process status.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4/receipt.json). Original process argv/exit, actual patchlevel, source/runner/executable/SDK/environment and raw stream digests; copied input_channel label is not a trace observation.
-- `tcl9.0-stdout` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4/stdout). Exact complete original stdout bytes; seven caught source results remain distinct from outer process status.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4/stderr). Exact complete original stderr bytes; seven caught source results remain distinct from outer process status.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0/receipt.json). Original process argv/exit, actual patchlevel, source/runner/executable/SDK/environment and raw stream digests; copied input_channel label is not a trace observation.
-- `tcl9.1-stdout` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0/stdout). Exact complete original stdout bytes; seven caught source results remain distinct from outer process status.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0/stderr). Exact complete original stderr bytes; seven caught source results remain distinct from outer process status.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim/receipt.json). Original process argv/exit, actual patchlevel, source/runner/executable/SDK/environment and raw stream digests; copied input_channel label is not a trace observation.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim/stdout](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim/stdout). Exact complete original stdout bytes; seven caught source results remain distinct from outer process status.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim/stderr). Exact complete original stderr bytes; seven caught source results remain distinct from outer process status.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -186,17 +158,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::list_assignment_arity_matches_five_original_source_controls` (linked): Replay the exact seven original complete source forms for each of five C providers; compare full output after independent PATCHLEVEL reporting. No native Compiler admission or new native launch is inferred.
 - [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::list_assignment_arity_matches_current_jim_original_source_controls` (linked): Replay the exact original seven Jim source forms and compare its actual required-target usage and results after independent PATCHLEVEL reporting; no current Rust pass is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "/workspace/.proofs/native-list-arity146/capture.py"
-]
-```
-
-The original runner/process argument vectors retain their capture-machine paths and provider queue dependency. Source, runner, queue and all raw capture bytes are archived unchanged. Replay requires independently verified matching SDK/executable/environment pins and fresh output paths. This offline review launches no native process or Rust tests. Guest script results do not issue a compiler admission, object/header/cache, callback or appliance receipt.
+- [rust/tcl-registry/tests/data/native_lassign_target_arity_original](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original)
+- [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.4.20)
+- [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.5.19)
+- [rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/8.6.18)
+- [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.0.4)
+- [rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim](../../../../rust/tcl-registry/tests/data/native_lassign_target_arity_original/jim)

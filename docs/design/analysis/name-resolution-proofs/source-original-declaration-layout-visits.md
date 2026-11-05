@@ -20,57 +20,11 @@ Two deterministic marked source/API controls define exact visit-count, complete 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-source-original-declaration-layout-visits-declaration_preview.rs` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). Genuine original declaration advice selects Logical procedure reading only under its retained purpose; independent Native/source allocation and full original source-image guards remain.
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.original-declaration-layout-visits`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -92,8 +46,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::original_declared_body_parse_cut_uses_geometry_after_f5_segment_merging` (linked): Declared body parse cut uses geometry after f5 segment merging. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::original_declared_body_parse_cut_keeps_unavailable_distinct_from_empty` (linked): Declared body parse cut keeps unavailable distinct from empty. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs)

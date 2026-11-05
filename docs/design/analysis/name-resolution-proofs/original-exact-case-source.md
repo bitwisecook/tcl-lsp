@@ -20,56 +20,11 @@ Three marked controls retain genuine literal, compound and array subject syntax;
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-refactor-original-exact-case-source-rust-tcl-lsp-core-src-refactor-datagroup-source_subject.rs` (implementation): [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-refactor-original-exact-case-source-rust-tcl-lsp-core-src-refactor-switch_to_dict.rs` (implementation): [rust/tcl-lsp-core/src/refactor/switch_to_dict.rs](../../../../rust/tcl-lsp-core/src/refactor/switch_to_dict.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,8 +37,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/switch_to_dict.rs](../../../../rust/tcl-lsp-core/src/refactor/switch_to_dict.rs), `refactor::switch_to_dict::tests::original_dictionary_conversion_keeps_effective_alias_layout_and_current_source` (linked): Authentic aliases and captured effective operands retain the shared case layout, while uncertain options, shadows and missing/stale source/config withdraw it.
 - [rust/tcl-lsp-core/src/refactor/switch_to_dict.rs](../../../../rust/tcl-lsp-core/src/refactor/switch_to_dict.rs), `refactor::switch_to_dict::tests::original_dictionary_case_receipt_does_not_grant_native_rewrite_permissions` (linked): A genuine positive Native-authored source receipt retains case syntax but cannot grant inserted temporary cells, movement, entered execution or runtime equivalence; the existing rewrite obligation keeps the action disabled.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Current source/API definitions and exact owner bindings only. Actual Rust receipts and native public observations retain independent scopes; this publication executes no command.
+- [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs)
+- [rust/tcl-lsp-core/src/refactor/switch_to_dict.rs](../../../../rust/tcl-lsp-core/src/refactor/switch_to_dict.rs)

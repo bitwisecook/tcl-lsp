@@ -20,57 +20,11 @@ Rust Native package-index source path advice and exact package-name registration
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,13 +37,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/package_resolver/original_names.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names.rs), `package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom` (linked): Finite source-defined control: original auto index filename keeps supplied grammar and nested command bom. Original file prologue and stored source/file-join child; ordinary filename/count-name projected, distinct BOM-prefixed child withheld. Supplied FirstClose versus incompatible nesting affects authored path syntax only, without evaluating variable paths or loading. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-lsp-core/src/package_resolver/reachability/original.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability/original.rs), `package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry` (linked): Finite source-defined control: original package body words keep parent image and nested bom geometry. Actual complete analysis image and original native body word vector join, nested BOM as content and selected FirstClose geometry. Parent NativeWords retain their full config; no loader/effect closure. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact named Rust selectors are linked coverage. No Rust execution receipt or native provider observation is attached to this implementation contract.
-
-
 ## Exact original-source347 software outcomes
 
 These results belong only to the retained source347 body/question pairs and their owning Compiler or Core image. They do not establish an outcome for current source, unselected controls or external providers.
@@ -98,11 +45,10 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-core-consumer-tests347` | 2 | 1 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
-
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.
 
 ## Exact owning Core source350 software outcomes
 
 The owning Core image executes 3 original selections paired with this question and all pass. These are bounded Rust software assertions for the exact source350 map and executable. The process selects 14 tests and all pass, with no ignored tests and 2,953 other tests filtered out. Producer and inventory operations execute no assertions.
 
-[Exact original body hashes and raw harness outcomes](rust-validation/frozen350/question-body-outcomes.json) join the full unchanged receipts, streams, source map, inventory/admission and owned executable bytes. Native provider answers and other source-image results remain independent.
+Exact original body hashes and raw harness outcomes join the full unchanged receipts, streams, source map, inventory/admission and owned executable bytes. Native provider answers and other source-image results remain independent.

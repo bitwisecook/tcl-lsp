@@ -1,18 +1,14 @@
 # Which exact byte and owner facts does the Compiler variable cell bridge preserve independently of its reporting label?
 
-
 Proof ID: `naming.variable.byte-cell-correspondence`
-
 
 ## Problem statement
 
 Opaque or counted-zero names may share a Unicode reporting label while selecting different storage. Converting a diagnostic name back to bytes would merge cells, array indices or aliases. The implementation therefore needs typed byte storage and independently selected interpreter/frame/namespace/lifetime identities before any read or mutation claim.
 
-
 ## Question
 
 Which exact byte and owner facts does the Compiler variable cell bridge preserve independently of its reporting label?
-
 
 ## Answers
 
@@ -33,7 +29,6 @@ Which exact byte and owner facts does the Compiler variable cell bridge preserve
 | jim | not-tested | not recorded; not recorded | No observation for this question. |
 
 | bigip | not-tested | not recorded; not recorded | No appliance observation for this question. |
-
 
 ## Conclusion
 
@@ -56,17 +51,6 @@ Current direct test attributes and real module parents attach these source/API c
 
 Current source linkage supplies no execution or assertion credit.
 
-## Replay
-
-```sh
-
-cargo test -p tcl-compiler var_resolve::original_bytes::tests -- --test-threads=1
-
-```
-
-This is a Rust implementation-contract replay, not a native reconfirmation. The independent byte-cell selector above must also run. No result is claimed by this record.
-
-
 ## Rust contracts
 
 Rust assertions and native observations are separate. No Rust execution result is inferred from this record.
@@ -76,5 +60,3 @@ Rust assertions and native observations are separate. No Rust execution result i
 - `var_resolve::original_bytes::tests::counted_runtime_roots_indices_aliases_and_observers_share_one_cell_owner` in `rust/tcl-compiler/src/var_resolve/original_bytes.rs`: Counted root/index and typed alias/observer identity share the selected byte owner. (linked).
 
 - `var_resolve::original_bytes::tests::counted_runtime_input_rejects_missing_or_conflicting_recipe_and_preserves_extent` in `rust/tcl-compiler/src/var_resolve/original_bytes.rs`: Missing/conflicting execution recipe remains unknown and counted input extent is preserved. (linked).
-
-

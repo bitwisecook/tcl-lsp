@@ -20,55 +20,11 @@ Current Rust readonly SymbolDef source cards for C8.6 tcltest and genuine hosted
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-## Historical references
-
-- `source-handlers` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). Original invocation completion and retained whole-source advice query the common purpose owner. Supplied refusal remains unknown; independently guarded authored/Native source routes are preserved.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,8 +40,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs), `document_symbols::original::registry_ledger_tests::original_registry_outline_uses_sealed_roles_and_names_after_reporting_maps_clear` (linked): Two genuine opaque Registry source cards retain distinct names and Test roles after reporting map removal; displaced complete source withdraws the outline.
 - [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs), `analyser::handlers::original_registry_symbol_tests::original_registry_symbol_cards_retain_the_actual_namespace_geometry` (linked): The actual selected tcltest symbol card retains the genuine non-root source namespace scope and complete original image/config; a prepended changed image cannot borrow the card. Reporting labels supply no namespace holder or publication.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The listed fixed Rust selectors are replay bindings, not execution receipts. Native source ingress observations are separately scoped and do not certify these consumer assertions.
+- [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs)

@@ -20,55 +20,11 @@ Current MCP analyze/event_order source reports. Fixed controls use real hosted a
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `event_order_list`: Select supported hosted Event-role catalogue units independently of readable card labels.
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `event_order`: Resolve the requested dialect and analyse that source before ordering event advice.
 - [rust/tcl-mcp/src/tools.rs](../../../../rust/tcl-mcp/src/tools.rs), `tools::original_event_source_tests::original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps` (linked): Actual hosted cards survive report changes; stale source and Native/iApps/shadowed lookalikes cannot supply event advice.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.

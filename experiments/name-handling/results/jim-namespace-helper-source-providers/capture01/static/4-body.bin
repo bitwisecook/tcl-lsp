@@ -1,2 +1,0 @@
-
-	tailcall namespace eval $name $arg $args

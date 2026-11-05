@@ -20,57 +20,11 @@ Rust software owner contract for readonly original source command-world geometry
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Rust source/API definitions only. Dialect: tcl8.4.
-
-No external-provider observation for this Rust borrowing contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Rust source/API definitions only. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Rust source/API definitions only.
 
 No external-provider observation for this Rust borrowing contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Rust source/API definitions only. Dialect: tcl8.6.
-
-No external-provider observation for this Rust borrowing contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Rust source/API definitions only. Dialect: tcl9.0.
-
-No external-provider observation for this Rust borrowing contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Rust source/API definitions only. Dialect: tcl9.1.
-
-No external-provider observation for this Rust borrowing contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Rust source/API definitions only. Dialect: jim.
-
-No external-provider observation for this Rust borrowing contract.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Rust source/API definitions only. Dialect: bigip.
-
-No external-provider observation for this Rust borrowing contract.
-
-## Historical references
-
-- `original-world-query-owner` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). Current actual borrowed/owned source-world query, same original policy guard and three direct software test definitions. No successful executable inventory or assertion outcome is attached.
-- `original-world-query-consumers` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). Seven actual readonly table/geometry consumers delegate the same query owner and count only reached owned clone work. Source linkage supplies no timing improvement, Native completion or producer result.
-- `authored-compiler-registry633-0ecd91ca3830` (implementation): [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs). Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,8 +42,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs), `command_binding::original_command_table::advice_slot_tests::warmed_advice_index_preserves_original_namespace_path_barriers` (linked): Actual selected namespace path precedence survives memo warmth; an occupied unknown nested slot blocks later paths and foreign naming policy refuses the query. Source recipes do not establish physical namespace or Native command availability.
 - [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs), `command_binding::original_command_table::advice_slot_tests::advice_index_warmth_preserves_full_baseline_equality_and_bounded_fallback` (linked): Derived memo warmth preserves full baseline equality/hash, distinguishes independent equal map identity, and falls back to the unchanged lookup when the bounded metadata-name capacity is exceeded. Source assertions supply no timing measurement or cache authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Current Rust source-owner contract and direct test definitions only. Independent successful own producers, executable inventories and complete assertion receipts are required to claim software outcomes. Performance comparisons require complete original/current source and measurement receipts; cumulative-inclusive query duration is not exclusive clone cost. External Native/source/frame/cell/body/publication and edit receipts remain independent.
+- [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs)
+- [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs)
+- [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs)

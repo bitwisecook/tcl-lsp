@@ -20,55 +20,11 @@ Rust source contract and authored live/foreign-object/retired-context controls i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,13 +35,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_jim_namespace.rs](../../../../runtime/rust/src/interp/native_jim_namespace.rs), `interp::native_jim_namespace::tests::jim_root_command_context_requires_its_live_original_top_object` (linked): An actual selected Jim runtime context retains its original top object and supplies the root command context; C namespace-tree lookup refuses, equal-byte foreign holder refuses, restoring the original holder restores availability, and retiring the context refuses. This does not infer native Jim pointer or epoch behavior from the separate CLI row.
 - [rust/tcl-vm/src/interp/native_namespace_root_tests.rs](../../../../rust/tcl-vm/src/interp/native_namespace_root_tests.rs), `interp::native_namespace_root_tests::jim_root_command_context_requires_its_live_original_top_object` (linked): Selected Jim VM supplies its genuine original root command context; an equal-byte foreign root object refuses, restoring the original object restores availability, and retiring either the original context or command world refuses. This is an authored Rust object-owner assertion and is not inferred from the separate native CLI guest result.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked Rust tests are coverage obligations, not executed interpreter observations.
-
-
 ## Exact original-source349 software outcomes
 
 These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
@@ -95,4 +44,4 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

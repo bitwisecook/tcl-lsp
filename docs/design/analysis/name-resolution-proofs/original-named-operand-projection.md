@@ -20,55 +20,11 @@ Private original-source correspondence only. Opaque namespace export operands, e
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs), `original_variable_invocation`: Consume the retained original operand projection, preserving the independently selected original Input and current complete source/configuration.
 - [rust/tcl-compiler/src/command_binding/named_arguments.rs](../../../../rust/tcl-compiler/src/command_binding/named_arguments.rs), `command_binding::named_arguments::tests::original_named_projection_keeps_complete_source_ownership_and_selected_ordinals` (linked): The authentic complete original vector preserves consumed selector ordinals and declines changed full image/channel/configuration or mismatched projected IR words.
 - [rust/tcl-compiler/src/command_binding/named_arguments.rs](../../../../rust/tcl-compiler/src/command_binding/named_arguments.rs), `command_binding::named_arguments::tests::original_named_namespace_helper_retains_counted_operand_input` (linked): Selected C8.6/C9.0/C9.1 namespace helper projection retains the actual opaque export operand Input after private selector consumption, independently of handler or Normal authority. The helper completion assertion separately requires the existing actual intrinsic handler/table transfer and full root Normal seal; projected name geometry alone supplies neither.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The linked Rust selectors exercise the exact correspondence and refusal premises. No execution receipt or native provider observation is attached to this implementation contract.

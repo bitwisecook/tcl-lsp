@@ -28,82 +28,27 @@ These15 combinations use source analyser advice only and attach no external proc
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Actual CLI executable SHA f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a with retained SDK/header/library/build/source pins, environment and runner associations. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row.. Dialect: Tcl.
-
-Renaming s to moved and moved_again changes only the public parent command spelling: the original child path s remains usable and returns moved, while moved is not a child path. Deleting s by its child path removes the second moved parent command. Deleting a moved parent command removes child d. The qualified parent ::N::held still evaluates child q, and deleting q removes that qualified parent command. Exact missing-command/interpreter messages and errorCode rows remain in the provider stream.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual CLI executable SHA e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a with retained SDK/header/library/build/source pins, environment and runner associations. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row.. Dialect: Tcl.
-
-Renaming s to moved and moved_again changes only the public parent command spelling: the original child path s remains usable and returns moved, while moved is not a child path. Deleting s by its child path removes the second moved parent command. Deleting a moved parent command removes child d. The qualified parent ::N::held still evaluates child q, and deleting q removes that qualified parent command. Exact missing-command/interpreter messages and errorCode rows remain in the provider stream.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual CLI executable SHA 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff with retained SDK/header/library/build/source pins, environment and runner associations. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row.. Dialect: Tcl.
-
-Renaming s to moved and moved_again changes only the public parent command spelling: the original child path s remains usable and returns moved, while moved is not a child path. Deleting s by its child path removes the second moved parent command. Deleting a moved parent command removes child d. The qualified parent ::N::held still evaluates child q, and deleting q removes that qualified parent command. Exact missing-command/interpreter messages and errorCode rows remain in the provider stream.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual CLI executable SHA f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1 with retained SDK/header/library/build/source pins, environment and runner associations. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row.. Dialect: Tcl.
-
-Renaming s to moved and moved_again changes only the public parent command spelling: the original child path s remains usable and returns moved, while moved is not a child path. Deleting s by its child path removes the second moved parent command. Deleting a moved parent command removes child d. The qualified parent ::N::held still evaluates child q, and deleting q removes that qualified parent command. Exact missing-command/interpreter messages and errorCode rows remain in the provider stream.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual CLI executable SHA 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d with retained SDK/header/library/build/source pins, environment and runner associations. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Renaming s to moved and moved_again changes only the public parent command spelling: the original child path s remains usable and returns moved, while moved is not a child path. Deleting s by its child path removes the second moved parent command. Deleting a moved parent command removes child d. The qualified parent ::N::held still evaluates child q, and deleting q removes that qualified parent command. Exact missing-command/interpreter messages and errorCode rows remain in the provider stream.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual CLI executable SHA e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806 with retained SDK/header/library/build/source pins, environment and runner associations. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Fixed ASCII LF source-file CLI; one fresh provider process with 29 sequential caught controls after its queried version row. Version: jim 0.84-9-g5bac7c9.
 
 The tested interp create/eval/exists/delete forms fail with the actual interp arity message. No created or moved parent command appears; rename/delete and direct handle calls fail because those commands are absent. namespace eval N succeeds independently. These caught failures establish no child path, move or deletion semantics and do not claim the bare interp command is absent.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation of these exact created parent command moves and child-path deletions.
-
-## Historical references
-
-- `move-probe.tcl` (input): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/probe.tcl](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/probe.tcl). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-request.json` (input): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/request.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/request.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-capture.py` (input): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/capture.py](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/capture.py). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18/receipt.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18/stderr). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18/stdout). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0/receipt.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0/stderr). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0/stdout). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20/receipt.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20/stderr). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20/stdout). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4/receipt.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4/stderr). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4/stdout). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19/receipt.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19/stderr). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19/stdout). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim/receipt.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim/stderr). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim/stdout). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-- `move-sdk-queue.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/sdk-queue.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/sdk-queue.json). Exact retained source/request/runner, SDK association or raw original provider stream for sequential parent-command moves and child-path deletion. No private token, object identity, allocation or compiler admission follows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `Analyser::original_interp_handle_visibility_body`: Retain the source child-path owner independently of the moved parent command, requiring the current original visibility/body projection before source advice.
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `Analyser::observe_indirect_interp_visibility`: Project conditional source operations through the authentic current created-handle route; exposure/deletion/unknown transitions cannot donate a live child source purpose.
@@ -117,15 +62,12 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/capture.py"
-]
-```
-
-The retained runner uses the original absolute SDK queue and creates provider directories. Exact SDK/executable/environment associations and a fresh output directory are required. Source-model consumers retain independent full-input ownership and applicability obligations.
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.6.18)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.1.0)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.4.20)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/9.0.4)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/8.5.19)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command_move/jim)

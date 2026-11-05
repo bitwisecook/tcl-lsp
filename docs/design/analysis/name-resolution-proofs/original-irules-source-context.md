@@ -24,58 +24,11 @@ Readonly SourceWhen inventory and explain source reporting retain exact event-wo
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-- `source-when-implementation-0` (implementation): [rust/tcl-irules/src/source_context.rs](../../../../rust/tcl-irules/src/source_context.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-when-implementation-1` (implementation): [rust/tcl-irules/src/when_block.rs](../../../../rust/tcl-irules/src/when_block.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-when-implementation-2` (implementation): [rust/tcl-irules/src/lib.rs](../../../../rust/tcl-irules/src/lib.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-when-implementation-3` (implementation): [rust/f5-cli/src/commands/explain.rs](../../../../rust/f5-cli/src/commands/explain.rs). Reviewed current original source inventory projection and fixed authored controls only; no executed Rust or Native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -112,8 +65,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-irules/src/when_block.rs](../../../../rust/tcl-irules/src/when_block.rs), `when_block::tests::original_when_inventory_preserves_preceding_unknown_source_debt` (linked): A preceding unmodelled source operation preserves unavailable-site coverage and the conditional declaration card's actual unknown-transition and applicability obligations.
 - [rust/f5-cli/src/commands/explain.rs](../../../../rust/f5-cli/src/commands/explain.rs), `commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable` (linked): Explain distinguishes unavailable from complete-empty original source inventory and preserves sorted positive source event labels without a runtime handler claim.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
+- [rust/tcl-irules/src/source_context.rs](../../../../rust/tcl-irules/src/source_context.rs)
+- [rust/tcl-irules/src/when_block.rs](../../../../rust/tcl-irules/src/when_block.rs)
+- [rust/tcl-irules/src/lib.rs](../../../../rust/tcl-irules/src/lib.rs)
+- [rust/f5-cli/src/commands/explain.rs](../../../../rust/f5-cli/src/commands/explain.rs)

@@ -24,73 +24,35 @@ Current direct test attributes and real module parents attach these source/API c
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
-
-Actual OO command query is empty; no TclOO member vector executes.
-
-### tcl8.5
-
-Status: `unsupported`. Version: 8.5.19. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `unsupported`. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 Actual OO command query is empty; no TclOO member vector executes.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval. Version: tcl8.6 8.6.18.
 
 Matching raw-zero static object access stays STATIC after dynamic write; fresh dynamicread fails. Plain/FF/surrogate static reader changes to DYNAMIC after dynamic write. Prefix-only declaration and qualification-after-zero source controls do not link the compiled full name. The raw-zero object-vars presenter clips at zero.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
-
-Matching raw-zero static object access stays STATIC after dynamic write; fresh dynamicread fails. Plain/FF/surrogate static reader changes to DYNAMIC after dynamic write. Prefix-only declaration and qualification-after-zero source controls do not link the compiled full name. The raw-zero object-vars presenter retains all counted bytes.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted Tcl objects passed to Tcl_EvalObjv; body source contains actual raw native bytes, ASCII setup via NUL-terminated Tcl_Eval. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Matching raw-zero static object access stays STATIC after dynamic write; fresh dynamicread fails. Plain/FF/surrogate static reader changes to DYNAMIC after dynamic write. Prefix-only declaration and qualification-after-zero source controls do not link the compiled full name. The raw-zero object-vars presenter retains all counted bytes.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; public header/static library/Makefile/source-owner/compile command/process streams retained.. Channel: ASCII NUL-terminated Jim_Eval startup and OO-availability query only.. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: ASCII NUL-terminated Jim_Eval startup and OO-availability query only. Version: jim 0.84-9-g5bac7c9.
 
 Actual OO command query is empty; no TclOO member vector executes.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this exact counted TclOO resolver question.
-
-## Historical references
-
-- `input` (input): [rust/tcl-vm/tests/data/native_oo_variable_resolver/probe.c](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/probe.c). Exact original counted declaration/body/name arrays or complete actual six-provider compilation/process correspondence.
-- `aggregate` (provider): [rust/tcl-vm/tests/data/native_oo_variable_resolver/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/receipt.json). Exact original counted declaration/body/name arrays or complete actual six-provider compilation/process correspondence.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20/receipt.json). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20/stdout.tsv). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20/stderr). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19/receipt.json). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19/stdout.tsv). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19/stderr). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18/receipt.json). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18/stdout.tsv). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18/stderr). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl8.6-resolver-source` (source-anchor): [rust/tcl-vm/tests/data/native_oo_variable_resolver/source-anchors/8.6.18-resolver.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/source-anchors/8.6.18-resolver.json). JSON pointer `/snippet`. Actual source window for distinct compiled full-count and runtime CString resolvers; independent of native output and Rust correctness.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4/receipt.json). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4/stdout.tsv). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4/stderr). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl9.0-resolver-source` (source-anchor): [rust/tcl-vm/tests/data/native_oo_variable_resolver/source-anchors/9.0.4-resolver.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/source-anchors/9.0.4-resolver.json). JSON pointer `/snippet`. Actual source window for distinct compiled full-count and runtime CString resolvers; independent of native output and Rust correctness.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0/receipt.json). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0/stdout.tsv). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0/stderr). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `tcl9.1-resolver-source` (source-anchor): [rust/tcl-vm/tests/data/native_oo_variable_resolver/source-anchors/9.1.0-resolver.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/source-anchors/9.1.0-resolver.json). JSON pointer `/snippet`. Actual source window for distinct compiled full-count and runtime CString resolvers; independent of native output and Rust correctness.
-- `jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_variable_resolver/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/jim/receipt.json). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/jim/stdout.tsv). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
-- `jim-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_variable_resolver/jim/stderr](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/jim/stderr). Actual provider version/build and process stream; guest read errors remain rows, harness compile/process exits are zero.
 
 ## Source inspection
 
@@ -671,7 +633,6 @@ ProcedureMethodCompiledVarResolver(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/cmd_oo/native_variables.rs](../../../../rust/tcl-vm/src/cmd_oo/native_variables.rs), `runtime_target`: Selects declaring-provider runtime namespace storage with the independent RuntimeRoot CString recipe; it does not create a compiled local.
@@ -680,27 +641,16 @@ ProcedureMethodCompiledVarResolver(
 - [rust/tcl-vm/src/cmd_oo/native_variables.rs](../../../../rust/tcl-vm/src/cmd_oo/native_variables.rs), `cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls` (linked): Compares all 48 retained counted declaration/static/dynamic/read/object-vars rows for each of C8.6/C9.0/C9.1 through independently selected native VM or Runtime interpreter contexts. It does not grant compiler preparation to source analysis or assert test execution from the native capture.
 - [runtime/rust/src/cmd_oo/native_variables.rs](../../../../runtime/rust/src/cmd_oo/native_variables.rs), `cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls` (linked): Compares all 48 retained counted declaration/static/dynamic/read/object-vars rows for each of C8.6/C9.0/C9.1 through independently selected native VM or Runtime interpreter contexts. It does not grant compiler preparation to source analysis or assert test execution from the native capture.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-syntax/src/naming/oo_variables.rs](../../../../rust/tcl-syntax/src/naming/oo_variables.rs), `naming::oo_variables::tests::declared_variable_resolver_selects_counted_primary_and_runtime_cstring_independently` (linked): The pure selected OO-variable resolver distinguishes counted compiled-primary bytes from runtime C-string boundaries, retains NUL/surrogate/opaque test inputs and refuses unsupported recipes; no external OO lookup/frame execution is attached.
 
 Current source linkage supplies no execution or assertion credit.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-vm/tests/data/native_oo_variable_resolver/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-oo-variable-resolver-reconfirmation"
-]
-```
-
-Requires exact retained probe/public-header/static-library/Makefile/source-owner hashes and matching pinned providers. Recompile/run and compare complete process exit/stdout/stderr; guest read errors/OO absence remain expected rows. --verify-only checks bytes without native launch. No cache/header/local table or Rust execution is asserted.
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.4.20)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.5.19)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/8.6.18)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.0.4)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/9.1.0)
+- [rust/tcl-vm/tests/data/native_oo_variable_resolver/jim](../../../../rust/tcl-vm/tests/data/native_oo_variable_resolver/jim)

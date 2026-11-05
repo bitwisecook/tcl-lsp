@@ -22,56 +22,11 @@ Readonly source geometry and presentation for original C Tcl/Jim/hosted source. 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.original-editor-body-structure`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -144,13 +99,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_standalone_selected_alias_roles_keep_source_purpose` (linked): An explicit standalone source owner selects original alias roles/body geometry under retained configuration, with no lookup-preserving operands; deletion/replacement withdraws that conditional selection.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `command_binding::source_transition_advice::logical_body::tests::logical_unicode_body_children_keep_exact_original_source_geometry` (linked): Genuine deferred Unicode body children retain whole original source geometry/full Logical input; transformed body text, changed image/configuration and Native-purpose substitution cannot supply the original Logical body owner.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs), `command_binding::source_transition_advice::logical_body::tests::logical_computed_heads_keep_children_and_refuse_parent_dispatch` (linked): Computed unknown parents retain ordered original child schemas under root or real deferred body scope, while the parent dispatch remains unknown and earlier rename barriers withdraw later child selection.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact linked Rust selectors exercise the source geometry and owner premises. No Rust or native execution receipt is attached to this implementation contract.
-
 
 ## Decoded lambda field source phases
 

@@ -5,7 +5,7 @@ braces in the Unicode controls recorded in
 [BIGIP_RESULTS.md](../../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md).
 The opening and trailing LF are retained. The corresponding configuration files,
 hashes, load transcripts and four-TMM traffic are in
-[the raw appliance evidence](../../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/).
+the raw appliance evidence.
 
 The Registry's explicitly selected BIG-IP 21.1.0.1 build 0.0.26 loader profile
 recognizes only these complete images. The three grinning/skin-tone/flag emoji

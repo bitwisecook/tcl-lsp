@@ -1,7 +1,0 @@
-puts [list IDENTITY [info patchlevel]]
-puts [list BINARY_PARAMS [info args binary]]
-puts [list BINARY_BODY [info body binary]]
-puts [list PACK [info commands pack]]
-puts [list REGEXP [info commands regexp]]
-puts [list FORMAT [info args {binary format}]]
-puts [list SCAN [info args {binary scan}]]

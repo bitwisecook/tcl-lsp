@@ -20,63 +20,17 @@ Source-template component evaluation under the actual full LexerConfig and indep
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs). Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs), `SourceCommandBindings::walk_template_substitutions`: Select the authentic Text-only template and independent current literal-world effect boundary before retaining completed evaluation.
 - [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs), `command_binding::evaluated_word::tests::original_static_template_completion_requires_its_literal_world` (linked): Escaped and quoted opaque units and empty quotes retain their independently selected C5 or Jim original source worlds; unknown substitution, unknown entry and foreign source worlds remain incomplete.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust selector is an implementation assertion, not a recorded native interpreter observation. No fresh native run is attached.
+- [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs)

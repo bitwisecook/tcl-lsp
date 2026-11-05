@@ -20,57 +20,11 @@ Three linked authored Rust controls: retained-slot lifetime/element activation i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This typed caller-SSA projection question has no native provider execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This typed caller-SSA projection question has no native provider execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This typed caller-SSA projection question has no native provider execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This typed caller-SSA projection question has no native provider execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This typed caller-SSA projection question has no native provider execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This typed caller-SSA projection question has no native provider execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This typed caller-SSA projection question has no native provider execution receipt.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,13 +36,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `ssa::cell_resolution_tests::invocation_read_projection_keeps_physical_inventory_and_root_alias_reads` (linked): Two fixed original source programs retain physical callee subtree reads independently while caller SSA excludes foreign activation locals and preserves a genuine #0 root-alias read.
 - [rust/tcl-compiler/src/place_bridge/original_read_source.rs](../../../../rust/tcl-compiler/src/place_bridge/original_read_source.rs), `place_bridge::original_read_source::tests::original_cfg_argument_phase_retains_owner_and_missing_input_clobbers_all_consumers` (linked): Finite source-defined control: original cfg argument phase retains owner and missing input clobbers all consumers. Genuine foreach CFG EvaluatedArguments producer retains actual input once; withdrawing input preserves unknown Place and Quoted SSA liveness, memory wildcard/clobber, and cell-state unknown clobber. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Three body-marked Rust selectors are authored coverage bindings. Their executed results require independently retained exact-source receipts; no native observation or successful Rust result is attached to this caller-SSA contract.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -97,8 +44,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -108,4 +54,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 0 | 1 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

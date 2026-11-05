@@ -1,3 +1,0 @@
-sys global-settings {
-    hostname synthetic-device.example
-}

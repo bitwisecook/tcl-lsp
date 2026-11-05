@@ -20,65 +20,11 @@ The independent source completion receipt requires the current initial Registry 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt is attached to this source implementation contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution receipt is attached to this source implementation contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt is attached to this source implementation contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt is attached to this source implementation contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt is attached to this source implementation contract.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native execution receipt is attached to this source implementation contract.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native execution receipt is attached to this source implementation contract.
-
-## Historical references
-
-- `delete-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. tcl8.4 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/1/snippet`. tcl8.4 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/2/snippet`. tcl8.4 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/3/snippet`. tcl8.5 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/4/snippet`. tcl8.5 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/5/snippet`. tcl8.5 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-6` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/6/snippet`. tcl8.6 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-7` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/7/snippet`. tcl8.6 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-8` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/8/snippet`. tcl8.6 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-9` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/9/snippet`. tcl9.0 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-10` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/10/snippet`. tcl9.0 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-11` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/11/snippet`. tcl9.0 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
-- `delete-source-12` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/12/snippet`. tcl9.1 exact NamespaceDeleteCmd source window, independent of Native admission and successful completion.
-- `delete-source-13` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/13/snippet`. tcl9.1 exact Tcl_DeleteNamespace source window, independent of Native admission and successful completion.
-- `delete-source-14` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json). JSON pointer `/source_anchors/14/snippet`. tcl9.1 exact TclProcDeleteProc source window, independent of Native admission and successful completion.
 
 ## Source inspection
 
@@ -1144,7 +1090,6 @@ TclProcDeleteProc(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/original_namespace_deletion.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_deletion.rs), `OriginalNamespaceDeletionTransfer::capture`: Exact pre-command target identities from original operand and current table.
@@ -1159,8 +1104,6 @@ TclProcDeleteProc(
 - [rust/tcl-registry/src/commands/tcl/namespace_.rs](../../../../rust/tcl-registry/src/commands/tcl/namespace_.rs), `commands::tcl::namespace_::tests::original_namespace_delete_keeps_independent_policy_writes_and_trace_callbacks` (linked): Five selected C releases preserve an independently authored InterpreterPolicy write alongside recursive deletion and the actual TRACE callback footprint.
 - [rust/tcl-registry/src/commands/tcl/namespace_.rs](../../../../rust/tcl-registry/src/commands/tcl/namespace_.rs), `commands::tcl::namespace_::tests::original_namespace_delete_roles_require_cardinality_without_requiring_text_values` (linked): Five selected C contexts retain NamespaceName roles for an actual counted opaque operand and a fixed-count dynamic operand; unknown expansion cardinality remains incomplete with no target identity or completion grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Rust selectors require the genuine complete source driver and selected Registry/configuration/frame. No executed Rust or Native completion receipt is attached. All unknown cells, observers, cleanup and Native entries remain refusals.
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-deletion-source-anchors.json)

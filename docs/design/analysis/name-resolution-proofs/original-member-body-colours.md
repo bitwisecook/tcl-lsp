@@ -20,55 +20,11 @@ Readonly semantic source geometry for genuine current member declarations, inclu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,9 +33,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/types/original_members.rs](../../../../rust/tcl-compiler/src/analyser/types/original_members.rs), `OriginalSourceMethodMetadata::source_dialect`: Retain the actual independently selected source grammar; missing or incompatible dialect supplies no formal syntax grammar.
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `OriginalTokenRoles::member`: Select canonical original worker token/operand geometry and preserve independently retained formal grammar without borrowing reporting maps.
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::original_semantic_method_roles_keep_canonical_worker_words` (linked): Genuine member whole formal/body words and source dialect preserve required/default parameter and body variable colours after reporting class maps and invocation projections are erased; changed whole source refuses retained roles.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact linked Rust selector exercises readonly canonical worker syntax. No Rust execution receipt or native provider observation is attached to this implementation contract.

@@ -20,55 +20,11 @@ Authored scalar setter proposals under the five selected Tcl authoring contexts 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this current-point Rust proposal contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
+Status: `not-tested`. Channel: Rust source contract. Version: tcl8.4 not tested for this Rust contract; tcl8.5 not tested for this Rust contract; tcl8.6 not tested for this Rust contract; tcl9.0 not tested for this Rust contract; tcl9.1 not tested for this Rust contract; jim not tested for this Rust contract; bigip not tested for this Rust contract.
 
 No native interpreter executes this current-point Rust proposal contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this current-point Rust proposal contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this current-point Rust proposal contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this current-point Rust proposal contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Jim Tcl.
-
-No native interpreter executes this current-point Rust proposal contract.
-
-### bigip
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: F5 iRules.
-
-No native interpreter executes this current-point Rust proposal contract.
-
-## Historical references
-
-- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/insertion_template.rs](../../../../rust/tcl-compiler/src/command_binding/insertion_template.rs). Actual shared current-point issuer and fixed discriminating tests. The source digest records implementation correspondence and does not claim test execution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,8 +33,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/insertion_template.rs](../../../../rust/tcl-compiler/src/command_binding/insertion_template.rs), `command_binding::insertion_template::tests::proposed_assignment_retains_current_registry_slot_and_source_point` (linked): All six authored engine contexts retain the current registered slot and original source point; foreign source, full grammar configuration and Registry selections reject.
 - [rust/tcl-compiler/src/command_binding/insertion_template.rs](../../../../rust/tcl-compiler/src/command_binding/insertion_template.rs), `command_binding::insertion_template::tests::proposed_assignment_declines_missing_shadowed_wrapped_and_unknown_setters` (linked): Missing, unknown, source-procedure shadows and alias wrappers cannot supply a registered setter proposal.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked fixed Rust tests define the scoped implementation premises. Independent execution receipts belong in the validation ledger; this record supplies no native observation or Rust pass.
+- [rust/tcl-compiler/src/command_binding/insertion_template.rs](../../../../rust/tcl-compiler/src/command_binding/insertion_template.rs)

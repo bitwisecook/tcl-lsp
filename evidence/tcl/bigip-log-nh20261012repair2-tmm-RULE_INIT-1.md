@@ -287,349 +287,91 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-RULE_INIT, unit 0:0, invocation once
+### tmm-RULE_INIT, unit 0:0, invocation once; tmm-RULE_INIT, unit 0:1, invocation once; tmm-RULE_INIT, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a207b3a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c207b7d2030203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972327d
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:0|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:0|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:0|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:0|once|errorinfo|binary-scan-tcl-value|0|2|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c64207b6c697374205b7061636b61676520726571756972652074636c746573745d205b696e666f20636f6d6d616e6473203a3a74636c746573743a3a746573745d205b696e666f20636f6d6d616e6473203a
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:0|once|errorinfo|binary-scan-tcl-value|1|2|3a746573745d7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7b7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972325f7461696c7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c2030203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313272657061697232
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- child-provider-and-proc-owner, setup, completion 0, result, chunk 0 of 1:
+- child-provider-and-proc-owner, setup, completion 0, result:
 
 ```text-visible
 interp0⟦EOF⟧
 ```
 
-- child-provider-and-proc-owner, lookup, completion 0, result, chunk 0 of 1:
+- child-provider-and-proc-owner, lookup, completion 0, result:
 
 ```text-visible
 8.4.6 8.4 :: {::__tcl_lsp_probe_nh20261012repair2::tail {} 0 ::__tcl_lsp_probe_nh20261012repair2}⟦EOF⟧
 ```
 
-- child-provider-and-proc-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- child-provider-and-proc-owner, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- child-tcltest-real-package, setup, completion 0, result, chunk 0 of 1:
+- child-tcltest-real-package, setup, completion 0, result:
 
 ```text-visible
 interp0⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, result, chunk 0 of 1:
+- child-tcltest-real-package, lookup, completion 1, result:
 
 ```text-visible
 can't find package tcltest⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, metadata, chunk 0 of 1:
+- child-tcltest-real-package, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, errorcode, chunk 0 of 1:
+- child-tcltest-real-package, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 0 of 2:
+- child-tcltest-real-package, lookup, completion 1, errorinfo:
 
 ```text-visible
 can't find package tcltest
     while executing
 "package require tcltest"
     invoked from within
-"interp eval $nh_child {list [package require tcltest] [info commands ::tcltest::test] [info commands :⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-:test]}"
+"interp eval $nh_child {list [package require tcltest] [info commands ::tcltest::test] [info commands ::test]}"
     ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- child-tcltest-real-package, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- child-tcltest-real-package, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- parent-proc-rename-owner, setup, completion 0, result, chunk 0 of 1:
+- parent-proc-rename-owner, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- parent-proc-rename-owner, lookup, completion 0, result, chunk 0 of 1:
+- parent-proc-rename-owner, lookup, completion 0, result:
 
 ```text-visible
 {{} ::__tcl_lsp_probe_nh20261012repair2_tail} ::__tcl_lsp_probe_nh20261012repair2::tail 0 ::__tcl_lsp_probe_nh20261012repair2⟦EOF⟧
 ```
 
-- parent-proc-rename-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- child-provider-and-proc-owner: intended operation reached.
-
-- child-tcltest-real-package: intended operation reached.
-
-- parent-proc-rename-owner: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a207b3a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c207b7d2030203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972327d
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:1|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:1|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:1|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:1|once|errorinfo|binary-scan-tcl-value|0|2|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c64207b6c697374205b7061636b61676520726571756972652074636c746573745d205b696e666f20636f6d6d616e6473203a3a74636c746573743a3a746573745d205b696e666f20636f6d6d616e6473203a
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:1|once|errorinfo|binary-scan-tcl-value|1|2|3a746573745d7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7b7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972325f7461696c7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c2030203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313272657061697232
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- child-provider-and-proc-owner, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-interp0⟦EOF⟧
-```
-
-- child-provider-and-proc-owner, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-8.4.6 8.4 :: {::__tcl_lsp_probe_nh20261012repair2::tail {} 0 ::__tcl_lsp_probe_nh20261012repair2}⟦EOF⟧
-```
-
-- child-provider-and-proc-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- child-tcltest-real-package, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-interp0⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-can't find package tcltest⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 0 of 2:
-
-```text-visible
-can't find package tcltest
-    while executing
-"package require tcltest"
-    invoked from within
-"interp eval $nh_child {list [package require tcltest] [info commands ::tcltest::test] [info commands :⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-:test]}"
-    ("eval" body line 1)
-    invoked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- child-tcltest-real-package, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- parent-proc-rename-owner, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- parent-proc-rename-owner, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{{} ::__tcl_lsp_probe_nh20261012repair2_tail} ::__tcl_lsp_probe_nh20261012repair2::tail 0 ::__tcl_lsp_probe_nh20261012repair2⟦EOF⟧
-```
-
-- parent-proc-rename-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- child-provider-and-proc-owner: intended operation reached.
-
-- child-tcltest-real-package: intended operation reached.
-
-- parent-proc-rename-owner: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a207b3a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c207b7d2030203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972327d
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:2|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:2|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:2|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:2|once|errorinfo|binary-scan-tcl-value|0|2|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c64207b6c697374205b7061636b61676520726571756972652074636c746573745d205b696e666f20636f6d6d616e6473203a3a74636c746573743a3a746573745d205b696e666f20636f6d6d616e6473203a
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:2|once|errorinfo|binary-scan-tcl-value|1|2|3a746573745d7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7b7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972325f7461696c7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c2030203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313272657061697232
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- child-provider-and-proc-owner, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-interp0⟦EOF⟧
-```
-
-- child-provider-and-proc-owner, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-8.4.6 8.4 :: {::__tcl_lsp_probe_nh20261012repair2::tail {} 0 ::__tcl_lsp_probe_nh20261012repair2}⟦EOF⟧
-```
-
-- child-provider-and-proc-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- child-tcltest-real-package, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-interp0⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-can't find package tcltest⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 0 of 2:
-
-```text-visible
-can't find package tcltest
-    while executing
-"package require tcltest"
-    invoked from within
-"interp eval $nh_child {list [package require tcltest] [info commands ::tcltest::test] [info commands :⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-:test]}"
-    ("eval" body line 1)
-    invoked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- child-tcltest-real-package, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- parent-proc-rename-owner, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- parent-proc-rename-owner, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{{} ::__tcl_lsp_probe_nh20261012repair2_tail} ::__tcl_lsp_probe_nh20261012repair2::tail 0 ::__tcl_lsp_probe_nh20261012repair2⟦EOF⟧
-```
-
-- parent-proc-rename-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- parent-proc-rename-owner, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
@@ -648,106 +390,84 @@ can't find package tcltest
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a207b3a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c207b7d2030203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972327d
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|696e7465727030
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:3|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:3|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:3|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:3|once|errorinfo|binary-scan-tcl-value|0|2|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a20202020696e766f6b65642066726f6d2077697468696e0a22696e74657270206576616c20246e685f6368696c64207b6c697374205b7061636b61676520726571756972652074636c746573745d205b696e666f20636f6d6d616e6473203a3a74636c746573743a3a746573745d205b696e666f20636f6d6d616e6473203a
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|lookup|1|0:3|once|errorinfo|binary-scan-tcl-value|1|2|3a746573745d7d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012repair2|child-tcltest-real-package|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7b7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972325f7461696c7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c2030203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313272657061697232
-NHO|nh20261012repair2|parent-proc-rename-owner|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- child-provider-and-proc-owner, setup, completion 0, result, chunk 0 of 1:
+- child-provider-and-proc-owner, setup, completion 0, result:
 
 ```text-visible
 interp0⟦EOF⟧
 ```
 
-- child-provider-and-proc-owner, lookup, completion 0, result, chunk 0 of 1:
+- child-provider-and-proc-owner, lookup, completion 0, result:
 
 ```text-visible
 8.4.6 8.4 :: {::__tcl_lsp_probe_nh20261012repair2::tail {} 0 ::__tcl_lsp_probe_nh20261012repair2}⟦EOF⟧
 ```
 
-- child-provider-and-proc-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- child-provider-and-proc-owner, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- child-tcltest-real-package, setup, completion 0, result, chunk 0 of 1:
+- child-tcltest-real-package, setup, completion 0, result:
 
 ```text-visible
 interp0⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, result, chunk 0 of 1:
+- child-tcltest-real-package, lookup, completion 1, result:
 
 ```text-visible
 can't find package tcltest⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, metadata, chunk 0 of 1:
+- child-tcltest-real-package, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, errorcode, chunk 0 of 1:
+- child-tcltest-real-package, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 0 of 2:
+- child-tcltest-real-package, lookup, completion 1, errorinfo:
 
 ```text-visible
 can't find package tcltest
     while executing
 "package require tcltest"
     invoked from within
-"interp eval $nh_child {list [package require tcltest] [info commands ::tcltest::test] [info commands :⟦EOF⟧
-```
-
-- child-tcltest-real-package, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-:test]}"
+"interp eval $nh_child {list [package require tcltest] [info commands ::tcltest::test] [info commands ::test]}"
     ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- child-tcltest-real-package, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- child-tcltest-real-package, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- parent-proc-rename-owner, setup, completion 0, result, chunk 0 of 1:
+- parent-proc-rename-owner, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- parent-proc-rename-owner, lookup, completion 0, result, chunk 0 of 1:
+- parent-proc-rename-owner, lookup, completion 0, result:
 
 ```text-visible
 {{} ::__tcl_lsp_probe_nh20261012repair2_tail} ::__tcl_lsp_probe_nh20261012repair2::tail 0 ::__tcl_lsp_probe_nh20261012repair2⟦EOF⟧
 ```
 
-- parent-proc-rename-owner, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- parent-proc-rename-owner, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧

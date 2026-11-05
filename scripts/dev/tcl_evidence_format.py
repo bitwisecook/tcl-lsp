@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from pathlib import Path
 
 OPEN = "⟦"
 CLOSE = "⟧"
@@ -206,18 +207,110 @@ def outside_fences(document: str) -> str:
     return "".join(result)
 
 
-def script_from_markdown(document: str) -> bytes:
-    """Extract exactly one encoded script from the document's Script section."""
+FIXTURE_LINK = re.compile(r"(?m)^Fixture: \[[^\]\n]+\]\(([^)\s]+)\)[ \t]*$")
+SLOT = re.compile(r"⟦(HEX|PARAM):([A-Za-z0-9_.-]+)⟧")
+INLINE_PARAM = re.compile(r"(?m)^- ([A-Za-z0-9_.-]+): `([A-Za-z0-9_.:/-]+)`[ \t]*$")
+_SLOT_OPEN = ""
+_SLOT_CLOSE = ""
+
+
+def named_blocks(section: str) -> dict[str, bytes]:
+    """Read `### name` headings that each hold one tcl-visible value."""
+    values: dict[str, bytes] = {}
+    for name, entries in sections(section, level=3).items():
+        if len(entries) != 1:
+            raise ValueError(f"duplicate value heading: {name}")
+        blocks = fenced_blocks(entries[0], "tcl-visible")
+        if len(blocks) != 1:
+            raise ValueError(f"value {name} must contain exactly one tcl-visible block")
+        values[name] = original_bytes(blocks[0])
+    return values
+
+
+def parse_fixture(document: str) -> tuple[str, dict[str, bytes]]:
+    """Return a fixture's template block and its shared constant values."""
+    found = sections(document)
+    for name in ("Setup", "Template"):
+        if len(found.get(name, [])) != 1 or not found[name][0].strip():
+            raise ValueError(f"fixture must contain one nonempty ## {name} section")
+    blocks = fenced_blocks(found["Template"][0], "tcl-visible")
+    if len(blocks) != 1:
+        raise ValueError("Template section must contain exactly one tcl-visible block")
+    constants = named_blocks(found["Constants"][0]) if "Constants" in found else {}
+    return blocks[0], constants
+
+
+def compose(template: str, values: dict[str, bytes]) -> bytes:
+    """Fill a template's ⟦HEX:name⟧ and ⟦PARAM:name⟧ slots with exact bytes."""
+    kinds: dict[str, str] = {}
+
+    def to_sentinel(match: re.Match[str]) -> str:
+        kind, name = match.groups()
+        if kinds.setdefault(name, kind) != kind:
+            raise ValueError(f"slot {name} is used with two kinds")
+        return f"⟦U+E000⟧{kind[0]}:{name}⟦U+E001⟧"
+
+    raw = original_bytes(SLOT.sub(to_sentinel, template))
+    missing = sorted(set(kinds) - set(values))
+    unused = sorted(set(values) - set(kinds))
+    if missing or unused:
+        raise ValueError(f"fixture slots missing {missing} or unused {unused}")
+    pattern = re.compile(
+        re.escape(_SLOT_OPEN.encode())
+        + rb"([HP]):([A-Za-z0-9_.-]+)"
+        + re.escape(_SLOT_CLOSE.encode())
+    )
+
+    def fill(match: re.Match[bytes]) -> bytes:
+        value = values[match.group(2).decode()]
+        return value.hex().encode() if match.group(1) == b"H" else value
+
+    return pattern.sub(fill, raw)
+
+
+def template_block(skeleton: bytes) -> str:
+    """Render bytes holding ⟦U+E000⟧H:name⟦U+E001⟧ sentinels as template slots."""
+    visible = visible_bytes(skeleton)
+    return re.sub(
+        r"⟦U\+E000⟧([HP]):([A-Za-z0-9_.-]+)⟦U\+E001⟧",
+        lambda m: f"⟦{'HEX' if m.group(1) == 'H' else 'PARAM'}:{m.group(2)}⟧",
+        visible,
+    )
+
+
+def script_from_markdown(document: str, path: Path | None = None) -> bytes:
+    """Extract the exact executed script, composing it from a fixture if linked."""
     script_sections = sections(document).get("Script", [])
     if len(script_sections) != 1:
         raise ValueError("evidence must have exactly one ## Script section")
-    blocks = fenced_blocks(script_sections[0], "tcl-visible")
-    if len(blocks) != 1:
-        raise ValueError("Script section must contain exactly one tcl-visible block")
-    return original_bytes(blocks[0])
+    section = script_sections[0]
+    link = FIXTURE_LINK.findall(outside_fences(section))
+    if not link:
+        blocks = fenced_blocks(section, "tcl-visible")
+        if len(blocks) != 1:
+            raise ValueError(
+                "Script section must contain exactly one tcl-visible block"
+            )
+        return original_bytes(blocks[0])
+    if len(link) != 1:
+        raise ValueError("Script section must link exactly one fixture")
+    if path is None:
+        raise ValueError("a fixture-based script needs its evidence file path")
+    template, values = parse_fixture(
+        (path.parent / link[0]).read_text(encoding="utf-8")
+    )
+    own = named_blocks(section)
+    own.update(
+        (k, v.encode()) for k, v in INLINE_PARAM.findall(outside_fences(section))
+    )
+    overlap = sorted(set(own) & set(values))
+    if overlap:
+        raise ValueError(f"case values repeat fixture constants: {overlap}")
+    values.update(own)
+    return compose(template, values)
 
 
-def validate_document(document: str) -> list[str]:
+def validate_document(document: str, path: Path | None = None) -> list[str]:
     """Check the shape and reversible blocks of one execution evidence file."""
     errors: list[str] = []
     if "\r" in document:
@@ -230,8 +323,8 @@ def validate_document(document: str) -> list[str]:
         if len(items) != 1 or not items[0].strip():
             errors.append(f"evidence must contain one nonempty ## {name} section")
     try:
-        script_from_markdown(document)
-    except ValueError as error:
+        script_from_markdown(document, path)
+    except (OSError, ValueError) as error:
         errors.append(str(error))
     results = all_sections.get("Results", [])
     if len(results) != 1:
@@ -261,9 +354,11 @@ def validate_document(document: str) -> list[str]:
             inline = match.group(1).strip().rstrip(".").casefold()
             if inline in {"empty", "not recorded"}:
                 continue
+            if inline == "decoded below" and field != "Standard error":
+                continue
             if inline:
                 errors.append(
-                    f"{name}: {field.lower()} must be a visible block, empty or Not recorded"
+                    f"{name}: {field.lower()} must be a visible block, empty, decoded below or Not recorded"
                 )
                 continue
             following = body[match.end() :]
@@ -279,3 +374,19 @@ def validate_document(document: str) -> list[str]:
             except ValueError as error:
                 errors.append(f"{name}: invalid {field.lower()}: {error}")
     return errors
+
+
+def validate_fixture(document: str) -> list[str]:
+    """Check a shared fixture's sections, template and constants."""
+    try:
+        template, constants = parse_fixture(document)
+        slots = {name for _, name in SLOT.findall(template)}
+        unused = sorted(set(constants) - slots)
+        if unused:
+            return [f"constants not used by the template: {unused}"]
+        compose(template, dict.fromkeys(slots, b"") | constants)
+    except ValueError as error:
+        return [str(error)]
+    if not re.search(r"(?m)^# [^#\n].+", outside_fences(document)):
+        return ["missing fixture title"]
+    return []

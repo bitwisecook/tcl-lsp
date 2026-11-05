@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-plain.tcl`: Exact original lappend-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-plain.stdout`: tcl8.4 lappend-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-plain.stderr`: tcl8.4 lappend-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-qualified.tcl`: Exact original lappend-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-qualified.stdout`: tcl8.4 lappend-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-qualified.stderr`: tcl8.4 lappend-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-index.tcl`: Exact original lappend-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-index.stdout`: tcl8.4 lappend-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-index.stderr`: tcl8.4 lappend-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-binary_nul.tcl`: Exact original lappend-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-binary_nul.stdout`: tcl8.4 lappend-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-binary_nul.stderr`: tcl8.4 lappend-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-decomposed.tcl`: Exact original lappend-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-decomposed.stdout`: tcl8.4 lappend-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lappend-decomposed.stderr`: tcl8.4 lappend-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-plain.tcl`: Exact original lappend-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-plain.stdout`: tcl8.5 lappend-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-plain.stderr`: tcl8.5 lappend-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-qualified.tcl`: Exact original lappend-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-qualified.stdout`: tcl8.5 lappend-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-qualified.stderr`: tcl8.5 lappend-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-index.tcl`: Exact original lappend-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-index.stdout`: tcl8.5 lappend-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-index.stderr`: tcl8.5 lappend-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-binary_nul.tcl`: Exact original lappend-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-binary_nul.stdout`: tcl8.5 lappend-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-binary_nul.stderr`: tcl8.5 lappend-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-decomposed.tcl`: Exact original lappend-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-decomposed.stdout`: tcl8.5 lappend-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lappend-decomposed.stderr`: tcl8.5 lappend-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-plain.tcl`: Exact original lappend-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-plain.stdout`: tcl8.6 lappend-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-plain.stderr`: tcl8.6 lappend-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-qualified.tcl`: Exact original lappend-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-qualified.stdout`: tcl8.6 lappend-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-qualified.stderr`: tcl8.6 lappend-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-index.tcl`: Exact original lappend-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-index.stdout`: tcl8.6 lappend-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-index.stderr`: tcl8.6 lappend-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-binary_nul.tcl`: Exact original lappend-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-binary_nul.stdout`: tcl8.6 lappend-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-binary_nul.stderr`: tcl8.6 lappend-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-decomposed.tcl`: Exact original lappend-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-decomposed.stdout`: tcl8.6 lappend-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lappend-decomposed.stderr`: tcl8.6 lappend-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-plain.tcl`: Exact original lappend-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-plain.stdout`: tcl9.0 lappend-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-plain.stderr`: tcl9.0 lappend-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-qualified.tcl`: Exact original lappend-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-qualified.stdout`: tcl9.0 lappend-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-qualified.stderr`: tcl9.0 lappend-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-index.tcl`: Exact original lappend-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-index.stdout`: tcl9.0 lappend-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-index.stderr`: tcl9.0 lappend-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-binary_nul.tcl`: Exact original lappend-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-binary_nul.stdout`: tcl9.0 lappend-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-binary_nul.stderr`: tcl9.0 lappend-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-decomposed.tcl`: Exact original lappend-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-decomposed.stdout`: tcl9.0 lappend-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lappend-decomposed.stderr`: tcl9.0 lappend-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-plain.tcl`: Exact original lappend-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-plain.stdout`: tcl9.1 lappend-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-plain.stderr`: tcl9.1 lappend-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-qualified.tcl`: Exact original lappend-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-qualified.stdout`: tcl9.1 lappend-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-qualified.stderr`: tcl9.1 lappend-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-index.tcl`: Exact original lappend-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-index.stdout`: tcl9.1 lappend-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-index.stderr`: tcl9.1 lappend-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-binary_nul.tcl`: Exact original lappend-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-binary_nul.stdout`: tcl9.1 lappend-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-binary_nul.stderr`: tcl9.1 lappend-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-decomposed.tcl`: Exact original lappend-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-decomposed.stdout`: tcl9.1 lappend-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lappend-decomposed.stderr`: tcl9.1 lappend-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-plain.tcl`: Exact original lappend-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-plain.stdout`: jim lappend-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-plain.stderr`: jim lappend-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-qualified.tcl`: Exact original lappend-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-qualified.stdout`: jim lappend-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-qualified.stderr`: jim lappend-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-index.tcl`: Exact original lappend-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-index.stdout`: jim lappend-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-index.stderr`: jim lappend-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-binary_nul.tcl`: Exact original lappend-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-binary_nul.stdout`: jim lappend-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-binary_nul.stderr`: jim lappend-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-decomposed.tcl`: Exact original lappend-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-decomposed.stdout`: jim lappend-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lappend-decomposed.stderr`: jim lappend-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/lappend-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

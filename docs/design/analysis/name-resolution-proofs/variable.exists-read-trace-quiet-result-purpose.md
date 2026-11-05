@@ -84,7 +84,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 Every measured C provider completes these three original exists probes normally with results 1, 0 and 1 respectively. Modern compiler opcode presence and result cache/refcount fields remain separately recorded. This quiet Boolean result purpose does not certify an ordinary read, suppress all callbacks, prove returned byte values or close a write operation.
@@ -92,25 +91,6 @@ Every measured C provider completes these three original exists probes normally 
 ## Scope
 
 Fifteen original windows in the retained modern trace-add probe/cases, C8.4.20–9.1.0, private compiled procedures plus original native objects. Exact three trace bodies and aliases only. Jim/BIG-IP not queried; no unsupported classification is inferred from their absence.
-
-## Historical references
-
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/manifest.json`: Original five-provider compile/run hashes and three result windows each.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/probe.c`: Exact read-trace bodies, alias/array setup and original existence opcode/result observation.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/cases.rs`: The same three original programmes consumed by current comparisons.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt`: All three existence-result/type/cache/refcount/opcode rows.
-- `rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt`: All three existence-result/type/cache/refcount/opcode rows.
-
-## Replay
-
-```sh
-cc -DSTDC_HEADERS=1 -DHAVE_UNISTD_H=1 -I/path/to/recorded/generic -I/path/to/recorded/unix rust/tcl-registry/tests/data/native_upvar_info_exists/quiet/probe.c /path/to/recorded/libtcl.a -lm -ldl -lpthread -lz -o /tmp/native-variable-proof
-```
-
-Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses private interpreter/frame/compiler headers; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred.
 
 ## Rust comparisons
 

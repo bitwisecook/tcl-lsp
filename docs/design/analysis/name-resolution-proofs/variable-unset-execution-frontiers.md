@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.. Dialect: tcl8.4.
+Status: `observed`. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -104,7 +104,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.. Dialect: tcl8.5.
+Status: `observed`. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -186,7 +186,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.. Dialect: tcl8.6.
+Status: `observed`. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -268,7 +268,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.. Dialect: tcl9.0.
+Status: `observed`. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -350,7 +350,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.. Dialect: tcl9.1.
+Status: `observed`. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -432,7 +432,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### jim
 
-Status: `observed`. Version: jim. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.. Dialect: jim.
+Status: `observed`. Channel: Native CLI file input. The original argv names the script file; its complete catch/binary-scan bytes match the recorded whole-input SHA.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -514,68 +514,21 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [runtime/rust/tests/data/native_unset_execution/8.4.tsv](../../../../runtime/rust/tests/data/native_unset_execution/8.4.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [runtime/rust/tests/data/native_unset_execution/8.5.tsv](../../../../runtime/rust/tests/data/native_unset_execution/8.5.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (observation): [runtime/rust/tests/data/native_unset_execution/8.6.tsv](../../../../runtime/rust/tests/data/native_unset_execution/8.6.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-3` (observation): [runtime/rust/tests/data/native_unset_execution/9.0.tsv](../../../../runtime/rust/tests/data/native_unset_execution/9.0.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (observation): [runtime/rust/tests/data/native_unset_execution/9.1.tsv](../../../../runtime/rust/tests/data/native_unset_execution/9.1.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5` (observation): [runtime/rust/tests/data/native_unset_execution/jim.tsv](../../../../runtime/rust/tests/data/native_unset_execution/jim.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-6` (input): [runtime/rust/tests/data/native_unset_execution/probe.py](../../../../runtime/rust/tests/data/native_unset_execution/probe.py). Exact retained input/program bytes; purpose is limited to this question.
-- `file-7` (observation): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-7-row-8` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/0`. Original provider/capture association at its exact selected row.
-- `file-7-row-9` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/1`. Original provider/capture association at its exact selected row.
-- `file-7-row-10` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/2`. Original provider/capture association at its exact selected row.
-- `file-7-row-11` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/3`. Original provider/capture association at its exact selected row.
-- `file-7-row-12` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/4`. Original provider/capture association at its exact selected row.
-- `file-7-row-13` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/5`. Original provider/capture association at its exact selected row.
-- `file-7-row-14` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/6`. Original provider/capture association at its exact selected row.
-- `file-7-row-15` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/7`. Original provider/capture association at its exact selected row.
-- `file-7-row-16` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/8`. Original provider/capture association at its exact selected row.
-- `file-7-row-17` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/9`. Original provider/capture association at its exact selected row.
-- `file-7-row-18` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/10`. Original provider/capture association at its exact selected row.
-- `file-7-row-19` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/11`. Original provider/capture association at its exact selected row.
-- `file-7-row-20` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/12`. Original provider/capture association at its exact selected row.
-- `file-7-row-21` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/13`. Original provider/capture association at its exact selected row.
-- `file-7-row-22` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/14`. Original provider/capture association at its exact selected row.
-- `file-7-row-23` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/15`. Original provider/capture association at its exact selected row.
-- `file-7-row-24` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/16`. Original provider/capture association at its exact selected row.
-- `file-7-row-25` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/17`. Original provider/capture association at its exact selected row.
-- `file-7-row-26` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/18`. Original provider/capture association at its exact selected row.
-- `file-7-row-27` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/19`. Original provider/capture association at its exact selected row.
-- `file-7-row-28` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/20`. Original provider/capture association at its exact selected row.
-- `file-7-row-29` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/21`. Original provider/capture association at its exact selected row.
-- `file-7-row-30` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/22`. Original provider/capture association at its exact selected row.
-- `file-7-row-31` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/23`. Original provider/capture association at its exact selected row.
-- `file-7-row-32` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/24`. Original provider/capture association at its exact selected row.
-- `file-7-row-33` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/25`. Original provider/capture association at its exact selected row.
-- `file-7-row-34` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/26`. Original provider/capture association at its exact selected row.
-- `file-7-row-35` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/27`. Original provider/capture association at its exact selected row.
-- `file-7-row-36` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/28`. Original provider/capture association at its exact selected row.
-- `file-7-row-37` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/29`. Original provider/capture association at its exact selected row.
-- `file-7-row-38` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/30`. Original provider/capture association at its exact selected row.
-- `file-7-row-39` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/31`. Original provider/capture association at its exact selected row.
-- `file-7-row-40` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/32`. Original provider/capture association at its exact selected row.
-- `file-7-row-41` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/33`. Original provider/capture association at its exact selected row.
-- `file-7-row-42` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/34`. Original provider/capture association at its exact selected row.
-- `file-7-row-43` (provider): [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json). JSON pointer `/rows/35`. Original provider/capture association at its exact selected row.
-- `reconstructed-wire-inputs` (input): [docs/design/analysis/name-resolution-proofs/reconstructed-capture-inputs.json](../../../../docs/design/analysis/name-resolution-proofs/reconstructed-capture-inputs.json). JSON pointer `/groups/unset-execution`. Exact original complete capture inputs recovered offline from retained body hex and catch/binary-scan wrapper, with every original whole-input digest checked. This supplies no new guest execution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [runtime/rust/tests/data/native_unset_execution/8.4.tsv](../../../../runtime/rust/tests/data/native_unset_execution/8.4.tsv)
+- [runtime/rust/tests/data/native_unset_execution/8.5.tsv](../../../../runtime/rust/tests/data/native_unset_execution/8.5.tsv)
+- [runtime/rust/tests/data/native_unset_execution/8.6.tsv](../../../../runtime/rust/tests/data/native_unset_execution/8.6.tsv)
+- [runtime/rust/tests/data/native_unset_execution/9.0.tsv](../../../../runtime/rust/tests/data/native_unset_execution/9.0.tsv)
+- [runtime/rust/tests/data/native_unset_execution/9.1.tsv](../../../../runtime/rust/tests/data/native_unset_execution/9.1.tsv)
+- [runtime/rust/tests/data/native_unset_execution/jim.tsv](../../../../runtime/rust/tests/data/native_unset_execution/jim.tsv)
+- [runtime/rust/tests/data/native_unset_execution/probe.py](../../../../runtime/rust/tests/data/native_unset_execution/probe.py)
+- [runtime/rust/tests/data/native_unset_execution/provenance.json](../../../../runtime/rust/tests/data/native_unset_execution/provenance.json)

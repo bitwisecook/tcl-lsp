@@ -20,59 +20,11 @@ Two fixed source/API controls: an explicitly chosen authored-cell model verifies
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `syntax-projection-scoped-f91016f648d5` (observation): [Scoped syntax projection receipt](rust-validation/syntax-projection-20261103/receipt.json). Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows.
-
-- `naming-diagnostics-original-resolved-variable-name-advice-helpers.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs). Original statement or terminator owner and actual source purpose precede Logical summary/existence advice. The no-SSA fallback retains original terminator source tokens rather than borrowing raw input eligibility.
-- `naming-diagnostics-original-resolved-variable-name-advice-var_command.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-resolved-variable-name-advice-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed source role: split_array_name_braced preserves a braced literal sigil and partitions only closed element forms; no diagnostic span or native cell follows. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -86,8 +38,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs), `analyser::diagnostics::helpers::original_resolved_variable_advice_tests::literal_variable_diagnostics_keep_defined_names_and_startup_advice_distinct` (linked): Genuine complete retained Logical analyses emit only exact ${$argv} or ${counter} W210 spans while preserving defined literal $counter and ordinary argv startup advice. These diagnostic outputs grant no original Native read/store/body/completion purpose.
 - [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs), `analyser::diagnostics::helpers::original_resolved_variable_advice_tests::literal_scalar_parentheses_do_not_borrow_array_root_parameters` (linked): Genuine retained Logical diagnostics distinguish an unmatched/trailing-parenthesis scalar from the declared array-root parameter; literal dollar/source spans and real closed element suppression keep separate purposes.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained receipt records fixed braced/unbraced naming helper controls only, not a diagnostic span or cell. Other named Rust coverage remains linked without execution claims. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs)
+- [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs)
+- [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs)

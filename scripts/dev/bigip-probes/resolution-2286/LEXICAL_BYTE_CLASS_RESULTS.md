@@ -38,9 +38,9 @@ Main Package
 ```
 
 The exact TMM and platform outputs are
-[`system-tmm-info.txt`](evidence/r2286_20261007vllex/appliance/system-tmm-info.txt)
+`system-tmm-info.txt`
 and
-[`system-hardware.txt`](evidence/r2286_20261007vllex/appliance/system-hardware.txt).
+`system-hardware.txt`.
 
 ## Byte provenance and load
 
@@ -51,7 +51,7 @@ was produced at runtime. `%c` results, binary-produced bytes, source scans and
 post-eval UTF-8 diagnostics remain distinct fields in every retained row.
 
 The retained source tree is
-[`r2286lex1-fixtures-v2`](evidence/r2286_20261007vllex/appliance/r2286lex1-fixtures-v2/).
+`r2286lex1-fixtures-v2`.
 Its caller-supplied source commit differs from the measured worktree HEAD; the
 recorded script and results, rather than that field, determine the scope of the
 observation.
@@ -63,7 +63,7 @@ warning: [variable reference used where variable name expected][$r2286_lbc_name]
 ```
 
 All warning locations and loader text are retained in
-[`lex-load-irule.stdout`](evidence/r2286_20261007vllex/appliance/lex-load-irule.stdout).
+`lex-load-irule.stdout`.
 No tested producer, constructed source word or eval word was repaired.
 
 ## Backend, CMP and actual execution coverage
@@ -73,8 +73,8 @@ same heavy connection from client source port 43100 first passed
 `/r2286-backend-pass` through the pool, then requested the probe. The backend
 recorded translated peer `192.0.2.10`, request marker `lexical-43100-0`, and
 returned through the VIP. Raw bytes are
-[`lex-heavy-u0-0.request`](evidence/r2286_20261007vllex/client-server/lex-heavy-u0-0.request),
-[`lex-heavy-u0-0.body`](evidence/r2286_20261007vllex/client-server/lex-heavy-u0-0.body)
+`lex-heavy-u0-0.request`,
+`lex-heavy-u0-0.body`
 and the backend log in the same directory.
 
 Before attachment, the lightweight identity rule mapped source ports 43100,
@@ -98,10 +98,10 @@ matrices are byte-identical.
 The TMM matrix differs.
 
 The complete row-level results—not a sample—are
-[`http-matrix.tsv`](evidence/r2286_20261007vllex/decoded/http-matrix.tsv),
-[`cli-matrix.tsv`](evidence/r2286_20261007vllex/decoded/cli-matrix.tsv),
-[`iapp-matrix.tsv`](evidence/r2286_20261007vllex/decoded/iapp-matrix.tsv) and
-[`icall-matrix.tsv`](evidence/r2286_20261007vllex/decoded/icall-matrix.tsv).
+`http-matrix.tsv`,
+`cli-matrix.tsv`,
+`iapp-matrix.tsv` and
+`icall-matrix.tsv`.
 Each has 1,045 lines including its header and retains the complete raw row as
 hex in its last column.
 
@@ -185,7 +185,7 @@ none is accepted as a complete transcript:
 | CLIENT_ACCEPTED `43103` / `0:0` | 2,893 / 6,444 | 3,551 | 0–6425 | incomplete / rows unknown |
 
 The authoritative finite inventory is
-[`lex-log-chunk-inventory.json`](evidence/r2286_20261007vllex/decoded/lex-log-chunk-inventory.json).
+`lex-log-chunk-inventory.json`.
 No partial stream was decoded, no reload was used to fill RULE_INIT, and no
 connection beyond the request's four-connection limit was generated.
 
@@ -226,7 +226,7 @@ tmsh generate sys icall event name R2286LEX1_LBC
 The retained evidence bundle is
 [`evidence/r2286_20261007vllex`](evidence/r2286_20261007vllex/). The continuous raw LTM
 capture is
-[`ltm-continuous.log`](evidence/r2286_20261007vllex/appliance/ltm-continuous.log).
+`ltm-continuous.log`.
 Exact requests, headers, bodies and backend observations are under
 [`client-server`](evidence/r2286_20261007vllex/client-server/).
 

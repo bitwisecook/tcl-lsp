@@ -24,55 +24,11 @@ The version loop selects software source grammars; it is not a new original C pr
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is an implementation contract; no interpreter or appliance observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is an implementation contract; no interpreter or appliance observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is an implementation contract; no interpreter or appliance observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is an implementation contract; no interpreter or appliance observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is an implementation contract; no interpreter or appliance observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is an implementation contract; no interpreter or appliance observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is an implementation contract; no interpreter or appliance observation is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,13 +38,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs), `command_binding::original_name_value::tests::original_content_joins_keep_every_origin_and_do_not_reuse_unknown_currency` (linked): Verify the stated implementation boundary and its discriminating rejection cases; an actual test run is independently required.
 - [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs), `command_binding::original_name_value::tests::original_child_lineage_is_bounded_across_repeated_capture` (linked): Repeated readonly list-child capture retains exact bytes and current lineage only within a finite complete nested graph budget; it declines before unbounded child/store chains form.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs), `OriginalProducedNameValue::evaluated_variable_index`: Require exact original word/arena, current independent contents and the held value naming policy before projecting an evaluated source index.
 - [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs), `command_binding::original_name_value::tests::original_evaluated_index_keeps_its_exact_word_and_arena` (linked): An evaluated source array index retains its exact original NativeWord, executable part arena and held producer value. Wrong word, concatenation/list-result replacement or invalidated contents refuse; joining the same held producer preserves the index without inventing an original written-word key.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Run the exact named Rust selectors in the relevant crate. Policy enumeration is not native interpreter execution; no performance pass is claimed.

@@ -1,9 +1,0 @@
-{
-  "run_id": "nh20261012harness2",
-  "configuration_saved": false,
-  "timestamp_utc": "2026-10-12T19:06:06.867124+00:00",
-  "transport": "authentication metadata omitted",
-  "real_module_sha256": "2ef6cc2a65738bf7cf8b9c247db7a3f1548a498adfc669f05e71c12cbad921a0",
-  "adaptation": "Fresh host-created child interpreter; module bytes evaluated explicitly rather than discovered through package search. Native parent package state remains independent.",
-  "retained_projection": "Retained sanitised transport/deployment projection: documentation address, NHO-only logs, and omitted hardware/unrelated inventory. Tcl operation and result bytes are preserved. Historical executed-input hashes describe original execution, not these projected deployment fixtures."
-}

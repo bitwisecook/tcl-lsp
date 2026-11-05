@@ -53,9 +53,9 @@ rerun and every event comparison also reached all four units.
 
 The exact version, virtual configuration, raw traffic, backend observations,
 continuous LTM logs, and decoded counts are retained in the
-[primary appliance archive](evidence/r2286_20261006naming/r2286p-appliance-evidence.tgz),
-[primary dev archive](evidence/r2286_20261006naming/r2286p-dev-evidence.tgz),
-and [decoded result index](evidence/r2286_20261006naming/decoded-results.json).
+primary appliance archive,
+primary dev archive,
+and decoded result index.
 
 ## Source and byte provenance
 
@@ -101,7 +101,7 @@ event respectively. Object creation alone was not counted as execution.
 
 The complete result hex, Latin-1 lossless list projection,
 context equality groups, loader output, trace tuples, and raw response-body hex
-are in [decoded-results.json](evidence/r2286_20261006naming/decoded-results.json).
+are in `decoded-results.json`.
 
 ## TMM event comparison
 
@@ -243,7 +243,7 @@ line 38: [variable reference used where variable name expected][$input]
 
 The array-root and array-index wrappers loaded without warnings. Complete raw
 rows, exact error bytes, trace tuples and per-TMM equality are
-in the [counted-boundary decoded results](evidence/r2286_20261006naming/r2286t-decoded-results.json).
+in the counted-boundary decoded results.
 
 ## Namespaces, procedures, rename, and command lookup
 
@@ -371,19 +371,19 @@ disabled`, and `f5_update_checker down, No action required`.
 
 Retained evidence bundle:
 
-- [Decoded byte-preserving result index](evidence/r2286_20261006naming/decoded-results.json)
-- [Primary appliance evidence](evidence/r2286_20261006naming/r2286p-appliance-evidence.tgz)
-- [Primary raw clients/backend](evidence/r2286_20261006naming/r2286p-dev-evidence.tgz)
-- [Primary exact fixtures](evidence/r2286_20261006naming/r2286p-fixtures-v2.tgz)
-- [Chunked event appliance evidence](evidence/r2286_20261006naming/r2286q-appliance-evidence.tgz)
-- [Same-run event HTTP evidence](evidence/r2286_20261006naming/r2286q-http-dev-evidence.tgz)
-- [Corrected qualified-name evidence](evidence/r2286_20261006naming/r2286r-appliance-evidence.tgz)
-- [Portable array evidence](evidence/r2286_20261006naming/r2286s-appliance-evidence.tgz)
-- [Isolated portable-root rerun](evidence/r2286_20261006naming/r2286s-root-dev-evidence.tgz)
-- [Counted-boundary appliance evidence](evidence/r2286_20261006naming/r2286t-appliance-evidence.tgz)
-- [Counted-boundary raw traffic/backend evidence](evidence/r2286_20261006naming/r2286t-dev-evidence.tgz)
-- [Counted-boundary exact fixtures](evidence/r2286_20261006naming/r2286t-fixtures.tgz)
-- [Counted-boundary decoded results](evidence/r2286_20261006naming/r2286t-decoded-results.json)
+- Decoded byte-preserving result index
+- Primary appliance evidence
+- `Primary raw clients/backend`
+- Primary exact fixtures
+- Chunked event appliance evidence
+- Same-run event HTTP evidence
+- Corrected qualified-name evidence
+- Portable array evidence
+- Isolated portable-root rerun
+- Counted-boundary appliance evidence
+- `Counted-boundary raw traffic/backend evidence`
+- Counted-boundary exact fixtures
+- Counted-boundary decoded results
 
 Two non-authoritative traffic records are retained rather than hidden:
 `r2286s` portable-index's first phase had two client-side `EADDRINUSE` bind

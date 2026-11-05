@@ -20,80 +20,21 @@ One original fixed ASCII LF source-file CLI process on the recorded current Jim 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Jim Tcl.
+Status: `observed`. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process. Version: jim 0.84-9-g5bac7c9.
 
 OBSERVATION catch code 0 returns exactly {} n {child::q p} p {::n::child::q ::n::p} ::n::absent LOCAL INNER ::n::p. Actual queried patchlevel is 0.84-9-g5bac7c9; outer process status is 0 and stderr is empty. The receipt input_channel text mentions scalar trace callbacks, but the retained probe and boundary field identify this flat namespace script; the original receipt bytes are unchanged.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/probe.tcl). Exact original complete ASCII LF source-file input; no object-vector or native compilation admission is recorded.
-- `capture-runner` (provider): [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/capture.py). Exact retained Root capture runner; its original absolute queue path is preserved. No replay is launched by this review.
-- `provider-queue` (provider): [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/queue.json](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/queue.json). Exact provider queue consumed by the retained runner. Only provider process receipts actually present in this fixture establish a run.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/receipt.json). Original process argv, exit, actual queried patchlevel, executable/source/runner/raw-stream digests and selected SDK/build pins.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stdout](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stdout). Exact complete raw stdout bytes for the original process; catch/setup observations are distinct from outer process status.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stderr). Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_jim_namespace.rs](../../../../runtime/rust/src/interp/native_jim_namespace.rs), `interp::native_jim_namespace::tests::jim_flat_command_context_and_helper_enumeration_match_native_controls` (linked): The exact retained original ASCII namespace-script composition and result are checked independently from the root-holder/epoch ownership controls. No counted object input or internal native pointer identity follows from the CLI observation.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "/workspace/.proofs/native-jim-flat-namespace151/capture.py"
-]
-```
-
-The original capture runner and process argument vectors retain capture-machine absolute paths. The archived source, runner and provider queue are byte-identical. Replay requires independently verified matching SDK/environment/executable pins and fresh output locations. This review verifies immutable bytes without launching a process. ASCII source-file completion/results do not establish counted object-vector admission, internal object identity, header/cache state, compiler recipes, arbitrary callback scheduling or appliance behavior.
-
 
 ## Exact original-source349 software outcomes
 
@@ -104,4 +45,11 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 0 | 1 | 0 | 0 |
 | `isolated` | 0 | 1 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/probe.tcl)
+- [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/capture.py)
+- [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stdout](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stdout)
+- [rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_jim_flat_namespace_original/jim/stderr)

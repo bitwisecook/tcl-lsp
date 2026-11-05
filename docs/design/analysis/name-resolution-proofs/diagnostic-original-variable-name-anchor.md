@@ -20,60 +20,11 @@ Three fixed source/API controls verify exact variable-reference span/name corres
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-diagnostics-original-variable-name-anchor-dataflow.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-variable-name-anchor-var_command.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-variable-name-anchor-word_parts.rs` (implementation): [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs). Selected lexical scanner returns borrowed variable name/index extents under the supplied configuration and verifies original-source name geometry. This source entry alone does not establish compiler anchor or Native read; a separate receipt reports fixed lexer controls.
-- `naming-diagnostics-original-variable-name-anchor-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-
-- `lexer-anchor-fixed-helper-controls` (observation): [separate lexer helper receipt](rust-validation/lexer-anchor-20261103/receipt.json). Separate receipt for three exact lexer variable-reference controls only; no compiler anchor/callback, provider, complete-proof or six-dialect coverage result. Earlier original-allocation geometry receipt remains separate.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,8 +36,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs), `analyser::diagnostics::dataflow::original_variable_anchor_tests::variable_read_anchor_uses_retained_braced_and_bare_name_grammar` (linked): Actual retained selected C8/Jim versus C9 braced-name grammar and Jim bare Unicode give their exact original reference spans. Grammar selection supplies no Native name, current cell or successful read.
 - [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs), `analyser::diagnostics::var_command::original_callback_slot_name_tests::callback_slot_hints_use_shared_resolved_element_name_boundaries` (linked): Literal resolved dollar, Unicode, empty array base and compound key geometry share final-parenthesis parsing; unmatched/trailing scalars and ordinary keys refuse the callback-shaped hint. No occupancy, callback registration or executed variable read is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained receipt records three fixed lexer helper controls. The named compiler anchor and callback controls remain source bindings without new executed results; Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs)
+- [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs)
+- [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs)
+- [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs)

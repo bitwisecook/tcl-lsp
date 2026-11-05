@@ -22,7 +22,7 @@ Fourteen original constructors enter Tcl_GetIntFromObj directly after SEEDED COD
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state. Version: tcl8.4 8.4.20 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -47,7 +47,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state. Version: tcl8.5 8.5.19 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -72,7 +72,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state. Version: tcl8.6 8.6.18 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -95,34 +95,9 @@ Exact relevant original rows:
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-0	0	1	int	-	53454544454420434f4445
-1	0	-2147483648	int	-	53454544454420434f4445
-2	0	-1	int	-	53454544454420434f4445
-3	1	777	int	696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74	415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d
-4	1	777	int	696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74	415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d
-5	1	777	bignum	696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74	415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d
-6	1	777	string	657870656374656420696e74656765722062757420676f742022312e3022	54434c2056414c5545204e554d424552
-7	1	777	string	657870656374656420696e74656765722062757420676f7420224e614e22	54434c2056414c5545204e554d424552
-8	0	8	int	-	53454544454420434f4445
-9	0	1	int	-	53454544454420434f4445
-10	1	777	string	657870656374656420696e74656765722062757420676f74202262616422	54434c2056414c5545204e554d424552
-11	1	777	double	657870656374656420696e74656765722062757420676f742022312e3022	54434c2056414c554520494e5445474552
-12	0	1	int	-	53454544454420434f4445
-13	1	777	double	657870656374656420696e74656765722062757420676f7420224e614e22	54434c2056414c554520494e5445474552
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct public Tcl_GetIntFromObj on original String, Double or WideInt objects with seeded interpreter error state. Version: tcl9.0 9.0.4 (capture association; launched patchlevel/revision unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -145,31 +120,11 @@ Exact relevant original rows:
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -177,8 +132,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/typed_value.rs](../../../../runtime/rust/src/typed_value.rs), `typed_value::tests::primitive_int_matches_native_width_cache_and_failure_on_original_objects` (linked): Compares70 original value/cache/message/error-code windows with independently unavailable bignum-backend withdrawal.
 - [rust/tcl-cmd-core/src/native_info_level.rs](../../../../rust/tcl-cmd-core/src/native_info_level.rs), `native_info_level::tests::native_level_integer_error_retains_primitive_fields_and_string_producer` (linked): Original primitive String-bad row10 supplies exact per-release message/error-code fields (C8.6 INTEGER versus C9 NUMBER); the typed software presenter retains the selected primitive and String-result producer, without claiming original physical header or frame identity.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/probe.c)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/manifest.json)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt)

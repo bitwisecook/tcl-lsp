@@ -20,55 +20,17 @@ Current Rust original-source selection and tracked-name barrier contract. Exact 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `current-compiler-source-ef7ed85a7f48baaa` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). Current original source/software control definitions and independent retained owner purpose; no executed assertion, external Native observation or provider grant.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,20 +45,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `command_binding::compiled_invocation::original_logical_compiler_purpose_tests::original_logical_unknown_callback_stays_open_without_compiler_admission` (linked): Actual prior unknown callback preserves open target uncertainty while no Native compiler admission is manufactured; it cannot borrow a closed source declaration target.
 - [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `command_binding::compiled_invocation::original_logical_compiler_purpose_tests::original_native_and_authored_unknown_compiler_purposes_are_not_logical_source` (linked): Genuinely held C Native ingress and independent authored simulation preserve Unknown compilation selection and their actual purposes; they cannot take the positive Logical source branch.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-registry",
-  "original_literal_set_compiler_effects_do_not_grant_opcode_admission"
-]
-```
-
-Run the listed selectors against the complete current implementation. A linked Rust selector is coverage, not a result receipt.
+- [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs)

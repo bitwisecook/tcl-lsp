@@ -20,81 +20,34 @@ Exact unchanged ASCII cases.tcl source-file ingress to C Tcl 8.4.20, 8.5.19, 8.6
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, jim
 
-Status: `unsupported`. Version: 8.4.20. Build: Executable; pinned header/library/Makefile/source hashes retained in tcl8.4-receipt.. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query.. Dialect: Tcl.
-
-The reached available control reports code 0 and value 0 for ::oo::configurable; later controls for this question are skipped.
-
-### tcl8.5
-
-Status: `unsupported`. Version: 8.5.19. Build: Executable; pinned header/library/Makefile/source hashes retained in tcl8.5-receipt.. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `unsupported`. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; jim 0.84-9-g5bac7c9.
 
 The reached available control reports code 0 and value 0 for ::oo::configurable; later controls for this question are skipped.
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `unsupported`. Version: 8.6.18. Build: Executable; pinned header/library/Makefile/source hashes retained in tcl8.6-receipt.. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query.. Dialect: Tcl.
-
-The reached available control reports code 0 and value 0 for ::oo::configurable; later controls for this question are skipped.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Executable; pinned header/library/Makefile/source hashes retained in tcl9.0-receipt.. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `observed`. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 support.constructor, support.destructor, created.constructor, created.destructor: code 0 with empty definitions; factory.constructor: code 1, definition not available for this kind of method.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Executable; pinned header/library/Makefile/source hashes retained in tcl9.1-receipt.. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query.. Dialect: Tcl.
-
-support.constructor, support.destructor, created.constructor, created.destructor: code 0 with empty definitions; factory.constructor: code 1, definition not available for this kind of method.
-
-### jim
-
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Executable; pinned header/library/Makefile/source hashes retained in jim-receipt.. Channel: Exact ASCII source file argument to the actual native shell; Tcl file-character ingress/Jim file evaluator. Separate ASCII stdin startup version query.. Dialect: Jim Tcl.
-
-The reached available control reports code 0 and value 0 for ::oo::configurable; later controls for this question are skipped.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/cases.tcl](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/cases.tcl). Exact unchanged ASCII public source program.
-- `aggregate` (observation): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/receipt.json). Six original aggregate provider rows with source, executable, header, library and startup hashes.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4/receipt.json). Original provider identity and exact source/stream/build hashes.
-- `tcl8.4-stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4/stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4/stdout). Original status/value rows for factory.constructor, support.constructor, support.destructor, created.constructor, created.destructor, or the reached configurable availability refusal.
-- `tcl8.4-startup` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4/startup.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4/startup.stdout). Independent actual startup patchlevel output.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5/receipt.json). Original provider identity and exact source/stream/build hashes.
-- `tcl8.5-stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5/stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5/stdout). Original status/value rows for factory.constructor, support.constructor, support.destructor, created.constructor, created.destructor, or the reached configurable availability refusal.
-- `tcl8.5-startup` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5/startup.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5/startup.stdout). Independent actual startup patchlevel output.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6/receipt.json). Original provider identity and exact source/stream/build hashes.
-- `tcl8.6-stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6/stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6/stdout). Original status/value rows for factory.constructor, support.constructor, support.destructor, created.constructor, created.destructor, or the reached configurable availability refusal.
-- `tcl8.6-startup` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6/startup.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6/startup.stdout). Independent actual startup patchlevel output.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0/receipt.json). Original provider identity and exact source/stream/build hashes.
-- `tcl9.0-stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0/stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0/stdout). Original status/value rows for factory.constructor, support.constructor, support.destructor, created.constructor, created.destructor, or the reached configurable availability refusal.
-- `tcl9.0-startup` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0/startup.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0/startup.stdout). Independent actual startup patchlevel output.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1/receipt.json). Original provider identity and exact source/stream/build hashes.
-- `tcl9.1-stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1/stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1/stdout). Original status/value rows for factory.constructor, support.constructor, support.destructor, created.constructor, created.destructor, or the reached configurable availability refusal.
-- `tcl9.1-startup` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1/startup.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1/startup.stdout). Independent actual startup patchlevel output.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim/receipt.json). Original provider identity and exact source/stream/build hashes.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim/stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim/stdout). Original status/value rows for factory.constructor, support.constructor, support.destructor, created.constructor, created.destructor, or the reached configurable availability refusal.
-- `jim-startup` (provider): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim/startup.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim/startup.stdout). Independent actual startup patchlevel output.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The retained capture.py and unchanged six provider receipts retain the original source-file/startup invocation paths. No portable executable replay or Rust test execution is asserted.
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap)
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.4)
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.5)
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl8.6)
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.0)
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/tcl9.1)
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/jim)

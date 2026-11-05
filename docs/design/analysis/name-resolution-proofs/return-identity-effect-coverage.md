@@ -20,55 +20,11 @@ Selected Registry return identity-effect metadata and fixed argument/dialect env
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/commands/tcl/return_.rs](../../../../rust/tcl-registry/src/commands/tcl/return_.rs), `return_state_transitions`: Issue closed empty identity transitions only for the selected result/completion envelope and preserve unknown error-option observer effects.
 - [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs), `StateTransitions::unknown_invocation`: Retain unlocated whole-invocation widening across every identity domain without inventing an original name or operand coordinate.
 - [rust/tcl-registry/src/completion_route.rs](../../../../rust/tcl-registry/src/completion_route.rs), `completion_route::tests::return_state_envelope_preserves_error_observers_and_dynamic_results` (linked): All five selected C dialects keep result/completion-only identity facts closed empty independently of dynamic result values; error/options and missing dialect widen every domain with possible pre-abrupt commit while observer effects remain independent.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact linked Rust selector exercises the authored envelope and identity-effect premises. No Rust execution receipt or native provider observation is attached to this implementation contract.

@@ -1,18 +1,14 @@
 # Does top-level variable ::a::x 5 create an unqualified root alias, and what does the procedure-qualified declaration write?
 
-
 Proof ID: `naming.variable.qualified-declaration-frame-target`
-
 
 ## Problem statement
 
 A qualified variable declaration at root and the same declaration in a procedure can have different alias effects. Reusing the unchanged expectation that root x must exist would hide an engine-dependent target. The selected frame and each operation in the same interpreter determine which observation applies.
 
-
 ## Question
 
 Does top-level variable ::a::x 5 create an unqualified root alias, and what does the procedure-qualified declaration write?
-
 
 ## Answers
 
@@ -34,16 +30,13 @@ Does top-level variable ::a::x 5 create an unqualified root alias, and what does
 
 | bigip | not-tested | not recorded; not recorded | No appliance observation for this question. |
 
-
 ## Conclusion
 
 The five recorded C engines store root-level ::a::x without defining root x; Jim stores x and leaves ::a::x absent. A procedure local x follows the declared link and yields 7 in all six recorded runs. These exact scripts establish only this declaration/frame distinction.
 
-
 ## Scope
 
 Exact retained ASCII script, root interpreter followed by procedure call; six recorded engine labels and binary hashes. Patch levels and Jim revision are not recorded by this manifest. No counted-NUL, dynamic callback, Native object/header or BIG-IP semantics are claimed.
-
 
 ## Exact retained evidence
 
@@ -51,22 +44,9 @@ Exact retained ASCII script, root interpreter followed by procedure call; six re
 
 - `source`: [runtime/rust/tests/data/native_variable_qualified_target/source.tcl](../../../../runtime/rust/tests/data/native_variable_qualified_target/source.tcl). Exact declared source operations in one interpreter.
 
-
-## Replay
-
-```sh
-
-/path/to/selected/native/interpreter runtime/rust/tests/data/native_variable_qualified_target/source.tcl
-
-```
-
-Use each SHA-identified provider or independently record its new build identity. Compare the complete stdout and stderr plus zero process status to the retained manifest. The source is ASCII; a counted-source variant is a separate question.
-
-
 ## Rust contracts
 
 Rust assertions and native observations are separate. No Rust execution result is inferred from this record.
-
 
 ## Exact native answers
 

@@ -20,57 +20,11 @@ Registry-selected source member grammar and closed readonly name producers, incl
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-## Historical references
-
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs). Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
-- `implementation-2` (implementation): [rust/tcl-lsp-core/src/original_oo.rs](../../../../rust/tcl-lsp-core/src/original_oo.rs). Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
-- `implementation-3` (implementation): [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs). Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,8 +35,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs), `document_symbols::original::tests::original_readonly_loop_names_are_outline_cards_without_static_declaration_keys` (linked): Require both source cards after class reporting maps are cleared.
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::readonly_member_tests::original_readonly_worker_value_does_not_retag_variable_syntax_as_member_declaration` (linked): Require readonly worker values to remain absent from static member declaration role overrides.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact fixed Rust selectors are listed separately. No test execution, native interpreter result, appliance result or new handler reach is certified by this implementation record.
+- [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs)
+- [rust/tcl-lsp-core/src/original_oo.rs](../../../../rust/tcl-lsp-core/src/original_oo.rs)
+- [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs)

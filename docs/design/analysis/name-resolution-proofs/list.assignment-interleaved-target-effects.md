@@ -22,60 +22,33 @@ Four ASCII procedure bodies with the original {A} B C argument. Targets include 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Recorded original library d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011 and executed untraced/trace binaries in separate compile/process receipts.. Channel: Original counted public string object vector after ASCII procedure source installation.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted public string object vector after ASCII procedure source installation. Version: tcl8.4 8.4.20.
 
 untraced: R|0|1|none|1|1|63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65|storeScalar1,storeArray1,list:2,; R|1|1|none|1|1|63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65|storeScalar1,storeArray1,storeScalar1,storeScalar1,list:2,; R|2|1|none|1|1|63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65|storeScalar1,storeArray1,list:2,; R|3|1|none|1|1|63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65|storeScalar1,storeArray1,list:2,
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0
 
-Status: `observed`. Version: 8.5.19. Build: Recorded original library 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df and executed untraced/trace binaries in separate compile/process receipts.. Channel: Original counted public string object vector after ASCII procedure source installation.. Dialect: Tcl.
-
-untraced: R|0|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,; R|1|0|list|0|1|412053544f50|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,reverse:2,storeScalar1,list:2,; R|2|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeArray1,listRangeImm,list:2,; R|3|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Recorded original library a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6 and executed untraced/trace binaries in separate compile/process receipts.. Channel: Original counted public string object vector after ASCII procedure source installation.. Dialect: Tcl.
-
-untraced: R|0|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,; R|1|0|list|0|1|412053544f50|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,reverse:2,storeScalar1,list:2,; R|2|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeArray1,listRangeImm,list:2,; R|3|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Recorded original library 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04 and executed untraced/trace binaries in separate compile/process receipts.. Channel: Original counted public string object vector after ASCII procedure source installation.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted public string object vector after ASCII procedure source installation. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4.
 
 untraced: R|0|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,; R|1|0|list|0|1|412053544f50|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,reverse:2,storeScalar1,list:2,; R|2|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeArray1,listRangeImm,list:2,; R|3|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Recorded original library 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33 and executed untraced/trace binaries in separate compile/process receipts.. Channel: Original counted public string object vector after ASCII procedure source installation.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted public string object vector after ASCII procedure source installation. Version: tcl9.1 9.1.0.
 
 untraced: R|0|0|list|0|1|412042|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:4,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,; R|1|0|list|0|1|412053544f50|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:5,over:1,listIndexImm:1,storeStk,listRangeImm,storeScalar:4,list:2,; R|2|0|list|0|1|412042|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:4,over:1,listIndexImm:1,storeArray:3,listRangeImm,list:2,; R|3|0|list|0|1|412042|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:4,over:1,listIndexImm:1,storeStk,listRangeImm,list:2,
 
 ### jim
 
-Status: `observed`. Version: Jim0.84. Build: Recorded independent Jim original program/static library/executable hashes and successful compile/process.. Channel: Original counted public string object vector after ASCII procedure source installation.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original counted public string object vector after ASCII procedure source installation. Version: jim Jim0.84.
 
 Four resultError rows: cannot read first before any stores. No C object-trace mode measured.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/manifest.json). Untraced original C source/build/stream receipt.
-- `e1` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/jim-manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim-manifest.json). Independent Jim original program/build/output receipt.
-- `e2` (provider): [rust/tcl-registry/tests/data/native_list_assignment_order/trace-manifest.json](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/trace-manifest.json). Ten distinct C source-trace builds/process streams and allow-inline versus generic runtime arguments.
-- `e3` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/probe.c). Four original substitutions and before/after header observation order.
-- `e4` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/trace-probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/trace-probe.c). Actual inert observer and independently selected flags; source differs from untraced program.
-- `e5` (input): [rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim-probe.c). Independent Jim program; no native C bytecode assumption.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.4.20.txt). Original untraced four cases and source object snapshots.
-- `e7` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.5.19.txt). Original untraced four cases and source object snapshots.
-- `e8` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/8.6.18.txt). Original untraced four cases and source object snapshots.
-- `e9` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/9.0.4.txt). Original untraced four cases and source object snapshots.
-- `e10` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/9.1.0.txt). Original untraced four cases and source object snapshots.
-- `e11` (observation): [rust/tcl-registry/tests/data/native_list_assignment_order/jim.txt](../../../../rust/tcl-registry/tests/data/native_list_assignment_order/jim.txt). Exact Jim four missing-first results and original snapshots; no C object trace API measured.
 
 ## Source inspection
 
@@ -136,37 +109,12 @@ int main(void){Jim_Interp*i=Jim_CreateInterp();Jim_RegisterCoreCommands(i);Jim_C
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_list_operations_compilation.rs](../../../../rust/tcl-registry/src/native_list_operations_compilation.rs), `compile_native_list_operation`: Native Assign recipe retains each original target operation; trace admission is independently selected.
 - [rust/tcl-vm/src/exec/native_list_operations_tests.rs](../../../../rust/tcl-vm/src/exec/native_list_operations_tests.rs), `exec::native_list_operations_tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs` (linked): Includes all four untraced assignment-order cases for all six engines and compares original header/result pairs; command-trace modes require separate native evidence.
 - [runtime/rust/src/interp/native_body_artifact/native_list_operations.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_list_operations.rs), `interp::native_body_artifact::native_list_operations::tests::original_range_and_assignment_match_84_native_completion_and_original_header_pairs` (linked): Includes all four untraced assignment-order cases for all six engines and compares original header/result pairs; command-trace modes require separate native evidence.
 - [rust/tcl-registry/src/native_list_operations_compilation.rs](../../../../rust/tcl-registry/src/native_list_operations_compilation.rs), `native_list_operations_compilation::tests::list_assignment_retains_interleaved_original_target_geometry` (linked): Preserves original target operands and compound array geometry, separately from execution order.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "scripts/dev/replay-native-list-object-probes.py",
-  "--corpus",
-  "assignment",
-  "--tcl-source-root",
-  "${TCL_SOURCE_ROOT}",
-  "--jim-source-root",
-  "${JIM_SOURCE_ROOT}",
-  "--output",
-  "${NEW_OUTPUT}"
-]
-```
-
-Requires exact original probe and library hashes; independently provision the matching C release or Jim static build. The runner records its fresh compiler arguments, executable hash, process status and streams and compares stdout byte for byte. Original stderr is absent from these manifests; the current replay separately requires empty stderr and does not claim retained stderr equality. Private C instruction probes require matching tclInt.h/tclCompile.h ABI. Missing originals and mismatched libraries are adapter refusals, not native guest answers. C library callbacks require the matching Tcl library directory. Every process has a60-second budget; run serially or obey a global maximum of two native processes. Reconfirmation of the oracle does not establish Rust parity or a native capability.
-
 
 ## Exact original-source349 software outcomes
 
@@ -177,4 +125,8 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 0 | 1 | 0 | 0 |
 | `isolated` | 0 | 1 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_list_assignment_order](../../../../rust/tcl-registry/tests/data/native_list_assignment_order)

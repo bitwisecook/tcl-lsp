@@ -81,89 +81,24 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-RULE_INIT, unit 0:0, invocation old-provider-local-upvar-write
+### tmm-RULE_INIT, unit 0:0, invocation old-provider-local-upvar-write; tmm-RULE_INIT, unit 0:1, invocation old-provider-local-upvar-write; tmm-RULE_INIT, unit 0:2, invocation old-provider-local-upvar-write
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|setup|0|0:0|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|lookup|0|0:0|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- old-provider-local-upvar-write, setup, completion 0, result, chunk 0 of 1:
+- old-provider-local-upvar-write, setup, completion 0, result:
 
 ```text-visible
 provider-write⟦EOF⟧
 ```
 
-- old-provider-local-upvar-write, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider {local {PROVIDER_LOCAL old-provider-local-upvar-write} before CALLER_BEFORE after {CALLER_WRITE old-provider-local-upvar-write} level 1} caller {CALLER_WRITE old-provider-local-upvar-write}⟦EOF⟧
-```
-
-- old-provider-local-upvar-write: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:1, invocation old-provider-local-upvar-write
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|setup|0|0:1|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|lookup|0|0:1|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- old-provider-local-upvar-write, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider-write⟦EOF⟧
-```
-
-- old-provider-local-upvar-write, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider {local {PROVIDER_LOCAL old-provider-local-upvar-write} before CALLER_BEFORE after {CALLER_WRITE old-provider-local-upvar-write} level 1} caller {CALLER_WRITE old-provider-local-upvar-write}⟦EOF⟧
-```
-
-- old-provider-local-upvar-write: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:2, invocation old-provider-local-upvar-write
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|setup|0|0:2|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|lookup|0|0:2|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- old-provider-local-upvar-write, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider-write⟦EOF⟧
-```
-
-- old-provider-local-upvar-write, lookup, completion 0, result, chunk 0 of 1:
+- old-provider-local-upvar-write, lookup, completion 0, result:
 
 ```text-visible
 provider {local {PROVIDER_LOCAL old-provider-local-upvar-write} before CALLER_BEFORE after {CALLER_WRITE old-provider-local-upvar-write} level 1} caller {CALLER_WRITE old-provider-local-upvar-write}⟦EOF⟧
@@ -178,22 +113,17 @@ provider {local {PROVIDER_LOCAL old-provider-local-upvar-write} before CALLER_BE
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|setup|0|0:3|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|old-provider-local-upvar-write|tmm-RULE_INIT|lookup|0|0:3|old-provider-local-upvar-write|result|binary-scan-tcl-value|0|1|70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d70726f76696465722d6c6f63616c2d75707661722d77726974657d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- old-provider-local-upvar-write, setup, completion 0, result, chunk 0 of 1:
+- old-provider-local-upvar-write, setup, completion 0, result:
 
 ```text-visible
 provider-write⟦EOF⟧
 ```
 
-- old-provider-local-upvar-write, lookup, completion 0, result, chunk 0 of 1:
+- old-provider-local-upvar-write, lookup, completion 0, result:
 
 ```text-visible
 provider {local {PROVIDER_LOCAL old-provider-local-upvar-write} before CALLER_BEFORE after {CALLER_WRITE old-provider-local-upvar-write} level 1} caller {CALLER_WRITE old-provider-local-upvar-write}⟦EOF⟧

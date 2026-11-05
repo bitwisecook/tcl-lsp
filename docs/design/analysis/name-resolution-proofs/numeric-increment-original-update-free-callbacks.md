@@ -20,69 +20,9 @@ Original custom type has either missing bytes/updateString producing3 or residen
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=e36064383a58baa19ba0055aa47d109335b98574d8500d85b945b2bc4c843ce8; library_sha=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Tcl_Obj updateString/freeIntRep reached by compiled incr or alias to incr inside ASCII procedure source.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-route=compiled hook=update code=0 result=4 UPDATED CHANGED
-route=compiled hook=free code=0 result=4 FREED CHANGED
-route=generic hook=update code=0 result=4 UPDATED CHANGED
-route=generic hook=free code=0 result=4 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=3edd69a9e4adde0f3f5356933a072289d35355c30891301ef79f635df304c607; library_sha=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Tcl_Obj updateString/freeIntRep reached by compiled incr or alias to incr inside ASCII procedure source.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-route=compiled hook=update code=0 result=4 UPDATED CHANGED
-route=compiled hook=free code=0 result=4 FREED CHANGED
-route=generic hook=update code=0 result=4 UPDATED CHANGED
-route=generic hook=free code=0 result=4 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=bd7fe83c1f9dbe2ce0c309fefe8b783e9f787621e13eab423340e575af6a9326; library_sha=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Tcl_Obj updateString/freeIntRep reached by compiled incr or alias to incr inside ASCII procedure source.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-route=compiled hook=update code=0 result=4 UPDATED CHANGED
-route=compiled hook=free code=0 result=4 FREED CHANGED
-route=generic hook=update code=0 result=4 UPDATED CHANGED
-route=generic hook=free code=0 result=4 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=57b66be307f6510b03798f2f48cd5235f506a5651ee241120d535f3334bd7ca1; library_sha=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Tcl_Obj updateString/freeIntRep reached by compiled incr or alias to incr inside ASCII procedure source.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-route=compiled hook=update code=0 result=4 UPDATED CHANGED
-route=compiled hook=free code=0 result=4 FREED CHANGED
-route=generic hook=update code=0 result=4 UPDATED CHANGED
-route=generic hook=free code=0 result=4 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=c0181a077aafd3b8e39275321b2079bd9aaf5f88d4a9e43223a85a7a1b592a5b; library_sha=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Tcl_Obj updateString/freeIntRep reached by compiled incr or alias to incr inside ASCII procedure source.. Dialect: C Tcl.
+Status: `observed`. Channel: Custom original Tcl_Obj updateString/freeIntRep reached by compiled incr or alias to incr inside ASCII procedure source. Version: tcl8.4 8.4.20 (capture association; launched patchlevel/revision unqueried); tcl8.5 8.5.19 (capture association; launched patchlevel/revision unqueried); tcl8.6 8.6.18 (capture association; launched patchlevel/revision unqueried); tcl9.0 9.0.4 (capture association; launched patchlevel/revision unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -97,7 +37,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### jim
 
-Status: `observed`. Version: Jim0.84 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Custom original Jim_Obj updateString/freeIntRep reached by direct or alias incr; callbacks enabled only during entered source.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Custom original Jim_Obj updateString/freeIntRep reached by direct or alias incr; callbacks enabled only during entered source. Version: jim Jim0.84 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -112,33 +52,14 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.4.20.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.5.19.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/8.6.18.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/9.0.4.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/9.1.0.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `probe-7` (input): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-7` (provider): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-increment-manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-increment-manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-jim` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/typed_value.rs](../../../../runtime/rust/src/typed_value.rs), `native_scalar_getter`: Selected getter conversion must retain reached original callback effects and independent result/cache obligations.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks)

@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 All six captured programs return ROOT with their captured local roster; this establishes alias access rather than a new namespace declaration.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=upvar-local-colon.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for upvar-local-colon; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/upvar-local-colon.tcl`. Exact 8.4.20 input for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/upvar-local-colon.stdout`. Exact 8.4.20 stdout for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/upvar-local-colon.stderr`. Exact 8.4.20 stderr for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 upvar-local-colon. JSON pointer `/rows/18`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/upvar-local-colon.tcl`. Exact 8.5.19 input for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/upvar-local-colon.stdout`. Exact 8.5.19 stdout for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/upvar-local-colon.stderr`. Exact 8.5.19 stderr for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 upvar-local-colon. JSON pointer `/rows/58`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/upvar-local-colon.tcl`. Exact 8.6.18 input for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/upvar-local-colon.stdout`. Exact 8.6.18 stdout for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/upvar-local-colon.stderr`. Exact 8.6.18 stderr for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 upvar-local-colon. JSON pointer `/rows/98`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/upvar-local-colon.tcl`. Exact 9.0.4 input for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/upvar-local-colon.stdout`. Exact 9.0.4 stdout for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/upvar-local-colon.stderr`. Exact 9.0.4 stderr for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 upvar-local-colon. JSON pointer `/rows/138`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/upvar-local-colon.tcl`. Exact 9.1.0 input for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/upvar-local-colon.stdout`. Exact 9.1.0 stdout for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/upvar-local-colon.stderr`. Exact 9.1.0 stderr for upvar-local-colon; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 upvar-local-colon. JSON pointer `/rows/178`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/upvar-local-colon.tcl`. Exact Jim input for upvar-local-colon; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/upvar-local-colon.stdout`. Exact Jim stdout for upvar-local-colon; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/upvar-local-colon.stderr`. Exact Jim stderr for upvar-local-colon; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim upvar-local-colon. JSON pointer `/rows/218`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case upvar-local-colon --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-upvar-local-colon.md). A replay is a separate execution and must record its own results.

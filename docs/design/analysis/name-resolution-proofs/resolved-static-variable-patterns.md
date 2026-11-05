@@ -22,65 +22,45 @@ Finite three-leaf Compiler implementation and four source-defined unexecuted sof
 
 ### tcl8.4
 
-Status: `not-tested`. Version: No external provider execution is attached to this source/place classification question.. Build: Fixed software source, resolver, cell-domain and metadata query definitions only.. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header. Version: tcl8.4 No external provider execution is attached to this source/place classification question.
 
 External tcl8.4 execution is not tested for this implementation question. These software controls grant no Native getter/cache, event execution, physical TMM identity, cross-worker equality or publication. The independent BIG-IP 21.1.0.1 four-worker observations remain separately scoped and unchanged.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: No external provider execution is attached to this source/place classification question.. Build: Fixed software source, resolver, cell-domain and metadata query definitions only.. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header. Version: tcl8.5 No external provider execution is attached to this source/place classification question.
 
 External tcl8.5 execution is not tested for this implementation question. These software controls grant no Native getter/cache, event execution, physical TMM identity, cross-worker equality or publication. The independent BIG-IP 21.1.0.1 four-worker observations remain separately scoped and unchanged.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: No external provider execution is attached to this source/place classification question.. Build: Fixed software source, resolver, cell-domain and metadata query definitions only.. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header. Version: tcl8.6 No external provider execution is attached to this source/place classification question.
 
 External tcl8.6 execution is not tested for this implementation question. These software controls grant no Native getter/cache, event execution, physical TMM identity, cross-worker equality or publication. The independent BIG-IP 21.1.0.1 four-worker observations remain separately scoped and unchanged.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: No external provider execution is attached to this source/place classification question.. Build: Fixed software source, resolver, cell-domain and metadata query definitions only.. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header. Version: tcl9.0 No external provider execution is attached to this source/place classification question.
 
 External tcl9.0 execution is not tested for this implementation question. These software controls grant no Native getter/cache, event execution, physical TMM identity, cross-worker equality or publication. The independent BIG-IP 21.1.0.1 four-worker observations remain separately scoped and unchanged.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: No external provider execution is attached to this source/place classification question.. Build: Fixed software source, resolver, cell-domain and metadata query definitions only.. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header. Version: tcl9.1 No external provider execution is attached to this source/place classification question.
 
 External tcl9.1 execution is not tested for this implementation question. These software controls grant no Native getter/cache, event execution, physical TMM identity, cross-worker equality or publication. The independent BIG-IP 21.1.0.1 four-worker observations remain separately scoped and unchanged.
 
 ### jim
 
-Status: `not-tested`. Version: No external provider execution is attached to this source/place classification question.. Build: Fixed software source, resolver, cell-domain and metadata query definitions only.. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header.. Dialect: jim.
+Status: `not-tested`. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header. Version: jim No external provider execution is attached to this source/place classification question.
 
 External jim execution is not tested for this implementation question. These software controls grant no Native getter/cache, event execution, physical TMM identity, cross-worker equality or publication. The independent BIG-IP 21.1.0.1 four-worker observations remain separately scoped and unchanged.
 
 ### bigip
 
-Status: `not-tested`. Version: No external provider execution is attached to this source/place classification question.. Build: Fixed software source, resolver, cell-domain and metadata query definitions only.. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header.. Dialect: f5-bigip.
+Status: `not-tested`. Channel: Source-only authored event/CFG inputs and exact resolver/place fields; no actual executing worker or Native value header. Version: bigip No external provider execution is attached to this source/place classification question.
 
 External bigip execution is not tested for this implementation question. These software controls grant no Native getter/cache, event execution, physical TMM identity, cross-worker equality or publication. The independent BIG-IP 21.1.0.1 four-worker observations remain separately scoped and unchanged.
-
-## Historical references
-
-- `resolved-static-source-0` (implementation): [rust/tcl-compiler/src/side_effects.rs](../../../../rust/tcl-compiler/src/side_effects.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-1` (implementation): [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-2` (implementation): [rust/tcl-compiler/src/irules_checks.rs](../../../../rust/tcl-compiler/src/irules_checks.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-3` (implementation): [rust/tcl-compiler/src/place.rs](../../../../rust/tcl-compiler/src/place.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-4` (implementation): [rust/tcl-compiler/src/place_bridge.rs](../../../../rust/tcl-compiler/src/place_bridge.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-5` (implementation): [rust/tcl-compiler/src/variable_bindings.rs](../../../../rust/tcl-compiler/src/variable_bindings.rs). The original full invocation metadata and actual source purpose own conditional Logical scalar stores; selected variable/cell/frame and source operand gates remain unchanged.
-- `resolved-static-source-6` (implementation): [rust/tcl-compiler/src/var_resolve/cell_key.rs](../../../../rust/tcl-compiler/src/var_resolve/cell_key.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-7` (implementation): [rust/tcl-compiler/src/connection_scope.rs](../../../../rust/tcl-compiler/src/connection_scope.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-8` (implementation): [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-9` (implementation): [rust/tcl-compiler/src/ir.rs](../../../../rust/tcl-compiler/src/ir.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-10` (implementation): [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-11` (implementation): [rust/tcl-registry/src/f5/storage.rs](../../../../rust/tcl-registry/src/f5/storage.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-- `resolved-static-source-12` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current retained source/place/domain owner or actual consumer definition. Source-only; no owned executable/assertion or external provider outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -95,8 +75,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/irules_checks.rs](../../../../rust/tcl-compiler/src/irules_checks.rs), `irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations` (linked): Fixed genuine source/resolver/place-owner software inputs only. Source-defined control; no software outcome, Native object/header/getter observation or physical BIG-IP/TMM execution is attached.
 - [rust/tcl-compiler/src/irules_checks.rs](../../../../rust/tcl-compiler/src/irules_checks.rs), `irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback` (linked): Fixed genuine source/resolver/place-owner software inputs only. Source-defined control; no software outcome, Native object/header/getter observation or physical BIG-IP/TMM execution is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Four exact source/control definitions and retained producer bindings support later software reconfirmation. No assertion or C/Jim/BIG-IP process is attached. Physical TMM/static-event/worker observations must be reconfirmed through their independent existing Native proofs.
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler/src/var_resolve/cell_key.rs](../../../../rust/tcl-compiler/src/var_resolve/cell_key.rs)
+- [rust/tcl-registry/src/f5/storage.rs](../../../../rust/tcl-registry/src/f5/storage.rs)

@@ -20,75 +20,29 @@ One actual CLI interpreter per selected provider executes the same fixed ASCII L
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `observed`. Version: 8.4.20. Build: Original CLI executable; exact SDK/header/library/build/source associations are retained in the receipt. No compilation command is executed by this CLI runner.. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Dialect: C Tcl.
-
-All three writes return code1 with can't set "a": variable is array; array exists1. The recorded errorCode is NONE.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Original CLI executable; exact SDK/header/library/build/source associations are retained in the receipt. No compilation command is executed by this CLI runner.. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Dialect: C Tcl.
+Status: `observed`. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 All three writes return code1 with can't set "a": variable is array; array exists1. The recorded errorCode is NONE.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Original CLI executable; exact SDK/header/library/build/source associations are retained in the receipt. No compilation command is executed by this CLI runner.. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Dialect: C Tcl.
-
-All three writes return code1 with can't set "a": variable is array; array exists1. The recorded errorCode is TCL WRITE VARNAME.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Original CLI executable; exact SDK/header/library/build/source associations are retained in the receipt. No compilation command is executed by this CLI runner.. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Dialect: C Tcl.
-
-All three writes return code1 with can't set "a": variable is array; array exists1. The recorded errorCode is TCL WRITE VARNAME.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Original CLI executable; exact SDK/header/library/build/source associations are retained in the receipt. No compilation command is executed by this CLI runner.. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Dialect: C Tcl.
+Status: `observed`. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 All three writes return code1 with can't set "a": variable is array; array exists1. The recorded errorCode is TCL WRITE VARNAME.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Original CLI executable; exact SDK/header/library/build/source associations are retained in the receipt. No compilation command is executed by this CLI runner.. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Dialect: Jim.
+Status: `observed`. Channel: ASCII LF source-file CLI; three existing-array root variable write cases. Version: jim 0.84-9-g5bac7c9.
 
 All three writes return code0 and NEW, errorCode NONE and array exists0: the existing array becomes a scalar in these fixed source entries.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No BIG-IP attempt or corresponding source-file CLI answer is attached.
-
-## Historical references
-
-- `array-write-source` (input): [rust/tcl-registry/tests/data/native_variable_array_write/probe.tcl](../../../../rust/tcl-registry/tests/data/native_variable_array_write/probe.tcl). Exact ASCII LF source, including actual version query and the ordered literal, dynamic and procedure array-root write entries. Each entry creates and then removes its own test array.
-- `array-write-runner` (input): [rust/tcl-registry/tests/data/native_variable_array_write/capture.py](../../../../rust/tcl-registry/tests/data/native_variable_array_write/capture.py). Retained original Root CLI runner; selected SDK inputs and new provider output directories are independent replay prerequisites.
-- `array-write-sdk-inputs` (input): [rust/tcl-registry/tests/data/native_variable_array_write/sdk-queue.json](../../../../rust/tcl-registry/tests/data/native_variable_array_write/sdk-queue.json). JSON pointer `/providers`. Exact original queue bytes; only the providers array selects this CLI runner’s SDK/executable/environment inputs. Other queue fields supply no array-write observation.
-- `array-write-8.4.20-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_array_write/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.4.20/receipt.json). Exact CLI command, queried patchlevel, original source/runner, executable and SDK pins, raw-stream hashes and process result.
-- `array-write-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.4.20/stdout). The original PATCHLEVEL row and all three complete RESULT rows: catch status/result/errorCode and array-exists after the write.
-- `array-write-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.4.20/stderr). Exact empty stderr from this process; no broader callback or exception absence is inferred.
-- `array-write-8.5.19-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_array_write/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.5.19/receipt.json). Exact CLI command, queried patchlevel, original source/runner, executable and SDK pins, raw-stream hashes and process result.
-- `array-write-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.5.19/stdout). The original PATCHLEVEL row and all three complete RESULT rows: catch status/result/errorCode and array-exists after the write.
-- `array-write-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.5.19/stderr). Exact empty stderr from this process; no broader callback or exception absence is inferred.
-- `array-write-8.6.18-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_array_write/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.6.18/receipt.json). Exact CLI command, queried patchlevel, original source/runner, executable and SDK pins, raw-stream hashes and process result.
-- `array-write-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.6.18/stdout). The original PATCHLEVEL row and all three complete RESULT rows: catch status/result/errorCode and array-exists after the write.
-- `array-write-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.6.18/stderr). Exact empty stderr from this process; no broader callback or exception absence is inferred.
-- `array-write-9.0.4-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_array_write/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.0.4/receipt.json). Exact CLI command, queried patchlevel, original source/runner, executable and SDK pins, raw-stream hashes and process result.
-- `array-write-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.0.4/stdout). The original PATCHLEVEL row and all three complete RESULT rows: catch status/result/errorCode and array-exists after the write.
-- `array-write-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.0.4/stderr). Exact empty stderr from this process; no broader callback or exception absence is inferred.
-- `array-write-9.1.0-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_array_write/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.1.0/receipt.json). Exact CLI command, queried patchlevel, original source/runner, executable and SDK pins, raw-stream hashes and process result.
-- `array-write-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.1.0/stdout). The original PATCHLEVEL row and all three complete RESULT rows: catch status/result/errorCode and array-exists after the write.
-- `array-write-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.1.0/stderr). Exact empty stderr from this process; no broader callback or exception absence is inferred.
-- `array-write-jim-receipt` (provider): [rust/tcl-registry/tests/data/native_variable_array_write/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_array_write/jim/receipt.json). Exact CLI command, queried patchlevel, original source/runner, executable and SDK pins, raw-stream hashes and process result.
-- `array-write-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/jim/stdout](../../../../rust/tcl-registry/tests/data/native_variable_array_write/jim/stdout). The original PATCHLEVEL row and all three complete RESULT rows: catch status/result/errorCode and array-exists after the write.
-- `array-write-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_array_write/jim/stderr](../../../../rust/tcl-registry/tests/data/native_variable_array_write/jim/stderr). Exact empty stderr from this process; no broader callback or exception absence is inferred.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -99,17 +53,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::array_root_write_diagnostics_match_five_original_source_controls` (linked): Replay the identical complete ASCII source through an independently authentic C interpreter and compare all three original result/error/state rows. Only the separately identified process-version line is excluded; compiler/receiver/storage prerequisites are independent.
 - [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::array_root_write_preserves_current_jim_dictionary_replacement` (linked): Replay the same complete original Jim source and compare all three successful NEW/NONE/no-array rows; dictionary replacement is a finite source result, not a private physical-layout or cache observation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_variable_array_write/capture.py"
-]
-```
-
-The retained runner reads its original absolute SDK-binding queue and expects new provider output directories. Replay requires independently matching SDK/environment/executable inputs and a fresh output location. Exact native source observations do not execute a linked Rust comparison or grant another variable receiver, storage or source-edit purpose.
+- [rust/tcl-registry/tests/data/native_variable_array_write](../../../../rust/tcl-registry/tests/data/native_variable_array_write)
+- [rust/tcl-registry/tests/data/native_variable_array_write/8.4.20](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.4.20)
+- [rust/tcl-registry/tests/data/native_variable_array_write/8.5.19](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.5.19)
+- [rust/tcl-registry/tests/data/native_variable_array_write/8.6.18](../../../../rust/tcl-registry/tests/data/native_variable_array_write/8.6.18)
+- [rust/tcl-registry/tests/data/native_variable_array_write/9.0.4](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.0.4)
+- [rust/tcl-registry/tests/data/native_variable_array_write/9.1.0](../../../../rust/tcl-registry/tests/data/native_variable_array_write/9.1.0)
+- [rust/tcl-registry/tests/data/native_variable_array_write/jim](../../../../rust/tcl-registry/tests/data/native_variable_array_write/jim)

@@ -20,56 +20,11 @@ Rust storage and recursion invariant. The existing depth limit and deterministic
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust ownership contract. No interpreter or appliance observation is attached.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/normal_result.rs](../../../../rust/tcl-compiler/src/command_binding/normal_result.rs). Reviewed Rust owner for this implementation invariant; this file is not an executed provider capture.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,8 +40,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk` (linked): The unchanged deterministic 80-level source exercises genuine analyser/source-driver nesting under the standard test-thread stack. No success or elapsed-time claim is inferred from this coverage binding.
 - [rust/tcl-compiler/src/command_binding/native_list_assignment.rs](../../../../rust/tcl-compiler/src/command_binding/native_list_assignment.rs), `command_binding::native_list_assignment::tests::original_argument_context_borrows_its_evaluator_owned_compilation` (linked): The view borrows the owned selected compilation, retains actual evaluated vector correspondence, rejects wrong cardinality/configuration and stays within the established small execution-view size budget.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact linked selectors exercise complete original state and immutable completion-receipt transport. Linked coverage does not establish a stack bound, timing result or whole-suite success. Executed assertion and process outcomes remain separately recorded with their exact frozen source inventories in the Rust validation ledger.
+- [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs)
+- [rust/tcl-compiler/src/command_binding/normal_result.rs](../../../../rust/tcl-compiler/src/command_binding/normal_result.rs)

@@ -20,94 +20,40 @@ Two exact counted ASCII script values under the retained public info complete qu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.4.20. Build: Actual invoked ELF whole bytes and printed VERSION are retained independently. Canonical existing payload matches the exact whole executable hash. Captured Tcl library .tcl inputs retain before/after pins and exact byte payloads; configure/compiler/link and loaded shared-library closure are unrecorded.. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads.. Dialect: tcl8.4.
-
-The original process exits0 with empty stderr. The braced-variable case reports complete=1, script catch=0, before=1 and after=2. The terminal word-weld case reports complete=1, script catch=1, before=1 and after=MISSING. Exact error/result bytes remain in its raw stream. These are only the two measured public query/evaluation cases.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual invoked ELF whole bytes and printed VERSION are retained independently. Canonical existing payload matches the exact whole executable hash. Captured Tcl library .tcl inputs retain before/after pins and exact byte payloads; configure/compiler/link and loaded shared-library closure are unrecorded.. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads.. Dialect: tcl8.5.
+Status: `observed`. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 The original process exits0 with empty stderr. The braced-variable case reports complete=1, script catch=0, before=1 and after=2. The terminal word-weld case reports complete=1, script catch=1, before=1 and after=MISSING. Exact error/result bytes remain in its raw stream. These are only the two measured public query/evaluation cases.
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Actual invoked ELF whole bytes and printed VERSION are retained independently. Canonical existing payload matches the exact whole executable hash. Captured Tcl library .tcl inputs retain before/after pins and exact byte payloads; configure/compiler/link and loaded shared-library closure are unrecorded.. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads.. Dialect: tcl8.6.
-
-The original process exits0 with empty stderr. The braced-variable case reports complete=1, script catch=0, before=1 and after=2. The terminal word-weld case reports complete=1, script catch=1, before=1 and after=MISSING. Exact error/result bytes remain in its raw stream. These are only the two measured public query/evaluation cases.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual invoked ELF whole bytes and printed VERSION are retained independently. Canonical existing payload matches the exact whole executable hash. Captured Tcl library .tcl inputs retain before/after pins and exact byte payloads; configure/compiler/link and loaded shared-library closure are unrecorded.. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads.. Dialect: tcl9.0.
-
-The original process exits0 with empty stderr. The braced-variable case reports complete=0, script catch=1, before=1 and after=MISSING. The terminal word-weld case reports complete=1, script catch=1, before=1 and after=MISSING. Exact error/result bytes remain in its raw stream. These are only the two measured public query/evaluation cases.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual invoked ELF whole bytes and printed VERSION are retained independently. Canonical existing payload matches the exact whole executable hash. Captured Tcl library .tcl inputs retain before/after pins and exact byte payloads; configure/compiler/link and loaded shared-library closure are unrecorded.. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads.. Dialect: tcl9.1.
+Status: `observed`. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 The original process exits0 with empty stderr. The braced-variable case reports complete=0, script catch=1, before=1 and after=MISSING. The terminal word-weld case reports complete=1, script catch=1, before=1 and after=MISSING. Exact error/result bytes remain in its raw stream. These are only the two measured public query/evaluation cases.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual invoked ELF whole bytes and printed VERSION are retained independently. Canonical existing payload matches the exact whole executable hash. Captured Tcl library .tcl inputs retain before/after pins and exact byte payloads; configure/compiler/link and loaded shared-library closure are unrecorded.. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads.. Dialect: jim.
+Status: `observed`. Channel: Original CLI argv probe.tcl; two original hexadecimal byte values become counted ASCII script strings, public info complete then uplevel #0, followed by separate observed variable reads. Version: jim 0.84-9-g5bac7c9.
 
 The original process exits0 with empty stderr. The braced-variable case reports complete=1, script catch=0, before=1 and after=2. The terminal word-weld case reports complete=1, script catch=1, before=MISSING and after=MISSING. Exact error/result bytes remain in its raw stream. These are only the two measured public query/evaluation cases.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No actual BIG-IP process for these two original script values. Channel: No BIG-IP query/evaluation capture. Dialect: bigip.
+Status: `not-tested`. Channel: No BIG-IP query/evaluation capture.
 
 No actual BIG-IP response to these exact inputs is retained. Neither the six local processes nor source-only profiles establish BIG-IP/TMM behavior.
-
-## Historical references
-
-- `original-probe` (input): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/probe.tcl](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/probe.tcl). Exact original public query/evaluation/observation script. Each case is reconstructed from its original counted hexadecimal ASCII bytes.
-- `original-cases` (input): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/cases.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/cases.json). Exact original two counted byte sources and their whole source hashes; query and reached effects are separate purposes.
-- `original-runner` (provider): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/run.py](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/run.py). Exact actual CLI command/cwd/environment and original process/stream capture protocol; it is not a C/API compiler or dependency producer.
-- `original-results` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/results.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/results.json). Exact independently closed six process associations and twelve original public ROWs.
-- `independent-projection` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/interpretation.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/interpretation.json). Read-only exact receipt/stream/input rejoin and counted twelve-row projection; no additional native process or worker chronology.
-- `exact-provider-input-retention` (provider): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/provider-retention.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/provider-retention.json). Whole invoked ELF joins reuse independently verified canonical payloads by full hash; every captured Tcl-library .tcl input retains exact bytes by whole hash. Shared-library/build/header closure is unrecorded.
-- `tcl8.4-receipt-json` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/receipt.json). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.4-stdout` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/stdout](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/stdout). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.4-stderr` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/stderr](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20/stderr). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.5-receipt-json` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/receipt.json). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.5-stdout` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/stdout](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/stdout). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.5-stderr` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/stderr](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19/stderr). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.6-receipt-json` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/receipt.json). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.6-stdout` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/stdout](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/stdout). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl8.6-stderr` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/stderr](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18/stderr). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl9.0-receipt-json` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/receipt.json). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl9.0-stdout` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/stdout](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/stdout). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl9.0-stderr` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/stderr](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4/stderr). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl9.1-receipt-json` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/receipt.json). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl9.1-stdout` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/stdout](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/stdout). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `tcl9.1-stderr` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/stderr](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0/stderr). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `jim-receipt-json` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/receipt.json](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/receipt.json). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `jim-stdout` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/stdout](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/stdout). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-- `jim-stderr` (observation): [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/stderr](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim/stderr). Original closed process receipt/stream for these exact two inputs; no worker/header/source-authority inference.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/run.py"
-]
-```
-
-The runner requires a fresh output directory and the exact original absolute executable and Tcl-library paths. The retained original runner refuses to replace results.json. Full replay requires restoring every declared input from its exact payload, verifying whole hashes, and supplying a separate output root without altering the measured inputs. Compiler/configure/build, loaded shared-library state and complete environment reproducibility are unrecorded. Replaying creates new observations and never replaces these original receipts.
+- [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original)
+- [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.4.20)
+- [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.5.19)
+- [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/8.6.18)
+- [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.0.4)
+- [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/9.1.0)
+- [runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim](../../../../runtime/rust/tests/data/native_selected_grammar_complete_prefix_provider_execution_original/625/Jim)

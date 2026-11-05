@@ -20,55 +20,17 @@ Original Document and NativeValue images, complete LexerConfig and retained scan
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `c84-terms` (observation): [rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv). Retained native row 6 records the inner quote term 13; row 9 records the inner brace term 11. Provider observation belongs to naming.grammar.c84-parser-context-extents.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,21 +39,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lexer/src/parse_cut.rs](../../../../rust/tcl-lexer/src/parse_cut.rs), `first_parse_cut_image_checked`: Inspect the same original channel/config and publish separate reporting anchor and parser term.
 - [rust/tcl-lexer/src/parse_cut.rs](../../../../rust/tcl-lexer/src/parse_cut.rs), `parse_cut::tests::original_error_term_rebasing_preserves_native_bytes_and_inner_reference` (linked): Preserve outer reporting anchors and exact inner delimiter terms under complete selected C grammars, including opaque bytes, zero, braced variables, array indices and nested brackets.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-lexer",
-  "--lib",
-  "original_error_term_"
-]
-```
-
-Run from rust/. The implementation controls are not native guest executions; the original C8.4 evidence is replayed through its separate retained probe protocol.
+- [rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv)

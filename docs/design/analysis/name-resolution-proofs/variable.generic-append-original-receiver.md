@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-plain.tcl`: Exact original append-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-plain.stdout`: tcl8.4 append-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-plain.stderr`: tcl8.4 append-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-qualified.tcl`: Exact original append-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-qualified.stdout`: tcl8.4 append-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-qualified.stderr`: tcl8.4 append-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-index.tcl`: Exact original append-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-index.stdout`: tcl8.4 append-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-index.stderr`: tcl8.4 append-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-binary_nul.tcl`: Exact original append-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-binary_nul.stdout`: tcl8.4 append-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-binary_nul.stderr`: tcl8.4 append-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-decomposed.tcl`: Exact original append-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-decomposed.stdout`: tcl8.4 append-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-append-decomposed.stderr`: tcl8.4 append-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-plain.tcl`: Exact original append-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-plain.stdout`: tcl8.5 append-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-plain.stderr`: tcl8.5 append-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-qualified.tcl`: Exact original append-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-qualified.stdout`: tcl8.5 append-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-qualified.stderr`: tcl8.5 append-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-index.tcl`: Exact original append-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-index.stdout`: tcl8.5 append-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-index.stderr`: tcl8.5 append-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-binary_nul.tcl`: Exact original append-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-binary_nul.stdout`: tcl8.5 append-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-binary_nul.stderr`: tcl8.5 append-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-decomposed.tcl`: Exact original append-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-decomposed.stdout`: tcl8.5 append-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-append-decomposed.stderr`: tcl8.5 append-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-plain.tcl`: Exact original append-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-plain.stdout`: tcl8.6 append-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-plain.stderr`: tcl8.6 append-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-qualified.tcl`: Exact original append-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-qualified.stdout`: tcl8.6 append-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-qualified.stderr`: tcl8.6 append-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-index.tcl`: Exact original append-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-index.stdout`: tcl8.6 append-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-index.stderr`: tcl8.6 append-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-binary_nul.tcl`: Exact original append-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-binary_nul.stdout`: tcl8.6 append-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-binary_nul.stderr`: tcl8.6 append-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-decomposed.tcl`: Exact original append-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-decomposed.stdout`: tcl8.6 append-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-append-decomposed.stderr`: tcl8.6 append-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-plain.tcl`: Exact original append-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-plain.stdout`: tcl9.0 append-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-plain.stderr`: tcl9.0 append-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-qualified.tcl`: Exact original append-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-qualified.stdout`: tcl9.0 append-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-qualified.stderr`: tcl9.0 append-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-index.tcl`: Exact original append-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-index.stdout`: tcl9.0 append-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-index.stderr`: tcl9.0 append-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-binary_nul.tcl`: Exact original append-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-binary_nul.stdout`: tcl9.0 append-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-binary_nul.stderr`: tcl9.0 append-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-decomposed.tcl`: Exact original append-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-decomposed.stdout`: tcl9.0 append-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-append-decomposed.stderr`: tcl9.0 append-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-plain.tcl`: Exact original append-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-plain.stdout`: tcl9.1 append-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-plain.stderr`: tcl9.1 append-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-qualified.tcl`: Exact original append-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-qualified.stdout`: tcl9.1 append-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-qualified.stderr`: tcl9.1 append-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-index.tcl`: Exact original append-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-index.stdout`: tcl9.1 append-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-index.stderr`: tcl9.1 append-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-binary_nul.tcl`: Exact original append-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-binary_nul.stdout`: tcl9.1 append-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-binary_nul.stderr`: tcl9.1 append-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-decomposed.tcl`: Exact original append-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-decomposed.stdout`: tcl9.1 append-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-append-decomposed.stderr`: tcl9.1 append-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-plain.tcl`: Exact original append-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-plain.stdout`: jim append-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-plain.stderr`: jim append-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-qualified.tcl`: Exact original append-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-qualified.stdout`: jim append-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-qualified.stderr`: jim append-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-index.tcl`: Exact original append-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-index.stdout`: jim append-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-index.stderr`: jim append-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-binary_nul.tcl`: Exact original append-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-binary_nul.stdout`: jim append-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-binary_nul.stderr`: jim append-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-decomposed.tcl`: Exact original append-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-decomposed.stdout`: jim append-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-append-decomposed.stderr`: jim append-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/append-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

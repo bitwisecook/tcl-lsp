@@ -20,55 +20,11 @@ One authored Rust allocation/receiver selector with two counted scalar/element f
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_jim_lookup.rs](../../../../runtime/rust/src/interp/native_jim_lookup.rs), `Interp::assign_original_named_variable`: Retain complete original bytes and the independently selected observed entered-frame receiver before Jim cache fallback; preserve result-publication distinction.
 - [runtime/rust/src/interp/native_jim_lookup.rs](../../../../runtime/rust/src/interp/native_jim_lookup.rs), `Interp::store_original_named_variable`: Retain complete original bytes and the independently selected observed entered-frame receiver before Jim cache fallback; preserve result-publication distinction.
 - [runtime/rust/src/interp/execution_name_policy.rs](../../../../runtime/rust/src/interp/execution_name_policy.rs), `interp::execution_name_policy::tests::original_object_assignments_use_the_current_observed_receiver` (linked): A genuine authored Rust event frame keeps scalar/element counted names separate from prefix values. Assignment leaves the current result unchanged, store publishes the supplied value, reads retain actual Rust object identity, and the retired frame refuses. No native private layout is measured.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named selector binds internal Rust receiver/purpose coverage. Native and BIG-IP results remain independent; no successful assertion execution is claimed here.

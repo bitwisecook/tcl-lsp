@@ -1,3 +1,0 @@
-/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl:45: Error: invalid command name "trace"
-Traceback (most recent call last):
-  File "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl", line 45

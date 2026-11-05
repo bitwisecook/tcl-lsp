@@ -20,84 +20,23 @@ One exact ASCII composition per provider, fresh process and queried patchlevel. 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Fresh configured provider linked by exact header/library/executable hashes in original receipts; info patchlevel queried in each process.. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script.. Dialect: tcl8.4.
-
-global-scope: guest code 0, 12 bytes b'LOCAL GLOBAL'
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Fresh configured provider linked by exact header/library/executable hashes in original receipts; info patchlevel queried in each process.. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script.. Dialect: tcl8.5.
-
-global-scope: guest code 0, 12 bytes b'LOCAL GLOBAL'
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Fresh configured provider linked by exact header/library/executable hashes in original receipts; info patchlevel queried in each process.. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script.. Dialect: tcl8.6.
-
-global-scope: guest code 0, 12 bytes b'LOCAL GLOBAL'
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Fresh configured provider linked by exact header/library/executable hashes in original receipts; info patchlevel queried in each process.. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script.. Dialect: tcl9.0.
-
-global-scope: guest code 0, 12 bytes b'LOCAL GLOBAL'
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Fresh configured provider linked by exact header/library/executable hashes in original receipts; info patchlevel queried in each process.. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script.. Dialect: tcl9.1.
+Status: `observed`. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 global-scope: guest code 0, 12 bytes b'LOCAL GLOBAL'
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Fresh configured provider linked by exact header/library/executable hashes in original receipts; info patchlevel queried in each process.. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script.. Dialect: jim.
+Status: `observed`. Channel: ASCII NUL-terminated C source literals; Tcl_EvalEx length -1/TCL_EVAL_DIRECT or Jim_Eval; counted public result getter after whole script. Version: jim 0.84-9-g5bac7c9.
 
 global-scope: guest code 1, 32 bytes b'can\'t read "x": no such variable'
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No attached build.. Channel: Not exercised.. Dialect: bigip.
+Status: `not-tested`. Channel: Not exercised.
 
 No BIG-IP provider was launched or inspected for these controls.
-
-## Historical references
-
-- `e5eac3f8f7f00c774be23` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.4.20/global-scope.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.4.20/global-scope.json). Exact fresh-case outside process status, queried version and counted public result rows.
-- `e53af814a8cb5945dbb1b` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.4.20/global-scope.stdout.tsv](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.4.20/global-scope.stdout.tsv). Immutable original version/result stream; explicit byte count checked against hex.
-- `e8a81de9521dbb6ff4770` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.4.20/global-scope.stderr](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.4.20/global-scope.stderr). Immutable fresh-case stderr.
-- `ee448b8e66d0951a9e5d1` (provider): [rust/tcl-registry/tests/data/native_vwait_original/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.4.20/receipt.json). Exact compiler, matching header/library/executable hashes, compile command and process attempts.
-- `ed04d07a1274fc2b1a4b2` (input): [rust/tcl-registry/tests/data/native_vwait_original/probe.c](../../../../rust/tcl-registry/tests/data/native_vwait_original/probe.c). Exact original source/queue/harness; no new capture or repaired source. Derived inputs are definitions only.
-- `ef0a2c0be217aa0bff877` (input): [rust/tcl-registry/tests/data/native_vwait_original/inputs.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/inputs.json). Exact original source/queue/harness; no new capture or repaired source. Derived inputs are definitions only.
-- `ee268c728a516f27332ef` (provider): [rust/tcl-registry/tests/data/native_vwait_original/capture.py](../../../../rust/tcl-registry/tests/data/native_vwait_original/capture.py). Exact original source/queue/harness; no new capture or repaired source. Derived inputs are definitions only.
-- `e270df4a56a72c8a2c89e` (provider): [rust/tcl-registry/tests/data/native_vwait_original/queue.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/queue.json). Exact original source/queue/harness; no new capture or repaired source. Derived inputs are definitions only.
-- `e80ed02f79ca4ef3a29b1` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.5.19/global-scope.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.5.19/global-scope.json). Exact fresh-case outside process status, queried version and counted public result rows.
-- `eddeb420534d15ec8781b` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.5.19/global-scope.stdout.tsv](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.5.19/global-scope.stdout.tsv). Immutable original version/result stream; explicit byte count checked against hex.
-- `e4ed693f653dca0030432` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.5.19/global-scope.stderr](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.5.19/global-scope.stderr). Immutable fresh-case stderr.
-- `ea4649d4dd03aa4036a6f` (provider): [rust/tcl-registry/tests/data/native_vwait_original/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.5.19/receipt.json). Exact compiler, matching header/library/executable hashes, compile command and process attempts.
-- `e6796c85ecbb96a86138c` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.6.18/global-scope.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.6.18/global-scope.json). Exact fresh-case outside process status, queried version and counted public result rows.
-- `ed6c3444755e56fbecda1` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.6.18/global-scope.stdout.tsv](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.6.18/global-scope.stdout.tsv). Immutable original version/result stream; explicit byte count checked against hex.
-- `ec8fc9b292fcf43e62ff0` (observation): [rust/tcl-registry/tests/data/native_vwait_original/8.6.18/global-scope.stderr](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.6.18/global-scope.stderr). Immutable fresh-case stderr.
-- `e59663020753e1d549bd1` (provider): [rust/tcl-registry/tests/data/native_vwait_original/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.6.18/receipt.json). Exact compiler, matching header/library/executable hashes, compile command and process attempts.
-- `e32a0747aa6834597844b` (observation): [rust/tcl-registry/tests/data/native_vwait_original/9.0.4/global-scope.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.0.4/global-scope.json). Exact fresh-case outside process status, queried version and counted public result rows.
-- `e0b23695df629da94c08c` (observation): [rust/tcl-registry/tests/data/native_vwait_original/9.0.4/global-scope.stdout.tsv](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.0.4/global-scope.stdout.tsv). Immutable original version/result stream; explicit byte count checked against hex.
-- `e81cce8764937a7109770` (observation): [rust/tcl-registry/tests/data/native_vwait_original/9.0.4/global-scope.stderr](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.0.4/global-scope.stderr). Immutable fresh-case stderr.
-- `ef1450973f13447d981ba` (provider): [rust/tcl-registry/tests/data/native_vwait_original/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.0.4/receipt.json). Exact compiler, matching header/library/executable hashes, compile command and process attempts.
-- `ed6f3ad37225bfb752076` (observation): [rust/tcl-registry/tests/data/native_vwait_original/9.1.0/global-scope.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.1.0/global-scope.json). Exact fresh-case outside process status, queried version and counted public result rows.
-- `e2a42f8edf8ba87798791` (observation): [rust/tcl-registry/tests/data/native_vwait_original/9.1.0/global-scope.stdout.tsv](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.1.0/global-scope.stdout.tsv). Immutable original version/result stream; explicit byte count checked against hex.
-- `e532c85b97305be4b30f6` (observation): [rust/tcl-registry/tests/data/native_vwait_original/9.1.0/global-scope.stderr](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.1.0/global-scope.stderr). Immutable fresh-case stderr.
-- `e966e06b74b40b0e83972` (provider): [rust/tcl-registry/tests/data/native_vwait_original/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.1.0/receipt.json). Exact compiler, matching header/library/executable hashes, compile command and process attempts.
-- `eeb5b2ce89f8999cf004d` (observation): [rust/tcl-registry/tests/data/native_vwait_original/jim/global-scope.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/jim/global-scope.json). Exact fresh-case outside process status, queried version and counted public result rows.
-- `e3d92222d64f09c639d45` (observation): [rust/tcl-registry/tests/data/native_vwait_original/jim/global-scope.stdout.tsv](../../../../rust/tcl-registry/tests/data/native_vwait_original/jim/global-scope.stdout.tsv). Immutable original version/result stream; explicit byte count checked against hex.
-- `e1c764209686a8a1979a4` (observation): [rust/tcl-registry/tests/data/native_vwait_original/jim/global-scope.stderr](../../../../rust/tcl-registry/tests/data/native_vwait_original/jim/global-scope.stderr). Immutable fresh-case stderr.
-- `e4ee339a7a62e6661e884` (provider): [rust/tcl-registry/tests/data/native_vwait_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_vwait_original/jim/receipt.json). Exact compiler, matching header/library/executable hashes, compile command and process attempts.
-- `e98d4bc726037374525cd` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclEvent.c). Pinned source inspection from prior Event source archive; not a new compiled-worker execution.
-- `ebcd14ee056c41f642dc1` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclEvent.c). Pinned source inspection from prior Event source archive; not a new compiled-worker execution.
-- `e1799f8f23cd143629768` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclEvent.c). Pinned source inspection from prior Event source archive; not a new compiled-worker execution.
-- `e30bb9be41c1824d28e5d` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclEvent.c). Pinned source inspection from prior Event source archive; not a new compiled-worker execution.
-- `eaa5f919dc246958bc5d1` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclEvent.c). Pinned source inspection from prior Event source archive; not a new compiled-worker execution.
-- `e4521e47b782c5165c471` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c). Pinned source inspection from prior Event source archive; not a new compiled-worker execution.
 
 ## Source inspection
 
@@ -1103,13 +1042,16 @@ static int JimELVwaitCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 }
 ```
 
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No native/Rust launch is performed by this record. Original immutable receipt commands/probe/queue/harness hashes remain available; original capture directory must not be overwritten. Source windows remain independent inspected Event source evidence.
+- [rust/tcl-registry/tests/data/native_vwait_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.4.20)
+- [rust/tcl-registry/tests/data/native_vwait_original](../../../../rust/tcl-registry/tests/data/native_vwait_original)
+- [rust/tcl-registry/tests/data/native_vwait_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.5.19)
+- [rust/tcl-registry/tests/data/native_vwait_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_vwait_original/8.6.18)
+- [rust/tcl-registry/tests/data/native_vwait_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.0.4)
+- [rust/tcl-registry/tests/data/native_vwait_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_vwait_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_vwait_original/jim](../../../../rust/tcl-registry/tests/data/native_vwait_original/jim)

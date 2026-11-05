@@ -20,63 +20,23 @@ Pinned Jim original object rows/refetch.tsv and build/source digests in refetch-
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
 
 ### jim
 
-Status: `observed`. Version: not recorded by the refetch observer. Build: probe; linked libjim.a. Channel: original host object probe; original source bytes unavailable. Dialect: Jim Tcl.
+Status: `observed`. Channel: original host object probe; original source bytes unavailable.
 
 The twelve retained rows include three BEFORE/AFTER_SHIMMER/AFTER_SWITCH/RESULT groups. The old body remains live under a host lease while a distinct refetched object is selected on success (MATCH), guest Error (FAILED) and noninteger OK (empty result). These are retained object-window observations; the absent original probe source prevents independent replay and does not establish arbitrary callback semantics.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-## Historical references
-
-- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-8` (observation): [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Original producer code/inputs and captured invocation metadata are pinned above. Restore the exact named provider build and run the original probe with its matching public/private headers and library, preserving its observer order and the60-second/two-slot limits. Recorded absolute executable/output paths are metadata, not usable current paths. Original host probes absent from a corpus remain unreplayable; no source is reconstructed from a digest. Maintained source-only replay instructions are supplied separately where available.
+- [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch-manifest.json)
+- [rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv](../../../../rust/tcl-cmd-core/tests/data/native_jim_switch/refetch.tsv)

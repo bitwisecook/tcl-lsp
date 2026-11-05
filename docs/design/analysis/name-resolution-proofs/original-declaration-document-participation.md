@@ -20,55 +20,11 @@ Rust server document participation and readonly source inventory contract. A fix
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Shared participant collector and fixed mixed-workspace assertion source; no Rust or native execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,8 +32,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `original_declaration_documents`: Gather complete current relevant document owners; exclude unrelated surfaces before Tcl analysis and preserve unknown relevant provider refusal.
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal` (linked): Mixed JS/BIG-IP/APL buffers do not erase or duplicate two exact Tcl implementation owners; an unknown relevant Tcl source refuses the whole collector and known Native/logical dialects retain independent participation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The fixed Rust selector is a source contract binding. No native interpreter executes this server participation query; test execution is recorded separately.
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)

@@ -20,57 +20,17 @@ Only the exact retained Jim direct-worker/object probe and selected case windows
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
 ### jim
 
-Status: `observed`. Version: Jim0.84 (patch/revision not queried). Build: Original libjim.a; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.
 
 Original selected native attempts: [{"case":1,"exit":0,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\ncache\t1\nafter\tregexp\t0\t1\n","stderr":""},{"case":2,"exit":-11,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\n","stderr":""},{"case":3,"exit":-6,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\nduplicate\tregexp\t1\t1\ncache\t1\n","stderr":"free(): double free detected in tcache 2\n"},{"case":8,"exit":-11,"stdout":"pattern\tregexp\t1\t1\ncompile\t1\n","stderr":""}]. Process status is independent of printed command return and object rows.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-## Historical references
-
-- `original-capture` (provider): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). Original source/library/header/build context and every process status/stream, including incomplete attempts.
-- `original-probe` (input): [runtime/rust/tests/data/native_regexp_jim/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim/probe.c). Exact direct Jim worker invocation, object construction and physical reporting order.
-- `jim-case-1` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/1`. Exact original process status and raw output/error of this case.
-- `jim-case-2` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/2`. Exact original process status and raw output/error of this case.
-- `jim-case-3` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/3`. Exact original process status and raw output/error of this case.
-- `jim-case-8` (observation): [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json). JSON pointer `/captures/8`. Exact original process status and raw output/error of this case.
-- `exact-source-0` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). JSON pointer `/0/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
 
 ## Source inspection
 
@@ -135,14 +95,12 @@ static regex_t *SetRegexpFromAny(Jim_Interp *interp, Jim_Obj *objPtr, unsigned f
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_regex.rs](../../../../runtime/rust/src/cmd_regex.rs), `regexp_cmd`: Separate Rust regex consumer; these physical native rows provide no executed Rust or object-manufacturer grant.
 - [runtime/rust/src/cmd_regex.rs](../../../../runtime/rust/src/cmd_regex.rs), `cmd_regex::tests::jim_original_regexp_cache_ranges_and_unsafe_lifecycles_match_native_controls` (linked): Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun.
+- [runtime/rust/tests/data/native_regexp_jim/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim/manifest.json)
+- [runtime/rust/tests/data/native_regexp_jim/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim/probe.c)

@@ -20,55 +20,11 @@ Two marked Rust ownership controls retain complete original source roles, values
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original channel-role/value/word and typed diagnostic ownership contract supplies no native channel execution or existence observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,9 +40,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `DeclaredPurposeDescription`: Preserve declared channel purpose with existing immutable contract provenance and obligations.
 - [rust/tcl-compiler/src/analyser/diagnostics/original_roles.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/original_roles.rs), `analyser::diagnostics::original_roles::tests::original_channel_roles_keep_values_words_and_declaration_owners` (linked): Six C/Jim source contexts retain literal-dollar whole words and selected scalar parts separately, refuse unknown optional-selector layout and builtin shadow, and accept only the canonical block-framed declared Channel role while rejecting its orphan form.
 - [rust/tcl-compiler/src/analyser/diagnostics/original_roles.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/original_roles.rs), `analyser::diagnostics::original_roles::tests::original_channel_diagnostics_preserve_typed_anchor_and_shadow_controls` (linked): C8.6 stock and moved source heads retain exact whole-word W126 anchors and typed ChannelArgument for bare/braced/literal-dollar words; standard-channel literals, message-only layout, captured alias prefix and known proc shadow receive no nominal warning.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-These selectors bind source ownership and typed diagnostic implementation coverage. Actual outcomes require exact independently retained Rust source/executable receipts; no native process or channel-existence observation is attached.

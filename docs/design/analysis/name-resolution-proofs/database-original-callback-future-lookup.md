@@ -20,55 +20,11 @@ Current database implementation contract. The refusal regression obtains a genui
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native provider was invoked for this Rust callback-consumer contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No native provider was invoked for this Rust callback-consumer contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native provider was invoked for this Rust callback-consumer contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native provider was invoked for this Rust callback-consumer contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native provider was invoked for this Rust callback-consumer contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native provider was invoked for this Rust callback-consumer contract.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native provider was invoked for this Rust callback-consumer contract.
-
-## Historical references
-
-- `database-callback-consumer` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). Inspected original callback lookup refusal, per-slot original arity demand, shared exact/range calculation and the dedicated missing-purpose regression.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,8 +33,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs), `SourceCallbackAritySubject::from_selected_signatures`: Compose exact finite or at-least callback counts from the retained prefix, baked/captured arguments and selected current declaration signatures, then classify mismatch before presentation.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::original_callback_missing_future_lookup_declines_reporting_candidates` (linked): A genuine original cb invocation with its direct lookup and reporting reference removed has no compatibility candidate keys. Appended Exactly(2) metadata and a same-name zero-formal project declaration cannot manufacture a project callback arity diagnostic; no positive callback registration/target lookup is supplied.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust control retains its independently recorded exact-source outcome. Current implementation evidence must match its file digest. An OriginalLookup owner and independently selected callback-role descriptor remain separate requirements; source callback arithmetic supplies no native callback execution or provider observation.
+- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs)

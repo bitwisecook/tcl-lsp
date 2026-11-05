@@ -20,58 +20,11 @@ Four deterministic VM software controls define entry pack/manifest admission, ac
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: f5-bigip.
-
-No external provider execution answers this software implementation contract. The authentic C8.6 VM fixture supplies object/result storage only; it is not evidence of Tcl provider, handler, compiler, frame or command-table behavior.
-
-## Historical references
-
-- `naming-compiler-active-manifest-revalidation-rust-tcl-runtime-api-src-manifest.rs` (implementation): [rust/tcl-runtime-api/src/manifest.rs](../../../../rust/tcl-runtime-api/src/manifest.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
-- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-interp.rs` (implementation): [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
-- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-exec.rs` (implementation): [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
-- `naming-compiler-active-manifest-revalidation-rust-tcl-vm-src-exec-active_manifest_tests.rs` (implementation): [rust/tcl-vm/src/exec/active_manifest_tests.rs](../../../../rust/tcl-vm/src/exec/active_manifest_tests.rs). Current shared software gate or authored control definition; no executed Rust assertion or external Native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +40,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/exec/active_manifest_tests.rs](../../../../rust/tcl-vm/src/exec/active_manifest_tests.rs), `exec::active_manifest_tests::stale_pack_command_boundary_does_not_acknowledge_the_changed_epoch` (linked): Software command-boundary control retains the stale activation epoch and program counter when exact-source replay lacks a compile service; changed pack facts cannot be acknowledged by executing the stale pack-specialised instruction. No external Tcl instruction or completion equivalence is asserted.
 - [rust/tcl-vm/src/exec/active_manifest_tests.rs](../../../../rust/tcl-vm/src/exec/active_manifest_tests.rs), `exec::active_manifest_tests::refused_overlay_pin_preserves_the_active_artifact_identity` (linked): Software pinning control keeps the actual context, held artifact identity and command epoch unchanged after an OverlayMiss refusal; retained active claims continue to match that unchanged software state. It establishes no Native overlay installation, handler or physical frame identity.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named software controls are linked to current source bodies, not executed-result claims. Library compilation and no-run test-build receipts retain independent scopes; they supply no external provider outcome or proof of these assertions.
+- [rust/tcl-runtime-api/src/manifest.rs](../../../../rust/tcl-runtime-api/src/manifest.rs)
+- [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs)
+- [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs)
+- [rust/tcl-vm/src/exec/active_manifest_tests.rs](../../../../rust/tcl-vm/src/exec/active_manifest_tests.rs)

@@ -54,7 +54,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The measured Jim helper links the padded empty local name in namespace n so the target value is VALUE, ignores the namespaced LOCAL shadow, and later forwards through replaced root upvar as FORWARD 0 ::missing::a {}. This helper-specific original argument/frame result grants no stock C behaviour or lasting worker identity.
@@ -67,14 +66,6 @@ One exact ASCII Jim script and captured result. Current-label Jim binary path is
 
 - `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding-manifest.json`: Exact original native provenance/captured observations.
 - `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/jim-forwarding.tcl`: Retained exact script/case bytes for the stated question.
-
-## Replay
-
-```sh
-
-```
-
-The retained Jim input ends with a list expression, while the capture includes a catch-code/result presenter whose wrapper is not retained. Directly running the file is not an equivalent replay. In a fresh recorded Jim build, execute the exact retained input through an explicit catch presenter and compare its complete code/result with the original manifest. No original executable replay wrapper or fresh rerun is claimed.
 
 ## Rust comparison
 

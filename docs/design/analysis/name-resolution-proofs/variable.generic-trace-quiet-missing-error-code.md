@@ -54,7 +54,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The retained transcripts answer only quiet missing original-name read and error-code preservation with the exact legacy/modern syntax and reporter sequence. Tcl 9 legacy trace rejection and current Jim trace absence remain actual guest outcomes; the modern C rows independently reach callbacks. Receiver continuity, reported callback names, error code and later stored value are separate fields, with no general callback, compiler or normal-read grant.
@@ -62,42 +61,6 @@ The retained transcripts answer only quiet missing original-name read and error-
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl`: Exact original quiet-missing-error-code script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-missing-error-code.stdout`: tcl8.4 quiet-missing-error-code original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-quiet-missing-error-code.stderr`: tcl8.4 quiet-missing-error-code original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl`: Exact original quiet-missing-error-code script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-missing-error-code.stdout`: tcl8.5 quiet-missing-error-code original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-quiet-missing-error-code.stderr`: tcl8.5 quiet-missing-error-code original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl`: Exact original quiet-missing-error-code script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-missing-error-code.stdout`: tcl8.6 quiet-missing-error-code original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-quiet-missing-error-code.stderr`: tcl8.6 quiet-missing-error-code original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl`: Exact original quiet-missing-error-code script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-missing-error-code.stdout`: tcl9.0 quiet-missing-error-code original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-quiet-missing-error-code.stderr`: tcl9.0 quiet-missing-error-code original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl`: Exact original quiet-missing-error-code script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-missing-error-code.stdout`: tcl9.1 quiet-missing-error-code original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-quiet-missing-error-code.stderr`: tcl9.1 quiet-missing-error-code original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl`: Exact original quiet-missing-error-code script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-missing-error-code.stdout`: jim quiet-missing-error-code original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-quiet-missing-error-code.stderr`: jim quiet-missing-error-code original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-quiet-missing-error-code.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

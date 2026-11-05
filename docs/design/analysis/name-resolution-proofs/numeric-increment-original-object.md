@@ -20,15 +20,15 @@ The exact probe constructs sixteen independent original String/Double/Wide/Boole
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage. Version: tcl8.5 8.5.19 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -55,7 +55,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage. Version: tcl8.6 8.6.18 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -80,36 +80,9 @@ Exact relevant original rows:
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-{"shape":0,"stage":2,"before_type":"none","before_resident":1,"before_length":1,"code":0,"number_type":-1,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"32"}
-{"shape":1,"stage":2,"before_type":"none","before_resident":1,"before_length":3,"code":1,"number_type":-1,"after_type":"double","after_resident":1,"after_length":3,"result":"657870656374656420696e74656765722062757420676f742022312e3522","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c554520494e54454745527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f742022312e35227d202d6572726f726c696e652031","object_after_window":"312e35"}
-{"shape":2,"stage":2,"before_type":"none","before_resident":1,"before_length":3,"code":1,"number_type":-1,"after_type":"double","after_resident":1,"after_length":3,"result":"657870656374656420696e74656765722062757420676f7420224e614e22","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c554520494e54454745527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f7420224e614e227d202d6572726f726c696e652031","object_after_window":"4e614e"}
-{"shape":3,"stage":2,"before_type":"none","before_resident":1,"before_length":2,"code":0,"number_type":-1,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"39"}
-{"shape":4,"stage":2,"before_type":"none","before_resident":1,"before_length":24,"code":0,"number_type":-1,"after_type":"bignum","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303031"}
-{"shape":5,"stage":2,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"657870656374656420696e74656765722062757420676f7420227472756522","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c5545204e554d4245527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f74202274727565227d202d6572726f726c696e652031","object_after_window":"74727565"}
-{"shape":6,"stage":2,"before_type":"none","before_resident":1,"before_length":0,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":0,"result":"657870656374656420696e74656765722062757420676f74202222","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c5545204e554d4245527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f742022227d202d6572726f726c696e652031","object_after_window":""}
-{"shape":7,"stage":2,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":-1,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"33"}
-{"shape":8,"stage":2,"before_type":"none","before_resident":1,"before_length":3,"code":0,"number_type":-1,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"32"}
-{"shape":9,"stage":2,"before_type":"none","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"none","after_resident":1,"after_length":4,"result":"657870656374656420696e74656765722062757420676f74202231c0807822","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c5545204e554d4245527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f74202231c08078227d202d6572726f726c696e652031","object_after_window":"31c08078"}
-{"shape":10,"stage":2,"before_type":"double","before_resident":0,"before_length":-1,"code":1,"number_type":-1,"after_type":"double","after_resident":1,"after_length":3,"result":"657870656374656420696e74656765722062757420676f742022312e3522","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c554520494e54454745527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f742022312e35227d202d6572726f726c696e652031","object_after_window":"312e35"}
-{"shape":11,"stage":2,"before_type":"double","before_resident":1,"before_length":3,"code":1,"number_type":-1,"after_type":"double","after_resident":1,"after_length":3,"result":"657870656374656420696e74656765722062757420676f7420224e614e22","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c554520494e54454745527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f7420224e614e227d202d6572726f726c696e652031","object_after_window":"4e614e"}
-{"shape":12,"stage":2,"before_type":"int","before_resident":0,"before_length":-1,"code":0,"number_type":-1,"after_type":"int","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"38"}
-{"shape":13,"stage":2,"before_type":"boolean","before_resident":1,"before_length":4,"code":1,"number_type":-1,"after_type":"boolean","after_resident":1,"after_length":4,"result":"657870656374656420696e74656765722062757420676f7420227472756522","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b54434c2056414c5545204e554d4245527d202d6572726f72696e666f207b657870656374656420696e74656765722062757420676f74202274727565227d202d6572726f726c696e652031","object_after_window":"74727565"}
-{"shape":14,"stage":2,"before_type":"bignum","before_resident":1,"before_length":24,"code":0,"number_type":-1,"after_type":"bignum","after_resident":0,"after_length":-1,"result":"53454544","options":"2d636f64652030202d6c6576656c2030202d6572726f72636f64652053454e54494e454c","object_after_window":"313834343637343430373337303935353136313630303031"}
-{"shape":15,"stage":2,"before_type":"bignum","before_resident":1,"before_length":0,"code":1,"number_type":-1,"after_type":"bignum","after_resident":1,"after_length":0,"result":"696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74","options":"2d636f64652031202d6c6576656c2030202d6572726f72737461636b207b7d202d6572726f72636f6465207b415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d7d202d6572726f72696e666f207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d202d6572726f726c696e652031","object_after_window":""}
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct original Number NULL-interpreter/GetBignum interpreter/private TclIncrObj API, according to selected stage. Version: tcl9.0 9.0.4 (capture association; launched patchlevel/revision unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -133,33 +106,6 @@ Exact relevant original rows:
 ```
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl). Original retained full stream; provider answer selects only this question's relevant windows.
-- `compiled-out-tcl8.4` (limitation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl). Explicit compile-out sentinel; no guest API attempt was made.
-- `compiled-out-jim` (limitation): [rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl). Explicit compile-out sentinel; no guest API attempt was made.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -167,8 +113,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/native_number_tests.rs](../../../../runtime/rust/src/native_number_tests.rs), `native_number_tests::tests::original_number_bignum_and_increment_match_all_192_native_windows` (linked): Compares the independently selected original stage under each retained C8.5–9.1 header/result window; backend withdrawal is additional Rust obligation.
 - [rust/tcl-vm/src/native_number_tests.rs](../../../../rust/tcl-vm/src/native_number_tests.rs), `native_number_tests::original_number_bignum_and_increment_match_all_192_native_windows` (linked): Compares the independently selected original stage under each retained C8.5–9.1 header/result window; backend withdrawal is additional Rust obligation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/probe.c)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/manifest.json)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.5.19.jsonl)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.6.18.jsonl)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.0.4.jsonl)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/9.1.0.jsonl)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/8.4.20.jsonl)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/number/Jim.jsonl)

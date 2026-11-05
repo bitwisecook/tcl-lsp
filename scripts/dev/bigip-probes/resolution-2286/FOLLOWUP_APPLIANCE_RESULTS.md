@@ -35,18 +35,18 @@ Main Package
   FIPS Module  Cryptographic Module for BIG-IP
 ```
 
-The complete version, failover, TMM process and redacted platform evidence is retained in [appliance evidence](evidence/r2286_20261006m/appliance/raw/version.txt), [failover evidence](evidence/r2286_20261006m/appliance/raw/failover.txt), [TMM process evidence](evidence/r2286_20261006m/appliance/raw/tmm-processes.txt) and [platform summary](evidence/r2286_20261006m/appliance/platform-summary.txt).
+The complete version, failover, TMM process and redacted platform evidence is retained in appliance evidence, failover evidence, TMM process evidence and platform summary.
 
-Every one of the 59 HTTP traffic phases completed without a transport error. Every non-backend phase returned one byte-identical response body across all requests and reached each actual TMM pair exactly 32 times in 128 fresh connections. This is direct response-header coverage, not an inference from CMP configuration or request count. The machine-readable counts and decoded response bytes are in [decoded-results.json](evidence/r2286_20261006m/decoded-results.json).
+Every one of the 59 HTTP traffic phases completed without a transport error. Every non-backend phase returned one byte-identical response body across all requests and reached each actual TMM pair exactly 32 times in 128 fresh connections. This is direct response-header coverage, not an inference from CMP configuration or request count. The machine-readable counts and decoded response bytes are in `decoded-results.json`.
 
-The backend received all 128 initial requests at `192.0.2.201:18100` with peer address `192.0.2.10`, the BIG-IP self address. The client connected to the VIP at `192.0.2.10:18101` and received the backend response through that VIP. This proves the tested path used SNAT automap and had a working return path. See [backend observations](evidence/r2286_20261006m/dev/backend.log) and [raw client responses](evidence/r2286_20261006m/dev/traffic/backend-initial.jsonl).
+The backend received all 128 initial requests at `192.0.2.201:18100` with peer address `192.0.2.10`, the BIG-IP self address. The client connected to the VIP at `192.0.2.10:18101` and received the backend response through that VIP. This proves the tested path used SNAT automap and had a working return path. See backend observations and raw client responses.
 
 ## Source and byte identity
 
 Run `r2286m` used ASCII, LF-only, NUL-free payload files. Each iRule wrapper transported the exact payload bytes as hexadecimal and dynamically evaluated the reconstructed value. This keeps runtime parsing distinct from literal configuration-source acceptance. The v5 bundle supplied the principal cases; v6 reproduced every pre-existing payload and wrapper byte-for-byte and added the separately named fresh-owner lifetime controls.
 
 The retained source and wrapper files are under
-[fixtures](evidence/r2286_20261006m/fixtures/).
+fixtures.
 
 ## Name-identity result matrix
 
@@ -77,7 +77,7 @@ All listed wrappers loaded successfully and returned outer catch status 0 on all
 
 The NUL-bearing scalar had length 29 versus 27 for its plain control. The array-root variable references had lengths 38 versus 36, and the NUL-bearing index had length 3 versus 1. In every case the names could coexist, be read independently, be targeted by `upvar`, and be unset independently. This is a counterexample to C-string truncation or name canonicalisation at the embedded NUL.
 
-Variable traces accepted dynamically and fired on every actual TMM. For the index case, callbacks received the ASCII root unchanged and index hex `41` or `410042`, including the NUL. For the root case, callbacks received the full root hex with or without `0042` and index `6b`; the `upvar` write callback reported root name hex `616c696173` (`alias`) while mutating the linked counted array. The raw log contains 3,200 `R2286TRACE` rows and preserves the operation letters and TMM identities in [ltm-raw.log](evidence/r2286_20261006m/appliance/raw/ltm-raw.log).
+Variable traces accepted dynamically and fired on every actual TMM. For the index case, callbacks received the ASCII root unchanged and index hex `41` or `410042`, including the NUL. For the root case, callbacks received the full root hex with or without `0042` and index `6b`; the `upvar` write callback reported root name hex `616c696173` (`alias`) while mutating the linked counted array. The raw log contains 3,200 `R2286TRACE` rows and preserves the operation letters and TMM identities in `ltm-raw.log`.
 
 ### Unicode producer identity and lexical resolution
 
@@ -105,7 +105,7 @@ The exact 387-byte expression payload ran in an `HTTP_REQUEST` iRule, a tmsh CLI
 
 For these discriminators, bare `matches` is whole-string glob matching: `a*` matches `abcd`, while `a.*` and `bc` do not. The earlier equality/non-substring pair alone was insufficient to distinguish equality from glob behavior. `not` binds to the following operand before `starts_with` unless parentheses group the string predicate.
 
-The non-TMM fixtures loaded without error, the tmsh script emitted directly, the iApp emitted from its implementation action, and the iCall emitted from a triggered handler in `scriptd`. Raw outputs are [tmsh](evidence/r2286_20261006m/appliance/raw/contexts/cli-run.txt) and [iApp/iCall](evidence/r2286_20261006m/appliance/raw/contexts/scriptd-results.txt). iApp presentation/APL Tcl was not tested and must not inherit the implementation result.
+The non-TMM fixtures loaded without error, the tmsh script emitted directly, the iApp emitted from its implementation action, and the iCall emitted from a triggered handler in `scriptd`. Raw outputs are tmsh and `iApp/iCall`. iApp presentation/APL Tcl was not tested and must not inherit the implementation result.
 
 ## Activated procedure lifetime
 
@@ -147,7 +147,7 @@ No documented, bounded, event-valid mechanism was available to suspend execution
 
 ## Loader observations
 
-- All 18 hexadecimal-transport iRule wrappers, the backend rule and all repaired lifetime controls loaded. Loader output and the resulting exact object configurations are retained under [load evidence](evidence/r2286_20261006m/appliance/raw/load/).
+- All 18 hexadecimal-transport iRule wrappers, the backend rule and all repaired lifetime controls loaded. Loader output and the resulting exact object configurations are retained under load evidence.
 - The two exact literal provider bodies were rejected solely for literal `namespace current`; the dynamic repairs are distinct sources.
 - Both invalid replacement bodies were rejected with `parse error: missing close-bracket`. Runtime traffic proved the prior callable remained active.
 - The name payloads contain no literal NUL or non-ASCII byte in configuration source. These cases measure dynamic runtime values only and do not broaden the literal loader results in `BIGIP_RESULTS.md`.
@@ -191,7 +191,7 @@ python3 "$PROBES/summarize-followup-evidence.py" \
   --traffic-dir /path/to/raw/traffic --out /tmp/decoded-results.json
 ```
 
-The exact VIP configuration, including HTTP/TCP profiles and SNAT automap, is [virtual-initial.txt](evidence/r2286_20261006m/appliance/raw/config/virtual-initial.txt). The final bundle includes all loader messages, object snapshots, request identifiers, raw base64 protocol responses, server observations and continuous LTM output.
+The exact VIP configuration, including HTTP/TCP profiles and SNAT automap, is `virtual-initial.txt`. The final bundle includes all loader messages, object snapshots, request identifiers, raw base64 protocol responses, server observations and continuous LTM output.
 
 ## Cleanup and retained evidence
 
@@ -203,16 +203,16 @@ One appliance cleanup limitation remains. BIG-IP retained the original literal c
 - folder `/R2286_r2286m/lifetime`;
 - rule `/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider`, whose final body contains only `RULE_INIT { set static::__tcl_lsp_2286_r2286m_cleanup_only 1 }`.
 
-No listener, pool, node, caller or VIP remains. The earlier activated `incarnation` callable and cleanup-only static cell were not probed after the final neutral-body replacement, so their residual TMM runtime state is unknown. TMM was not restarted or reloaded to force retirement. The exact retained state is [remaining-state-final.txt](evidence/r2286_20261006m/appliance/raw/remaining-state-final.txt); rejected cleanup operations are [cleanup actions](evidence/r2286_20261006m/appliance/raw/cleanup-actions.txt), [stale-reference actions](evidence/r2286_20261006m/appliance/raw/cleanup-stale-reference-actions.txt) and [neutral-provider delete](evidence/r2286_20261006m/appliance/raw/cleanup-neutral-provider-delete.log).
+No listener, pool, node, caller or VIP remains. The earlier activated `incarnation` callable and cleanup-only static cell were not probed after the final neutral-body replacement, so their residual TMM runtime state is unknown. TMM was not restarted or reloaded to force retirement. The exact retained state is `remaining-state-final.txt`; rejected cleanup operations are cleanup actions, stale-reference actions and neutral-provider delete.
 
 Retained evidence:
 
-- [Final appliance evidence archive](evidence/r2286_20261006m/r2286m-appliance-evidence-final.tgz)
-- [Continuous raw LTM log](evidence/r2286_20261006m/appliance/raw/ltm-raw.log)
-- [Raw traffic and response summaries](evidence/r2286_20261006m/dev/traffic/)
-- [Backend and dev-process evidence](evidence/r2286_20261006m/dev/)
-- [Decoded byte-preserving result index](evidence/r2286_20261006m/decoded-results.json)
-- [Fixtures, source hex and manifests](evidence/r2286_20261006m/fixtures/)
+- Final appliance evidence archive
+- Continuous raw LTM log
+- Raw traffic and response summaries
+- Backend and dev-process evidence
+- Decoded byte-preserving result index
+- Fixtures, source hex and manifests
 
 ## Coverage limits
 

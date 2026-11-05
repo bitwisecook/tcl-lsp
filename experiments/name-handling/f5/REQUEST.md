@@ -1,16 +1,16 @@
 # BIG-IP name-handling request
 
-Give this document to the chat with BIG-IP access. Return answers and raw
-measurements to the same `work` branch. This request covers name semantics;
+Give this document to the chat with BIG-IP access. Return answers to the
+same `work` branch. This request covers name semantics;
 it does not claim that stock Tcl behaviour describes the F5 interpreter.
 
 ## Handoff prompt
 
 You have BIG-IP access. On `bitwisecook/tcl-lsp` branch `work`, prepare and run
 isolated name-handling oracle probes for the unanswered variants of questions
-F5-N01 through F5-N16 below. Read `answers/README.md` and
-`answers/outstanding-operation-audit.md` first, then map existing answers to
-exact contexts, operands and entered frames. Request only missing variants;
+F5-N01 through F5-N16 below. Read the existing `evidence/tcl/bigip-*` files
+and their [fixtures](../../../evidence/tcl/fixtures/README.md) first, then map
+existing answers to exact contexts, operands and entered frames. Request only missing variants;
 do not rerun answered operations as though their evidence were absent.
 Read `AGENTS.md`, `experiments/name-handling/README.md`, this request,
 `scripts/dev/bigip-probes/README.md` and the four-context generator/cleanup
@@ -19,10 +19,10 @@ contracts first. Preserve any incoming answers and branch changes.
 The portable `experiments/name-handling/cases.tcl` and its catalogue provide
 executable question inputs for applicable stock/CLI/iApp contexts. They are
 not an iRule load file. Materialise individual TMM cases with the existing
-probe infrastructure; retain generated source alongside each result. Choose
+probe infrastructure. Choose
 unique run-tagged probe names, check absence before creating, run in the
 appropriate lab context, trap cleanup and prove absence after deletion. Do not
-save configuration. Preserve raw acceptance and execution outcomes. Avoid the
+save configuration. Record acceptance and execution outcomes. Avoid the
 legacy driver that deletes fixed names without collision checks.
 
 Do not alter name-handling implementation to force agreement, infer missing

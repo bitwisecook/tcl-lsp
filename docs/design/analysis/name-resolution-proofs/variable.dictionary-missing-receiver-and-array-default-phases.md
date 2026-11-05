@@ -20,15 +20,15 @@ Exact 18 ASCII scripts/results retained as hexadecimal controls.tsv rows: two ea
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original executable/archive/build hashes not recorded. Channel: ASCII source through the recorded native shell presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII source through the recorded native shell presenter. Version: tcl8.5 8.5.19.
 
 Recorded 2 final script results; the exact label/source/result rows are:
 
@@ -39,7 +39,7 @@ Recorded 2 final script results; the exact label/source/result rows are:
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original executable/archive/build hashes not recorded. Channel: ASCII source through the recorded native shell presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII source through the recorded native shell presenter. Version: tcl8.6 8.6.18.
 
 Recorded 2 final script results; the exact label/source/result rows are:
 
@@ -50,7 +50,7 @@ Recorded 2 final script results; the exact label/source/result rows are:
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original executable/archive/build hashes not recorded. Channel: ASCII source through the recorded native shell presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII source through the recorded native shell presenter. Version: tcl9.0 9.0.4.
 
 Recorded 7 final script results; the exact label/source/result rows are:
 
@@ -66,7 +66,7 @@ Recorded 7 final script results; the exact label/source/result rows are:
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original executable/archive/build hashes not recorded. Channel: ASCII source through the recorded native shell presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII source through the recorded native shell presenter. Version: tcl9.1 9.1.0.
 
 Recorded 7 final script results; the exact label/source/result rows are:
 
@@ -80,38 +80,16 @@ Recorded 7 final script results; the exact label/source/result rows are:
 9.1.0	incr-array-default	61727261792064656661756c742073657420612031303b6c697374205b696e6372206128782920325d205b61727261792064656661756c742067657420615d205b6172726179206e616d657320615d	31322031302078
 ```
 
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
-
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [runtime/rust/tests/data/native_dictionary_receiver/manifest.json](../../../../runtime/rust/tests/data/native_dictionary_receiver/manifest.json). Original provider/version roster, count and observation boundary; build artifacts were not recorded.
-- `e1` (observation): [runtime/rust/tests/data/native_dictionary_receiver/controls.tsv](../../../../runtime/rust/tests/data/native_dictionary_receiver/controls.tsv). Exact 18 hexadecimal source/result rows; no physical object/cache claim.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_dict.rs](../../../../runtime/rust/src/cmd_dict.rs), `dictionary_receiver_and_defaults_match_original_native_scripts`: Independent current Rust comparison at the stated semantic boundary.
 - [runtime/rust/src/cmd_dict.rs](../../../../runtime/rust/src/cmd_dict.rs), `cmd_dict::tests::dictionary_receiver_and_defaults_match_original_native_scripts` (linked): Compares every final script result to the original table, independently of custom-type/physical-cache assumptions.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact executable presenter is not retained, and controls.tsv is a hex source/result table, not an executable Tcl script. A fresh replay must decode each source row, evaluate it in a fresh matching-version interpreter, print its final result through an explicitly retained presenter and compare exact result bytes. Keep C9 default cases separate from the earlier-provider roster; record source/build/channel/status for the fresh run.
-
 
 ## Exact original-source349 software outcomes
 
@@ -122,4 +100,9 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [runtime/rust/tests/data/native_dictionary_receiver/manifest.json](../../../../runtime/rust/tests/data/native_dictionary_receiver/manifest.json)
+- [runtime/rust/tests/data/native_dictionary_receiver/controls.tsv](../../../../runtime/rust/tests/data/native_dictionary_receiver/controls.tsv)

@@ -287,244 +287,66 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-procedure, unit 0:0, invocation once
+### tmm-procedure, unit 0:0, invocation once; tmm-procedure, unit 0:1, invocation once; tmm-procedure, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-procedure.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, setup, completion 0, result:
 
 ```text-visible
 two words⟦EOF⟧
 ```
 
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, setup, completion 0, result:
 
 ```text-visible
 {two words} {a b}⟦EOF⟧
 ```
 
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-procedure, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-procedure, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
@@ -543,71 +365,59 @@ a b⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-quoted-head|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-substituted-head|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:55:56 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_1 <RULE_INIT>: NHO|nh20261012broad2|name-list-prefix|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, setup, completion 0, result:
 
 ```text-visible
 two words⟦EOF⟧
 ```
 
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, setup, completion 0, result:
 
 ```text-visible
 {two words} {a b}⟦EOF⟧
 ```
 
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧

@@ -20,94 +20,23 @@ Two immutable all-six variants, 15 original names in global and N contexts. v1 s
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual reported version, configured library/header/source/Makefile/executable hashes and compile/process0 retained independently for both variants.. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried.. Dialect: Tcl.
-
-All 30 attempted coroutine name/context controls reject because coroutine is unavailable; publication/resume/fullname semantics were not reached. Jim Missing namespace-exists queries are themselves unsupported, so they do not prove absence.
-
-### tcl8.5
-
-Status: `unsupported`. Version: 8.5.19. Build: Actual reported version, configured library/header/source/Makefile/executable hashes and compile/process0 retained independently for both variants.. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried.. Dialect: Tcl.
+Status: `unsupported`. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; jim 0.84-9-g5bac7c9.
 
 All 30 attempted coroutine name/context controls reject because coroutine is unavailable; publication/resume/fullname semantics were not reached. Jim Missing namespace-exists queries are themselves unsupported, so they do not prove absence.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Actual reported version, configured library/header/source/Makefile/executable hashes and compile/process0 retained independently for both variants.. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried.. Dialect: Tcl.
-
-C8.6.18/9.0.4/9.1.0 accept 26 of 30 original name/context pairs and reject four missing-holder pairs without creating Missing. The original name pointer reaches the driver unchanged. Raw zero clips the CString name; C080, FF and D800 remain separate accepted bytes. Empty names and existing Q:: empty tails are accepted. v2 info-coroutine results independently report the current holder for bare/relative names and the global holder for absolute names. C8.4/8.5 and current Jim report coroutine unavailable in these controls.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual reported version, configured library/header/source/Makefile/executable hashes and compile/process0 retained independently for both variants.. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 C8.6.18/9.0.4/9.1.0 accept 26 of 30 original name/context pairs and reject four missing-holder pairs without creating Missing. The original name pointer reaches the driver unchanged. Raw zero clips the CString name; C080, FF and D800 remain separate accepted bytes. Empty names and existing Q:: empty tails are accepted. v2 info-coroutine results independently report the current holder for bare/relative names and the global holder for absolute names. C8.4/8.5 and current Jim report coroutine unavailable in these controls.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual reported version, configured library/header/source/Makefile/executable hashes and compile/process0 retained independently for both variants.. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried.. Dialect: Tcl.
-
-C8.6.18/9.0.4/9.1.0 accept 26 of 30 original name/context pairs and reject four missing-holder pairs without creating Missing. The original name pointer reaches the driver unchanged. Raw zero clips the CString name; C080, FF and D800 remain separate accepted bytes. Empty names and existing Q:: empty tails are accepted. v2 info-coroutine results independently report the current holder for bare/relative names and the global holder for absolute names. C8.4/8.5 and current Jim report coroutine unavailable in these controls.
-
-### jim
-
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual reported version, configured library/header/source/Makefile/executable hashes and compile/process0 retained independently for both variants.. Channel: Original counted native string objects and direct object vectors. Publication driver receives the unchanged name object inside a selected namespace-eval list; v2 separately executes info coroutine to report the actual published token name. C return options are measured after the result getter where available; C8.4/Jim options APIs are unqueried.. Dialect: Jim.
-
-All 30 attempted coroutine name/context controls reject because coroutine is unavailable; publication/resume/fullname semantics were not reached. Jim Missing namespace-exists queries are themselves unsupported, so they do not prove absence.
 
 ### bigip
 
-Status: `not-tested`. Version: not measured. Build: not recorded. Channel: No input supplied. Dialect: BIG-IP.
+Status: `not-tested`. Channel: No input supplied.
 
 No observation for this question.
-
-## Historical references
-
-- `probe-v1` (input): [rust/tcl-registry/tests/data/native_coroutine_publication/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/probe.c). Exact immutable original-object v1 probe source; count constructors, pointer timing, per-stage getters and untested API branches are inspectable.
-- `probe-v2` (input): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/probe.c). Exact v2 probe, adding separate info-coroutine fullname controls without changing the v1 outcomes.
-- `tcl8.4-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.4.20/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl8.4-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.4.20/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl8.4-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.4.20/stderr). Exact process stderr, separate from guest completion.
-- `tcl8.4-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.4.20/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl8.4-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.4.20/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl8.4-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.4.20/stderr). Exact process stderr, separate from guest completion.
-- `tcl8.5-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.5.19/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl8.5-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.5.19/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl8.5-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.5.19/stderr). Exact process stderr, separate from guest completion.
-- `tcl8.5-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.5.19/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl8.5-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.5.19/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl8.5-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.5.19/stderr). Exact process stderr, separate from guest completion.
-- `tcl8.6-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.6.18/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl8.6-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.6.18/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl8.6-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/8.6.18/stderr). Exact process stderr, separate from guest completion.
-- `tcl8.6-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl8.6-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl8.6-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/stderr). Exact process stderr, separate from guest completion.
-- `tcl9.0-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.0.4/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl9.0-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.0.4/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl9.0-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.0.4/stderr). Exact process stderr, separate from guest completion.
-- `tcl9.0-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl9.0-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl9.0-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/stderr). Exact process stderr, separate from guest completion.
-- `tcl9.1-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl9.1-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl9.1-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/9.1.0/stderr). Exact process stderr, separate from guest completion.
-- `tcl9.1-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `tcl9.1-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `tcl9.1-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/stderr). Exact process stderr, separate from guest completion.
-- `jim-v1-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/jim/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `jim-v1-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/jim/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `jim-v1-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/jim/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/jim/stderr). Exact process stderr, separate from guest completion.
-- `jim-v2-receipt` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/jim/receipt.json). Actual compile/process exits, reported version and exact library/header/source/input/executable/stream associations.
-- `jim-v2-rows` (observation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/jim/stdout.tsv). Exact finite protocol rows; stage labels preserve the distinction between observations, input-only rows and untested operations.
-- `jim-v2-stderr` (limitation): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/jim/stderr](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/jim/stderr). Exact process stderr, separate from guest completion.
-- `source-0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json). JSON pointer `/0/snippet`. Exact pinned TclNRCoroutineObjCmd source window, independent of result observations.
-- `source-1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json). JSON pointer `/1/snippet`. Exact pinned TclNRCoroutineObjCmd source window, independent of result observations.
-- `source-2` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/source-windows.json). JSON pointer `/2/snippet`. Exact pinned TclNRCoroutineObjCmd source window, independent of result observations.
-- `coroutine-resume-registration-source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_resume_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_resume_source/source-windows.json). JSON pointer `/0/snippet`. Native resume consumes the selected coroutine clientData; argv[0] is diagnostic text only. No coroutine-name lookup is performed by this handler.
-- `coroutine-resume-registration-source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_resume_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_resume_source/source-windows.json). JSON pointer `/1/snippet`. Native resume consumes the selected coroutine clientData; argv[0] is diagnostic text only. No coroutine-name lookup is performed by this handler.
-- `coroutine-resume-registration-source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_resume_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_resume_source/source-windows.json). JSON pointer `/2/snippet`. Native resume consumes the selected coroutine clientData; argv[0] is diagnostic text only. No coroutine-name lookup is performed by this handler.
 
 ## Source inspection
 
@@ -281,7 +210,6 @@ TclNRCoroutineObjCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/interp/native_coroutine_names.rs](../../../../rust/tcl-vm/src/interp/native_coroutine_names.rs), `original_coroutine_names_match_native_publication_controls`: Actual original-object comparison harness; v2 fullname supplement independent of v1 relative lookup.
@@ -295,17 +223,7 @@ TclNRCoroutineObjCmd(
 - [runtime/rust/src/interp/native_coroutine_names.rs](../../../../runtime/rust/src/interp/native_coroutine_names.rs), `interp::native_coroutine_names::tests::original_coroutine_names_match_native_publication_controls` (linked): Original starts/resumes, exact missing-namespace errors and no Missing creation; v2 comparison supplement adds separately measured info-coroutine published fullname. No test execution claimed.
 - [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs), `naming::native::coroutine_publication_tests::coroutine_slots_keep_current_holders_and_native_byte_extents` (linked): Pure selected CString slot geometry, including existing holders and raw-zero clipping; no handler or availability grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_coroutine_publication/verify.py"
-]
-```
-
-Offline exact receipt/input/stream association verification only; zero native/compiler/Rust launches. Original capture.py and queue retain absolute provisioned input pins and immutable output paths; fresh recapture must use new output directories and recheck every required hash. Source windows reproduce separately from exact pinned full source LF ranges. No missing ELF is fabricated or claimed portable.
+- [rust/tcl-registry/tests/data/native_coroutine_publication](../../../../rust/tcl-registry/tests/data/native_coroutine_publication)
+- [rust/tcl-registry/tests/data/native_coroutine_publication/v2](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2)

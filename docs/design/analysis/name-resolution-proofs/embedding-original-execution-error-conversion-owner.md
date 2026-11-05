@@ -22,54 +22,45 @@ Pure shared Rust typed-error conversion and readonly diagnostic projections. The
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded typed execution-error conversion contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.4 not tested for this source/API question.
 
 No original tcl8.4 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded typed execution-error conversion contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.5 not tested for this source/API question.
 
 No original tcl8.5 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded typed execution-error conversion contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.6 not tested for this source/API question.
 
 No original tcl8.6 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded typed execution-error conversion contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl9.0 not tested for this source/API question.
 
 No original tcl9.0 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded typed execution-error conversion contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl9.1 not tested for this source/API question.
 
 No original tcl9.1 process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### jim
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded typed execution-error conversion contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: jim.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: jim not tested for this source/API question.
 
 No original jim process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded typed execution-error conversion contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: bigip.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: bigip not tested for this source/API question.
 
 No original bigip process tests this typed execution-error conversion contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
-
-## Historical references
-
-- `implementation-source-0` (implementation): [rust/tcl-cmd-core/src/error.rs](../../../../rust/tcl-cmd-core/src/error.rs). Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution.
-- `implementation-source-1` (implementation): [rust/tcl-runtime-api/src/native_execution_error.rs](../../../../rust/tcl-runtime-api/src/native_execution_error.rs). Exact current typed conversion or complete diagnostic error record declaration. Source/API inspection supplies no entered interpreter, live frame, authenticated diagnostic origin, Guest completion or provider execution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +70,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-runtime-api/src/native_execution_error.rs](../../../../rust/tcl-runtime-api/src/native_execution_error.rs), `NativeHostCommandRefusal`: Retain immutable diagnostic source/native profiles, interpreter identity, logical frame and namespace token without turning those values into a future activation lease or verified issuer.
 - [rust/tcl-cmd-core/src/error.rs](../../../../rust/tcl-cmd-core/src/error.rs), `error::execution_transport_tests::native_execution_transport_preserves_complete_cause_through_question_mark_and_into` (linked): Authored HostCommandRefusal and ValueAccessRefusal records preserve complete first-cause equality through the actual question-mark and Into conversion routes. Distinct source/native profile keys, interpreter identity, frame and namespace token remain diagnostic data; empty message and fallible text/detail projections cannot turn the retained Host cause into a Guest completion or issue an entered owner. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-A bounded source/API contract and one authored software definition, with no external input, original provider process or matching owned assertion run attached. Complete typed diagnostic transport does not authenticate the record, issue an original context or establish Native/Guest execution parity.
+- [rust/tcl-cmd-core/src/error.rs](../../../../rust/tcl-cmd-core/src/error.rs)
+- [rust/tcl-runtime-api/src/native_execution_error.rs](../../../../rust/tcl-runtime-api/src/native_execution_error.rs)

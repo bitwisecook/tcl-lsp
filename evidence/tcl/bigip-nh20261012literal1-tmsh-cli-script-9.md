@@ -110,13 +110,7 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmsh run cli script.
 - Exit status: 0
-- Standard output:
-
-```text-visible
-NHO|nh20261012literal1|literal-proc-in-body|tmsh-cli-script|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012literal1|literal-proc-in-body|tmsh-cli-script|lookup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012literal1|literal-proc-in-body|tmsh-cli-script|runtime-cleanup|0|none|once|result|utf-8|0|1|
-```
+- Standard output: decoded below.
 
 - Standard error: empty.
 

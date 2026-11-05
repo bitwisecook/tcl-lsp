@@ -24,55 +24,11 @@ The lossless Unicode source facade supplies String-compatible values only; raw==
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This Rust Logical formal-binding and isolated authoring contract has no native interpreter observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -95,14 +51,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `variable_symbol::logical_formal_tests::logical_navigation_reuses_declared_formal_scope_and_exact_reads` (linked): The actual navigation selector uses the common formal receipt to join one declaration and its original reads; stale source declines.
 - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::native_return_effect_ingress_tests::native_return_effect_requires_its_independent_selected_protocol` (linked): No dialect, positive Logical and unmeasured Jim remain conservative; independently selected measured Native recipes retain their bounded result-only effect answer.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/registry_invocation/logical_formals.rs](../../../../rust/tcl-compiler/src/registry_invocation/logical_formals.rs), `original_logical_procedure_bindings`: Retain strict original whole list/literal Unicode geometry, unique scalar formal names and current complete Logical source owner before declaration/reference correspondence.
 - [rust/tcl-compiler/src/registry_invocation/logical_formals.rs](../../../../rust/tcl-compiler/src/registry_invocation/logical_formals.rs), `registry_invocation::logical_formals::tests::logical_unicode_formals_retain_literal_fields_and_original_scalar_reads` (linked): Genuine literal Unicode formal fields retain original declaration/reference spans, default-list fields, scalar reads and same whole source owner; reported names are not recooked to establish alpha binding.
 - [rust/tcl-compiler/src/registry_invocation/logical_formals.rs](../../../../rust/tcl-compiler/src/registry_invocation/logical_formals.rs), `registry_invocation::logical_formals::tests::logical_unicode_formals_refuse_cooked_units_and_withdrawn_source_owners` (linked): Cooked escape declarations, unrepresentable units, duplicate/NUL fields and changed source/configuration/foreign/missing owners withdraw the formal correspondence rather than borrow replacement presentation.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-The linked Rust selectors are authored; no executed Rust receipt or native-provider observation is supplied by this contract.

@@ -20,56 +20,11 @@ The five neutral package-index head projections in scan_with_config and its exis
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not applicable to this authored advisory projection. Build: No external provider process is used.. Channel: Fixed authored index source and software advisory scan.. Dialect: tcl8.4.
-
-The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not applicable to this authored advisory projection. Build: No external provider process is used.. Channel: Fixed authored index source and software advisory scan.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Fixed authored index source and software advisory scan. Version: tcl8.4 not applicable to this authored advisory projection; tcl8.5 not applicable to this authored advisory projection; tcl8.6 not applicable to this authored advisory projection; tcl9.0 not applicable to this authored advisory projection; tcl9.1 not applicable to this authored advisory projection; jim not applicable to this authored advisory projection; bigip not applicable to this authored advisory projection.
 
 The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not applicable to this authored advisory projection. Build: No external provider process is used.. Channel: Fixed authored index source and software advisory scan.. Dialect: tcl8.6.
-
-The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not applicable to this authored advisory projection. Build: No external provider process is used.. Channel: Fixed authored index source and software advisory scan.. Dialect: tcl9.0.
-
-The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not applicable to this authored advisory projection. Build: No external provider process is used.. Channel: Fixed authored index source and software advisory scan.. Dialect: tcl9.1.
-
-The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
-
-### jim
-
-Status: `not-tested`. Version: not applicable to this authored advisory projection. Build: No external provider process is used.. Channel: Fixed authored index source and software advisory scan.. Dialect: jim.
-
-The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
-
-### bigip
-
-Status: `not-tested`. Version: not applicable to this authored advisory projection. Build: No external provider process is used.. Channel: Fixed authored index source and software advisory scan.. Dialect: bigip.
-
-The scan asserts an authored written-name convention and symbolic Registry advice. It supplies no native lookup, callback chronology, loader execution or provider equivalence.
-
-## Historical references
-
-- `authored-index-source608-0` (implementation): [rust/tcl-lsp-core/src/package_resolver/reachability.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability.rs). Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached.
-- `authored-index-source608-1` (implementation): [rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs). Current authored neutral written-head projection or actual advisory scanner control. No Native lookup, package publication, loader execution or assertion outcome is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +35,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs), `package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_complete_colon_runs_and_literal_boundaries` (linked): The actual authored advisory scanner recognises complete odd/even leading colon runs and retains literal Unicode package names. Single-colon, relative-qualified, trailing-empty, dynamic, malformed and case-divergent heads cannot borrow the stock package row. This is a neutral source convention, not a C/Jim lookup or package-registration observation.
 - [rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs), `package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions` (linked): Actual authored version and termination paths retain selected Registry roles: the Tcl subject and known requirements preserve conditional release advice; unguarded returns stop scanning, loop termination remains conditional and foreign-package/dynamic requirements cannot settle the guard. No loader execution or native completion is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact named Rust bodies are source-defined coverage. No executed assertion receipt or external provider observation is attached.
+- [rust/tcl-lsp-core/src/package_resolver/reachability.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability.rs)
+- [rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs](../../../../rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs)

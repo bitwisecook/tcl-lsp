@@ -20,64 +20,14 @@ Rust point-owned local absence contract. The fixed all-six model test distinguis
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/var_resolve/fresh_scalar_proposal.rs](../../../../rust/tcl-compiler/src/var_resolve/fresh_scalar_proposal.rs), `fresh_scalar_variable_slot`: Requires actual complete local and observer inventories under exact selected native name purpose.
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `fresh_scalar_variable_proposal`: Binds the absence receipt to a genuine reached original source operation/configuration.
 - [rust/tcl-compiler/src/var_resolve/fresh_scalar_proposal.rs](../../../../rust/tcl-compiler/src/var_resolve/fresh_scalar_proposal.rs), `var_resolve::fresh_scalar_proposal::tests::original_fresh_scalar_proposal_requires_unoccupied_actual_frame_and_quiet_observers` (linked): Admits an independently entered empty local and declines occupied, aliased, observed, unknown incoming, qualified, array-shaped and clipped names.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result.

@@ -112,29 +112,23 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012literal1|literal-proc-in-body|iapp-implementation|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012literal1|literal-proc-in-body|iapp-implementation|lookup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012literal1|literal-proc-in-body|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- literal-proc-in-body, setup, completion 0, result, chunk 0 of 1:
+- literal-proc-in-body, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- literal-proc-in-body, lookup, completion 0, result, chunk 0 of 1:
+- literal-proc-in-body, lookup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- literal-proc-in-body, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- literal-proc-in-body, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧

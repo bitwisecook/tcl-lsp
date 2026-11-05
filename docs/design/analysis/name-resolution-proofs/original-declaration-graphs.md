@@ -20,55 +20,11 @@ Readonly procedure declaration graphs, canonical retained calls, source body gro
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-## Historical references
-
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/graphs/original.rs](../../../../rust/tcl-lsp-core/src/graphs/original.rs). Current source graph consumer and fixed Rust assertions; no execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,20 +41,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-db/tests/memory_alias_graph.rs](../../../../rust/tcl-lsp-db/tests/memory_alias_graph.rs), `actual_document_graphs_keep_native_jim_and_hosted_source_cards` (linked): Actual DB document inputs for selected C8.4/C9.1/Jim/hosted source retain authored procedure/parameter cards. Without an independently matched compiled body, purity/effects/read/write summaries stay null, memory wildcard stays true and no concrete alias/SSA function is manufactured.
 - [rust/tcl-lsp-db/tests/memory_alias_graph.rs](../../../../rust/tcl-lsp-db/tests/memory_alias_graph.rs), `actual_document_graph_cards_respect_a_known_replaced_definer` (linked): A known replaced original proc definer withdraws the later subject card. Its replacement declaration remains distinct; a written head cannot donate stock factory behavior or a compiled function.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-lsp-core",
-  "graphs::original::tests::"
-]
-```
-
-The fixed Rust selectors bind source graph assertions. Execution receipts are separate; all seven native providers remain not-tested for this precise graph question.
+- [rust/tcl-lsp-core/src/graphs/original.rs](../../../../rust/tcl-lsp-core/src/graphs/original.rs)

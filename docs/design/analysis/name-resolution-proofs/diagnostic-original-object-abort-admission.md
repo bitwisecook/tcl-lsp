@@ -20,55 +20,11 @@ Three fixed source-contract controls cover C8.4/C8.5/C8.6/C9.0/C9.1/Jim/hosted i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This per-object reporting-admission implementation contract supplies no native process, selected object/worker/table, guaranteed Native abort, frame or edit observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +36,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_object_abort_refuses_missing_retained_input` (linked): A copied advice flag and donated object-table candidates with absent actual retained input produce no diagnosis and leave no candidates.
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_object_abort_keeps_explicit_logical_advice_despite_report_label` (linked): Actual positively retained custom Logical input emits the three distinct bounded source-model abort forms despite a C Tcl reporting label.
 - [rust/tcl-lsp-server/tests/e2e/diagnostics.rs](../../../../rust/tcl-lsp-server/tests/e2e/diagnostics.rs), `diagnostics::native_objdefine_retraction_of_undeclared_member_withdraws_w315` (linked): Server integration retains the authored Native object retraction while withholding a reporting-table W315 guarantee; no current object method table or Native execution follows.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Exact named Rust tests bind actual retained source-input admission and report-table refusal only. Actual compilation and assertions require separately retained validation receipts. No provider-labelled source profile establishes native execution, object allocation or a method-table fact.

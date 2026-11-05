@@ -24,39 +24,15 @@ Exact captured public body/formal bytes do not expose the original Jim parameter
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.4.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.6.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.0.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
 
 ### jim
 
-Status: `observed`. Version: Jim 0.84 pinned native build. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: jim.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: jim Jim 0.84 pinned native build.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -180,56 +156,9 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 }
 ```
 
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/LICENSE.jim](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/LICENSE.jim). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/append-args.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/append-args.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/append-body.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/append-body.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-3` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/append.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/append.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-4` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/for-args.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/for-args.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/for-body.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/for-body.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-6` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/for.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/for.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-7` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/incr-args.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/incr-args.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-8` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/incr-body.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/incr-body.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-9` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/incr.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/incr.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-10` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/lappend-args.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/lappend-args.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-11` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/lappend-body.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/lappend-body.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-12` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/lappend.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/lappend.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-13` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/manifest.json](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-13-row-14` (provider): [rust/tcl-vm/tests/data/native_jim_dictionary/manifest.json](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/manifest.json). JSON pointer ``. Original provider/capture association at its exact selected row.
-- `file-15` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/observations.tsv](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/observations.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-16` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/remove-args.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/remove-args.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-17` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/remove-body.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/remove-body.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-18` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/remove.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/remove.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-19` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/replace-args.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/replace-args.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-20` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/replace-body.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/replace-body.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-21` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/replace.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/replace.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-22` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/stdlib.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/stdlib.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-23` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/update-abbreviation.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-abbreviation.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-24` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/update-args.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-args.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-25` (observation): [rust/tcl-vm/tests/data/native_jim_dictionary/update-body.bin](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-body.bin). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-26` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/update-deletion.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-deletion.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-27` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/update-fourargs.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-fourargs.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-28` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/update-missing.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-missing.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-29` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/update-return.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-return.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-30` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/update-threeargs.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-threeargs.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-31` (input): [rust/tcl-vm/tests/data/native_jim_dictionary/update-twoargs.tcl](../../../../rust/tcl-vm/tests/data/native_jim_dictionary/update-twoargs.tcl). Exact retained input/program bytes; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-vm/src/native_fixture.rs](../../../../rust/tcl-vm/src/native_fixture.rs), `interpreter_with_dictionary_library`: Construct the actual selected software core/compiler and explicitly choose only Dictionary for distribution specimens; library choice is independent of core/metadata availability.
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `Vm::install_scripted_library`: Retain the explicitly selected shared scripted-library source and genuine procedure declarations under the actual backend bootstrap, rather than creating public wrappers from catalogue labels.
@@ -237,6 +166,6 @@ A named test is a coverage binding, not a claim that it executed.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-vm/tests/data/native_jim_dictionary](../../../../rust/tcl-vm/tests/data/native_jim_dictionary)

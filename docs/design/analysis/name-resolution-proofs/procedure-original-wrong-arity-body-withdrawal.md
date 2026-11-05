@@ -88,32 +88,22 @@ Native shell source execution; original invocation argv/input-channel (stdin or 
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No retained observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `program` (input): [rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl](../../../../rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl). Exact ASCII catch/presenter and malformed/valid side-effect bodies.
-- `receipt` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_activation/manifest.json). All six original selected-path SHA/process/stdout/stderr captures, with limited version and unknown stdin/file attribution.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt). Exact seven-line original full output; selected one-based lines [7].
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt). Exact seven-line original full output; selected one-based lines [7].
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt). Exact seven-line original full output; selected one-based lines [7].
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt). Exact seven-line original full output; selected one-based lines [7].
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt). Exact seven-line original full output; selected one-based lines [7].
-- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt). Exact seven-line original full output; selected one-based lines [7].
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `NativeProcedureActivationProtocol::validates_arguments_before_body`: Owns the release-selected activation boundary separately from definition capture.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::procedure_definition_and_activation_match_42_native_observations` (linked): Compares exact42 original shell definition/activation/side-effect lines; full runtime build and shell input-channel metadata remain separate absent fields.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native execution or Rust test pass is claimed. A new comparison must retain the exact original program/API flags, independently identify the selected provider build, and capture separate process status/stdout/stderr. Original absolute paths do not constitute a portable runnable replay command. An original raw stream absent from this corpus cannot be validated from its digest alone. Probe source is an input observer, not native implementation source.
+- [rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl](../../../../rust/tcl-vm/tests/data/native_procedure_activation/probe.tcl)
+- [rust/tcl-vm/tests/data/native_procedure_activation/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_activation/manifest.json)
+- [rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.4.txt)
+- [rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.5.txt)
+- [rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/8.6.txt)
+- [rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.0.txt)
+- [rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/9.1.txt)
+- [rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt](../../../../rust/tcl-vm/tests/data/native_procedure_activation/Jim.txt)

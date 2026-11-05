@@ -26,61 +26,11 @@ Explicit Logical source authoring only, with exact complete image/channel, full 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical metadata/geometry contract has no native interpreter observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust Logical metadata/geometry contract has no native interpreter observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical metadata/geometry contract has no native interpreter observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical metadata/geometry contract has no native interpreter observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical metadata/geometry contract has no native interpreter observation.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This Rust Logical metadata/geometry contract has no native interpreter observation.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This Rust Logical metadata/geometry contract has no native interpreter observation.
-
-## Historical references
-
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.minifier.complete-logical-metadata`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `source-purpose-b053c618bdc5` (implementation): [rust/tcl-compiler/src/signature_scan/original_name.rs](../../../../rust/tcl-compiler/src/signature_scan/original_name.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-- `source-purpose-768154ffe962` (implementation): [rust/tcl-compiler/src/signature_scan/ctx.rs](../../../../rust/tcl-compiler/src/signature_scan/ctx.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-- `source-purpose-53109d005fe9` (implementation): [rust/tcl-compiler/src/signature_scan/ctx/original_source_name_purpose_tests.rs](../../../../rust/tcl-compiler/src/signature_scan/ctx/original_source_name_purpose_tests.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-- `source-purpose-64d79347a734` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). Original invocation completion and retained whole-source advice query the common purpose owner. Supplied refusal remains unknown; independently guarded authored/Native source routes are preserved.
-- `source-purpose-61a7271c1c9d` (implementation): [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -141,8 +91,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - `minify::lexical_metadata::source_census_tests::minifier_source_census_keeps_unrepresented_or_unknown_regions_incomplete`: dynamic/missing schema, unrepresented lambda and malformed geometry stay incomplete. Source definition only; unexecuted.
 - `minify::lexical_metadata::source_census_tests::minifier_source_census_refuses_foreign_analysis_realm_and_full_config`: current full source/input/configuration and actual analysis/Realm allocation remain mandatory. Source definition only; unexecuted.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact linked Rust selectors exercise complete positioned Logical source metadata, shared script/data regions, full-context option and barrier tables, static keyword geometry and independent runtime uncertainty. No executed Rust receipt or native-provider result is supplied by this implementation contract.
+- [rust/tcl-compiler/src/signature_scan/original_name.rs](../../../../rust/tcl-compiler/src/signature_scan/original_name.rs)
+- [rust/tcl-compiler/src/signature_scan/ctx.rs](../../../../rust/tcl-compiler/src/signature_scan/ctx.rs)
+- [rust/tcl-compiler/src/signature_scan/ctx/original_source_name_purpose_tests.rs](../../../../rust/tcl-compiler/src/signature_scan/ctx/original_source_name_purpose_tests.rs)
+- [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs)
+- [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs)

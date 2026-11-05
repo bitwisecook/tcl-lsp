@@ -20,56 +20,11 @@ Rust signature-help and effective-argument source correspondence. Fixed C8.4–C
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
+Status: `not-tested`.
 
 This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_invocation.rs](../../../../rust/tcl-lsp-core/src/original_invocation.rs). Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/signature_help.rs](../../../../rust/tcl-lsp-core/src/signature_help.rs). Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,8 +36,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/signature_help.rs](../../../../rust/tcl-lsp-core/src/signature_help.rs), `signature_help::tests::original_signature_expansion_cursor_selects_its_own_list_child` (linked): Each original expansion child selects its own effective parameter for Registry and procedure advice.
 - [rust/tcl-lsp-core/src/signature_help.rs](../../../../rust/tcl-lsp-core/src/signature_help.rs), `signature_help::tests::original_signature_currency_and_registry_survive_reporting_counterfactuals` (linked): Reporting-map/dialect changes cannot replace the retained Registry; changed full source or grammar declines advice.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors are linked coverage obligations. Their execution outcome is separate; no native provider replay or physical runtime authority is claimed.
+- [rust/tcl-lsp-core/src/original_invocation.rs](../../../../rust/tcl-lsp-core/src/original_invocation.rs)
+- [rust/tcl-lsp-core/src/signature_help.rs](../../../../rust/tcl-lsp-core/src/signature_help.rs)

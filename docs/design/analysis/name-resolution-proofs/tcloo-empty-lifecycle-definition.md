@@ -20,73 +20,23 @@ Six fresh selected executable processes, fixed ASCII LF source-file input, caugh
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `unsupported`. Version: 8.4.20. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
-
-This fresh stock CLI reports oo::class absent and an explicit unavailable row. No package or extension load was attempted and no constructor lifecycle operation ran; this is not a claim that every embedding of this interpreter family lacks TclOO.
-
-### tcl8.5
-
-Status: `unsupported`. Version: 8.5.19. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
+Status: `unsupported`. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; jim 0.84-9-g5bac7c9.
 
 This fresh stock CLI reports oo::class absent and an explicit unavailable row. No package or extension load was attempted and no constructor lifecycle operation ran; this is not a claim that every embedding of this interpreter family lacks TclOO.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
-
-The exact31 rows show own empty/empty-malformed constructor removal and acceptance of counts0..3; space/comment a b bodies accept only2; malformed-space definition fails. After own empty removal, the superclass a b constructor still accepts only2. All remaining caught wrong-count operations report TCL WRONGARGS. Outer process code0 and empty stderr are retained separately.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 The exact31 rows show own empty/empty-malformed constructor removal and acceptance of counts0..3; space/comment a b bodies accept only2; malformed-space definition fails. After own empty removal, the superclass a b constructor still accepts only2. All remaining caught wrong-count operations report TCL WRONGARGS. Outer process code0 and empty stderr are retained separately.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: C Tcl.
-
-The exact31 rows show own empty/empty-malformed constructor removal and acceptance of counts0..3; space/comment a b bodies accept only2; malformed-space definition fails. After own empty removal, the superclass a b constructor still accepts only2. All remaining caught wrong-count operations report TCL WRONGARGS. Outer process code0 and empty stderr are retained separately.
-
-### jim
-
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Selected executable. Exact required header/library/Makefile/source hashes and environment are retained in its receipt; no additional configuration interpretation is inferred.. Channel: Original fixed ASCII LF source-file CLI; caught definition and argv acceptance controls, no native getter/header or compiler activation claim.. Dialect: Jim Tcl.
-
-This fresh stock CLI reports oo::class absent and an explicit unavailable row. No package or extension load was attempted and no constructor lifecycle operation ran; this is not a claim that every embedding of this interpreter family lacks TclOO.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 External hosted TclOO availability and constructor lifecycle require an independently captured actual context. No C/Jim process substitutes for BIG-IP.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/probe.tcl](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/probe.tcl). Exact original ASCII LF lifecycle source program; includes empty/space/comment/malformed and inherited controls.
-- `request` (input): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/request.json](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/request.json). Retained finite question, channel and provider request; no constructor or external hosted result is inferred from this request.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20/receipt.json). Original selected executable/version, full argv/environment and exact required build/source and stream hashes.
-- `tcl8.4-stdout` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20/stdout). Exact31 reflected definition/call rows for available TclOO, or exact2 version/unavailable rows in this fresh stock process.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20/stderr). Exact empty stderr; guest caught error outcomes remain independently visible in stdout.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19/receipt.json). Original selected executable/version, full argv/environment and exact required build/source and stream hashes.
-- `tcl8.5-stdout` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19/stdout). Exact31 reflected definition/call rows for available TclOO, or exact2 version/unavailable rows in this fresh stock process.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19/stderr). Exact empty stderr; guest caught error outcomes remain independently visible in stdout.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18/receipt.json). Original selected executable/version, full argv/environment and exact required build/source and stream hashes.
-- `tcl8.6-stdout` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18/stdout). Exact31 reflected definition/call rows for available TclOO, or exact2 version/unavailable rows in this fresh stock process.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18/stderr). Exact empty stderr; guest caught error outcomes remain independently visible in stdout.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4/receipt.json). Original selected executable/version, full argv/environment and exact required build/source and stream hashes.
-- `tcl9.0-stdout` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4/stdout). Exact31 reflected definition/call rows for available TclOO, or exact2 version/unavailable rows in this fresh stock process.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4/stderr). Exact empty stderr; guest caught error outcomes remain independently visible in stdout.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0/receipt.json). Original selected executable/version, full argv/environment and exact required build/source and stream hashes.
-- `tcl9.1-stdout` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0/stdout). Exact31 reflected definition/call rows for available TclOO, or exact2 version/unavailable rows in this fresh stock process.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0/stderr). Exact empty stderr; guest caught error outcomes remain independently visible in stdout.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim/receipt.json). Original selected executable/version, full argv/environment and exact required build/source and stream hashes.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim/stdout](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim/stdout). Exact31 reflected definition/call rows for available TclOO, or exact2 version/unavailable rows in this fresh stock process.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim/stderr](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim/stderr). Exact empty stderr; guest caught error outcomes remain independently visible in stdout.
-- `tcl8.6-constructor-source` (source-anchor): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/sources/8.6.18/tclOODefineCmds.c](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/sources/8.6.18/tclOODefineCmds.c). Lines 1233–1265. Exact retained release constructor-definition source branch, independently inspected; this window is not a native object/frame observation.
-- `tcl9.0-constructor-source` (source-anchor): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/sources/9.0.4/tclOODefineCmds.c](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/sources/9.0.4/tclOODefineCmds.c). Lines 1858–1894. Exact retained release constructor-definition source branch, independently inspected; this window is not a native object/frame observation.
-- `tcl9.1-constructor-source` (source-anchor): [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/sources/9.1.0/tclOODefineCmds.c](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/sources/9.1.0/tclOODefineCmds.c). Lines 1832–1868. Exact retained release constructor-definition source branch, independently inspected; this window is not a native object/frame observation.
 
 ## Source inspection
 
@@ -215,7 +165,6 @@ tcl9.1 9.1.0, revision `Original retained release source checkout 9.1.0`, `/work
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `DefinitionBodyGrammar::source_member_formal_validation_applicability`: Require authentic selected member/factory grammar and static counted body; delegate empty removal to the shared native lifecycle disposition. Missing lifecycle body stays unknown; ordinary and other-family members retain formal validation.
@@ -227,8 +176,12 @@ tcl9.1 9.1.0, revision `Original retained release source checkout 9.1.0`, `/work
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::lifecycle_formal_tests::original_tcloo_formal_applicability_preserves_dynamic_body_uncertainty` (linked): Unresolved variable/bracket and inline dynamic bodies cannot be promoted to an empty or retained static lifecycle value; this is an implementation abstention control, not a newly measured native outcome.
 - [rust/tcl-compiler/src/analyser/types/original_constructor_call.rs](../../../../rust/tcl-compiler/src/analyser/types/original_constructor_call.rs), `analyser::types::original_constructor_call::tests::original_constructor_signature_respects_exact_lifecycle_body_values` (linked): Conditional source signature advice distinguishes empty and malformed-empty default arity from whitespace/comment exact-two arity; malformed-space refuses, and own empty removal retains the inherited exact-two signature. No native header or activation is observed.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Replay the exact retained probe with each receipt's independently verified executable and required header/library/build/source hashes and environment. Preserve stdout/stderr separately; the outer process code0 does not make every caught guest operation succeed. Native source-file observations do not establish a runtime/VM implementation result, selected source carrier, object/cache/frame proof or changed-source gate pass. BIG-IP requires a separately measured external hosted context.
+- [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231)
+- [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.4.20)
+- [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.5.19)
+- [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/8.6.18)
+- [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.0.4)
+- [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/9.1.0)
+- [rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim](../../../../rust/tcl-registry/tests/data/native_empty_tcloo_lifecycle231/jim)

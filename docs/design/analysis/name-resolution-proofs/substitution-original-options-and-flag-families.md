@@ -20,94 +20,35 @@ Original counted option objects through Tcl_NewStringObj/Tcl_EvalObjv or Jim_New
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `observed`. Version: 8.4.20. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
-
-Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun switch.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun switch.
 
-### tcl8.6
+### tcl8.6, tcl9.0
 
-Status: `observed`. Version: 8.6.18. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
-
-Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun option.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source. Version: tcl8.6 8.6.18; tcl9.0 9.0.4.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun option.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted string objects passed directly to public Tcl_EvalObjv; ASCII Tcl_Eval setup/version source. Version: tcl9.1 9.1.0.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. All three positive options accepted; mixed families rejected; six-entry option diagnostic.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual linked executable. Public header/static library/Makefile/source-owner/probe/stream hashes and compile command retained; executed info patchlevel reports this version.. Channel: Original counted string objects passed directly to public Jim_EvalObjVector; ASCII Jim_Eval setup/version source.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original counted string objects passed directly to public Jim_EvalObjVector; ASCII Jim_Eval setup/version source. Version: jim 0.84-9-g5bac7c9.
 
 Binary-zero suffix matches; C080 and ff suffixes fail with exact diagnostic bytes. Positive options rejected; three-entry diagnostic with noun option.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for these exact inputs.
-
-## Historical references
-
-- `v1-input` (input): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/probe.c](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/probe.c). Complete exact C/Jim probe source. Counted object construction and each immediate result getter are explicit. Separate variants are not declared identical.
-- `v1-aggregate` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/receipt.json). Exact complete original six-provider receipts for this probe variant.
-- `v2-input` (input): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/probe.c](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/probe.c). Complete exact C/Jim probe source. Counted object construction and each immediate result getter are explicit. Separate variants are not declared identical.
-- `v2-aggregate` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/receipt.json). Exact complete original six-provider receipts for this probe variant.
-- `v1-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.4.20/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.4.20/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.4.20/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.4.20/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.4.20/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.4.20/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.5.19/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.5.19/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.5.19/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.5.19/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.5.19/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.5.19/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.6.18/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.6.18/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/8.6.18/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.6.18/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.6.18/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/8.6.18/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.0.4/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.0.4/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.0.4/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.0.4/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.0.4/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.0.4/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.1.0/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.1.0/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/9.1.0/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.1.0/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.1.0/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/9.1.0/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/jim/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/jim/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v1-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v1/jim/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1/jim/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/jim/receipt.json). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/jim/stdout.tsv). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-- `v2-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_subst_catch_operands/v2/jim/stderr](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2/jim/stderr). Exact original provider/build/process receipt or complete native process stream. A code 1 guest result is expected data, independently of process exit 0.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -118,23 +59,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/builtins/native_subst_operand_tests.rs](../../../../runtime/rust/src/builtins/native_subst_operand_tests.rs), `builtins::native_subst_operand_tests::original_subst_options_match_counted_native_families` (linked): Compare exact captured result code and native result bytes for original byte inputs; pure Registry test independently checks available authored table parity/flag folding. No native observation alone asserts Rust execution.
 - [rust/tcl-registry/src/substitution.rs](../../../../rust/tcl-registry/src/substitution.rs), `substitution::tests::native_runtime_option_declaration_matches_registry_surface_and_family_fold` (linked): Compare exact captured result code and native result bytes for original byte inputs; pure Registry test independently checks available authored table parity/flag folding. No native observation alone asserts Rust execution.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-vm/tests/data/native_subst_catch_operands/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-subst-catch-reconfirmation"
-]
-```
-
-Requires exact pinned probe/public header/static library/Makefile/source-owner and retained stream hashes. Recompiles both independent variants and compares complete exit/stdout/stderr; guest result errors are expected. --verify-only checks correspondence without any native or Rust execution. This question has no cache/header/errorCode windows.
+- [rust/tcl-vm/tests/data/native_subst_catch_operands/v1](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v1)
+- [rust/tcl-vm/tests/data/native_subst_catch_operands/v2](../../../../rust/tcl-vm/tests/data/native_subst_catch_operands/v2)

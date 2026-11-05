@@ -20,7 +20,6 @@ experiments/name-handling/clock-bootstrap-epoch/*.stdout.txt -whitespace
 experiments/name-handling/clock-bootstrap-epoch/*.stderr.txt -whitespace
 rust/tcl-registry/tests/data/native_corpus_naming_patterns/*.txt -whitespace
 rust/tcl-registry/tests/data/native_wiki_naming_patterns/*.txt -whitespace
-scripts/dev/bigip-probes/resolution-2286/evidence/** -whitespace
 
 experiments/name-handling/clock-bootstrap-epoch/**/*.stdout.txt -whitespace
 experiments/name-handling/clock-bootstrap-epoch/**/*.stderr.txt -whitespace

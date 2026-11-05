@@ -16,7 +16,6 @@ The primary expression selector retains a genuine original NativeWord under the 
 
 The independent Native operator issuer admits only a whole braced operand of one actual selected expression handler or a simple conditional with exactly one Expr role and complete genuinely empty bodies. The command is the only root source command. Original dispatch, compiler name effects, Registry/input/configuration correspondence, command observers and variable-trace inventories remain independently closed. Both exact checked trees must contain only inert literal operands and independently complete normally under the selected Native evaluator. De Morgan rewrites preserve truth and left-to-right short-circuit evaluation. The explicitly requested comparison inversion deliberately complements equality or membership while retaining original literal leaves in order; it does not claim unchanged predicate truth. Lexer-issued leaf extents authenticate both trees, and the replacement is separately checked as an authored braced word. Variable reads, functions, command substitutions, ordered comparisons, additional conditions, nonempty bodies and retained procedure source remain unavailable. These bounds avoid borrowing a source-observation or error-context claim from a conditional role. Known shadowed heads, comments, data, stale whole source and unavailable original roles cannot borrow nominal expression metadata.
 
-
 Logical math hover consumes a distinct source-only expression occurrence. The
 existing configured expression lexer and SourceTopology parser retain the complete
 untrimmed expression, every actual caller lexer knob and immutable function-call
@@ -51,62 +50,17 @@ Current Core primary expression completion and selected-text operator action ada
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs](../../../../rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs), `SourceInvocationBinding::original_expression_operator_rewrite`: Retain actual quiet selected handler/compiler effects and one isolated root command; require exact selected checked syntax and independently finite normal evaluation of both inert literal trees.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `original_expression_operator_rewrite`: Require exactly one authentic Expr-role operand and complete genuinely empty bodies before asking the purpose-specific transformation issuer.
 - [rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs](../../../../rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs), `command_binding::original_literal_argv_rewrite::tests::original_editor_operator_rewrite_keeps_normality_empty_bodies_and_literal_order` (linked): Authored release grammars retain finite literal De Morgan/comparison proposals and reject altered/reordered leaves, variables, children, functions, errors, changed handlers, traces, nonempty bodies and later conditions.
-
 
 - [rust/tcl-lsp-core/src/expr_context.rs](../../../../rust/tcl-lsp-core/src/expr_context.rs), `source_expression_operand_at`: Retain one original source expression word selected by authentic current roles, full source/configuration and Registry; hosted conditional applicability stays separate from Native input.
 - [rust/tcl-lsp-core/src/expr_context.rs](../../../../rust/tcl-lsp-core/src/expr_context.rs), `source_expr_arg_context_at`: Use the same original operand for readonly completion geometry while excluding inner command-substitution positions.
@@ -129,13 +83,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs), `command_binding::source_transition_advice::logical_math::tests::logical_math_candidates_keep_selected_namespace_path_order` (linked): Actual authored namespace path order selects source-header candidates without a global fallback guess.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs), `command_binding::source_transition_advice::logical_math::tests::logical_math_candidates_refuse_unowned_cooked_and_native_expressions` (linked): Dynamic/cooked/malformed operands and Native-profile inputs cannot borrow the Logical source occurrence purpose.
 - [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs), `hover::logical_math_source_hover_tests::logical_math_hover_reports_conditional_headers_without_runtime_dispatch` (linked): Real source headers are displayed conditionally with observer debt and no engine dispatch claim.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
-
 
 ## Configured partial expression cursor and parameter extents
 

@@ -24,55 +24,11 @@ The two current source/API controls establish issuer correspondence only. Origin
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,15 +43,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs), `code_actions::diagnostic_currency::tests::original_check_actions_require_the_issuers_source_config_and_registry` (linked): A genuine current S100 warning supplies the exact line-one zero-width noqa edit; independently changed source/config/Registry and missing issuer provenance decline actions, while changed prose preserves the edit.
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs), `code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel` (linked): A genuine Document emoji extent and end-of-file insertion are valid; UTF8-interior/out-of-bounds positions decline, and identical Native bytes do not match the Document source owner.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs), `DiagnosticEditSource::matches_compiler_diagnostic`: Compare the original issuer full actual analysis input and availability generation with current analysis, alongside independent image/config/Registry/span/fix currency.
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs), `ContextDiagnosticData::matches`: Require the typed original subject and complete issuer input to match current source/config/store/generation before a context action; displayed prose does not select the owner.
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs), `code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input` (linked): Generic compiler fix currency requires the issuer complete actual Module input; same command store and identical image/config with older availability still refuse, and missing Module input cannot issue compiler source context.
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs), `code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner` (linked): Typed diagnostic context actions retain complete issuer input/availability independently of original source/config/store equality; a same-store older availability request supplies no action despite identical original source geometry.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-The exact linked Rust selectors exercise source currency and edit geometry. No Rust execution receipt or native provider observation is attached to this implementation contract.

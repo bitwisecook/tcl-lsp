@@ -22,55 +22,33 @@ Five whole pinned canonical tclCmdIL.c files and exact selector/table excerpts r
 
 ### tcl8.4
 
-Status: `inspected`. Version: 8.4.20. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Read-only whole source and exact selected table/selector excerpt. Version: tcl8.4 8.4.20.
 
 Complete subCmds excerpt contains no cmdtype/constant/consts member rows.
 
-### tcl8.5
+### tcl8.5, tcl8.6
 
-Status: `inspected`. Version: 8.5.19. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
-
-Complete defaultInfoMap excerpt contains no cmdtype/constant/consts member rows.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Read-only whole source and exact selected table/selector excerpt. Version: tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 Complete defaultInfoMap excerpt contains no cmdtype/constant/consts member rows.
 
 ### tcl9.0
 
-Status: `inspected`. Version: 9.0.4. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Read-only whole source and exact selected table/selector excerpt. Version: tcl9.0 9.0.4.
 
 Complete defaultInfoMap declares cmdtype and constant with TclCompileBasic1ArgCmd, consts with TclCompileBasic0Or1ArgCmd; cmdtype final flag1 remains exact. This is source declaration only, not actual installed hook/opcode admission.
 
 ### tcl9.1
 
-Status: `inspected`. Version: 9.1.0. Build: Source-only exact pinned tclCmdIL.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact selected table/selector excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Read-only whole source and exact selected table/selector excerpt. Version: tcl9.1 9.1.0.
 
 Complete tclInfoImplMap declares cmdtype and constant with TclCompileBasic1ArgCmd, consts with TclCompileBasic0Or1ArgCmd; cmdtype final flag1 remains exact. This is source declaration only, not actual installed hook/opcode admission.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `info-original-named-member-hooks262-inspection` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json). Exact read-only source inspection table/selector line ranges, original full source and excerpt digests; no native or Rust process observation.
-- `info-named-member-source-8.4.20` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-8.5.19` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-8.6.18` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-9.0.4` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `info-named-member-source-9.1.0` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c). Whole independently pinned original C provider source. Source table declarations are separate from actual runtime/compiler admission.
-- `naming-info-original-named-member-source-hooks-info_.rs` (implementation): [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
 
 ## Source inspection
 
@@ -227,14 +205,17 @@ const EnsembleImplMap tclInfoImplMap[] = {
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs), `named_c9_member_compilation`: Project exact C9 named Basic member source declarations with release floor/arity while keeping actual captured compiler/token/storage admission independent.
 - [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs), `commands::tcl::info_::tests::original_c9_basic_info_members_keep_their_selected_source_hooks` (linked): Exact whole C5 source tables and source rows retain cmdtype/constant Basic1 and consts Basic0Or1 declarations only in C9; Registry named registration descriptor retains implementation/hook floor and lookup member. Source projections do not assert a live Native token/compiler/constant table.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/basic-hooks-source-anchors.json)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.4.20/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.5.19/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/8.6.18/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.0.4/tclCmdIL.c)
+- [rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/9.1.0/tclCmdIL.c)
+- [rust/tcl-registry/src/commands/tcl/info_.rs](../../../../rust/tcl-registry/src/commands/tcl/info_.rs)

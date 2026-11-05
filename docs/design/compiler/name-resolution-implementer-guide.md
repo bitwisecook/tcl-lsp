@@ -7778,7 +7778,7 @@ head and original argument objects without metadata String getters. Weak frame
 and procedure owners preserve native role retirement independently of allocation
 leases. VM and Runtime execution scopes and C ordering remain independent.
 The namespace projection grants no lookup, creation, entered frame or successful
-invocation. The [retained SDK observations](../../../experiments/name-handling/results/original-jim-lambda-context-sdk-20261014/README.md)
+invocation. The retained SDK observations
 cover their original probes and getter order, not current Rust execution or full
 Jim suite conformance.
 
@@ -10612,7 +10612,7 @@ Preserve `ssa::tests::empty_dictionary_scope_source_phases_keep_original_names_a
 `resolved_invocation::tests::dictionary_source_phase_keeps_generic_unknown_and_additional_effects`
 and `dictionary_source_phase_rejects_wrong_arity_and_scripted_helpers` cover
 extra effects, custom arity and the genuine Jim scripted-helper refusal.
-The [retained observations](../../../experiments/name-handling/results/logical-empty-dictionary-scope-20261014/README.md)
+The retained observations
 distinguish actual quiet positives, unsupported operations and trace-process
 failures. Hosted F5 answers remain separate.
 

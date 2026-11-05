@@ -20,56 +20,17 @@ Source inspection of Tcl8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and Jim commit5bac7c99a
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `inspected`. Version: 8.4.20. Build: Pinned source inspection only; no executed build association.. Channel: Inspected original time handler body; no native input supplied.. Dialect: Tcl.
-
-Original script object is reused inside the positive-count loop; a non-OK body completion propagates immediately.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Pinned source inspection only; no executed build association.. Channel: Inspected original time handler body; no native input supplied.. Dialect: Tcl.
-
-Original script object is reused inside the positive-count loop; a non-OK body completion propagates immediately.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Pinned source inspection only; no executed build association.. Channel: Inspected original time handler body; no native input supplied.. Dialect: Tcl.
-
-Original script object is reused inside the positive-count loop; a non-OK body completion propagates immediately.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned source inspection only; no executed build association.. Channel: Inspected original time handler body; no native input supplied.. Dialect: Tcl.
-
-Original script object is reused inside the positive-count loop; a non-OK body completion propagates immediately.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned source inspection only; no executed build association.. Channel: Inspected original time handler body; no native input supplied.. Dialect: Tcl.
-
-Original script object is reused inside the positive-count loop; a non-OK body completion propagates immediately.
-
-### jim
-
-Status: `inspected`. Version: 0.84-9-g5bac7c9. Build: Pinned source inspection only; no executed build association.. Channel: Inspected original time handler body; no native input supplied.. Dialect: Jim Tcl.
+Status: `inspected`. Channel: Inspected original time handler body; no native input supplied. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim 0.84-9-g5bac7c9.
 
 Original script object is reused inside the positive-count loop; a non-OK body completion propagates immediately.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `tcl8.4-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl8.5-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl8.6-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl9.0-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `tcl9.1-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
-- `jim-time-object` (source-anchor): [rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json). JSON pointer `/window/snippet`. Exact pinned time handler window, original script object reuse and abrupt completion propagation. Source inspection only.
 
 ## Source inspection
 
@@ -477,7 +438,6 @@ static int Jim_TimeCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *arg
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `cmd_time`: Evaluate original script handle through existing selected ControlBody object door.
@@ -485,13 +445,6 @@ static int Jim_TimeCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *arg
 - [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::dispatches_list`: Keep independent original object/purpose/release list dispatch selection.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::time_keeps_original_counted_script_and_skips_zero_count_materialization` (linked): Implementation regression retains opaque counted script names in genuine selected core and separately skips invalid script decoding at zero count; no actual native or Rust pass claimed.
 - [runtime/rust/src/cmd_control.rs](../../../../runtime/rust/src/cmd_control.rs), `cmd_control::tests::time_retains_original_list_body_and_result_objects` (linked): Implementation regression preserves selected modern/Jim original List dispatch, same returned element identity and missing script string representation; native cache/dispatch remains independently selected and no launch/pass is claimed.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Reproduce exact source/full-file/snippet hashes and LF coordinates only. No fresh executable/native/Rust observation is attached.
-
 
 ## Exact original-source349 software outcomes
 
@@ -502,4 +455,13 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.4-source.json)
+- [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.5-source.json)
+- [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl8.6-source.json)
+- [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.0-source.json)
+- [rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/tcl9.1-source.json)
+- [rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json](../../../../rust/tcl-cmd-core/tests/data/native_time_object_source/jim-source.json)

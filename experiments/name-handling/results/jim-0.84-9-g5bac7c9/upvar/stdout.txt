@@ -1,1 +1,0 @@
-      upvar.test: Total    42   Passed    42  Skipped     0  Failed     0

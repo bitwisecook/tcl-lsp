@@ -20,1508 +20,144 @@ Other assumptions were not separately recorded.
 
 ## Script
 
+Fixture: [bigip-tmm-traffic-event-2](fixtures/bigip-tmm-traffic-event-2.md)
+
+- run: `nh20261012broad2`
+- case: `name-substituted-head`
+- case.2: `name-quoted-head`
+- case.3: `name-list-prefix`
+
+### nh_setup
+
 ```tcl-visible
-set nh_options_available unavailable
-set nh_return_options {}
-set nh_unit "[TMM::cmp_group]:[TMM::cmp_unit]"
-set nh_invocation once
-set nh_invocation [HTTP::header value X-NH-Invocation]
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f68656164207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f68656164207b70726f63207b74776f20776f7264737d2078207b72657475726e2024787d7d0a]
-set nh_operation [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f68656164207b2274776f20776f72647322207b6120627d7d0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head {proc {two words} x {return $x}}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+### nh_operation
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f686561642a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f686561642a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f686561642a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f686561642a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f686561642a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f686561642a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f71756f7465645f686561642a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head {"two words" {a b}}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f68656164207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f68656164207b70726f63207b74776f20776f7264737d2078207b72657475726e2024787d3b207365742068656164207b74776f20776f7264737d7d0a]
-set nh_operation [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f68656164207b2468656164207b6120627d7d0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+### nh_cleanup
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad27_name_quoted_head* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head*] [info commands ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head*] [info vars ::__tcl_lsp_probe_nh20261012broad27_name_quoted_head*]⟦EOF⟧
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f686561642a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f686561642a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f686561642a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f686561642a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f686561642a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f686561642a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f73756273746974757465645f686561642a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+### nh_setup.2
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f707265666978207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f707265666978207b70726f63207b74776f20776f7264737d2078207b72657475726e2024787d3b2073657420707265666978205b6c697374207b74776f20776f7264737d207b6120627d5d7d0a]
-set nh_operation [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f707265666978207b6576616c20247072656669787d0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head {proc {two words} x {return $x}; set head {two words}}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+### nh_operation.2
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f7072656669782a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f7072656669782a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f7072656669782a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f7072656669782a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f7072656669782a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f7072656669782a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432375f6e616d655f6c6973745f7072656669782a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head {$head {a b}}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options $nh_options_available] returnoptions $nh_return_options errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field == "returnoptions" && $nh_options_available == "unavailable"} {continue}
-    if {$nh_field != "result" && $nh_field != "returnoptions" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
+### nh_cleanup.2
+
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad27_name_substituted_head* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head*] [info commands ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head*] [info vars ::__tcl_lsp_probe_nh20261012broad27_name_substituted_head*]⟦EOF⟧
+```
+
+### nh_setup.3
+
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix {proc {two words} x {return $x}; set prefix [list {two words} {a b}]}
+```
+
+### nh_operation.3
+
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix {eval $prefix}
+```
+
+### nh_cleanup.3
+
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad27_name_list_prefix* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix*] [info commands ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix*] [info vars ::__tcl_lsp_probe_nh20261012broad27_name_list_prefix*]⟦EOF⟧
 ```
 
 ## Results
 
-### tmm-traffic-event, unit 0:0, invocation 0
+### tmm-traffic-event, unit 0:0, invocation 0; tmm-traffic-event, unit 0:0, invocation 1; tmm-traffic-event, unit 0:0, invocation 10; tmm-traffic-event, unit 0:0, invocation 11; tmm-traffic-event, unit 0:0, invocation 12; tmm-traffic-event, unit 0:0, invocation 13; tmm-traffic-event, unit 0:0, invocation 14; tmm-traffic-event, unit 0:0, invocation 15; tmm-traffic-event, unit 0:0, invocation 2; tmm-traffic-event, unit 0:0, invocation 3; tmm-traffic-event, unit 0:0, invocation 4; tmm-traffic-event, unit 0:0, invocation 5; tmm-traffic-event, unit 0:0, invocation 6; tmm-traffic-event, unit 0:0, invocation 7; tmm-traffic-event, unit 0:0, invocation 8
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-traffic-event.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|0|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|0|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|0|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|0|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|0|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|0|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|0|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|0|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|0|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, setup, completion 0, result:
 
 ```text-visible
 two words⟦EOF⟧
 ```
 
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, setup, completion 0, result:
 
 ```text-visible
 {two words} {a b}⟦EOF⟧
 ```
 
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 1
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|1|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|1|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|1|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|1|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|1|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|1|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|1|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|1|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|1|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 10
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|10|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|10|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|10|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|10|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|10|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|10|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|10|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|10|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|10|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 11
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|11|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|11|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|11|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|11|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|11|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|11|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|11|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|11|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|11|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 12
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|12|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|12|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|12|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|12|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|12|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|12|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|12|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|12|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|12|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 13
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|13|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|13|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|13|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|13|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|13|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|13|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|13|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|13|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|13|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 14
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|14|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|14|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|14|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|14|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|14|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|14|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|14|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|14|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|14|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 15
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|15|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|15|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|15|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|15|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|15|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|15|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|15|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|15|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:55 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|15|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 2
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|2|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|2|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|2|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|2|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|2|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|2|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|2|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|2|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|2|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 3
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|3|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|3|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|3|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|3|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|3|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|3|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|3|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|3|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|3|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 4
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|4|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|4|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|4|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|4|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|4|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|4|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|4|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|4|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|4|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 5
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|5|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|5|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|5|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|5|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|5|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|5|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|5|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|5|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|5|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 6
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|6|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|6|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|6|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|6|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|6|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|6|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|6|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|6|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:53 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|6|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 7
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|7|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|7|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|7|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|7|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|7|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|7|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|7|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|7|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|7|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix: intended operation reached.
-
-- name-quoted-head: intended operation reached.
-
-- name-substituted-head: intended operation reached.
-
-### tmm-traffic-event, unit 0:0, invocation 8
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-traffic-event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|8|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|8|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|8|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|8|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|8|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|8|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|8|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|8|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|8|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{two words} {a b}⟦EOF⟧
-```
-
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
@@ -1540,71 +176,59 @@ a b⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|setup|0|0:0|9|result|binary-scan-tcl-value|0|1|
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|lookup|0|0:0|9|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-quoted-head|tmm-traffic-event|runtime-cleanup|0|0:0|9|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|setup|0|0:0|9|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|lookup|0|0:0|9|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-substituted-head|tmm-traffic-event|runtime-cleanup|0|0:0|9|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|setup|0|0:0|9|result|binary-scan-tcl-value|0|1|7b74776f20776f7264737d207b6120627d
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|lookup|0|0:0|9|result|binary-scan-tcl-value|0|1|612062
-Oct 12 08:59:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_7_19 <HTTP_REQUEST>: NHO|nh20261012broad2|name-list-prefix|tmm-traffic-event|runtime-cleanup|0|0:0|9|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- name-quoted-head, setup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- name-quoted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-quoted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-quoted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-substituted-head, setup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, setup, completion 0, result:
 
 ```text-visible
 two words⟦EOF⟧
 ```
 
-- name-substituted-head, lookup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-substituted-head, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-substituted-head, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- name-list-prefix, setup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, setup, completion 0, result:
 
 ```text-visible
 {two words} {a b}⟦EOF⟧
 ```
 
-- name-list-prefix, lookup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, lookup, completion 0, result:
 
 ```text-visible
 a b⟦EOF⟧
 ```
 
-- name-list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-list-prefix, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧

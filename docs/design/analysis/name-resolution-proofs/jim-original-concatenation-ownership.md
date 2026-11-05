@@ -20,60 +20,17 @@ Exactly four source excerpts from original current Jim revision 5bac7c99ad65864c
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original process for this concatenation ownership question. Dialect: tcl8.4.
-
-No original external provider process or source comparison answers this Jim software concatenation ownership contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original process for this concatenation ownership question. Dialect: tcl8.5.
-
-No original external provider process or source comparison answers this Jim software concatenation ownership contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original process for this concatenation ownership question. Dialect: tcl8.6.
-
-No original external provider process or source comparison answers this Jim software concatenation ownership contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original process for this concatenation ownership question. Dialect: tcl9.0.
-
-No original external provider process or source comparison answers this Jim software concatenation ownership contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original process for this concatenation ownership question. Dialect: tcl9.1.
+Status: `not-tested`. Channel: No original process for this concatenation ownership question.
 
 No original external provider process or source comparison answers this Jim software concatenation ownership contract.
 
 ### jim
 
-Status: `not-tested`. Version: 0.84-9-g5bac7c9. Build: Pinned original source interpretation only. Channel: No original process for this concatenation ownership question. Dialect: jim.
+Status: `not-tested`. Channel: No original process for this concatenation ownership question. Version: jim 0.84-9-g5bac7c9.
 
 Four exact Jim source windows explain zero/unary/multiple worker transfer and append order; no original provider process, private ownership/header/refcount or successful software outcome is supplied.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original process for this concatenation ownership question. Dialect: bigip.
-
-No original external provider process or source comparison answers this Jim software concatenation ownership contract.
-
-## Historical references
-
-- `jim-cat-whole-source` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). Unchanged official whole original Jim source, shared byte-exact; source interpretation only, no new execution.
-- `jim-cat-source-audit` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json). Exact original source revision/hash/window index from the accepted source packet; immutable source interpretation, not provider observation.
-- `jim-cat-source-window-0` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-source-window-1` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-source-window-2` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-source-window-3` (source-anchor): [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt). Exact counted original source excerpt; transfer/getter/backing order is source interpretation and issues no original process/header/refcount result.
-- `jim-cat-version-recipe` (source-anchor): [rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json](../../../../rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json). Unchanged current-Jim request retains the exact source/version recipe; its independent public mathop/helper outputs do not measure zero/unary cat or private ownership.
-- `sourceperf-original-owner-1c948d5e5d07` (implementation): [rust/tcl-cmd-core/src/native_cat.rs](../../../../rust/tcl-cmd-core/src/native_cat.rs). The shared Jim cat worker preserves empty, unary and multiple-input ownership and append order. Checked callers supply original String and currentness checks plus full-cause retention.
-- `sourceperf-original-owner-672e02c53fec` (implementation): [rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs](../../../../rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs). The registered software controls describe original ownership, getter/cache refusal and Guest/Host settlement. They carry no attached owned assertion outcome, external provider observation or Native private-header/callback chronology.
-- `sourceperf-original-owner-0cf3af8ba484` (implementation): [rust/tcl-vm/src/value_ops.rs](../../../../rust/tcl-vm/src/value_ops.rs). Original Jim cat inherits or enters its actual scope before the shared String worker and retains the full first cause before cleanup or legacy error projection; authored materialization stays independently selected.
 
 ## Source inspection
 
@@ -166,7 +123,6 @@ void Jim_AppendObj(Jim_Interp *interp, Jim_Obj *objPtr, Jim_Obj *appendObjPtr)
     objPtr->taint |= appendObjPtr->taint;
 }
 
-
 ```
 
 jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `OPT_CAT`, lines 14849–14871. Retained reference `jim-cat-whole-source`.
@@ -198,7 +154,6 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/native_cat.rs](../../../../rust/tcl-cmd-core/src/native_cat.rs), `concatenate_jim`: Apply the selected Jim zero/unary/multiple original-object cat transfer and checked source-getter-before-fresh-receiver String order; caller liveness and recipe selection remain required.
@@ -214,8 +169,13 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 - [rust/tcl-vm/src/value_ops/native_jim_string_cat_tests.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_string_cat_tests.rs), `value_ops::native_jim_string_cat_tests::jim_cat_selected_unavailable_logical_purpose_does_not_reach_physical_engine` (linked): A positively selected unavailable Logical materialization purpose refuses zero/unary cat without reaching the physical Jim engine; the original integer stays stringless and retains its primary. Source fallback cannot replace a positively selected unavailable Logical purpose.
 - [rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs](../../../../rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs), `interp::native_numeric_ops::original_string_stage_tests::original_static_lookup_tests::original_jim_cat_keeps_empty_unary_and_compound_source_roles_without_host_query` (linked): The existing Jim cat worker preserves empty fresh ownership, unary same-object/reference role and multiple compound source order without an extra supplied Host query. This additional source-defined software control carries no attached current owned assertion result, external provider observation, Native private-header/callback chronology or new execution grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact source windows and software/API definitions only; no process or passing implementation assertion supplied. Restore retained source revision/window bytes to review source order. Original Info multiple-operand observations remain independent and unchanged; new zero/unary or provider execution requires its own exact request and receipts.
+- [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-audit.json)
+- [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/SetStringFromAny-2467-2490.txt)
+- [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/StringAppendString-2561-2595.txt)
+- [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/Jim_AppendObj-2596-2610.txt)
+- [rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt](../../../../rust/tcl-vm/tests/data/jim_original_concatenation_ownership/source-windows/OPT_CAT-14849-14871.txt)
+- [rust/tcl-cmd-core/src/native_cat.rs](../../../../rust/tcl-cmd-core/src/native_cat.rs)
+- [rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs](../../../../rust/tcl-vm/src/interp/native_string_stage_tests/original_static_lookup_tests.rs)
+- [rust/tcl-vm/src/value_ops.rs](../../../../rust/tcl-vm/src/value_ops.rs)

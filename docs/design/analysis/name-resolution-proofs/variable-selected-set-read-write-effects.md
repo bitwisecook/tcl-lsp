@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.4.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl8.4 8.4.20.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -47,7 +47,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.5.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl8.5 8.5.19.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -72,7 +72,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.6.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl8.6 8.6.18.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -97,7 +97,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.0.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl9.0 9.0.4.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -122,7 +122,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.1.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl9.1 9.1.0.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -147,7 +147,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### jim
 
-Status: `observed`. Version: jim. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: jim.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -172,43 +172,14 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/8.4.20.stderr](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/8.4.20.stderr). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/8.4.20.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/8.5.19.stderr](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/8.5.19.stderr). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-3` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/8.5.19.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/8.6.18.stderr](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/8.6.18.stderr). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/8.6.18.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-6` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/9.0.4.stderr](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/9.0.4.stderr). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-7` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/9.0.4.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-8` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/9.1.0.stderr](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/9.1.0.stderr). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-9` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/9.1.0.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-10` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/jim.stderr](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/jim.stderr). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-11` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/jim.tsv](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/jim.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-12` (observation): [rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-12-row-13` (provider): [rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json). JSON pointer `/runs/0`. Original provider/capture association at its exact selected row.
-- `file-12-row-14` (provider): [rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json). JSON pointer `/runs/1`. Original provider/capture association at its exact selected row.
-- `file-12-row-15` (provider): [rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json). JSON pointer `/runs/2`. Original provider/capture association at its exact selected row.
-- `file-12-row-16` (provider): [rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json). JSON pointer `/runs/3`. Original provider/capture association at its exact selected row.
-- `file-12-row-17` (provider): [rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json). JSON pointer `/runs/4`. Original provider/capture association at its exact selected row.
-- `file-12-row-18` (provider): [rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/manifest.json). JSON pointer `/runs/5`. Original provider/capture association at its exact selected row.
-- `file-19` (input): [rust/tcl-registry/tests/data/native_set_effect_forms/probe.tcl](../../../../rust/tcl-registry/tests/data/native_set_effect_forms/probe.tcl). Exact retained input/program bytes; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-registry/tests/data/native_set_effect_forms](../../../../rust/tcl-registry/tests/data/native_set_effect_forms)

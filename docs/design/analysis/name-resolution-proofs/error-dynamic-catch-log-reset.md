@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.4.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -50,7 +50,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.5.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -78,7 +78,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.6.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -106,7 +106,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.0.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -134,7 +134,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.1.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -162,7 +162,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### jim
 
-Status: `observed`. Version: jim. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: jim.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -190,32 +190,15 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-0-row-1` (provider): [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-0-row-2` (provider): [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-0-row-3` (provider): [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-0-row-4` (provider): [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-0-row-5` (provider): [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-0-row-6` (provider): [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json). JSON pointer `/5`. Original provider/capture association at its exact selected row.
-- `file-7` (observation): [runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `reconstructed-wire-inputs` (input): [docs/design/analysis/name-resolution-proofs/reconstructed-capture-inputs.json](../../../../docs/design/analysis/name-resolution-proofs/reconstructed-capture-inputs.json). JSON pointer `/groups/dynamic-catch`. Exact original complete capture inputs recovered offline from retained body hex and catch/binary-scan wrapper, with every original whole-input digest checked. This supplies no new guest execution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/provenance.json)
+- [runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv](../../../../runtime/rust/tests/data/native_dynamic_catch_reset/windows.tsv)

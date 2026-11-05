@@ -30,17 +30,6 @@ The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18,
 
 C8.4/8.5 read LOCAL, then GLOBAL through the reused localVarName object and return GLOBAL. C8.6–C9.1 read LOCAL once and finish the simple sequence with the observed cannot-read-v Error; their compiler-selected source tail does not restore local v. The qualified sequence records parsedVarName/QUALIFIED twice in all five releases, but its final completion is success only in C8.4/8.5. These are source-token/handler/cache observations for the exact two sequences, not a general cache validity or alias identity grant.
 
-## Historical references
-
-- `runtime/rust/tests/data/native_global_cache_token/manifest.json`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
-- `runtime/rust/tests/data/native_global_cache_token/probe.c`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
-- `runtime/rust/tests/data/native_global_cache_token/8.4.20.txt`: Exact recorded output for C Tcl 8.4.20
-- `runtime/rust/tests/data/native_global_cache_token/8.5.19.txt`: Exact recorded output for C Tcl 8.5.19
-- `runtime/rust/tests/data/native_global_cache_token/8.6.18.txt`: Exact recorded output for C Tcl 8.6.18
-- `runtime/rust/tests/data/native_global_cache_token/9.0.4.txt`: Exact recorded output for C Tcl 9.0.4
-- `runtime/rust/tests/data/native_global_cache_token/9.1.0.txt`: Exact recorded output for C Tcl 9.1.0
-- `rust/tcl-vm/tests/data/native_global_cache_token/manifest.json`: Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred.
-
 ## Rust comparisons
 
 - `rust/tcl-vm/src/interp/native_variable_names.rs`: `interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache`. Compare exact cache primary labels, read values and guest success/Error completions.

@@ -20,39 +20,15 @@ One retained Jim result projection with exact original observer source and pinne
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This exact nested-current observation comes from the Jim-only probe branch; no result for this provider is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This exact nested-current observation comes from the Jim-only probe branch; no result for this provider is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This exact nested-current observation comes from the Jim-only probe branch; no result for this provider is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This exact nested-current observation comes from the Jim-only probe branch; no result for this provider is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 This exact nested-current observation comes from the Jim-only probe branch; no result for this provider is attached.
 
 ### jim
 
-Status: `observed`. Version: Jim (patchlevel unqueried). Build: Pinned source revision 5bac7c99ad65864c87da513e22e2f01703fa4e03; observer; compile/library/configure/process closure unrecorded.. Channel: Jim_EvalObj of exact ASCII nested namespace source, then original result primary and counted string getter.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Jim_EvalObj of exact ASCII nested namespace source, then original result primary and counted string getter. Version: jim Jim (patchlevel unqueried).
 
 Exact retained row:
 
@@ -61,29 +37,13 @@ Jim|nested-current|0|string|3a3a4e3a3a71|-|-
 ```
 No parent getter or private C namespace descriptor observation follows from this result.
 
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This exact nested-current observation comes from the Jim-only probe branch; no result for this provider is attached.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.c](../../../../rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.c). Exact reached Jim nested-source branch.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_namespace_name/provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/provenance.json). JSON pointer `/runs/5`. Original Jim observer/revision/log association.
-- `rows` (observation): [rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.txt](../../../../rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.txt). Exact original nested-current projection.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/namespace.rs](../../../../rust/tcl-cmd-core/src/namespace.rs), `current_original`: Produce the selected Jim current result through its own implementation contract.
 - [runtime/rust/src/interp/native_namespace_names/tests.rs](../../../../runtime/rust/src/interp/native_namespace_names/tests.rs), `interp::native_namespace_names::tests::current_namespace_results_match_current_jim_original_producers` (linked): Compares exact Jim nested-current result primary and bytes; no C descriptor grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact Jim branch remains in the retained probe. A fresh run must select and identify the pinned Jim build and retain full output/status/streams. The current projection alone proves no same-object cache, reference count or current namespace allocation.
+- [rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.c](../../../../rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.c)
+- [rust/tcl-syntax/tests/data/native_namespace_name/provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/provenance.json)
+- [rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.txt](../../../../rust/tcl-syntax/tests/data/native_namespace_name/producer_getter.txt)

@@ -20,39 +20,15 @@ One recorded current-label Jim shell binary SHA and exact jim-reference.tcl ASCI
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### jim
 
-Status: `observed`. Version: Exact revision/version not recorded. Build: Shell SHA d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0. Channel: ASCII script through the recorded Jim shell. Dialect: Jim Tcl.
+Status: `observed`. Channel: ASCII script through the recorded Jim shell.
 
 Exit 0 and empty stderr.
 
@@ -69,35 +45,16 @@ equalmissing 1 {wrong # args: should be "string equal ?-nocase? ?-length int? st
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json). Original Jim binary/source hashes, argv, exit and stdout/stderr hex.
-- `e1` (input): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl). Actual independent ASCII reference handler script.
-- `e2` (observation): [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt). Exact eight result/caught-diagnostic lines.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_scalar_compilation.rs](../../../../rust/tcl-registry/src/native_scalar_compilation.rs), `NativeScalarScope`: Keep reference public handler results separate from independently selected C compiler operand scope.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "/path/to/recorded/jimsh",
-  "rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl"
-]
-```
-
-The retained script owns its catch/presenter and can be replayed with the recorded binary or an independently documented Jim build. Require exact eight stdout lines, empty stderr and exit0. A new build is a separate observation; this replay is not a C compiler or physical object-header control.
+- [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference-manifest.json)
+- [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.tcl)
+- [rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt](../../../../rust/tcl-registry/tests/data/native_scalar_compilation/jim-reference.txt)

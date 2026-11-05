@@ -20,98 +20,22 @@ Exact malformed.tcl ASCII source and six retained shell outputs; source escape e
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `observed`. Version: 8.4. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### jim
-
-Status: `observed`. Version: jim0.84. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description. Version: jim jim0.84.
 
 1 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-## Historical references
-
-- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_concat/malformed-manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_concat/malformed-manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-1` (observation): [rust/tcl-cmd-core/tests/data/native_concat/8.4.20.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/8.4.20.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-2` (observation): [rust/tcl-cmd-core/tests/data/native_concat/8.5.19.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/8.5.19.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-3` (observation): [rust/tcl-cmd-core/tests/data/native_concat/8.6.18.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/8.6.18.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-4` (observation): [rust/tcl-cmd-core/tests/data/native_concat/9.0.4.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/9.0.4.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-5` (observation): [rust/tcl-cmd-core/tests/data/native_concat/9.1.0.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/9.1.0.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-6` (observation): [rust/tcl-cmd-core/tests/data/native_concat/arithseries-8.4.20.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries-8.4.20.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-7` (observation): [rust/tcl-cmd-core/tests/data/native_concat/arithseries-8.5.19.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries-8.5.19.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-8` (observation): [rust/tcl-cmd-core/tests/data/native_concat/arithseries-8.6.18.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries-8.6.18.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-9` (observation): [rust/tcl-cmd-core/tests/data/native_concat/arithseries-9.0.4.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries-9.0.4.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-10` (observation): [rust/tcl-cmd-core/tests/data/native_concat/arithseries-9.1.0.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries-9.1.0.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-11` (input): [rust/tcl-cmd-core/tests/data/native_concat/arithseries-jim.c](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries-jim.c). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-12` (observation): [rust/tcl-cmd-core/tests/data/native_concat/arithseries-jim.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries-jim.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-13` (input): [rust/tcl-cmd-core/tests/data/native_concat/arithseries.c](../../../../rust/tcl-cmd-core/tests/data/native_concat/arithseries.c). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-14` (input): [rust/tcl-cmd-core/tests/data/native_concat/cases.rs](../../../../rust/tcl-cmd-core/tests/data/native_concat/cases.rs). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-15` (input): [rust/tcl-cmd-core/tests/data/native_concat/jim-probe.c](../../../../rust/tcl-cmd-core/tests/data/native_concat/jim-probe.c). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-16` (observation): [rust/tcl-cmd-core/tests/data/native_concat/jim.tsv](../../../../rust/tcl-cmd-core/tests/data/native_concat/jim.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-17` (input): [rust/tcl-cmd-core/tests/data/native_concat/malformed.tcl](../../../../rust/tcl-cmd-core/tests/data/native_concat/malformed.tcl). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-18` (input): [rust/tcl-cmd-core/tests/data/native_concat/probe.c](../../../../rust/tcl-cmd-core/tests/data/native_concat/probe.c). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `maintained-source-replayer` (implementation): [scripts/dev/replay-grammar-native-source.py](../../../../scripts/dev/replay-grammar-native-source.py). Maintained source-only replay adapter; no fresh native execution is recorded by this contribution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "scripts/dev/replay-grammar-native-source.py",
-  "--proof",
-  "naming.concat-malformed-list-result",
-  "--provider",
-  "8.4",
-  "--executable",
-  "/path/to/exact/recorded/provider",
-  "--output",
-  "/tmp/name-resolution-source-replay"
-]
-```
-
-Select each observed provider explicitly. The driver pins retained evidence bytes, checks independently launched patchlevel, preserves original source/wrapper bytes, compares process exit/stdout/stderr and writes a fresh provider receipt outside the repository. The shared two-slot limit and60-second timeout remain unchanged. Guest errors inside a catch are expected data. This driver replays source-only observations; it supplies no private-header or original-object identity evidence.
+- [rust/tcl-cmd-core/tests/data/native_concat](../../../../rust/tcl-cmd-core/tests/data/native_concat)

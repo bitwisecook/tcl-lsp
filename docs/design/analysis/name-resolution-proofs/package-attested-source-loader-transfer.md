@@ -20,55 +20,11 @@ Authored Rust source-model controls: five selected C release contexts retain a c
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust attested source-model transfer has no native provider execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust attested source-model transfer has no native provider execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust attested source-model transfer has no native provider execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust attested source-model transfer has no native provider execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust attested source-model transfer has no native provider execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This Rust attested source-model transfer has no native provider execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This Rust attested source-model transfer has no native provider execution receipt.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +36,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `install_trusted_package_provider`: Apply the same provider liveness, publication keys and attested command surface in the common package transfer.
 - [rust/tcl-compiler/src/command_binding/trusted_package_transfer.rs](../../../../rust/tcl-compiler/src/command_binding/trusted_package_transfer.rs), `command_binding::trusted_package_transfer::tests::attested_provider_entry_keeps_original_qualified_and_imported_slots` (linked): Five selected C release authoring contexts retain a complete attested package-only source world. The separately selected import script keeps genuine qualified ::tcltest::test and imported test target correspondence on its Normal path while the abrupt import alternative refuses complete whole-root occupancy; target correspondence does not grant unconditional completion. Only the certified package-only prefix supplies completion; later list done and the separate import script keep independent whole-world refusals.
 - [rust/tcl-compiler/src/command_binding/trusted_package_transfer.rs](../../../../rust/tcl-compiler/src/command_binding/trusted_package_transfer.rs), `command_binding::trusted_package_transfer::tests::attested_provider_transfer_declines_unknown_revoked_and_shadowed_preludes` (linked): Six fixed C8.6 unknown/shadowed/revoked/provided/package-unknown predecessors and missing attestation retain unknown completion and no loaded implementation; the transfer does not restore discarded state.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-These exact body-marked selectors bind authored Rust coverage; this contract supplies no native execution observation or independently executed Rust result. Each original lifecycle trace and captured provider result retains its independent question scope.

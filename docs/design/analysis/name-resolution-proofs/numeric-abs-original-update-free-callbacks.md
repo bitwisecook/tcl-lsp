@@ -20,69 +20,9 @@ Original custom object emits3 from updater or already owns resident3 with a free
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=2b9cbd2e040e2afe1435ba373e06ee74fdb84dfa424c212b3c7c28ea84672a4a; library_sha=d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original custom C object in compiled or alias expr function operand; following caller variable/worker source observations.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-operation=abs route=compiled hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=compiled hook=free code=0 result=3 FREED CHANGED
-operation=abs route=generic hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=generic hook=free code=0 result=3 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=afd8608b821a70eb595e1ec392bc7717aa86e78c7ae58d131d394a23170ea931; library_sha=99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original custom C object in compiled or alias expr function operand; following caller variable/worker source observations.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-operation=abs route=compiled hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=compiled hook=free code=0 result=3 FREED CHANGED
-operation=abs route=generic hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=generic hook=free code=0 result=3 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=419f89dd54cf5e68422bea12764e59ec4e422af42771898787e8a631627657f3; library_sha=a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original custom C object in compiled or alias expr function operand; following caller variable/worker source observations.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-operation=abs route=compiled hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=compiled hook=free code=0 result=3 FREED CHANGED
-operation=abs route=generic hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=generic hook=free code=0 result=3 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=c0b1e833a8922346697edf539bcc9cb655b7ae850e3195dc8fd41c5a03e70488; library_sha=2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original custom C object in compiled or alias expr function operand; following caller variable/worker source observations.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-operation=abs route=compiled hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=compiled hook=free code=0 result=3 FREED CHANGED
-operation=abs route=generic hook=update code=0 result=3 UPDATED CHANGED
-operation=abs route=generic hook=free code=0 result=3 FREED CHANGED
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: binary_sha=b5f8143cbae8c86b99d30ebf61162a231a1013e5dad8bab9f20e5481715f5d79; library_sha=8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original custom C object in compiled or alias expr function operand; following caller variable/worker source observations.. Dialect: C Tcl.
+Status: `observed`. Channel: Original custom C object in compiled or alias expr function operand; following caller variable/worker source observations. Version: tcl8.4 8.4.20 (capture association; launched patchlevel/revision unqueried); tcl8.5 8.5.19 (capture association; launched patchlevel/revision unqueried); tcl8.6 8.6.18 (capture association; launched patchlevel/revision unqueried); tcl9.0 9.0.4 (capture association; launched patchlevel/revision unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -97,7 +37,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### jim
 
-Status: `observed`. Version: Jim0.84 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original custom Jim object in direct or alias expr function operand; following caller variable/worker source observations.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original custom Jim object in direct or alias expr function operand; following caller variable/worker source observations. Version: jim Jim0.84 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -112,33 +52,14 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks.c](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.4.20.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.5.19.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-8.6.18.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-9.0.4.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/math-hooks-9.1.0.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `probe-7` (input): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks.c](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-7` (provider): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks-manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks-manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-jim` (observation): [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks/jim-math-hooks.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/typed_value.rs](../../../../runtime/rust/src/typed_value.rs), `scalar_number`: Original numeric preparation must preserve reached custom operand callbacks independently from the later math result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks](../../../../rust/tcl-syntax/tests/data/native_scalar_math/operand_hooks)

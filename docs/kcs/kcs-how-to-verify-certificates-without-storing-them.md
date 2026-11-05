@@ -24,7 +24,7 @@ certificates when evaluating a chain; membership metadata alone cannot complete
 it.
 
 For passwords, API keys, SSH keys, and passkeys, follow the
-[creation and verification procedures](../../experiments/name-handling/results/security-material-scrub/material-generation.md).
+creation and verification procedures.
 Record successful fresh authentication or the exact failure boundary. Keep
 actual values, session cookies, key bodies, and recovery material out of
 captured output.

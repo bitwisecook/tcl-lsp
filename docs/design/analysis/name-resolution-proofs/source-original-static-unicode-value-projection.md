@@ -22,55 +22,11 @@ One marked Syntax source/API control checks valid Unicode and replacement values
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for the checked static Document value API. Dialect: tcl8.4.
-
-The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for the checked static Document value API. Dialect: tcl8.5.
+Status: `not-tested`. Channel: No original external process for the checked static Document value API.
 
 The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for the checked static Document value API. Dialect: tcl8.6.
-
-The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for the checked static Document value API. Dialect: tcl9.0.
-
-The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for the checked static Document value API. Dialect: tcl9.1.
-
-The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for the checked static Document value API. Dialect: jim.
-
-The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for the checked static Document value API. Dialect: bigip.
-
-The software definition retains original word/configuration and checks a String-compatible Logical projection. Original Native source comparisons, representations and naming purposes remain independent; this contract has no external provider observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,9 +34,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/word_rules.rs](../../../../rust/tcl-syntax/src/word_rules.rs), `original_static_word_source_bytes`: Retain independent static source presentation; its bytes alone do not establish the checked Unicode value or original Native units.
 - [rust/tcl-syntax/src/word_rules.rs](../../../../rust/tcl-syntax/src/word_rules.rs), `original_static_word_ascii_presentation`: Keep the separate static ASCII presentation facet and its own lexical scope, without filling a refused Unicode-value projection.
 - [rust/tcl-syntax/src/word_rules.rs](../../../../rust/tcl-syntax/src/word_rules.rs), `word_rules::original_metadata_tests::static_unicode_values_keep_original_units_separate_from_replacement_presentation` (linked): Exact Document words retain valid Unicode/replacement and braced or escaped literal spellings; interpreted unrepresentable numeric units remain unavailable even when presentation contains U+FFFD. Dynamic/expanded and Native words refuse the checked facet. Configuration inputs are software premises, without inferred native provider selection or outcome.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Current source/API definitions only. No Rust assertion or external provider run is attached. The independent native original-surrogate-versus-replacement-escape-values proof retains its exact public comparison/length source, releases and complete streams; it grants no source API, internal-unit or Native naming authority.

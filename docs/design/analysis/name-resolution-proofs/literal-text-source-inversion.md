@@ -20,57 +20,11 @@ Literal text serialization under modeled C8.4–9.1 string protocols and an expl
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a Rust implementation assertion; no native provider observation answers this precise source-consumer question.
-
-## Historical references
-
-- `source-backslash` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). Literal-text source rendering checks retranslation under the explicitly selected native string protocol and input channel. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution.
-
-- `syntax-backslash-fixed-software-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-backslash-20261103/receipt.json). Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +33,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/completion/original_variables.rs](../../../../rust/tcl-lsp-core/src/completion/original_variables.rs), `reference_spelling`: Validate literal text again as one authentic executable variable reference with an independent index.
 - [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs), `backslash::tests::literal_text_inverse_roundtrips_actual_document_ingress_units` (linked): Invert retained C5 plain ingress units and refuse invalid bytes, unpaired surrogates and NativeValue modified-zero donation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained Syntax receipt records the named literal-text helper control. Native source ingress observations are separately scoped and do not certify consumer or editor execution.
+- [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs)

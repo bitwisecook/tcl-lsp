@@ -100,39 +100,23 @@ S columns are described in README and sampled before the R result-byte observer.
 
 ASCII Tcl_EvalEx plus original Tcl_EvalObjv flags0; private live native Proc/CallFrame and original object-header observer.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No retained observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No retained observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-vm/tests/data/native_procedure_recompile/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/probe.c). Exact original retained Proc/body/default/key and active-frame pre-observer protocol, real replacement and four modes.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json). Original20 independent process/output associations and actual native source/archive/executable SHA metadata.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-3.txt). Full original S/R stream for exact mode3.
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-3.txt). Full original S/R stream for exact mode3.
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-3.txt). Full original S/R stream for exact mode3.
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-3.txt). Full original S/R stream for exact mode3.
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-3.txt). Full original S/R stream for exact mode3.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `NativeProcedureActivationProtocol::recompilation_action`: Selects declaration retention versus replacement only from actual native compilation purpose and retained procedure role count.
 - [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `native_procedure::recompilation_ownership_tests::recompilation_matches_all_20_native_declaration_identity_controls` (linked): Checks declaration retention/replacement against the20 original before/after role cases; other native body/default/frame/header counts are retained evidence, not assertions this pure recipe test executes.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native execution or Rust test pass is claimed. A new comparison must retain the exact original program/API flags, independently identify the selected provider build, and capture separate process status/stdout/stderr. Original absolute paths do not constitute a portable runnable replay command. An original raw stream absent from this corpus cannot be validated from its digest alone. Probe source is an input observer, not native implementation source.
+- [rust/tcl-vm/tests/data/native_procedure_recompile/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/probe.c)
+- [rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/manifest.json)
+- [rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.4.20-3.txt)
+- [rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.5.19-3.txt)
+- [rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/8.6.18-3.txt)
+- [rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.0.4-3.txt)
+- [rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-3.txt](../../../../rust/tcl-vm/tests/data/native_procedure_recompile/9.1.0-3.txt)

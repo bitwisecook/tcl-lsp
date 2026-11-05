@@ -20,60 +20,17 @@ Two counted Tcl_NewStringObj property names: xFF length2 and x00tail length6; da
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
+Status: `not-tested`.
 
 This exact original-object C9.1 probe has no observation for this provider.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (original build/source association; probe does not query runtime patchlevel). Build: Original source and build references in receipt; compiler command/status0 retained, compiler version not recorded.. Channel: compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated. Dialect: tcl9.1.
+Status: `observed`. Channel: compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated. Version: tcl9.1 9.1.0 (original build/source association; probe does not query runtime patchlevel).
 
 Original full rows are opaque-0 RAW none and opaque-1 RAW none. Compile/process status0, empty stderr, no timeout; original TCL_LIBRARY is recorded. Each helper fails the process if an original definition/configure invocation is not code0.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-## Historical references
-
-- `probe` (input): [runtime/rust/tests/data/native_property_opaque/probe.c](../../../../runtime/rust/tests/data/native_property_opaque/probe.c). Exact original-object constructors, invocation and pre-render cache observer.
-- `receipt` (provider): [runtime/rust/tests/data/native_property_opaque/manifest.json](../../../../runtime/rust/tests/data/native_property_opaque/manifest.json). Original compile/process status, original source/header/library/executable digests, environment and full streams.
-- `rows` (observation): [runtime/rust/tests/data/native_property_opaque/native.tsv](../../../../runtime/rust/tests/data/native_property_opaque/native.tsv). Exact full original stdout retained separately.
-- `capture` (limitation): [runtime/rust/tests/data/native_property_opaque/capture.py](../../../../runtime/rust/tests/data/native_property_opaque/capture.py). Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier.
-- `receiver-current642-3130fecefbdfb6d3` (implementation): [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs). Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
-- `receiver-current642-8ce69af7c7160e4b` (implementation): [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs). Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,8 +41,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs), `cmd_oo::native_properties::tests::opaque_property_lookup_uses_original_accessor_members` (linked): Opaque property lookup uses original accessor members. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose.
 - [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs), `cmd_oo::native_properties::tests::opaque_property_lookup_uses_original_accessor_members` (linked): Opaque property lookup uses original accessor members. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The retained capture.py requires its fixed /workspace native paths and writes new outputs into the fixture directory. It is not run by this record. A fresh replay must independently select the release headers/library/source hashes, preserve the original observation order, and retain the new source/status/streams separately; no executed Rust parity follows from the captured native rows.
+- [runtime/rust/tests/data/native_property_opaque/probe.c](../../../../runtime/rust/tests/data/native_property_opaque/probe.c)
+- [runtime/rust/tests/data/native_property_opaque/manifest.json](../../../../runtime/rust/tests/data/native_property_opaque/manifest.json)
+- [runtime/rust/tests/data/native_property_opaque/native.tsv](../../../../runtime/rust/tests/data/native_property_opaque/native.tsv)
+- [runtime/rust/tests/data/native_property_opaque/capture.py](../../../../runtime/rust/tests/data/native_property_opaque/capture.py)
+- [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs)
+- [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs)

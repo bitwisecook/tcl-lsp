@@ -22,61 +22,15 @@ Pinned Jim commit5bac7c99ad65864c87da513e22e2f01703fa4e03 source inspection, exa
 
 ### jim
 
-Status: `inspected`. Version: 0.84-9-g5bac7c9. Build: Pinned source inspection only; no executed build association.. Channel: Inspected Jim_EvalSource C-string source and Jim_EvalFile counted read buffers, original Source/Script/token and error-stack objects; no input supplied.. Dialect: Jim Tcl.
+Status: `inspected`. Channel: Inspected Jim_EvalSource C-string source and Jim_EvalFile counted read buffers, original Source/Script/token and error-stack objects; no input supplied. Version: jim 0.84-9-g5bac7c9.
 
 Located source installs actual Source filename/line before parsing. Script compilation copies that original filename and per-token lines into original token objects. Plain unlocated objects default to empty filename and line1. Error frames append the original Script filename object. Jim_EvalFile reads counted buffers into its original object; Jim_EvalSource uses C-string length.
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: 8.4.20. Build: not recorded. Channel: No input supplied for this Jim Source/Script purpose.. Dialect: Tcl.
-
-No C/appliance source or execution comparison for this Jim object-primary question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: 8.5.19. Build: not recorded. Channel: No input supplied for this Jim Source/Script purpose.. Dialect: Tcl.
+Status: `not-tested`. Channel: No input supplied for this Jim Source/Script purpose. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 No C/appliance source or execution comparison for this Jim object-primary question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: 8.6.18. Build: not recorded. Channel: No input supplied for this Jim Source/Script purpose.. Dialect: Tcl.
-
-No C/appliance source or execution comparison for this Jim object-primary question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: 9.0.4. Build: not recorded. Channel: No input supplied for this Jim Source/Script purpose.. Dialect: Tcl.
-
-No C/appliance source or execution comparison for this Jim object-primary question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: 9.1.0. Build: not recorded. Channel: No input supplied for this Jim Source/Script purpose.. Dialect: Tcl.
-
-No C/appliance source or execution comparison for this Jim object-primary question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No input supplied for this Jim Source/Script purpose.. Dialect: F5 iRules.
-
-No C/appliance source or execution comparison for this Jim object-primary question.
-
-## Historical references
-
-- `jim-source-0` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/0/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-1` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/1/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-2` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/2/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-3` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/3/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-4` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/4/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-5` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/5/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-6` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/6/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-7` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/7/snippet`. Exact original Jim Source/Script/token/error-stack window with LF/full-source/snippet association. No execution claim.
-- `jim-source-8` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/source-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/source-windows.json). JSON pointer `/8/snippet`. Original Jim catch helper evaluates the retained argv script object; source inspection only.
-- `jim-full` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). Exact pinned full Jim source supporting the selected source windows and full-file correspondence.
-- `jim-error-frame-0` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). JSON pointer `/0/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
-- `jim-error-frame-1` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). JSON pointer `/1/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
-- `jim-error-frame-2` (source-anchor): [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json). JSON pointer `/2/snippet`. Original Jim_EvalObj parser/evaluation capture boundary, exact LF/full-source/snippet association; source inspection only.
 
 ## Source inspection
 
@@ -199,7 +153,6 @@ static void JimSetScriptFromAny(Jim_Interp *interp, struct Jim_Obj *objPtr)
     interp->taint = oldtaint;
 }
 
-
 ```
 
 jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/workspace/.proofs/native-providers/jimtcl/jim.c`, function `JimAddStackFrame`, lines 6151–6168. Retained reference `jim-source-4`.
@@ -222,7 +175,6 @@ static void JimAddStackFrame(Jim_Interp *interp, Jim_EvalFrame *frame, Jim_Obj *
     Jim_ListAppendElement(interp, listObj, Jim_NewIntObj(interp, linenr));
     Jim_ListAppendElement(interp, listObj, Jim_NewListObj(interp, frame->argv, frame->argc));
 }
-
 
 ```
 
@@ -392,9 +344,7 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 
     JimPopEvalFrame(interp);
 
-
 ```
-
 
 ## Consumer bindings
 
@@ -410,13 +360,6 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `/work
 - [runtime/rust/src/interp/native_script.rs](../../../../runtime/rust/src/interp/native_script.rs), `interp::native_script::tests::jim_control_body_preserves_original_source_in_error_frames` (linked): Original located Jim control body preserves the same filename object and baseline7 in error frames without borrowing C location metadata.
 - [runtime/rust/src/interp/native_script.rs](../../../../runtime/rust/src/interp/native_script.rs), `interp::native_script::tests::jim_original_lookup_error_keeps_live_procedure_and_script_frames` (linked): Selected original Jim constructor and sourced body retain actual procedure/source/caller records on a missing command, and diagnostic borrows unwind cleanly; no execution claimed here.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Verify retained full source SHA and exact LF-selected snippets. No executed provider/build or Rust validation is inferred from these source anchors.
-
-
 ## Exact original-source349 software outcomes
 
 These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
@@ -426,4 +369,8 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json](../../../../runtime/rust/tests/data/native_jim_source_entry/error-frame-windows.json)

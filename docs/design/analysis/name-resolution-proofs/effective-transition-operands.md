@@ -24,55 +24,11 @@ This source/software control compares declared transition metadata and typed cor
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,25 +38,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs), `state_transition::tests::argv_projection_retains_nested_operands_order_and_completion_commits` (linked): Project nested alias/frame subjects in order, retain abrupt-edge applicability and reject underflow.
 - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::tests::private_registration_facts_keep_actual_operand_indices` (linked): A selected private namespace path worker keeps argument zero for both known and dynamic operands.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `ResolvedInvocation::state_transitions`: Resolve the selected semantics against retained effective structured arguments, preserving typed unknown subjects and independently declared transition coverage; source spelling supplies no runtime name.
 - [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs), `state_transition::tests::alias_and_binding_resolvers_abstain_on_a_dynamic_word` (linked): Selected C90 structured global/variable/namespace/proc/rename/interp-alias operands retain exact Dynamic positions and conservative declared-domain widenings. Shipped upvar instead retains one positioned alias with unknown identity, MayCommitBeforeAbruptCompletion, no unrelated cell/trace widening and no value write; no Native link is established.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "--manifest-path",
-  "rust/Cargo.toml",
-  "state_transition::tests::known_equal_operands_retain_distinct_effective_ordinals"
-]
-```
-
-Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records.

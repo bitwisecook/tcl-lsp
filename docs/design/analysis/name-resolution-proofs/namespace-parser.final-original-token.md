@@ -20,27 +20,9 @@ Original Tcl_ParseCommand is called on eight complete ASCII sources without eval
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20 (capture association). Build: Original compile/header/archive/observer identity and launched patchlevel unrecorded. Process0 recorded.. Channel: Original Tcl_ParseCommand on complete counted ASCII source; no evaluation.. Dialect: C Tcl.
-
-Original case/word-component-count/final-token-type/final-token-hex:
-
-```text
-0|2|4|3a3a6e616d65
-1|2|4|3a3a6e616d65
-2|3|4|
-3|3|4|3a3a7461696c
-4|4|4|3a3a6e616d65
-5|3|16|5b666f6f5d
-6|3|8|5c783631
-7|5|4|3a3a7461696c
-```
-Numeric token types are interpreted against the retained probe/public Tcl parser API, not a native runtime read.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19 (capture association). Build: Original compile/header/archive/observer identity and launched patchlevel unrecorded. Process0 recorded.. Channel: Original Tcl_ParseCommand on complete counted ASCII source; no evaluation.. Dialect: C Tcl.
+Status: `observed`. Channel: Original Tcl_ParseCommand on complete counted ASCII source; no evaluation. Version: tcl8.4 8.4.20 (capture association); tcl8.5 8.5.19 (capture association); tcl8.6 8.6.18 (capture association); tcl9.0 9.0.4 (capture association); tcl9.1 9.1.0 (capture association).
 
 Original case/word-component-count/final-token-type/final-token-hex:
 
@@ -56,92 +38,22 @@ Original case/word-component-count/final-token-type/final-token-hex:
 ```
 Numeric token types are interpreted against the retained probe/public Tcl parser API, not a native runtime read.
 
-### tcl8.6
+### jim, bigip
 
-Status: `observed`. Version: 8.6.18 (capture association). Build: Original compile/header/archive/observer identity and launched patchlevel unrecorded. Process0 recorded.. Channel: Original Tcl_ParseCommand on complete counted ASCII source; no evaluation.. Dialect: C Tcl.
-
-Original case/word-component-count/final-token-type/final-token-hex:
-
-```text
-0|2|4|3a3a6e616d65
-1|2|4|3a3a6e616d65
-2|3|4|
-3|3|4|3a3a7461696c
-4|4|4|3a3a6e616d65
-5|3|16|5b666f6f5d
-6|3|8|5c783631
-7|5|4|3a3a7461696c
-```
-Numeric token types are interpreted against the retained probe/public Tcl parser API, not a native runtime read.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (capture association). Build: Original compile/header/archive/observer identity and launched patchlevel unrecorded. Process0 recorded.. Channel: Original Tcl_ParseCommand on complete counted ASCII source; no evaluation.. Dialect: C Tcl.
-
-Original case/word-component-count/final-token-type/final-token-hex:
-
-```text
-0|2|4|3a3a6e616d65
-1|2|4|3a3a6e616d65
-2|3|4|
-3|3|4|3a3a7461696c
-4|4|4|3a3a6e616d65
-5|3|16|5b666f6f5d
-6|3|8|5c783631
-7|5|4|3a3a7461696c
-```
-Numeric token types are interpreted against the retained probe/public Tcl parser API, not a native runtime read.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association). Build: Original compile/header/archive/observer identity and launched patchlevel unrecorded. Process0 recorded.. Channel: Original Tcl_ParseCommand on complete counted ASCII source; no evaluation.. Dialect: C Tcl.
-
-Original case/word-component-count/final-token-type/final-token-hex:
-
-```text
-0|2|4|3a3a6e616d65
-1|2|4|3a3a6e616d65
-2|3|4|
-3|3|4|3a3a7461696c
-4|4|4|3a3a6e616d65
-5|3|16|5b666f6f5d
-6|3|8|5c783631
-7|5|4|3a3a7461696c
-```
-Numeric token types are interpreted against the retained probe/public Tcl parser API, not a native runtime read.
-
-### jim
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No original Tcl parser final-token capture for this provider is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: F5 iRules.
-
-No original Tcl parser final-token capture for this provider is attached.
-
-## Historical references
-
-- `input` (input): [rust/tcl-registry/tests/data/native_namespace_final_token/probe.c](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/probe.c). Eight exact parser sources and final-token observer.
-- `receipt` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json). Complete original release-associated parser outputs.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt). Exact original parser token/count/hex output.
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt). Exact original parser token/count/hex output.
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt). Exact original parser token/count/hex output.
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt). Exact original parser token/count/hex output.
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt). Exact original parser token/count/hex output.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_namespace_binding_compilation.rs](../../../../rust/tcl-registry/src/native_namespace_binding_compilation.rs), `native_namespace_binding_compilation::tests::namespace_dynamic_tails_follow_original_variable_token_children` (linked): Checks the independent compiler recipe consumes the actual frozen scalar/index/suffix topology and retains release-specific admission; no Native Tcl_ParseCommand execution is asserted.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact original source and complete stdout are retained and matched to every manifest entry. The receipt lacks original compiler/header/archive/observer identity, launched patchlevel and stderr; recompile unchanged with explicit selected build and retain them. No current native launch is claimed.
+- [rust/tcl-registry/tests/data/native_namespace_final_token/probe.c](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/probe.c)
+- [rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/manifest.json)
+- [rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.4.20.txt)
+- [rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.5.19.txt)
+- [rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/8.6.18.txt)
+- [rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.0.4.txt)
+- [rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_namespace_final_token/9.1.0.txt)

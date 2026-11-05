@@ -24,97 +24,39 @@ Conditional source ancestry is not original child interpreter existence, creatio
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Actual CLI executable SHA f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row.. Dialect: Tcl.
-
-Creating s succeeds and the parent command inventory contains s. Both handle-form s eval and path-form interp eval return ok for the caught return and set-value controls. Deletion succeeds and the parent inventory is empty afterwards.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual CLI executable SHA e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row.. Dialect: Tcl.
-
-Creating s succeeds and the parent command inventory contains s. Both handle-form s eval and path-form interp eval return ok for the caught return and set-value controls. Deletion succeeds and the parent inventory is empty afterwards.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual CLI executable SHA 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row.. Dialect: Tcl.
-
-Creating s succeeds and the parent command inventory contains s. Both handle-form s eval and path-form interp eval return ok for the caught return and set-value controls. Deletion succeeds and the parent inventory is empty afterwards.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual CLI executable SHA f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1 with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row.. Dialect: Tcl.
-
-Creating s succeeds and the parent command inventory contains s. Both handle-form s eval and path-form interp eval return ok for the caught return and set-value controls. Deletion succeeds and the parent inventory is empty afterwards.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual CLI executable SHA 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Creating s succeeds and the parent command inventory contains s. Both handle-form s eval and path-form interp eval return ok for the caught return and set-value controls. Deletion succeeds and the parent inventory is empty afterwards.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual CLI executable SHA e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806 with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Fixed ASCII LF source-file CLI, one fresh provider process; the eight caught observations execute sequentially after an actual version row. Version: jim 0.84-9-g5bac7c9.
 
 The tested interp create/eval/delete forms fail with the actual interp arity message. No s command appears; handle-form evaluation fails because s is absent. Empty inventories before and after the failed deletion provide no child creation or evaluation answer. This does not claim that the bare interp command is absent.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation of these exact child creation and parent-command forms.
-
-## Historical references
-
-- `parent-probe.tcl` (input): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/probe.tcl](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/probe.tcl). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-request.json` (input): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/request.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/request.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-capture.py` (input): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/capture.py](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/capture.py). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18/receipt.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18/stderr). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18/stdout). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0/receipt.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0/stderr). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0/stdout). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20/receipt.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20/stderr). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20/stdout). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4/receipt.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4/stderr). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4/stdout). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19/receipt.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19/stderr). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19/stdout). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim/receipt.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim/stderr](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim/stderr). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim/stdout](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim/stdout). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-- `parent-sdk-queue.json` (provider): [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/sdk-queue.json](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/sdk-queue.json). Exact original fixed source/request/runner, provider association or raw process stream. Sequential completion and command inventory are the measured purpose; no private handle or allocation identity follows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs), `realm::tests::a_safe_interpreters_hidden_command_states_nothing_here` (linked): A named safe child retains a nonempty source map with its own parent handle rebound; actual source resolution keeps the same stock format descriptor before/after creation and foreign child visibility operations. This is Rust source advice coverage, not replay of the native CLI capture or a private token/effect observation.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs), `AdviceInvocationContext::interpreter_handle_body`: Require actual ordered created-parent source state and one whole original handle/body invocation; current source/image/config and known barrier checks remain independent of actual interpreter execution.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs), `command_binding::source_transition_advice::interpreter_handle::tests::original_created_handle_body_retains_source_order_and_refuses_unowned_entries` (linked): Original source creation/handle/body words retain exact input/image/config and ordered creator ancestry. Missing creation, delete/move/shadow/unknown table barriers, alias indirection, abbreviated or substituted/non-single body vectors withdraw this conditional recipe; no child dispatch is entered.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_interpreter_created_parent_command/capture.py"
-]
-```
-
-The retained runner uses its original absolute SDK queue and creates provider directories. Exact SDK/executable/environment associations and a fresh output directory are required. Source-model consumer assertions retain independent scope and execution receipts.
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.6.18)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.1.0)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.4.20)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/9.0.4)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/8.5.19)
+- [rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim](../../../../rust/tcl-registry/tests/data/native_interpreter_created_parent_command/jim)

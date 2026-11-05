@@ -22,7 +22,7 @@ Eight original C object-vector deletion controls per release, flags0, each in a 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations. Version: tcl8.4 8.4.20 (capture association; full runtime patchlevel unqueried).
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -34,7 +34,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations. Version: tcl8.5 8.5.19 (capture association; full runtime patchlevel unqueried).
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -46,7 +46,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations. Version: tcl8.6 8.6.18 (capture association; full runtime patchlevel unqueried).
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -58,7 +58,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations. Version: tcl9.0 9.0.4 (capture association; full runtime patchlevel unqueried).
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -70,7 +70,7 @@ The complete original JSONL stream matches its recorded whole-log digest. Guest 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; full runtime patchlevel unqueried). Build: Header; private-header; library; observer; compile/process0, recorded empty stderr. Compiler/configure details unrecorded.. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations.. Dialect: C Tcl.
+Status: `observed`. Channel: Original Tcl_EvalObjv flags0 with native command-delete callbacks or ASCII Tcl_Eval unset-trace setup; subsequent actual namespace/count observations. Version: tcl9.1 9.1.0 (capture association; full runtime patchlevel unqueried).
 
 Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls projections:
 
@@ -80,45 +80,24 @@ Selected release/case/code/result-hex/A/child/B/hook/old-B/new-B/trace-calls pro
 ```
 The complete original JSONL stream matches its recorded whole-log digest. Guest result precedes subsequent namespace/count observations; no unobserved return-option/cache/reference state is inferred.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No original two-pass deletion/callback capture for this provider is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No original two-pass deletion/callback capture for this provider is attached.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.c](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.c). Exact original argv, ordered callbacks, counted String/ByteArray construction and reached existence/count observers.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json). Original selected build/launch/status/log associations.
-- `projection` (observation): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.txt](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.txt). Exact 40 original field projections; B is column 6 after the empty result field.
-- `stream-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.4.20.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.4.20.stdout). Complete original JSONL stdout matching the recorded original log digest.
-- `provider-tcl8.4` (provider): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json). JSON pointer `/runs/0`. Exact original header/internal-header/library/observer/build/process association.
-- `stream-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.5.19.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.5.19.stdout). Complete original JSONL stdout matching the recorded original log digest.
-- `provider-tcl8.5` (provider): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json). JSON pointer `/runs/1`. Exact original header/internal-header/library/observer/build/process association.
-- `stream-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.6.18.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.6.18.stdout). Complete original JSONL stdout matching the recorded original log digest.
-- `provider-tcl8.6` (provider): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json). JSON pointer `/runs/2`. Exact original header/internal-header/library/observer/build/process association.
-- `stream-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.0.4.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.0.4.stdout). Complete original JSONL stdout matching the recorded original log digest.
-- `provider-tcl9.0` (provider): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json). JSON pointer `/runs/3`. Exact original header/internal-header/library/observer/build/process association.
-- `stream-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.1.0.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.1.0.stdout). Complete original JSONL stdout matching the recorded original log digest.
-- `provider-tcl9.1` (provider): [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json). JSON pointer `/runs/4`. Exact original header/internal-header/library/observer/build/process association.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/namespace.rs](../../../../rust/tcl-cmd-core/src/namespace.rs), `delete_original`: Shared original namespace validation and ordered later-target lookup; actual backend callback/lifetime facts remain independently owned.
 - [runtime/rust/src/interp/native_namespace_names/tests.rs](../../../../runtime/rust/src/interp/native_namespace_names/tests.rs), `interp::native_namespace_names::tests::namespace_delete_validates_every_original_before_retirement_and_relooks_after_callbacks` (linked): Checks both actual modeled unset-trace later-target controls, B absence and calls1; command-delete callback recreation is independent.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact observer source and complete original streams are attached with matching original whole-log digests. A reconfirmation must compile unchanged against identified headers/internal headers/static libraries and preserve flags0, source/setup and actual callback kind, then retain separate stdout/stderr/process receipts. The native command DeleteProc retire calls namespace deletion/creation with namespace DeleteProc counters. A Rust command-retirement surrogate does not measure native namespace DeleteProc ownership or event timing.
+- [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.c](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.c)
+- [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass_provenance.json)
+- [rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.txt](../../../../rust/tcl-syntax/tests/data/native_namespace_name/delete_two_pass.txt)
+- [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.4.20.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.4.20.stdout)
+- [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.5.19.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.5.19.stdout)
+- [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.6.18.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-8.6.18.stdout)
+- [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.0.4.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.0.4.stdout)
+- [rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.1.0.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_name/retained-streams/delete-9.1.0.stdout)

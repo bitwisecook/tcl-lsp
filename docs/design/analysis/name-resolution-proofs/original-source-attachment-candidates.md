@@ -20,56 +20,11 @@ Current source-only object/attachment descriptor over the existing shared object
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-- `data-group-lookup-source-implementation-0` (implementation): [rust/tcl-registry/src/source_configuration_reference.rs](../../../../rust/tcl-registry/src/source_configuration_reference.rs). Reviewed selected conditional source layout and metadata only; no executed Rust or Native provider result.
-- `data-group-lookup-source-implementation-1` (implementation): [rust/tcl-registry/src/commands/irules/class.rs](../../../../rust/tcl-registry/src/commands/irules/class.rs). Reviewed selected conditional source layout and metadata only; no executed Rust or Native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,8 +40,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-diagram/src/attach.rs](../../../../rust/tcl-diagram/src/attach.rs), `attach::tests::original_attachment_reports_require_actual_kind_ordinal_and_current_source` (linked): Actual Pool/Node/SnatPool templates and original ordinals remain distinct; bare SNAT addresses, source handler barriers and stale source cannot donate attachment metadata. Definite custom pool/event declarations block source advice; unavailable TMM rename retains unknown-transition obligations and an unconstrained MAY variable attachment rather than a selected move or object identity.
 - [rust/tcl-registry/src/source_configuration_reference.rs](../../../../rust/tcl-registry/src/source_configuration_reference.rs), `source_configuration_reference::tests::lookup_layout_keeps_literal_group_after_dynamic_key` (linked): The original selector-inclusive source vector retains a literal data-group target at ordinal2 after one dynamic key; dynamic target, opaque cardinality and missing/extra words refuse.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
+- [rust/tcl-registry/src/source_configuration_reference.rs](../../../../rust/tcl-registry/src/source_configuration_reference.rs)
+- [rust/tcl-registry/src/commands/irules/class.rs](../../../../rust/tcl-registry/src/commands/irules/class.rs)

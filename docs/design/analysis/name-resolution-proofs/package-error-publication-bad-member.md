@@ -22,7 +22,7 @@ Only the exact script strings, seeded global errorCode, captured selected execut
 
 ### tcl8.4
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.4. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Channel: Exact script value retained; launch channel not recorded in this manifest. Version: tcl8.4 recorded profile tcl8.4.
 
 Exact script: "set ::errorCode SEED; catch {package bad} m; list $m $::errorCode"
 
@@ -30,19 +30,9 @@ Captured result: {bad option "bad": must be forget, ifneeded, names, present, pr
 
 Original process exit: 0; stderr: "".
 
-### tcl8.5
+### tcl8.5, tcl8.6
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.5. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
-
-Exact script: "set ::errorCode SEED; catch {package bad} m; list $m $::errorCode"
-
-Captured result: {bad option "bad": must be forget, ifneeded, names, prefer, present, provide, require, unknown, vcompare, versions, or vsatisfies} {TCL LOOKUP INDEX option bad}
-
-Original process exit: 0; stderr: "".
-
-### tcl8.6
-
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl8.6. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Channel: Exact script value retained; launch channel not recorded in this manifest. Version: tcl8.5 recorded profile tcl8.5; tcl8.6 recorded profile tcl8.6.
 
 Exact script: "set ::errorCode SEED; catch {package bad} m; list $m $::errorCode"
 
@@ -50,19 +40,9 @@ Captured result: {bad option "bad": must be forget, ifneeded, names, prefer, pre
 
 Original process exit: 0; stderr: "".
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl9.0. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
-
-Exact script: "set ::errorCode SEED; catch {package bad} m; list $m $::errorCode"
-
-Captured result: {bad option "bad": must be files, forget, ifneeded, names, prefer, present, provide, require, unknown, vcompare, versions, or vsatisfies} {TCL LOOKUP INDEX option bad}
-
-Original process exit: 0; stderr: "".
-
-### tcl9.1
-
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile tcl9.1. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Tcl.
+Status: `observed`. Channel: Exact script value retained; launch channel not recorded in this manifest. Version: tcl9.0 recorded profile tcl9.0; tcl9.1 recorded profile tcl9.1.
 
 Exact script: "set ::errorCode SEED; catch {package bad} m; list $m $::errorCode"
 
@@ -72,7 +52,7 @@ Original process exit: 0; stderr: "".
 
 ### jim
 
-Status: `observed`. Version: Full linked version not queried in this capture; recorded profile jim. Build: Executable; original header/library provenance remains in this row.. Channel: Exact script value retained; launch channel not recorded in this manifest.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Exact script value retained; launch channel not recorded in this manifest. Version: jim recorded profile jim.
 
 Exact script: "set ::errorCode SEED; catch {package bad} m; list $m $::errorCode"
 
@@ -82,29 +62,14 @@ Original process exit: 0; stderr: "".
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `row-0` (observation): [rust/tcl-registry/tests/data/native_package_error_publication/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_error_publication/manifest.json). JSON pointer `/observations/0`. Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case.
-- `row-4` (observation): [rust/tcl-registry/tests/data/native_package_error_publication/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_error_publication/manifest.json). JSON pointer `/observations/4`. Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case.
-- `row-8` (observation): [rust/tcl-registry/tests/data/native_package_error_publication/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_error_publication/manifest.json). JSON pointer `/observations/8`. Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case.
-- `row-12` (observation): [rust/tcl-registry/tests/data/native_package_error_publication/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_error_publication/manifest.json). JSON pointer `/observations/12`. Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case.
-- `row-16` (observation): [rust/tcl-registry/tests/data/native_package_error_publication/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_error_publication/manifest.json). JSON pointer `/observations/16`. Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case.
-- `row-20` (observation): [rust/tcl-registry/tests/data/native_package_error_publication/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_error_publication/manifest.json). JSON pointer `/observations/20`. Exact script, result, original process status/stderr/budget and retained binary/header/library provenance for this case.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-vm/src/cmd_package.rs](../../../../rust/tcl-vm/src/cmd_package.rs), `tests::package_error_publication_matches_all_21_original_native_controls` (linked): Compares this question's original source/result rows within the complete 21-window fixture; the independent native captures remain the language evidence. No executed Rust result is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact program strings and original provider/build/result rows are retained. No permanent standalone runner is attached here, and no new native execution is claimed. Reconfirmation must retain actual selected versions, input channel and separate status/streams.
+- [rust/tcl-registry/tests/data/native_package_error_publication/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_error_publication/manifest.json)

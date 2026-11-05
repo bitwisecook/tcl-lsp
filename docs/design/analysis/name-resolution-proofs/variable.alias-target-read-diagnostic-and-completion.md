@@ -84,7 +84,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 Every captured missing/unset chain errors and the defined chain returns VALUE. The scalar-element control distinguishes C array diagnostics from Jim alias-target diagnostics. The retained 36 exact result-byte rows determine each spelling and completion; they do not authenticate a physical alias, cached native name, refcount, return options or normal read in another state.
@@ -112,14 +111,6 @@ Six retained ASCII programs encoded in cases.tsv, observed original catch-code/r
 `scalar-element`: `set target VALUE; proc f {} {upvar #0 target(k) first; upvar 0 first second; set second}; f`
 `defined-chain`: `set target VALUE; proc f {} {upvar #0 target first; upvar 0 first second; set second}; f`
 `unset-chain`: `set target VALUE; proc f {} {upvar #0 target first; upvar 0 first second; unset first; set second}; f`
-
-## Replay
-
-```sh
-
-```
-
-No original capture wrapper or managed replayer is retained for this question. Decode the retained case bytes, execute each in a fresh recorded engine build, and supply an explicit catch-code/result-byte presenter. A fresh capture is a new observation; require complete equality with every original catch/result row, empty stderr and recorded process completion. No fresh rerun is claimed.
 
 ## Rust comparison
 

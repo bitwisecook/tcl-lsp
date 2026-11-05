@@ -1,4 +1,0 @@
-ltm rule __tcl_lsp_probe_nh20261012app3_1_provider {
-proc target {fixed value} {list OLD $fixed $value}
-proc cells {cell} {global $cell; incr $cell; set ns namespace; list [set $cell] [info level] [$ns current]}
-}

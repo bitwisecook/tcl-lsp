@@ -20,55 +20,11 @@ Current Rust bounded literal bracing for a sole complete root-source command und
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs](../../../../rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs), `command_binding::original_literal_argv_rewrite::tests::original_literal_expression_bracing_declines_substitution_functions_and_handler_changes` (linked): Variables, scripts, functions, expansion, malformed/multiple arguments, shadows, traces and unknown mutation do not issue the single-operand permission.
 - [rust/tcl-lsp-core/src/refactor/brace_expr.rs](../../../../rust/tcl-lsp-core/src/refactor/brace_expr.rs), `refactor::brace_expr::original_tests::original_brace_expr_keeps_exact_operands_and_declines_missing_equivalence` (linked): The exact one-operand rewrite survives cleared report maps, while displaced source, shadowed handler and broader expressions refuse or remain disabled.
 - [rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs](../../../../rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs), `command_binding::original_literal_argv_rewrite::tests::original_literal_bracing_normality_and_source_reflection_are_independent` (linked): Selected finite constant evaluation accepts pure arithmetic and rejects division errors independently; procedure-body or later-command source reflection blocks the rewrite despite identical arithmetic argv.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact named Rust selectors bind fixed current implementation assertions. No Rust execution receipt or native launch is attached. Full original source, selected handler, compiler effect closure, expression and source-spelling permissions remain independent requirements.

@@ -20,57 +20,11 @@ Current primary Core command-context completion for native original argv, indepe
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-- `source-catalogue-implementation-0` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-catalogue-implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation/vendor_advice.rs](../../../../rust/tcl-compiler/src/registry_invocation/vendor_advice.rs). Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-catalogue-implementation-2` (implementation): [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs). Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,8 +42,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::tests::source_completion_options_require_actual_nested_selector` (linked): Actual namespace ensemble create/configure options remain available; missing, dynamic and unknown nested selectors refuse.
 - [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs), `completion::original_context::tests::source_option_value_completion_keeps_selected_options_and_currency` (linked): Actual selected option values require current full source and retained resolved input.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs)
+- [rust/tcl-compiler/src/registry_invocation/vendor_advice.rs](../../../../rust/tcl-compiler/src/registry_invocation/vendor_advice.rs)
+- [rust/tcl-lsp-core/src/completion/original_context.rs](../../../../rust/tcl-lsp-core/src/completion/original_context.rs)

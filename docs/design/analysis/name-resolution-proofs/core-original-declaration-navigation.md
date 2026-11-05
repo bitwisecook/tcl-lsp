@@ -20,55 +20,11 @@ Current Core declaration selection and its independently Logical compatibility s
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This retained original navigation implementation contract supplies no native process, physical variable/alias/cell/link/frame identity or edit observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This retained original navigation implementation contract supplies no native process, physical variable/alias/cell/link/frame identity or edit observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This retained original navigation implementation contract supplies no native process, physical variable/alias/cell/link/frame identity or edit observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This retained original navigation implementation contract supplies no native process, physical variable/alias/cell/link/frame identity or edit observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This retained original navigation implementation contract supplies no native process, physical variable/alias/cell/link/frame identity or edit observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This retained original navigation implementation contract supplies no native process, physical variable/alias/cell/link/frame identity or edit observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This retained original navigation implementation contract supplies no native process, physical variable/alias/cell/link/frame identity or edit observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +36,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/declaration.rs](../../../../rust/tcl-lsp-core/src/declaration.rs), `declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping` (linked): Actual checked Logical lexical scope/cell relationships join global and qualified namespace aliases while keeping same-named local roots distinct. Returned target spans preserve original labels without manufacturing a Native alias or frame.
 - [rust/tcl-lsp-core/src/declaration.rs](../../../../rust/tcl-lsp-core/src/declaration.rs), `declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners` (linked): Selected Logical declaration targets retain complete current source/grammar/input/store/availability; changed source, missing input, foreign or older store, changed grammar and populated unavailable input withhold navigation.
 - [rust/tcl-lsp-core/src/declaration.rs](../../../../rust/tcl-lsp-core/src/declaration.rs), `declaration::tests::original_qualified_alias_declarations_keep_the_target_and_body_frame` (linked): Finite source-defined control: original qualified alias declarations keep the target and body frame. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Real named Rust selectors bind retained source ownership and independent Logical fallback only. Execution results require their own exact validation receipt; no provider execution or successful assertion is claimed.

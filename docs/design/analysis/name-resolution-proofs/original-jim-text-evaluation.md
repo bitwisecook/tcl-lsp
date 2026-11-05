@@ -20,56 +20,11 @@ Rust source-analysis ownership contract for fresh authored Jim084 simulation. Ca
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: Rust ownership contract. Dialect: Tcl.
-
-No native implementation-equivalence assertion is attached. Exact source/result observations and the current Jim source inspection are recorded independently in naming.source.static-original-text-controls.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: Rust ownership contract. Dialect: Tcl.
+Status: `not-tested`. Channel: Rust ownership contract.
 
 No native implementation-equivalence assertion is attached. Exact source/result observations and the current Jim source inspection are recorded independently in naming.source.static-original-text-controls.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: Rust ownership contract. Dialect: Tcl.
-
-No native implementation-equivalence assertion is attached. Exact source/result observations and the current Jim source inspection are recorded independently in naming.source.static-original-text-controls.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: Rust ownership contract. Dialect: Tcl.
-
-No native implementation-equivalence assertion is attached. Exact source/result observations and the current Jim source inspection are recorded independently in naming.source.static-original-text-controls.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: Rust ownership contract. Dialect: Tcl.
-
-No native implementation-equivalence assertion is attached. Exact source/result observations and the current Jim source inspection are recorded independently in naming.source.static-original-text-controls.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: Rust ownership contract. Dialect: Jim Tcl.
-
-No native implementation-equivalence assertion is attached. Exact source/result observations and the current Jim source inspection are recorded independently in naming.source.static-original-text-controls.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: Rust ownership contract. Dialect: F5 iRules.
-
-No native implementation-equivalence assertion is attached. Exact source/result observations and the current Jim source inspection are recorded independently in naming.source.static-original-text-controls.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/literal_object_pool.rs](../../../../rust/tcl-compiler/src/command_binding/literal_object_pool.rs). Current Rust owner for the independent text-effect axis; this file is not an executed provider capture.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs). Current Rust owner for the independent text-effect axis; this file is not an executed provider capture.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +35,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/original_command_rename.rs](../../../../rust/tcl-lsp-core/src/original_command_rename.rs), `original_command_rename::tests::original_command_rename_keeps_opaque_words_and_ignores_reporting_maps` (linked): Atomic original declaration and actual call-name edits survive UI reporting erasure for opaque and ordinary names across six policies; no runtime equivalence claim.
 - [rust/tcl-compiler/src/command_binding/literal_object_pool.rs](../../../../rust/tcl-compiler/src/command_binding/literal_object_pool.rs), `command_binding::literal_object_pool::tests::actual_empty_literal_pool_is_effect_only_and_expires_with_original_capture` (linked): A genuine captured C entry retains its own literal-effect currency, but under independently selected Jim policy it cannot donate C literal object effects or text closure; exact original capture and family remain separate.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust selectors are implementation assertions, not recorded native interpreter observations. No passing Rust execution is claimed here.
+- [rust/tcl-compiler/src/command_binding/literal_object_pool.rs](../../../../rust/tcl-compiler/src/command_binding/literal_object_pool.rs)
+- [rust/tcl-compiler/src/command_binding/evaluated_word.rs](../../../../rust/tcl-compiler/src/command_binding/evaluated_word.rs)

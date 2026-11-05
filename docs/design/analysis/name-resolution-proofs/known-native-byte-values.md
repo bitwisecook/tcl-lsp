@@ -20,59 +20,17 @@ Fixed Rust metadata and transport contracts, including opaque 0xff, surrogate na
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs). Separate byte-only native values and argv shape from logical literals.
-- `implementation-1` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). Retain exact native payload and effective operand ordinal as independent metadata.
-- `implementation-2` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). Discharge only represented identity obligations without validating control operands or execution.
-- `implementation-3` (implementation): [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs). Prevent byte-only values from colliding with logical values in the legacy hook shape cache.
-- `implementation-4` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -92,20 +50,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs), `pack_hooks::tests::pack_aliases_preserve_original_known_bytes_and_selected_name_policy` (linked): Pack alias transition facts retain counted known bytes and selected local-name extent independently; a missing dialect retains the target bytes but refuses to select a C/Jim local-name projection. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
 - [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs), `pack_hooks::tests::pack_caller_alias_keeps_counted_operands_and_effective_ordinals` (linked): Caller alias source facts preserve complete counted level, target and local operands plus each effective ordinal without selecting or entering the caller frame. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-registry",
-  "native_byte"
-]
-```
-
-The listed Registry, Compiler and pack-hook selectors are Rust coverage obligations for this contract. No native provider replay or Rust execution receipt is attached.
+- [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs)
+- [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs)
+- [rust/tcl-registry/src/pack_hooks.rs](../../../../rust/tcl-registry/src/pack_hooks.rs)
+- [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs)

@@ -20,55 +20,11 @@ Current Core source-instance candidate, cursor geometry, narrow source spelling 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This Core source-consumer implementation contract supplies no native process, installed receiver, stored value/cell, runtime lifetime/frame, Native execution or member rename observation.
-
-## Historical references
-
-- `receiver-whole-source609-f0146add77c7` (implementation): [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs). Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -97,8 +53,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `actual_rename_hazard_keeps_a_compound_variable_receiver_untracked` (linked): Whole known scalar receivers avoid an untracked hazard; compound, array-element and unknown receiver reads remain untracked.
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `actual_rename_receiver_names_keep_first_close_and_nested_source_currency` (linked): Rename hazard advice retains the selected variable brace grammar, current original source and resolved input rather than interpreting foreign/nested names through another grammar.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust selectors bind source ownership and consumer purpose only; no pass/failure result is asserted. Exact compilation and assertion receipts remain independent. Provider-labelled source grammars are not native C Tcl, Jim or BIG-IP execution evidence.
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs)

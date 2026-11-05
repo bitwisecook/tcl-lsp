@@ -20,62 +20,29 @@ Nine case names, one/two original-formal axes, definition/invocation rows; count
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `observed`. Version: 8.4.20. Build: linked library SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011. Channel: original counted objects and procedure body via native API. Dialect: Tcl.
-
-In raw-NUL equal-count one-formal control both compiled reads fail, while both dynamic reads find ONE; two formals fail arity after old list extent. Full case answers are reproduced below.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: linked library SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df. Channel: original counted objects and procedure body via native API. Dialect: Tcl.
+Status: `observed`. Channel: original counted objects and procedure body via native API. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 In raw-NUL equal-count one-formal control both compiled reads fail, while both dynamic reads find ONE; two formals fail arity after old list extent. Full case answers are reproduced below.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: linked library SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6. Channel: original counted objects and procedure body via native API. Dialect: Tcl.
-
-Equal-count raw-NUL names share first compiled read ONE; dynamic second name is missing with one formal and TWO with two. Full case answers are reproduced below.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: linked library SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04. Channel: original counted objects and procedure body via native API. Dialect: Tcl.
-
-Equal-count raw-NUL names share first compiled read ONE; dynamic second name is missing with one formal and TWO with two. Full case answers are reproduced below.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: linked library SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33. Channel: original counted objects and procedure body via native API. Dialect: Tcl.
+Status: `observed`. Channel: original counted objects and procedure body via native API. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Equal-count raw-NUL names share first compiled read ONE; dynamic second name is missing with one formal and TWO with two. Full case answers are reproduced below.
 
 ### jim
 
-Status: `observed`. Version: Jim; patch/revision not recorded in this manifest. Build: linked library SHA 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff. Channel: original counted objects and procedure body via native API. Dialect: Jim Tcl.
+Status: `observed`. Channel: original counted objects and procedure body via native API. Version: jim Jim.
 
 Equal-count raw-NUL names remain distinct in both compiled-source and dynamic lookup: ONE/missing with one formal, ONE/TWO with two. Full case answers are reproduced below.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `manifest` (provider): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json). Captured original compiler arguments and library/header/probe/log hashes, with completed 36-row runs per measured provider.
-- `probe` (input): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c). Exact counted formal lists, original bodies and completion-first probe.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl). All 36 exact definition/completion records for 8.4.20.
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl). All 36 exact definition/completion records for 8.5.19.
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl). All 36 exact definition/completion records for 8.6.18.
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl). All 36 exact definition/completion records for 9.0.4.
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl). All 36 exact definition/completion records for 9.1.0.
-- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl). All 36 exact definition/completion records for Jim.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,26 +50,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/naming/compiled_variables.rs](../../../../rust/tcl-syntax/src/naming/compiled_variables.rs), `naming::compiled_variables::tests::compiler_and_dynamic_frame_comparisons_keep_separate_extents` (linked): Static comparison retains equal-count guard while dynamic comparison uses its independently selected extent.
 - [rust/tcl-compiler/src/var_escape/original_slots.rs](../../../../rust/tcl-compiler/src/var_escape/original_slots.rs), `var_escape::original_slots::tests::original_argument_primary_collision_matches_retained_native_compiled_results` (linked): Only retained C8.6/C9.0/C9.1 nul-equal-length, two-original-formals and compiled/dynamic invocation rows compare source argument ordinal 1 with the first compiled primary k\x00a; no physical header, layout or current activation claim is supplied.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-I/path/tcl9.0.4/generic",
-  "-I/path/tcl9.0.4/unix",
-  "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c",
-  "/path/tcl9.0.4/unix/libtcl9.0.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "/tmp/naming-compiled-local-probe"
-]
-```
-
-Run the produced probe and compare all 36 JSONL records to the selected retained provider file. Repeat with each manifest-version build; Jim uses -DUSE_JIM and its pinned supplied library. Current build availability and engine revision must be reverified; compile/run success and complete field equality are required. This record does not claim a fresh reconfirmation.
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-manifest.json)
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names.c)
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.4.20.jsonl)
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.5.19.jsonl)
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl)
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl)
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl)
+- [rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl](../../../../rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-Jim.jsonl)

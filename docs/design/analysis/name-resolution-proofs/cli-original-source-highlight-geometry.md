@@ -20,56 +20,11 @@ Eight marked fixed source/API controls cover body/data distinction, HTML/ANSI ge
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-cli-original-source-highlight-geometry-highlight.rs` (implementation): [rust/tcl-cli-support/src/highlight.rs](../../../../rust/tcl-cli-support/src/highlight.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-cli-original-source-highlight-geometry-source_structure.rs` (implementation): [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,8 +43,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs), `source_structure::tests::original_syntax_tokens_join_absolute_region_and_command_geometry` (linked): Authentic complete C/Jim analyses join selected body/nested bracket tokens to whole-document command spans, preserve Unicode boundaries, exclude genuine data and refuse stale source; no executed provider or binding is inferred.
 - [rust/tcl-registry/src/commands/tcl/if_.rs](../../../../rust/tcl-registry/src/commands/tcl/if_.rs), `commands::tcl::if_::original_clause_repair_tests::original_if_roles_keep_opaque_payloads_and_decline_unknown_controls` (linked): Shared IfWalk retains exact Expr/Body slots for known opaque and C modified-UTF8 non-NUL payloads and exact trailing-word repair; dynamic, expanded and counted-NUL grammar controls refuse. Supplied source values establish no Native argv or entered handler.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-cli-support/src/highlight.rs](../../../../rust/tcl-cli-support/src/highlight.rs)
+- [rust/tcl-lsp-core/src/source_structure.rs](../../../../rust/tcl-lsp-core/src/source_structure.rs)

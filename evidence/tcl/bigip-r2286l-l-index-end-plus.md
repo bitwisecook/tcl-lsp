@@ -16,55 +16,10 @@ lindex {a b} end+1⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case l_index_end_plus
+### TMM log tag tmm, RULE_INIT, case l_index_end_plus; TMM log tag tmm1, RULE_INIT, case l_index_end_plus; TMM log tag tmm2, RULE_INIT, case l_index_end_plus; TMM log tag tmm3, RULE_INIT, case l_index_end_plus; iApp implementation, case l_index_end_plus; iCall script, case l_index_end_plus
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-bad index "end+1": must be integer or end?-integer?⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm1, RULE_INIT, case l_index_end_plus
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-bad index "end+1": must be integer or end?-integer?⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm2, RULE_INIT, case l_index_end_plus
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-bad index "end+1": must be integer or end?-integer?⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm3, RULE_INIT, case l_index_end_plus
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT; iApp implementation; iCall script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -105,36 +60,6 @@ The wrapper recorded Tcl completion code 1.
 ```
 
 The wrapper recorded Tcl completion code 0.
-
-### iApp implementation, case l_index_end_plus
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-bad index "end+1": must be integer or end?-integer?⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iCall script, case l_index_end_plus
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-bad index "end+1": must be integer or end?-integer?⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
 
 ### tmsh CLI script, case l_index_end_plus
 

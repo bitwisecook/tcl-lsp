@@ -20,50 +20,19 @@ Four complete contexts, two source builders,1044source-build/eval rows per matri
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Four complete contexts, two source builders,1044source-build/eval rows per matrix and exact callbacks; RULE_INIT/CLIENT_ACCEPTED incomplete controls are excluded from complete-matrix claims.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Channel: Four complete contexts, two source builders,1044source-build/eval rows per matrix and exact callbacks; RULE_INIT/CLIENT_ACCEPTED incomplete controls are excluded from complete-matrix claims. Version: bigip 21.1.0.1.
 
 TMM consumes the63ASCII digit/letter/underscore bytes; tmsh/iApp/iCall consume those plus the recorded high-byte ranges for128bytes. Syntax-bearing error cases are separate. Explicit format/binary products and the binary-source braced257 counterexample are preserved; these rows establish neither a Unicode class nor internal representation.
 
 The measured report rows and their limits are:
-
 
 All four complete contexts produced 1,033 eval catch code 0 rows and eleven
 catch code 1 rows. All 1,044 source-build operations completed. The following
@@ -124,22 +93,10 @@ observable reads, so callback count is not used as a surrogate for eval
 success. The complete callback names and byte scans are in the matrix files.
 No row is classified from a failed source build or a refused trace install.
 
-
-## Historical references
-
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md). Lines 127–187. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md). Lines 13–13. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+- [scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/LEXICAL_BYTE_CLASS_RESULTS.md)

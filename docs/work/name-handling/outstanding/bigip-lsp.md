@@ -9,7 +9,7 @@ Paused 4 November 2026, 22:57 UTC, at the user's request after the autoload repa
 
 ## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
 
-USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read the current handoff first.
 
 External role; no duplicate or takeover. Prior owner header is stale and user has been notified. Preserve its implementation report and route generic compiler/LSP blockers to owners on resume. This coordinator pause entry is not a new external owner validation.
 
@@ -147,7 +147,7 @@ The user chose **"Stop navigation after opaque calls"** for the new ILX policy q
 
 ### Coordinator routing — 2026-10-23T00:21Z
 
-Compiler has frozen the distinct first-operand source API in [ilx-first-operand-v3-20261023T0020Z](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/consumer-api.json), proposal `fac70719`, with naming peer review. This is off-tree adapter preparation only: the proposal is not yet applied, typed or executed. Use exact authenticated invocation/constructor/setter/read cards from the same analysis; preserve conditional obligations and keep runtime target unavailable. Do not create a consumer-local walker or stale/standalone fallback. `Some(cards)` proves bounded positives, not catalogue completeness. The user2231 decision still stops navigation after opaque calls; the corrected compiler proposal refuses uncovered resolver effects before selected conditional descent. Original16 tests remain required after coherent integration. Details and hashes: [routing receipt](../handoff/reviews/merge-inventory-20261019/coordinator-20261022/ilx-first-operand-routing-20261023T0021Z.json). This coordinator append does not refresh the separate owner's header or claim its work.
+Compiler has frozen the distinct first-operand source API in ilx-first-operand-v3-20261023T0020Z, proposal `fac70719`, with naming peer review. This is off-tree adapter preparation only: the proposal is not yet applied, typed or executed. Use exact authenticated invocation/constructor/setter/read cards from the same analysis; preserve conditional obligations and keep runtime target unavailable. Do not create a consumer-local walker or stale/standalone fallback. `Some(cards)` proves bounded positives, not catalogue completeness. The user2231 decision still stops navigation after opaque calls; the corrected compiler proposal refuses uncovered resolver effects before selected conditional descent. Original16 tests remain required after coherent integration. Details and hashes: routing receipt. This coordinator append does not refresh the separate owner's header or claim its work.
 
 Coordinator follow-up 2026-10-23T00:31Z: the compiler API is now applied in active checkpoint `3b1a750be337`, with its six-package all-target typing run in progress. The latest published `work` snapshot `e10387285` contains the frozen patch/API/review, not this source integration yet. Continue off-tree consumer preparation until the source is published and typed; no original16 or runtime acceptance is claimed. The owner timestamp remains unchanged.
 

@@ -20,55 +20,11 @@ Conditional source-only direct formal provenance in the immutable declared frame
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/declaration_flow.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_flow.rs), `Builder::evaluate`: Record the original command entry separately from later selected handler metadata.
 - [rust/tcl-compiler/src/command_binding/formal_value.rs](../../../../rust/tcl-compiler/src/command_binding/formal_value.rs), `SourceCommandBindings::original_direct_formal_value`: Require original topology, quiet local receiver and operand-effect closure before consuming the conditional entry facet.
 - [rust/tcl-compiler/src/command_binding/formal_value.rs](../../../../rust/tcl-compiler/src/command_binding/formal_value.rs), `command_binding::formal_value::tests::unentered_formal_advice_uses_original_snapshot_without_actual_read_or_cpp` (linked): Multiple opaque procedure declarations and calls preserve conditional incoming scalar advice with executable read/CPP/Normal receipts cleared. Prior unknown handlers, writes, nested operand writes, traces, aliases and caller links refuse the advice.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-No Rust execution receipt is attached to this implementation contract. Tests are authored bindings only; physical interpreter observations remain separate.

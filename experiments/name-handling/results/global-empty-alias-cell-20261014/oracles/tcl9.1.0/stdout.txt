@@ -1,4 +1,0 @@
-remote REMOTE
-local LOCAL
-both BOTH
-dynamic DYNAMIC

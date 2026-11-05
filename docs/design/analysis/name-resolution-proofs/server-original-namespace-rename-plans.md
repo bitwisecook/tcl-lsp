@@ -20,55 +20,11 @@ Source-only workspace editor contract for two documents under the C8.6 analysis 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This typed workspace rename integration is a Rust implementation invariant; no native provider observation answers this question.
-
-## Historical references
-
-- `consumer-source` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current actual typed Server consumer and fixed emitted-edit/collision assertion; not an execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +35,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::original_namespace_rename_uses_typed_workspace_collisions_and_source_plans` (linked): Clears namespace reporting names, applies exactly two edits per URI to the D800 namespace and its reference, preserves the D801 sibling, and rejects another document's implicit renamed parent.
 - [rust/tcl-lsp-core/src/namespace_rename/original.rs](../../../../rust/tcl-lsp-core/src/namespace_rename/original.rs), `namespace_rename::original::namespace_tail_purpose_tests::original_namespace_rename_keeps_equal_global_command_and_variable_tails` (linked): The actual C8.6 source keeps namespace ::old distinct from global command/variable ::old tails: only the namespace declaration becomes ::new. Foreign tcl9.1 and f5-irules caller profiles refuse against the retained original analysis; no new native or workspace execution observation is supplied.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named fixed Rust selector is a coverage binding. No Rust result or native interpreter capture is attached to this source edit invariant.
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)

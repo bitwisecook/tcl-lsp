@@ -20,54 +20,17 @@ Direct jim_regcomp/jim_regexec C API probe, thirty fixed NUL-terminated pattern 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
 ### jim
 
-Status: `observed`. Version: not queried; original source/library identities retained. Build: Original linked library; probe executable. Channel: Direct jim_regcomp/jim_regexec calls with original native C string pattern/subject arrays.. Dialect: Jim regexp engine.
+Status: `observed`. Channel: Direct jim_regcomp/jim_regexec calls with original native C string pattern/subject arrays. Version: jim original source/library identities retained.
 
 The retained programs.txt contains thirty pattern indices under each of flags 0, 2, 4, 8 and 32, for 150 blocks. Compile codes: 120 code 0; five each of 8, 19, 13, 16, 18 and 10. Successful blocks include integer programs and eight subject rows. Build exit 0 is recorded, but per-block process status and runtime patch/UTF configuration queries are not retained.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-## Historical references
-
-- `original-build` (provider): [rust/tcl-regex/tests/data/native_jim_regexp/manifest.json](../../../../rust/tcl-regex/tests/data/native_jim_regexp/manifest.json). Original exact probe build and linked Jim source/library/header identities.
-- `original-probe` (input): [rust/tcl-regex/tests/data/native_jim_regexp/probe.c](../../../../rust/tcl-regex/tests/data/native_jim_regexp/probe.c). Exact fixed patterns/subjects and direct low-level compile/execute reporting.
-- `original-matrix` (observation): [rust/tcl-regex/tests/data/native_jim_regexp/programs.txt](../../../../rust/tcl-regex/tests/data/native_jim_regexp/programs.txt). Complete retained per-pattern/flag program, compile code/message and range rows; no missing process statuses are manufactured.
-- `exact-source-2` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). JSON pointer `/2/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
 
 ## Source inspection
 
@@ -136,14 +99,13 @@ int jim_regcomp(regex_t *preg, const char *exp, int cflags)
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-regex/src/jim.rs](../../../../rust/tcl-regex/src/jim.rs), `Regex`: Independent low-level Rust program/range implementation; recorded native outputs do not execute its assertions.
 - [rust/tcl-regex/src/jim.rs](../../../../rust/tcl-regex/src/jim.rs), `jim::tests::original_jim_programs_and_ranges_match_all_150_native_controls` (linked): Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun.
+- [rust/tcl-regex/tests/data/native_jim_regexp/manifest.json](../../../../rust/tcl-regex/tests/data/native_jim_regexp/manifest.json)
+- [rust/tcl-regex/tests/data/native_jim_regexp/probe.c](../../../../rust/tcl-regex/tests/data/native_jim_regexp/probe.c)
+- [rust/tcl-regex/tests/data/native_jim_regexp/programs.txt](../../../../rust/tcl-regex/tests/data/native_jim_regexp/programs.txt)

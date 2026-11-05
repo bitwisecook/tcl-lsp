@@ -24,55 +24,11 @@ This is source diagnostic advice, not an original native parse, command-entry or
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This selected-descriptor source clause/context/error-capture advice contract supplies no native handler execution, event/procedure frame, error capture, channel existence or runtime result observation. The f5-irules source control supplies no BIG-IP/TMM execution observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This selected-descriptor source clause/context/error-capture advice contract supplies no native handler execution, event/procedure frame, error capture, channel existence or runtime result observation. The f5-irules source control supplies no BIG-IP/TMM execution observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This selected-descriptor source clause/context/error-capture advice contract supplies no native handler execution, event/procedure frame, error capture, channel existence or runtime result observation. The f5-irules source control supplies no BIG-IP/TMM execution observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This selected-descriptor source clause/context/error-capture advice contract supplies no native handler execution, event/procedure frame, error capture, channel existence or runtime result observation. The f5-irules source control supplies no BIG-IP/TMM execution observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This selected-descriptor source clause/context/error-capture advice contract supplies no native handler execution, event/procedure frame, error capture, channel existence or runtime result observation. The f5-irules source control supplies no BIG-IP/TMM execution observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This selected-descriptor source clause/context/error-capture advice contract supplies no native handler execution, event/procedure frame, error capture, channel existence or runtime result observation. The f5-irules source control supplies no BIG-IP/TMM execution observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This selected-descriptor source clause/context/error-capture advice contract supplies no native handler execution, event/procedure frame, error capture, channel existence or runtime result observation. The f5-irules source control supplies no BIG-IP/TMM execution observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -108,13 +64,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/commands/tcl/if_.rs](../../../../rust/tcl-registry/src/commands/tcl/if_.rs), `commands::tcl::if_::original_clause_repair_tests::original_clause_repairs_distinguish_conditions_from_opening_keywords` (linked): The selected stock walker retains independent defect and body/keyword repair ordinals; the same diagnostic-only defect has no repair anchor.
 - [rust/tcl-spec-hooks/tests/families_e2e.rs](../../../../rust/tcl-spec-hooks/tests/families_e2e.rs), `a_clause_shape_check_reports_the_first_structural_defect` (linked): An actual pack guest through the common checker ABI retains its defect with no stock clause repair anchor; linked test does not claim an observed run.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/analyser/diagnostics/validity.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/validity.rs), `Analyser::emit_e004_clause_shape_diagnostic`: Use the selected source clause grammar for malformed conditional advice after a genuine source move; diagnostic shape does not grant Native parse/evaluation authority.
 - [rust/tcl-compiler/src/analyser/state.rs](../../../../rust/tcl-compiler/src/analyser/state.rs), `analyser::state::tests::renamed_if_keeps_its_original_clause_shape` (linked): A source move from if to myif retains the original selected clause-shape advice and produces one E004 for the malformed original clause sequence.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-The marked selectors bind source descriptor, structured argument and written-geometry coverage. Exact Rust outcomes require their independent pinned source/executable receipts. No native provider observation, BIG-IP/TMM execution, entered frame or handler equivalence is attached to this contract.

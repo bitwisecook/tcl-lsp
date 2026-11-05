@@ -1,7 +1,7 @@
 # How can an original member body supply prefix inventory without body entry?
 
 Status: read-only design, no implementation or new run. The sealed
-[diagnostic](../results/composed-callback-consumer/diagnostic-prefix-entry-1/result.json)
+diagnostic
 measured exact positive/adverse offsets 174/185: full source/config/input and
 builder schema pass; the prepared tape has no producer entry and does not
 represent either builder. Target resolution/schema guards are unreached. The

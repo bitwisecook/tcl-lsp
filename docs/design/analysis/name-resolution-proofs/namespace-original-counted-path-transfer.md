@@ -20,55 +20,11 @@ Rust source-state transfer with a genuine complete original word and current who
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter execution is claimed for this Rust source-transfer invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter execution is claimed for this Rust source-transfer invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter execution is claimed for this Rust source-transfer invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter execution is claimed for this Rust source-transfer invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter execution is claimed for this Rust source-transfer invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter execution is claimed for this Rust source-transfer invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter execution is claimed for this Rust source-transfer invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_namespace_path.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_path.rs), `command_binding::original_namespace_path::tests::original_namespace_path_keeps_whole_lists_and_existing_identities` (linked): Four C source contexts retain the exact B,A,B element sequence over actual prior namespace allocations, and a reached empty List clears the complete path.
 - [rust/tcl-compiler/src/command_binding/original_namespace_path.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_path.rs), `command_binding::original_namespace_path::tests::original_namespace_path_declines_missing_malformed_and_dynamic_elements` (linked): Four C source contexts retain uncertainty for a missing element, malformed List or dynamic operand; no missing namespace is allocated. Changed whole source refuses the retained source image.
 - [rust/tcl-compiler/src/command_binding/original_namespace_path.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_path.rs), `command_binding::original_namespace_path::tests::original_namespace_path_requires_current_original_policy_and_unique_incarnations` (linked): An actual C8.6 complete original word resolves its prior allocated namespace. Counterfactual duplicate incarnation, unknown selected namespace, foreign C9.1 policy, C8.4/Jim policy and changed original source refuse without installing a path.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Named Rust selectors are linked implementation controls, without an execution claim. Native path precedence is an independent bounded script observation; no new interpreter probe or opaque operand observation is attached.

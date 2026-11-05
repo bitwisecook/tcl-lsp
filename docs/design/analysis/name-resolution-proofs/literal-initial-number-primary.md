@@ -22,7 +22,7 @@ The exact public C object callback records primary before/after its selected obs
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.. Dialect: C Tcl.
+Status: `observed`. Channel: Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode. Version: tcl8.4 8.4.20 (capture association; launched patchlevel unqueried).
 
 Exact relevant rows, in original column order:
 
@@ -38,27 +38,9 @@ initial	0	int	int	-1	-1	-1	3	39323233333732303336383534373735383037
 initial	0	none	none	-1	-1	-1	3	2d39323233333732303336383534373735383038
 initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.. Dialect: C Tcl.
-
-Exact relevant rows, in original column order:
-
-initial	0	none	none	-1	-1	-1	3	3137
-initial	0	none	none	-1	-1	-1	3	2b3137
-initial	0	none	none	-1	-1	-1	3	303137
-initial	0	none	none	-1	-1	-1	3	2d30
-initial	0	none	none	-1	-1	-1	3	30
-initial	0	none	none	-1	-1	-1	3	2d3137
-initial	0	none	none	-1	-1	-1	3	313700737566666978
-initial	0	none	none	-1	-1	-1	3	313700
-initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383037
-initial	0	none	none	-1	-1	-1	3	2d39323233333732303336383534373735383038
-initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.. Dialect: C Tcl.
+Status: `observed`. Channel: Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode. Version: tcl8.5 8.5.19 (capture association; launched patchlevel unqueried); tcl8.6 8.6.18 (capture association; launched patchlevel unqueried); tcl9.0 9.0.4 (capture association; launched patchlevel unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel unqueried).
 
 Exact relevant rows, in original column order:
 
@@ -74,75 +56,23 @@ initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383037
 initial	0	none	none	-1	-1	-1	3	2d39323233333732303336383534373735383038
 initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.
 
-### tcl9.0
+### jim, bigip
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.. Dialect: C Tcl.
-
-Exact relevant rows, in original column order:
-
-initial	0	none	none	-1	-1	-1	3	3137
-initial	0	none	none	-1	-1	-1	3	2b3137
-initial	0	none	none	-1	-1	-1	3	303137
-initial	0	none	none	-1	-1	-1	3	2d30
-initial	0	none	none	-1	-1	-1	3	30
-initial	0	none	none	-1	-1	-1	3	2d3137
-initial	0	none	none	-1	-1	-1	3	313700737566666978
-initial	0	none	none	-1	-1	-1	3	313700
-initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383037
-initial	0	none	none	-1	-1	-1	3	2d39323233333732303336383534373735383038
-initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Public original callback objects reached from Tcl_Eval or counted Tcl_EvalObjEx flags0, according to selected source mode.. Dialect: C Tcl.
-
-Exact relevant rows, in original column order:
-
-initial	0	none	none	-1	-1	-1	3	3137
-initial	0	none	none	-1	-1	-1	3	2b3137
-initial	0	none	none	-1	-1	-1	3	303137
-initial	0	none	none	-1	-1	-1	3	2d30
-initial	0	none	none	-1	-1	-1	3	30
-initial	0	none	none	-1	-1	-1	3	2d3137
-initial	0	none	none	-1	-1	-1	3	313700737566666978
-initial	0	none	none	-1	-1	-1	3	313700
-initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383037
-initial	0	none	none	-1	-1	-1	3	2d39323233333732303336383534373735383038
-initial	0	none	none	-1	-1	-1	3	39323233333732303336383534373735383038. Reference counts include the explicitly retained harness objects.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+Status: `not-tested`.
 
 No observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-vm/tests/data/native_literal_pools/probe.c](../../../../rust/tcl-vm/tests/data/native_literal_pools/probe.c). Exact source programs, counted opaque/numeric byte lengths and before-observer pointer/type sampling.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_literal_pools/manifest.json](../../../../rust/tcl-vm/tests/data/native_literal_pools/manifest.json). Original successful compile/run association, source/library/header/executable hashes and full output digests.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv). Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex.
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv). Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex.
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv). Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex.
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv). Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex.
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv). Full 21-row original output. Relevant one-based lines [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]. Columns mode,call,before,after,same-first,children-equal,child-same-first,refs,hex.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs), `NativeLiteralPool`: Retains selected native allocation, registration and original object-array ownership separately from bytes.
 - [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs), `literal_pool::tests::native_opaque_literal_bytes_and_c84_initial_cache_match_captured_producers` (linked): Checks selected initial C8.4 numeric cache and negative-minimum decline; this does not cover every native row.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe.
+- [rust/tcl-vm/tests/data/native_literal_pools/probe.c](../../../../rust/tcl-vm/tests/data/native_literal_pools/probe.c)
+- [rust/tcl-vm/tests/data/native_literal_pools/manifest.json](../../../../rust/tcl-vm/tests/data/native_literal_pools/manifest.json)
+- [rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/8.4.20.tsv)
+- [rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/8.5.19.tsv)
+- [rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/8.6.18.tsv)
+- [rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/9.0.4.tsv)
+- [rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_literal_pools/9.1.0.tsv)

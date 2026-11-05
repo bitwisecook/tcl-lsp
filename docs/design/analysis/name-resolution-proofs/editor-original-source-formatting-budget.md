@@ -20,55 +20,11 @@ Rust resource admission only. Literal braces in comments, quoted text, bare word
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source resource invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation is attached to this Rust source resource invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source resource invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source resource invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust source resource invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation is attached to this Rust source resource invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation is attached to this Rust source resource invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,9 +37,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/formatting/engine.rs](../../../../rust/tcl-lsp-core/src/formatting/engine.rs), `formatting::engine::tests::formatting_budget_preserves_complete_source_before_analysis` (linked): Over-budget input preserves exact original CRLF/source bytes despite ordinary whitespace/final-newline options.
 - [rust/tcl-lsp-core/src/formatting/engine.rs](../../../../rust/tcl-lsp-core/src/formatting/engine.rs), `formatting::engine::tests::deeply_nested_if_survives_formatting` (linked): The unchanged deterministic2,000-level formatter selector returns on the default stack.
 - [rust/tcl-lsp-core/src/formatting/mod.rs](../../../../rust/tcl-lsp-core/src/formatting/mod.rs), `formatting::tests::range_formatting_withdraws_before_analysis_above_lexical_budget` (linked): A range request on over-budget original source emits no edits before semantic preparation.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked tests are not an execution claim. Existing2,000-level/defaultstack selector must be executed without changing depth, stack or timeout.

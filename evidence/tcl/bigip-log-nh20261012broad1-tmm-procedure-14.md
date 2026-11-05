@@ -20,500 +20,146 @@ Other assumptions were not separately recorded.
 
 ## Script
 
+Fixture: [bigip-tmm-procedure-4](fixtures/bigip-tmm-procedure-4.md)
+
+- run: `nh20261012broad1`
+- case: `active-namespace-delete-recreate`
+- case.2: `protocol-relative-user-shadow`
+- case.3: `namespace-code-recreated`
+
+### nh_setup
+
 ```tcl-visible
-set nh_unit "[TMM::cmp_group]:[TMM::cmp_unit]"
-set nh_invocation once
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f726563726561746564207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465643a3a6f776e6572207b7365742078204f4c443b20736574203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465643a3a707265666978205b6e616d65737061636520636f6465207b73657420787d5d7d0a6e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465643a3a6f776e65720a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465643a3a6f776e6572207b7365742078205245435245415445447d0a]
-set nh_operation [binary format H* 6576616c205b736574203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465643a3a7072656669785d0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated::owner {set x OLD; set ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated::prefix [namespace code {set x}]}
+namespace delete ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated::owner
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated::owner {set x RECREATED}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+### nh_operation
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465642a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465642a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465642a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465642a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465642a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465642a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6e616d6573706163655f636f64655f7265637265617465642a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+```tcl-visible
+eval [set ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated::prefix]
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f7265637265617465207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174653a3a6f776e6572207b7661726961626c652078204f4c443b2070726f6320746172676574207b7d207b7661726961626c6520783b206e616d6573706163652064656c657465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174653a3a6f776e65723b206e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174653a3a6f776e6572207b7661726961626c652078204e45577d3b206c697374202478205b736574203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174653a3a6f776e65723a3a785d7d7d0a]
-set nh_operation [binary format H* 3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174653a3a6f776e65723a3a7461726765740a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+### nh_cleanup
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad16_namespace_code_recreated* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated*] [info commands ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated*] [info vars ::__tcl_lsp_probe_nh20261012broad16_namespace_code_recreated*]⟦EOF⟧
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174652a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174652a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174652a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174652a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174652a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174652a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f6163746976655f6e616d6573706163655f64656c6574655f72656372656174652a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+### nh_setup.2
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f77207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f773a3a48545450207b70726f63206d6574686f64207b7d207b72657475726e20555345525f534841444f577d7d0a]
-set nh_operation [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f77207b485454503a3a6d6574686f647d0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate::owner {variable x OLD; proc target {} {variable x; namespace delete ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate::owner; namespace eval ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate::owner {variable x NEW}; list $x [set ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate::owner::x]}}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+### nh_operation.2
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f772a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f772a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f772a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f772a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f772a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f772a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f70726f746f636f6c5f72656c61746976655f757365725f736861646f772a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+```tcl-visible
+::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate::owner::target
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
+### nh_cleanup.2
+
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate*] [info commands ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate*] [info vars ::__tcl_lsp_probe_nh20261012broad16_active_namespace_delete_recreate*]⟦EOF⟧
+```
+
+### nh_setup.3
+
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow::HTTP {proc method {} {return USER_SHADOW}}
+```
+
+### nh_operation.3
+
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow {HTTP::method}
+```
+
+### nh_cleanup.3
+
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow*] [info commands ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow*] [info vars ::__tcl_lsp_probe_nh20261012broad16_protocol_relative_user_shadow*]⟦EOF⟧
 ```
 
 ## Results
 
-### tmm-procedure, unit 0:0, invocation once
+### tmm-procedure, unit 0:0, invocation once; tmm-procedure, unit 0:1, invocation once; tmm-procedure, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-procedure.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|555345525f534841444f57
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- namespace-code-recreated, setup, completion 0, result, chunk 0 of 1:
+- namespace-code-recreated, setup, completion 0, result:
 
 ```text-visible
 RECREATED⟦EOF⟧
 ```
 
-- namespace-code-recreated, lookup, completion 0, result, chunk 0 of 1:
+- namespace-code-recreated, lookup, completion 0, result:
 
 ```text-visible
 RECREATED⟦EOF⟧
 ```
 
-- namespace-code-recreated, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- namespace-code-recreated, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- active-namespace-delete-recreate, setup, completion 0, result, chunk 0 of 1:
+- active-namespace-delete-recreate, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- active-namespace-delete-recreate, lookup, completion 0, result, chunk 0 of 1:
+- active-namespace-delete-recreate, lookup, completion 0, result:
 
 ```text-visible
 OLD NEW⟦EOF⟧
 ```
 
-- active-namespace-delete-recreate, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- active-namespace-delete-recreate, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- protocol-relative-user-shadow, setup, completion 0, result, chunk 0 of 1:
+- protocol-relative-user-shadow, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- protocol-relative-user-shadow, lookup, completion 0, result, chunk 0 of 1:
+- protocol-relative-user-shadow, lookup, completion 0, result:
 
 ```text-visible
 USER_SHADOW⟦EOF⟧
 ```
 
-- protocol-relative-user-shadow, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- active-namespace-delete-recreate: intended operation reached.
-
-- namespace-code-recreated: intended operation reached.
-
-- protocol-relative-user-shadow: intended operation reached.
-
-### tmm-procedure, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|555345525f534841444f57
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- namespace-code-recreated, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-RECREATED⟦EOF⟧
-```
-
-- namespace-code-recreated, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-RECREATED⟦EOF⟧
-```
-
-- namespace-code-recreated, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- active-namespace-delete-recreate, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- active-namespace-delete-recreate, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-OLD NEW⟦EOF⟧
-```
-
-- active-namespace-delete-recreate, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- protocol-relative-user-shadow, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- protocol-relative-user-shadow, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-USER_SHADOW⟦EOF⟧
-```
-
-- protocol-relative-user-shadow, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- active-namespace-delete-recreate: intended operation reached.
-
-- namespace-code-recreated: intended operation reached.
-
-- protocol-relative-user-shadow: intended operation reached.
-
-### tmm-procedure, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|555345525f534841444f57
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- namespace-code-recreated, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-RECREATED⟦EOF⟧
-```
-
-- namespace-code-recreated, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-RECREATED⟦EOF⟧
-```
-
-- namespace-code-recreated, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- active-namespace-delete-recreate, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- active-namespace-delete-recreate, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-OLD NEW⟦EOF⟧
-```
-
-- active-namespace-delete-recreate, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- protocol-relative-user-shadow, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- protocol-relative-user-shadow, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-USER_SHADOW⟦EOF⟧
-```
-
-- protocol-relative-user-shadow, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- protocol-relative-user-shadow, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
@@ -532,71 +178,59 @@ USER_SHADOW⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|524543524541544544
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|namespace-code-recreated|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|active-namespace-delete-recreate|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|555345525f534841444f57
-Oct 12 08:10:28 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_14 <RULE_INIT>: NHO|nh20261012broad1|protocol-relative-user-shadow|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- namespace-code-recreated, setup, completion 0, result, chunk 0 of 1:
+- namespace-code-recreated, setup, completion 0, result:
 
 ```text-visible
 RECREATED⟦EOF⟧
 ```
 
-- namespace-code-recreated, lookup, completion 0, result, chunk 0 of 1:
+- namespace-code-recreated, lookup, completion 0, result:
 
 ```text-visible
 RECREATED⟦EOF⟧
 ```
 
-- namespace-code-recreated, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- namespace-code-recreated, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- active-namespace-delete-recreate, setup, completion 0, result, chunk 0 of 1:
+- active-namespace-delete-recreate, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- active-namespace-delete-recreate, lookup, completion 0, result, chunk 0 of 1:
+- active-namespace-delete-recreate, lookup, completion 0, result:
 
 ```text-visible
 OLD NEW⟦EOF⟧
 ```
 
-- active-namespace-delete-recreate, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- active-namespace-delete-recreate, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- protocol-relative-user-shadow, setup, completion 0, result, chunk 0 of 1:
+- protocol-relative-user-shadow, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- protocol-relative-user-shadow, lookup, completion 0, result, chunk 0 of 1:
+- protocol-relative-user-shadow, lookup, completion 0, result:
 
 ```text-visible
 USER_SHADOW⟦EOF⟧
 ```
 
-- protocol-relative-user-shadow, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- protocol-relative-user-shadow, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧

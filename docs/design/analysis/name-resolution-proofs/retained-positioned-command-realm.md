@@ -20,67 +20,11 @@ Current Rust source ownership contract and nine genuine direct software test def
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions only. Dialect: tcl8.4.
-
-This Rust immutable-source retention and projection contract does not run an external provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions only. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Current Rust source/API definitions only.
 
 This Rust immutable-source retention and projection contract does not run an external provider.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions only. Dialect: tcl8.6.
-
-This Rust immutable-source retention and projection contract does not run an external provider.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions only. Dialect: tcl9.0.
-
-This Rust immutable-source retention and projection contract does not run an external provider.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions only. Dialect: tcl9.1.
-
-This Rust immutable-source retention and projection contract does not run an external provider.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions only. Dialect: jim.
-
-This Rust immutable-source retention and projection contract does not run an external provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: No original external-provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions only. Dialect: bigip.
-
-This Rust immutable-source retention and projection contract does not run an external provider.
-
-## Historical references
-
-- `retained-positioned-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology.
-- `retained-positioned-retained-source` (implementation): [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-compilation-unit` (implementation): [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-inline-uplevel` (implementation): [rust/tcl-compiler/src/inline_uplevel.rs](../../../../rust/tcl-compiler/src/inline_uplevel.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-lib` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-manager` (implementation): [rust/tcl-compiler/src/optimiser/manager.rs](../../../../rust/tcl-compiler/src/optimiser/manager.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-mod` (implementation): [rust/tcl-compiler/src/optimiser/mod.rs](../../../../rust/tcl-compiler/src/optimiser/mod.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-realm` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-taint` (implementation): [rust/tcl-compiler/src/taint.rs](../../../../rust/tcl-compiler/src/taint.rs). Current inspected source owner, consumer or actual parent registration. These bytes bind the software contract only; no producer, listing or passed assertion receipt is attached.
-- `retained-positioned-unit-scope` (implementation): [rust/tcl-compiler/src/unit_scope.rs](../../../../rust/tcl-compiler/src/unit_scope.rs). Actual Module/caller original metadata and retained invocation purpose precede Logical unit linkage/call evidence; argument evaluation, real entry and Native allocation/handler guards remain distinct.
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.retained-positioned-command-realm`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `original-restored-declaration-64aa956da6cf` (implementation): [rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs). Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -114,8 +58,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_missing_command.rs](../../../../rust/tcl-compiler/src/command_binding/original_missing_command.rs), `command_binding::original_missing_command::tests::original_missing_mutated_slot_requires_current_complete_source` (linked): A genuine supplied Logical deletion has an absent mutated slot; altered compatibility argv, missing binding and changed whole-source Module cannot borrow it.
 - [rust/tcl-compiler/src/command_binding/original_missing_command.rs](../../../../rust/tcl-compiler/src/command_binding/original_missing_command.rs), `command_binding::original_missing_command::tests::source_absence_does_not_turn_external_or_dynamic_heads_into_rebound_slots` (linked): External, dynamic and replacement calls cannot acquire the deleted-slot report; original operands that republish a name withdraw the readonly pre-operand closure.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Source definitions only. A matching independently successful own producer, exact executable inventory and complete assertion receipt are required for executed software outcomes. Actual independent source ingress and every Native/provider/frame/completion/edit receipt remain separate. Complete original/current measurement receipts are required for performance claims.
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs)
+- [rust/tcl-compiler/src/optimiser/manager.rs](../../../../rust/tcl-compiler/src/optimiser/manager.rs)
+- [rust/tcl-compiler/src/optimiser/mod.rs](../../../../rust/tcl-compiler/src/optimiser/mod.rs)
+- [rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs)

@@ -276,93 +276,78 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-RULE_INIT, unit 0:0, invocation once
+### tmm-RULE_INIT, unit 0:0, invocation once; tmm-RULE_INIT, unit 0:1, invocation once; tmm-RULE_INIT, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|382e342e36
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|544152474554
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:0|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:0|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:0|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:0|once|errorinfo|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- interp.create, setup, completion 0, result, chunk 0 of 1:
+- interp.create, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- interp.create, lookup, completion 0, result, chunk 0 of 1:
+- interp.create, lookup, completion 0, result:
 
 ```text-visible
 8.4.6⟦EOF⟧
 ```
 
-- interp.create, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- interp.create, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- interp.alias, setup, completion 0, result, chunk 0 of 1:
+- interp.alias, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- interp.alias, lookup, completion 0, result, chunk 0 of 1:
+- interp.alias, lookup, completion 0, result:
 
 ```text-visible
 TARGET⟦EOF⟧
 ```
 
-- interp.alias, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- interp.alias, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- tcltest, setup, completion 0, result, chunk 0 of 1:
+- tcltest, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, result, chunk 0 of 1:
+- tcltest, lookup, completion 1, result:
 
 ```text-visible
 can't find package tcltest⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, metadata, chunk 0 of 1:
+- tcltest, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, errorcode, chunk 0 of 1:
+- tcltest, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, errorinfo, chunk 0 of 1:
+- tcltest, lookup, completion 1, errorinfo:
 
 ```text-visible
 can't find package tcltest
@@ -373,225 +358,7 @@ can't find package tcltest
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- tcltest, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- interp.alias: intended operation reached.
-
-- interp.create: intended operation reached.
-
-- tcltest: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|382e342e36
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|544152474554
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:1|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:1|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:1|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:1|once|errorinfo|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- interp.create, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- interp.create, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-8.4.6⟦EOF⟧
-```
-
-- interp.create, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- interp.alias, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- interp.alias, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-TARGET⟦EOF⟧
-```
-
-- interp.alias, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- tcltest, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-can't find package tcltest⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, errorinfo, chunk 0 of 1:
-
-```text-visible
-can't find package tcltest
-    while executing
-"package require tcltest"
-    ("eval" body line 1)
-    invoked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- tcltest, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- interp.alias: intended operation reached.
-
-- interp.create: intended operation reached.
-
-- tcltest: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|382e342e36
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|544152474554
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:2|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:2|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:2|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:2|once|errorinfo|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- interp.create, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- interp.create, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-8.4.6⟦EOF⟧
-```
-
-- interp.create, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- interp.alias, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- interp.alias, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-TARGET⟦EOF⟧
-```
-
-- interp.alias, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- tcltest, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-can't find package tcltest⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- tcltest, lookup, completion 1, errorinfo, chunk 0 of 1:
-
-```text-visible
-can't find package tcltest
-    while executing
-"package require tcltest"
-    ("eval" body line 1)
-    invoked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- tcltest, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- tcltest, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
@@ -610,86 +377,71 @@ can't find package tcltest
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|382e342e36
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.create|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|544152474554
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|interp.alias|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:3|once|result|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c74657374
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:3|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:3|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|lookup|1|0:3|once|errorinfo|binary-scan-tcl-value|0|1|63616e27742066696e64207061636b6167652074636c746573740a202020207768696c6520657865637574696e670a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:56:54 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_RULE_INIT_3 <RULE_INIT>: NHO|nh20261012cap2|tcltest|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- interp.create, setup, completion 0, result, chunk 0 of 1:
+- interp.create, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- interp.create, lookup, completion 0, result, chunk 0 of 1:
+- interp.create, lookup, completion 0, result:
 
 ```text-visible
 8.4.6⟦EOF⟧
 ```
 
-- interp.create, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- interp.create, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- interp.alias, setup, completion 0, result, chunk 0 of 1:
+- interp.alias, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- interp.alias, lookup, completion 0, result, chunk 0 of 1:
+- interp.alias, lookup, completion 0, result:
 
 ```text-visible
 TARGET⟦EOF⟧
 ```
 
-- interp.alias, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- interp.alias, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- tcltest, setup, completion 0, result, chunk 0 of 1:
+- tcltest, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, result, chunk 0 of 1:
+- tcltest, lookup, completion 1, result:
 
 ```text-visible
 can't find package tcltest⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, metadata, chunk 0 of 1:
+- tcltest, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, errorcode, chunk 0 of 1:
+- tcltest, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- tcltest, lookup, completion 1, errorinfo, chunk 0 of 1:
+- tcltest, lookup, completion 1, errorinfo:
 
 ```text-visible
 can't find package tcltest
@@ -700,7 +452,7 @@ can't find package tcltest
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- tcltest, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- tcltest, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧

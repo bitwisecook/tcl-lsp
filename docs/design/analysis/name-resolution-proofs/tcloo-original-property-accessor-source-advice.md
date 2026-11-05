@@ -20,59 +20,11 @@ Rust source-advice selection for Tcl 9.0 and 9.1 configurable property declarati
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a Rust source-advice implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-## Historical references
-
-- `syntax-naming-scoped-24df4e573153` (observation): [Scoped syntax naming receipt](rust-validation/syntax-naming-20261103/receipt.json). Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows.
-
-- `option-purpose` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). Reviewed source role: Source option-name formatting and counted declaration-name purposes; no provider or runtime accessor observation. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-- `accessor-protocol` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). Grammar-owned source accessor layout and its independently retained immutable protocol.
-- `original-property` (implementation): [rust/tcl-compiler/src/analyser/types/original_properties.rs](../../../../rust/tcl-compiler/src/analyser/types/original_properties.rs). Metadata retains original producer, selected protocol and distinct option projection.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +39,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/completion/original_properties.rs](../../../../rust/tcl-lsp-core/src/completion/original_properties.rs), `completion::original_properties::tests::original_property_options_require_receiver_selector_currency_and_do_not_retag_values` (linked): Current receiver/selector controls option advice; value positions and unsupported selectors cannot be retagged.
 - [rust/tcl-lsp-core/src/completion/original_properties.rs](../../../../rust/tcl-lsp-core/src/completion/original_properties.rs), `completion::original_properties::source_instance_tests::original_property_options_share_symbolic_and_captured_receiver_source_argv` (linked): Symbolic and captured source-instance argv share authentic property owner without Native lookup/editable value geometry.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named syntax option-format control passed in the separately retained software receipt. Other named selectors retain their independent execution obligations. No native replay is attached to this implementation contract.
+- [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs)
+- [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs)
+- [rust/tcl-compiler/src/analyser/types/original_properties.rs](../../../../rust/tcl-compiler/src/analyser/types/original_properties.rs)

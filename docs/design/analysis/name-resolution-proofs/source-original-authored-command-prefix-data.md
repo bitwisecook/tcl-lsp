@@ -20,56 +20,11 @@ The two new Compiler controls are authored source/API contracts. The three Core 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
+Status: `not-tested`.
 
 No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-## Historical references
-
-- `naming.source.original-authored-command-prefix-data.definition.0` (implementation): [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs). Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-- `naming.source.original-authored-command-prefix-data.definition.1` (implementation): [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs). Original source-case and supplied-word projections distinguish genuine Logical source purpose from retained Native/source recipes. Full source/vector/realm/input and actual Native handler/word-provider checks remain separate.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +35,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs), `command_binding::source_transition_advice::produced_prefix::tests::authored_prefix_data_keeps_builder_point_without_a_deferred_parent` (linked): Retain authentic list-builder data and target roles/original operands at that source point while asserting that no deferred Produced parent or future lookup is issued.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs), `command_binding::source_transition_advice::produced_prefix::tests::authored_prefix_keeps_alias_origins_and_known_target_barriers` (linked): Keep selected alias/move lineage and effective operand origins under actual source availability, withdrawing known replaced targets and unavailable data projection without later dispatch authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Current source definitions and canonical named controls describe this software interface. No native process, Rust build or assertion is run by publication. Actual artifact/source/receipt coverage belongs to its separately retained validation record; selected fixture protocols do not execute the external provider or supply Native entry/Normal/frame/private header authority.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs)
+- [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs)

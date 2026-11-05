@@ -22,57 +22,11 @@ Conditional callback signatures and absent source diagnostics establish no futur
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This conditional callback target/signature implementation contract supplies no native process, current registration, future callable, actual native argv/frame or edit observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This conditional callback target/signature implementation contract supplies no native process, current registration, future callable, actual native argv/frame or edit observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This conditional callback target/signature implementation contract supplies no native process, current registration, future callable, actual native argv/frame or edit observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This conditional callback target/signature implementation contract supplies no native process, current registration, future callable, actual native argv/frame or edit observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This conditional callback target/signature implementation contract supplies no native process, current registration, future callable, actual native argv/frame or edit observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This conditional callback target/signature implementation contract supplies no native process, current registration, future callable, actual native argv/frame or edit observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This conditional callback target/signature implementation contract supplies no native process, current registration, future callable, actual native argv/frame or edit observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -124,18 +78,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `analyser::per_item::tests::original_incremental_callbacks_retain_full_source_targets_and_barriers` (linked): Full and incremental C5/Jim source analyses retain equal authentic callback lookup/refusal under complete registration horizons, including external/direct/local, alias captures, baked words and known deletion/nonprocedure barriers. No Native registration or frame is inferred.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::callback_arity_namespace_unknown_zero_param_draws_e003` (linked): Conditional namespace unknown advice uses genuine original rooted source registration and exact caller grammar/count; the typed source subject is independent of future dispatch and entered namespace frame.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs), `SourceCallbackSignatureLookup::from_original_lookup`: Join the original complete source/input/configuration, registration/prefix and canonical target before body-free signature advice; equal labels or a foreign analysis cannot supply the join.
 - [rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs), `analyser::diagnostic_subject::callback::tests::original_callback_signature_lookup_requires_its_complete_source_input` (linked): A genuine retained callback prefix/target can issue body-free signature lookup only under its complete original analysis source and selected grammar; a changed source image or dialect owner withdraws that lookup.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::callback_arity_namespace_unknown_relative_trigger_does_not_borrow_installer_frame` (linked): An unentered relative namespace-unknown trigger does not borrow the installer frame to emit callback argument-count diagnostics.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-The named Rust selectors retain source premises and refusals only; actual compilation and assertion receipts remain independent. Native255 public comparator args and trace253 namespace/suffix observations do not establish future target occupancy or internal native argv/object/header/frame authority.
-
 
 ## Exact original-source Compiler software outcomes
 
@@ -145,8 +92,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -156,4 +102,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 0 | 1 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

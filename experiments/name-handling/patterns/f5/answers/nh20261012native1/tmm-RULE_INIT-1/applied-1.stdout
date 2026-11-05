@@ -1,6 +1,0 @@
-sys folder __tcl_lsp_probe_nh20261012native1_folder {
-    device-group none
-    inherited-devicegroup true
-    inherited-traffic-group true
-    traffic-group traffic-group-1
-}

@@ -22,111 +22,27 @@ External subprocess observations and their retained partial streams, deadlines, 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Configured pinned source/header/library/Makefile and executed probe SHA associations are retained in provider receipts; reported patchlevel was queried in each isolated captured process.. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest.. Dialect: tcl8.4.
+Status: `observed`. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest. Version: tcl8.4 8.4.20.
 
 v106/NO_SOURCES: external deadline; no guest completion row v106/PREFIX_BGERROR: PREFIX_BGERROR: code 1, bytes b'bad option "bgerror": must be alias, aliases, create, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, marktrusted, recursionlimit, slaves, share, target, or transfer'
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: Configured pinned source/header/library/Makefile and executed probe SHA associations are retained in provider receipts; reported patchlevel was queried in each isolated captured process.. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest.. Dialect: tcl8.5.
-
-v106/NO_SOURCES: external deadline; no guest completion row v106/PREFIX_BGERROR: external deadline; no guest completion row
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Configured pinned source/header/library/Makefile and executed probe SHA associations are retained in provider receipts; reported patchlevel was queried in each isolated captured process.. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest.. Dialect: tcl8.6.
-
-v106/NO_SOURCES: external deadline; no guest completion row v106/PREFIX_BGERROR: external deadline; no guest completion row
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Configured pinned source/header/library/Makefile and executed probe SHA associations are retained in provider receipts; reported patchlevel was queried in each isolated captured process.. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest.. Dialect: tcl9.0.
-
-v106/NO_SOURCES: external deadline; no guest completion row v106/PREFIX_BGERROR: external deadline; no guest completion row
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Configured pinned source/header/library/Makefile and executed probe SHA associations are retained in provider receipts; reported patchlevel was queried in each isolated captured process.. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest.. Dialect: tcl9.1.
+Status: `observed`. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 v106/NO_SOURCES: external deadline; no guest completion row v106/PREFIX_BGERROR: external deadline; no guest completion row
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Configured pinned source/header/library/Makefile and executed probe SHA associations are retained in provider receipts; reported patchlevel was queried in each isolated captured process.. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest.. Dialect: jim.
+Status: `observed`. Channel: Fresh-process counted ASCII source passed to Tcl_EvalEx/Jim_EvalObj; public result/return-options getter after evaluation; external deadline outside guest. Version: jim 0.84-9-g5bac7c9.
 
 v106/NO_SOURCES: NO_SOURCES: code 0, bytes b'' v106/PREFIX_BGERROR: PREFIX_BGERROR: code 1, bytes b'wrong # args: should be "interp"'
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No appliance build attached.. Channel: not exercised. Dialect: bigip.
+Status: `not-tested`. Channel: not exercised.
 
 No BIG-IP provider was executed or inspected for this Event question.
-
-## Historical references
-
-- `e7ca34f2d6fd9344d4610` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e98d4bc726037374525cd` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclEvent.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `eb83569215d92fa37da10` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `ebcd14ee056c41f642dc1` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclEvent.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e5cad7b4101332ff96f7c` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e1799f8f23cd143629768` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclEvent.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e4d5b46a62af04d177edb` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e30bb9be41c1824d28e5d` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclEvent.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `eaf331dbfda81fff6c4db` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `eaa5f919dc246958bc5d1` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclEvent.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclEvent.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e4521e47b782c5165c471` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `ee0dcc279531301092276` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/NO_SOURCES/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/NO_SOURCES/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `ea7880242849960bdac70` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/NO_SOURCES/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/NO_SOURCES/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e8397c32c06aec04cf2a1` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/NO_SOURCES/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/NO_SOURCES/stderr). Unmodified original stderr for this isolated process.
-- `e09479906ff5e8421f6f8` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/receipt.json). Exact configured source/header/library/Makefile/probe/runner/executable associations and compile command; associated fresh case receipts.
-- `e74e2ebf3504b3ca2ded9` (input): [rust/tcl-registry/tests/data/native_event_original/v106/probe.c](../../../../rust/tcl-registry/tests/data/native_event_original/v106/probe.c). Exact original input program or pinned harness for this capture variant. Original absolute paths/commands remain recorded; no new execution.
-- `e12af5b939567f6623a39` (input): [rust/tcl-registry/tests/data/native_event_original/v106/inputs.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/inputs.json). Exact original input program or pinned harness for this capture variant. Original absolute paths/commands remain recorded; no new execution.
-- `ef618b8f2a212bdd89ab6` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/capture.py](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture.py). Exact original input program or pinned harness for this capture variant. Original absolute paths/commands remain recorded; no new execution.
-- `efc1919f2cad632a99862` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/queue.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/queue.json). Exact original input program or pinned harness for this capture variant. Original absolute paths/commands remain recorded; no new execution.
-- `e123724388f8662dc5479` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/PREFIX_BGERROR/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/PREFIX_BGERROR/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e4d552cae616020850bad` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/PREFIX_BGERROR/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/PREFIX_BGERROR/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e1013c02b786ae4787640` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/PREFIX_BGERROR/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20/PREFIX_BGERROR/stderr). Unmodified original stderr for this isolated process.
-- `e39b4a84ed86ea708f157` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/NO_SOURCES/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/NO_SOURCES/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `ef9c99de6099a74ef3dbf` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/NO_SOURCES/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/NO_SOURCES/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `ead67a8669f5e7a55b03e` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/NO_SOURCES/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/NO_SOURCES/stderr). Unmodified original stderr for this isolated process.
-- `e8713f35d778bb238f37a` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/receipt.json). Exact configured source/header/library/Makefile/probe/runner/executable associations and compile command; associated fresh case receipts.
-- `e86127283c231113b4bd5` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/PREFIX_BGERROR/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/PREFIX_BGERROR/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e4c30cdcc3daab9ce078f` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/PREFIX_BGERROR/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/PREFIX_BGERROR/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e08d3ad19e836d289fe8a` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/PREFIX_BGERROR/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19/PREFIX_BGERROR/stderr). Unmodified original stderr for this isolated process.
-- `e13b5f573945d4acf1029` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/NO_SOURCES/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/NO_SOURCES/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e5b8fa42ef8c08cb5ff23` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/NO_SOURCES/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/NO_SOURCES/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e235885ff1be275d1fdb4` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/NO_SOURCES/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/NO_SOURCES/stderr). Unmodified original stderr for this isolated process.
-- `efbf876bad68e15c877bf` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/receipt.json). Exact configured source/header/library/Makefile/probe/runner/executable associations and compile command; associated fresh case receipts.
-- `e1ea51c8f7a716eb60841` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/PREFIX_BGERROR/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/PREFIX_BGERROR/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e86d502dd6b79bc0ae21e` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/PREFIX_BGERROR/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/PREFIX_BGERROR/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e656388044f19358644ca` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/PREFIX_BGERROR/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18/PREFIX_BGERROR/stderr). Unmodified original stderr for this isolated process.
-- `e58ebef7edcf820744b55` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/NO_SOURCES/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/NO_SOURCES/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e6fc2c4e6e972f794ddf8` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/NO_SOURCES/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/NO_SOURCES/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e9f4a5fa28fe9aa2eef95` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/NO_SOURCES/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/NO_SOURCES/stderr). Unmodified original stderr for this isolated process.
-- `eea7018d6967845a3ab1c` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/receipt.json). Exact configured source/header/library/Makefile/probe/runner/executable associations and compile command; associated fresh case receipts.
-- `e97f5cda7f0779ed6ba12` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/PREFIX_BGERROR/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/PREFIX_BGERROR/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e2a808efc8b870155c485` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/PREFIX_BGERROR/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/PREFIX_BGERROR/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e036464c5dfee454cff5d` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/PREFIX_BGERROR/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4/PREFIX_BGERROR/stderr). Unmodified original stderr for this isolated process.
-- `eac850ff53f0518e03b13` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/NO_SOURCES/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/NO_SOURCES/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `eac69e831c16c691787d6` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/NO_SOURCES/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/NO_SOURCES/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `eccbdda804d0c3184d166` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/NO_SOURCES/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/NO_SOURCES/stderr). Unmodified original stderr for this isolated process.
-- `ef20c4d901c733bab9ef6` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/receipt.json). Exact configured source/header/library/Makefile/probe/runner/executable associations and compile command; associated fresh case receipts.
-- `ebf8040312905f78db7bb` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/PREFIX_BGERROR/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/PREFIX_BGERROR/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `eac1303463e81a05ff9bd` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/PREFIX_BGERROR/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/PREFIX_BGERROR/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e2e121b714f2a48d1f22e` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/PREFIX_BGERROR/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0/PREFIX_BGERROR/stderr). Unmodified original stderr for this isolated process.
-- `eecb778a4ee73268e3f7c` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/NO_SOURCES/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/NO_SOURCES/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e1be8342f17dadd7ae3e9` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/NO_SOURCES/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/NO_SOURCES/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e708c69a75b329eed5794` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/NO_SOURCES/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/NO_SOURCES/stderr). Unmodified original stderr for this isolated process.
-- `ec18a9b2f362f4345c580` (provider): [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/receipt.json). Exact configured source/header/library/Makefile/probe/runner/executable associations and compile command; associated fresh case receipts.
-- `e4cc10151aeb0a283b3c4` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/PREFIX_BGERROR/receipt.json](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/PREFIX_BGERROR/receipt.json). Exact isolated-case process status, reported version, public protocol rows and outside timeout bound.
-- `e3286a5ae533600d53a4e` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/PREFIX_BGERROR/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/PREFIX_BGERROR/stdout.tsv). Unmodified original stdout, including partial rows when externally timed out.
-- `e470e3e985c3b2e7220a9` (observation): [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/PREFIX_BGERROR/stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim/PREFIX_BGERROR/stderr). Unmodified original stderr for this isolated process.
-- `efbedc1e534919177588f` (limitation): [rust/tcl-registry/tests/data/native_event_original/v105/queue.json](../../../../rust/tcl-registry/tests/data/native_event_original/v105/queue.json). Original abandoned v105 input/compile/harness artifact. No process receipt or TimeoutExpired stdout/stderr survived this runner.
-- `e2b697554d44420580ffd` (limitation): [rust/tcl-registry/tests/data/native_event_original/v105/probe.c](../../../../rust/tcl-registry/tests/data/native_event_original/v105/probe.c). Original abandoned v105 input/compile/harness artifact. No process receipt or TimeoutExpired stdout/stderr survived this runner.
-- `eb08f5a89e1f1f8dcdbd3` (limitation): [rust/tcl-registry/tests/data/native_event_original/v105/inputs.json](../../../../rust/tcl-registry/tests/data/native_event_original/v105/inputs.json). Original abandoned v105 input/compile/harness artifact. No process receipt or TimeoutExpired stdout/stderr survived this runner.
-- `e73630e03d4833af78fee` (limitation): [rust/tcl-registry/tests/data/native_event_original/v105/capture.py](../../../../rust/tcl-registry/tests/data/native_event_original/v105/capture.py). Original abandoned v105 input/compile/harness artifact. No process receipt or TimeoutExpired stdout/stderr survived this runner.
-- `ecddf35b92e7805f1acee` (limitation): [rust/tcl-registry/tests/data/native_event_original/v105/capture/8.4.20/compile.stdout](../../../../rust/tcl-registry/tests/data/native_event_original/v105/capture/8.4.20/compile.stdout). Original abandoned v105 input/compile/harness artifact. No process receipt or TimeoutExpired stdout/stderr survived this runner.
-- `e67a55a5012933cb15660` (limitation): [rust/tcl-registry/tests/data/native_event_original/v105/capture/8.4.20/compile.stderr](../../../../rust/tcl-registry/tests/data/native_event_original/v105/capture/8.4.20/compile.stderr). Original abandoned v105 input/compile/harness artifact. No process receipt or TimeoutExpired stdout/stderr survived this runner.
 
 ## Source inspection
 
@@ -1385,13 +1301,17 @@ static int JimELVwaitCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 }
 ```
 
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-This record replays no interpreter. Original compile/run commands, input lengths, deadline status and source/header/library/executable hashes are retained in immutable receipts. Captured output directories and original absolute provisioning paths must not be overwritten. Source inspection can be reproduced from the attached full-file and exact LF/snippet hashes. No Rust execution claim.
+- [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.4.20)
+- [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
+- [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.5.19)
+- [rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/8.6.18)
+- [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.0.4)
+- [rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/9.1.0)
+- [rust/tcl-registry/tests/data/native_event_original/v106/capture/jim](../../../../rust/tcl-registry/tests/data/native_event_original/v106/capture/jim)
+- [rust/tcl-registry/tests/data/native_event_original/v105/capture](../../../../rust/tcl-registry/tests/data/native_event_original/v105/capture)

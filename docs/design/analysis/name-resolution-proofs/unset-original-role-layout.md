@@ -20,64 +20,14 @@ Rust Registry structured role projection for independently selected C8.4–9.1 a
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/commands/tcl/unset_.rs](../../../../rust/tcl-registry/src/commands/tcl/unset_.rs), `unset_layout_roles`: Project exact variable operand ordinals from selected shared option grammar and cardinality, independently of executable variable receiver authority.
 - [rust/tcl-registry/src/native_unset_options.rs](../../../../rust/tcl-registry/src/native_unset_options.rs), `UnsetOptionProtocol`: Keep native runtime and counted known-source option selection in their existing sole purpose owner.
 - [rust/tcl-registry/src/commands/tcl/unset_.rs](../../../../rust/tcl-registry/src/commands/tcl/unset_.rs), `commands::tcl::unset_::tests::unset_roles_keep_counted_names_and_selected_option_prefixes` (linked): Retains counted first name and later unknown name VarWrite ordinals, uses the selected raw-zero option prefix extent, and withdraws for an unknown first option candidate.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The fixed Rust selector is linked without an attached execution receipt. Native unset, variable storage and retained-wrapper observations remain independent questions.

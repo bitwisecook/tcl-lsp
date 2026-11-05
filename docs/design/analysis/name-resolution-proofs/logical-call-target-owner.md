@@ -22,57 +22,45 @@ Current shared Core LogicalCallTarget, original class-selector geometry and actu
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No original external process observes this Rust Logical source target contract. Channel: No external provider input for typed current Logical declaration ranges. Dialect: tcl8.4.
+Status: `not-tested`. Channel: No external provider input for typed current Logical declaration ranges. Version: tcl8.4 not tested for this source/API question.
 
 No original tcl8.4 process tests the typed Logical source target contract. Authored source profiles and unrun software controls do not establish external dispatch, physical frame/Method identity, Native admission or editing authority.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No original external process observes this Rust Logical source target contract. Channel: No external provider input for typed current Logical declaration ranges. Dialect: tcl8.5.
+Status: `not-tested`. Channel: No external provider input for typed current Logical declaration ranges. Version: tcl8.5 not tested for this source/API question.
 
 No original tcl8.5 process tests the typed Logical source target contract. Authored source profiles and unrun software controls do not establish external dispatch, physical frame/Method identity, Native admission or editing authority.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No original external process observes this Rust Logical source target contract. Channel: No external provider input for typed current Logical declaration ranges. Dialect: tcl8.6.
+Status: `not-tested`. Channel: No external provider input for typed current Logical declaration ranges. Version: tcl8.6 not tested for this source/API question.
 
 No original tcl8.6 process tests the typed Logical source target contract. Authored source profiles and unrun software controls do not establish external dispatch, physical frame/Method identity, Native admission or editing authority.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No original external process observes this Rust Logical source target contract. Channel: No external provider input for typed current Logical declaration ranges. Dialect: tcl9.0.
+Status: `not-tested`. Channel: No external provider input for typed current Logical declaration ranges. Version: tcl9.0 not tested for this source/API question.
 
 No original tcl9.0 process tests the typed Logical source target contract. Authored source profiles and unrun software controls do not establish external dispatch, physical frame/Method identity, Native admission or editing authority.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No original external process observes this Rust Logical source target contract. Channel: No external provider input for typed current Logical declaration ranges. Dialect: tcl9.1.
+Status: `not-tested`. Channel: No external provider input for typed current Logical declaration ranges. Version: tcl9.1 not tested for this source/API question.
 
 No original tcl9.1 process tests the typed Logical source target contract. Authored source profiles and unrun software controls do not establish external dispatch, physical frame/Method identity, Native admission or editing authority.
 
 ### jim
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No original external process observes this Rust Logical source target contract. Channel: No external provider input for typed current Logical declaration ranges. Dialect: jim.
+Status: `not-tested`. Channel: No external provider input for typed current Logical declaration ranges. Version: jim not tested for this source/API question.
 
 No original jim process tests the typed Logical source target contract. Authored source profiles and unrun software controls do not establish external dispatch, physical frame/Method identity, Native admission or editing authority.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No original external process observes this Rust Logical source target contract. Channel: No external provider input for typed current Logical declaration ranges. Dialect: bigip.
+Status: `not-tested`. Channel: No external provider input for typed current Logical declaration ranges. Version: bigip not tested for this source/API question.
 
 No original bigip process tests the typed Logical source target contract. Authored source profiles and unrun software controls do not establish external dispatch, physical frame/Method identity, Native admission or editing authority.
-
-## Historical references
-
-- `actual-source-0` (implementation): [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs). Exact current source/API owner or bounded current usage contract for Logical source targets. Definition and inspection only; no matching owned executable/assertion or external provider result is attached.
-- `actual-source-1` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). Exact current source/API owner or bounded current usage contract for Logical source targets. Definition and inspection only; no matching owned executable/assertion or external provider result is attached.
-- `actual-source-2` (implementation): [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs). Exact current source/API owner or bounded current usage contract for Logical source targets. Definition and inspection only; no matching owned executable/assertion or external provider result is attached.
-- `actual-source-3` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Exact current source/API owner or bounded current usage contract for Logical source targets. Definition and inspection only; no matching owned executable/assertion or external provider result is attached.
-- `actual-source-4` (implementation): [docs/design/contracts/logical-call-targets.md](../../../../docs/design/contracts/logical-call-targets.md). Exact current source/API owner or bounded current usage contract for Logical source targets. Definition and inspection only; no matching owned executable/assertion or external provider result is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -97,8 +85,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::logical_incoming_target_keeps_procedure_member_side_and_colon_name_separate` (linked): The real Server workspace handoff retains Procedure/Member, MemberSide and colon-bearing member geometry independently of reporting labels. This is an unrun source-defined software control; no Native/provider or matching current Rust assertion result follows.
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::logical_incoming_source_owner_withdrawal_cannot_be_recovered_from_a_title` (linked): Actual workspace source-owner withdrawal remains terminal; a copied item title cannot recover the original target. This is an unrun source-defined software control; no Native/provider or matching current Rust assertion result follows.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-This is a bounded source/API contract with exact current source hashes and actual body bindings. No original external provider experiment or owned matching Rust test execution is attached. Independently measured native method/source/transport evidence does not complete Logical source target, visibility, editing or physical dispatch requirements.
+- [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs)
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs)
+- [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs)
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)
+- [docs/design/contracts/logical-call-targets.md](../../contracts/logical-call-targets.md)

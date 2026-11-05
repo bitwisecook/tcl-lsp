@@ -30,17 +30,6 @@ The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18,
 
 All five captures retain the List primary for both one-element List local names, retain no typed primary for the counted zero String, and return X through the alias. C8.4 retains reference count 1 in all three after snapshots. C8.5 through C9.1 keep the first name at 1 but retain the second List and counted zero operand at 2. These exact snapshots do not establish a general object lifetime or name-table identity rule.
 
-## Historical references
-
-- `runtime/rust/tests/data/native_alias_simple/manifest.json`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
-- `runtime/rust/tests/data/native_alias_simple/probe.c`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
-- `runtime/rust/tests/data/native_alias_simple/8.4.20.txt`: Exact recorded output for C Tcl 8.4.20
-- `runtime/rust/tests/data/native_alias_simple/8.5.19.txt`: Exact recorded output for C Tcl 8.5.19
-- `runtime/rust/tests/data/native_alias_simple/8.6.18.txt`: Exact recorded output for C Tcl 8.6.18
-- `runtime/rust/tests/data/native_alias_simple/9.0.4.txt`: Exact recorded output for C Tcl 9.0.4
-- `runtime/rust/tests/data/native_alias_simple/9.1.0.txt`: Exact recorded output for C Tcl 9.1.0
-- `rust/tcl-vm/tests/data/native_alias_simple/manifest.json`: Whole-byte identical second consumer copy of the canonical native capture manifest; no additional experiment is inferred.
-
 ## Rust comparisons
 
 - `rust/tcl-vm/src/interp/native_variable_names.rs`: `interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners`. Compare original primary/reference-count snapshots and exact final result to the retained public native probe.

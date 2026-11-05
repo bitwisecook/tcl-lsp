@@ -22,7 +22,7 @@ Five fixed original ASCII procedure bodies, called before observing private comp
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table. Version: tcl8.4 8.4.20 (capture association).
 
 Selected complete original rows:
 
@@ -34,7 +34,7 @@ Repeated equal list bytes identify distinct literal-table positions, not observe
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table. Version: tcl8.5 8.5.19 (capture association).
 
 Selected complete original rows:
 
@@ -44,21 +44,9 @@ case	hook	variables	nsupvars	locals	literal_count	literals
 ```
 Repeated equal list bytes identify distinct literal-table positions, not observed pointer equality.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
-
-Selected complete original rows:
-
-```text
-case	hook	variables	nsupvars	locals	literal_count	literals
-4	1	0	0	6e73,76616c,76	8	list:3a3a4e,none:3a3a76,list:56414c5545,cmdName:7661726961626c65,list:3a3a4e,list:56414c5545,none:76,list:4c415445
-```
-Repeated equal list bytes identify distinct literal-table positions, not observed pointer equality.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
+Status: `observed`. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table. Version: tcl8.6 8.6.18 (capture association); tcl9.0 9.0.4 (capture association); tcl9.1 9.1.0 (capture association).
 
 Selected complete original rows:
 
@@ -68,55 +56,22 @@ case	hook	variables	nsupvars	locals	literal_count	literals
 ```
 Repeated equal list bytes identify distinct literal-table positions, not observed pointer equality.
 
-### tcl9.1
+### jim, bigip
 
-Status: `observed`. Version: 9.1.0 (capture association). Build: Observer; archive; native header; compile/process0, stderr byte count0. Full launched patchlevel/compiler/configure unqueried.. Channel: Tcl_EvalObjEx original procedure/caught call; private original literal primary/count/bytes and local table.. Dialect: C Tcl.
-
-Selected complete original rows:
-
-```text
-case	hook	variables	nsupvars	locals	literal_count	literals
-4	1	0	0	6e73,76616c,76	8	list:3a3a4e,none:3a3a76,list:56414c5545,cmdName:7661726961626c65,list:3a3a4e,list:56414c5545,none:76,list:4c415445
-```
-Repeated equal list bytes identify distinct literal-table positions, not observed pointer equality.
-
-### jim
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No original namespace compiler literal-table capture for this provider is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: F5 iRules.
-
-No original namespace compiler literal-table capture for this provider is attached.
-
-## Historical references
-
-- `input` (input): [runtime/rust/tests/data/native_namespace_binding_artifacts/probe.c](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/probe.c). Exact original bodies and reached literal primary-before-getter observer.
-- `receipt` (provider): [runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json). Complete independent original artifact capture identities.
-- `rows-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_binding_artifacts/8.4.20.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/8.4.20.tsv). Complete original literal/local table with selected cases [4].
-- `provider-tcl8.4` (provider): [runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json). JSON pointer `/runs/0`. Original configured header/archive/observer/status association.
-- `rows-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_binding_artifacts/8.5.19.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/8.5.19.tsv). Complete original literal/local table with selected cases [4].
-- `provider-tcl8.5` (provider): [runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json). JSON pointer `/runs/1`. Original configured header/archive/observer/status association.
-- `rows-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_binding_artifacts/8.6.18.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/8.6.18.tsv). Complete original literal/local table with selected cases [4].
-- `provider-tcl8.6` (provider): [runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json). JSON pointer `/runs/2`. Original configured header/archive/observer/status association.
-- `rows-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_binding_artifacts/9.0.4.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/9.0.4.tsv). Complete original literal/local table with selected cases [4].
-- `provider-tcl9.0` (provider): [runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json). JSON pointer `/runs/3`. Original configured header/archive/observer/status association.
-- `rows-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_binding_artifacts/9.1.0.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/9.1.0.tsv). Complete original literal/local table with selected cases [4].
-- `provider-tcl9.1` (provider): [runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json). JSON pointer `/runs/4`. Original configured header/archive/observer/status association.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_body_artifact/namespace_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/namespace_tests.rs), `interp::native_body_artifact::namespace_tests::original_namespace_declined_attempt_retains_native_pool_order_and_private_headers` (linked): Compares retained literal table/order and locals; any extra object-identity assertion remains a Rust contract beyond printed native fields.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact unchanged source and complete stdout/table hashes are retained with original header/archive/observer/status associations. Reconfirmation requires the same configured private headers and original preparation/call order. Full launched patchlevel/compiler/configure and separate stderr hash are unrecorded; no new run is asserted.
+- [runtime/rust/tests/data/native_namespace_binding_artifacts/probe.c](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/probe.c)
+- [runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/manifest.json)
+- [runtime/rust/tests/data/native_namespace_binding_artifacts/8.4.20.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/8.4.20.tsv)
+- [runtime/rust/tests/data/native_namespace_binding_artifacts/8.5.19.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/8.5.19.tsv)
+- [runtime/rust/tests/data/native_namespace_binding_artifacts/8.6.18.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/8.6.18.tsv)
+- [runtime/rust/tests/data/native_namespace_binding_artifacts/9.0.4.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/9.0.4.tsv)
+- [runtime/rust/tests/data/native_namespace_binding_artifacts/9.1.0.tsv](../../../../runtime/rust/tests/data/native_namespace_binding_artifacts/9.1.0.tsv)

@@ -20,55 +20,11 @@ Rust original source/body cursor correspondence. The fixed test selects two inde
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,9 +33,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs), `original_variable_frame_in_source`: Check the entire current consumer source and full configuration before exposing readonly cursor-frame correspondence.
 - [rust/tcl-compiler/src/command_binding/declaration_layout.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_layout.rs), `command_binding::declaration_layout::tests::original_variable_cursor_at_body_end_keeps_occurrence_membership_half_open` (linked): Two genuine original procedure frames remain distinct at their body-end insertion cursors and match each interior frame; after-closer cursors abstain, ordinary occurrence membership remains half-open, and changed complete source/configuration withdraws.
 - [rust/tcl-lsp-core/src/completion/original_variables.rs](../../../../rust/tcl-lsp-core/src/completion/original_variables.rs), `completion::original_variables::tests::original_variable_completion_selects_actual_formal_frame_and_alias_spelling` (linked): The genuine cursor before the first procedure body closer selects its actual formal/local/alias frame despite cleared reporting maps, excludes the second procedure frame and rejects changed complete source.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Run the exact linked Rust selectors through the maintained workspace setup. Naming a selector supplies no Rust execution result; all native providers remain not-tested for this source-cursor contract.

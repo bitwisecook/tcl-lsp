@@ -20,56 +20,11 @@ Rust original declaration-name projection. Complete source image/channel, full L
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract. No interpreter or appliance observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract. No interpreter or appliance observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract. No interpreter or appliance observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract. No interpreter or appliance observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract. No interpreter or appliance observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract. No interpreter or appliance observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract. No interpreter or appliance observation is attached.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). Genuine original declaration advice selects Logical procedure reading only under its retained purpose; independent Native/source allocation and full original source-image guards remain.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs). Reviewed implementation owner; this source file does not record native provider execution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +35,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::original_declaration_procedure_name_keeps_native_operand_identity` (linked): Across five selected C policies, an opaque original name retains the exact canonical publication slot and original ParamList/body owner; an unknown dynamic name supplies no static declaration recipe.
 - [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs), `command_binding::declaration_preview::tests::conditional_declaration_geometry_survives_unknown_table_without_installation` (linked): Genuine retained declaration geometry survives an opaque command-table domain, preserving original arg and root namespace while installed targets, actual procedure entry and proved execution target remain absent; a foreign lookup snapshot refuses the recipe.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust assertion is not an execution receipt. Canonical native procedure naming controls and physical compiler/body proofs remain independently recorded.
+- [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs)
+- [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs)

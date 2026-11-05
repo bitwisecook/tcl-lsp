@@ -36,16 +36,16 @@ Main Package
 ```
 
 The complete TMM listing is retained in
-[`system-tmm-info.txt`](evidence/r2286_20261007vllex/appliance/system-tmm-info.txt).
+`system-tmm-info.txt`.
 The identity phase selected source ports 42100, 42101, 42102 and 42103 for
 units 3, 2, 1 and 0 respectively. Every lifecycle traffic phase below recorded
 the actual unit in its response or LTM marker. The pool-backed baseline reached
 the server, whose raw response records peer `192.0.2.10`; this proves the
 SNAT translation and return path rather than merely listing the configuration.
 See
-[`vl-vip-backend.body`](evidence/r2286_20261007vllex/client-server/vl-vip-backend.body)
+`vl-vip-backend.body`
 and
-[`vl-context-event-42100.body`](evidence/r2286_20261007vllex/client-server/vl-context-event-42100.body).
+`vl-context-event-42100.body`.
 
 ## Source and byte closure
 
@@ -94,16 +94,16 @@ For both APIs, callback order was `read`, then `unset`. `name1` was exactly
 hex `52323238365f766c315f76616c7565` (`R2286_vl1_value`), `name2` was empty,
 and `trace info variable` was empty after recreation. The final read did not
 invoke the destroyed registration. The raw per-unit responses are
-[`vl-main-u0.body`](evidence/r2286_20261007vllex/client-server/vl-main-u0.body)
+`vl-main-u0.body`
 through
-[`vl-main-u3.body`](evidence/r2286_20261007vllex/client-server/vl-main-u3.body).
+`vl-main-u3.body`.
 
 ## Control matrix
 
 The full matrix contains 61 cases on each of the four actual TMMs. After
 removing only the group/unit columns, all four decoded matrices are identical.
 The complete rows are retained as
-[`vl-controls-42100.tsv`](evidence/r2286_20261007vllex/decoded/vl-controls-42100.tsv)
+`vl-controls-42100.tsv`
 and the peer `42101`–`42103` files.
 
 | Cases | TMM coverage | Measured result |
@@ -123,7 +123,7 @@ and the peer `42101`–`42103` files.
 | sequential `scan`, `upvar 0` | `0:0`–`0:3` | same rejection; callback attempted to turn the already-existing local `second` into a link, so the intended second-destination receiver discriminator was not reached |
 
 The supplemental callback-argument responses are
-[`vl-argument-bytes-42100.body`](evidence/r2286_20261007vllex/client-server/vl-argument-bytes-42100.body)
+`vl-argument-bytes-42100.body`
 through `42103`; all returned operation/export catch 0 and identical result
 hex.
 
@@ -140,11 +140,11 @@ coverage, not an inference from `cmp-enabled yes`.
 | sequential `scan` with global replacement | catch 1, `couldn't set variable "first"`; receiver rebinding was not reached for the same existing-local-link reason |
 
 Raw responses are the four
-[`vl-global-42100.body`](evidence/r2286_20261007vllex/client-server/vl-global-42100.body)
+`vl-global-42100.body`
 peer files. The installed configuration and observed CMP mode are in
-[`vl-global-installed.conf`](evidence/r2286_20261007vllex/appliance/vl-global-installed.conf)
+`vl-global-installed.conf`
 and
-[`vl-global-virtual-show.txt`](evidence/r2286_20261007vllex/appliance/vl-global-virtual-show.txt).
+`vl-global-virtual-show.txt`.
 These cases establish CMP eligibility and the recorded event behavior, not
 cross-TMM sharing of an arbitrary ordinary global value.
 
@@ -154,7 +154,7 @@ The representative active scalar control completed with identical result
 bytes and `read unset` order in RULE_INIT once on each of `0:0`–`0:3`, then in
 CLIENT_ACCEPTED on one mapped connection per unit. The complete direct markers
 are in
-[`vl-context-events.log`](evidence/r2286_20261007vllex/appliance/vl-context-events.log).
+`vl-context-events.log`.
 
 The `static::` rule logged a `SEED` initialization from every actual unit. The
 following traffic then used the same four stable source tuples:
@@ -202,7 +202,7 @@ The retained bundle is
 [`evidence/r2286_20261007vllex`](evidence/r2286_20261007vllex/). Raw
 `/var/log/ltm` was captured before creation through each traffic phase and
 cleanup in
-[`ltm-continuous.log`](evidence/r2286_20261007vllex/appliance/ltm-continuous.log).
+`ltm-continuous.log`.
 
 All owned VIPs, pools, rules, scripts, iApp/iCall objects and the disposable
 data-group control were removed. Both post-cleanup object inventories contain

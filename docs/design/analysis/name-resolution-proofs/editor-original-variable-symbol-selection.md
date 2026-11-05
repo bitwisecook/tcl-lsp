@@ -20,55 +20,11 @@ Core readonly source navigation/occurrence-count-summary contract for one C8.6 d
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-## Historical references
-
-- `actual-consumer-source` (implementation): [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs). Exact current consumer and fixed test source; not an execution receipt or native observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +35,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `hover_text`: Renders the original name through retained policy/grammar and readonly source counts, without value/type inference.
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `variable_symbol::tests::original_variable_editor_selection_uses_bytes_and_complete_source_currency` (linked): Clears qualified-name reports, distinguishes two opaque siblings, checks declaration/reference/hover counts, and refuses stale whole source.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named fixed Rust test is a source coverage binding. No Rust test result or native provider capture is attached to this contract; C Tcl, Jim and BIG-IP have not tested this Rust invariant.
+- [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs)

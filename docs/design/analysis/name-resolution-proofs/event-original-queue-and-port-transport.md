@@ -20,60 +20,11 @@ Basic after/vwait/update integration. Native validation lives in the separate fi
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: 8.4.20. Build: Authored Rust implementation; no backend execution inferred.. Channel: Not executed by this record.. Dialect: tcl8.4.
-
-Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
-
-### tcl8.5
-
-Status: `not-tested`. Version: 8.5.19. Build: Authored Rust implementation; no backend execution inferred.. Channel: Not executed by this record.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Not executed by this record. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim 0.84-9-g5bac7c9.
 
 Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
-
-### tcl8.6
-
-Status: `not-tested`. Version: 8.6.18. Build: Authored Rust implementation; no backend execution inferred.. Channel: Not executed by this record.. Dialect: tcl8.6.
-
-Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
-
-### tcl9.0
-
-Status: `not-tested`. Version: 9.0.4. Build: Authored Rust implementation; no backend execution inferred.. Channel: Not executed by this record.. Dialect: tcl9.0.
-
-Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
-
-### tcl9.1
-
-Status: `not-tested`. Version: 9.1.0. Build: Authored Rust implementation; no backend execution inferred.. Channel: Not executed by this record.. Dialect: tcl9.1.
-
-Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
-
-### jim
-
-Status: `not-tested`. Version: 0.84-9-g5bac7c9. Build: Authored Rust implementation; no backend execution inferred.. Channel: Not executed by this record.. Dialect: jim.
-
-Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: Authored Rust implementation; no backend execution inferred.. Channel: Not executed by this record.. Dialect: bigip.
-
-Separate selected pure recipe/port implementation contract; actual native answers are in the finite Event observation/source records.
-
-## Historical references
-
-- `implementation0` (implementation): [rust/tcl-cmd-core/src/event.rs](../../../../rust/tcl-cmd-core/src/event.rs). Current implementation source only; no native launch or Rust execution inferred.
-- `implementation1` (implementation): [rust/tcl-registry/src/native_event.rs](../../../../rust/tcl-registry/src/native_event.rs). Current implementation source only; no native launch or Rust execution inferred.
-- `implementation2` (implementation): [rust/tcl-vm/src/cmd_event.rs](../../../../rust/tcl-vm/src/cmd_event.rs). Current implementation source only; no native launch or Rust execution inferred.
-- `implementation3` (implementation): [runtime/rust/src/cmd_event.rs](../../../../runtime/rust/src/cmd_event.rs). Current implementation source only; no native launch or Rust execution inferred.
-- `implementation4` (implementation): [rust/tcl-vm/src/interp/native_event_context.rs](../../../../rust/tcl-vm/src/interp/native_event_context.rs). Current implementation source only; no native launch or Rust execution inferred.
-- `implementation5` (implementation): [runtime/rust/src/interp/native_event_context.rs](../../../../runtime/rust/src/interp/native_event_context.rs). Current implementation source only; no native launch or Rust execution inferred.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,8 +36,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::process_bg_errors`: Move pending original message/options objects out of the queue borrow before dispatch; preserve original prefix members and caller result.
 - [rust/tcl-cmd-core/src/event.rs](../../../../rust/tcl-cmd-core/src/event.rs), `event::tests::current_event_turn_preserves_original_scripts_and_live_cancellation` (linked): Original Rc byte handle identity, cancellation before the next current entry, and deferred newly registered generation. No Rust execution claim.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust tests state original queue/object ownership assertions. Independent exact-source receipts record execution outcomes; native callback and transport observations retain their separate questions.
+- [rust/tcl-cmd-core/src/event.rs](../../../../rust/tcl-cmd-core/src/event.rs)
+- [rust/tcl-registry/src/native_event.rs](../../../../rust/tcl-registry/src/native_event.rs)
+- [rust/tcl-vm/src/cmd_event.rs](../../../../rust/tcl-vm/src/cmd_event.rs)
+- [runtime/rust/src/cmd_event.rs](../../../../runtime/rust/src/cmd_event.rs)
+- [rust/tcl-vm/src/interp/native_event_context.rs](../../../../rust/tcl-vm/src/interp/native_event_context.rs)
+- [runtime/rust/src/interp/native_event_context.rs](../../../../runtime/rust/src/interp/native_event_context.rs)

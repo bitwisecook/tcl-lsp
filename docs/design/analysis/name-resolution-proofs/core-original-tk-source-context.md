@@ -24,55 +24,11 @@ Two added consumer assertion definitions and the existing operand-boundary contr
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,14 +39,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/executable_regions.rs](../../../../rust/tcl-lsp-core/src/executable_regions.rs), `visit_analysis_executable_commands`: Traverse potential UI source regions under the same actual Analysis owner.
 - [rust/tcl-lsp-core/src/tk_preview.rs](../../../../rust/tcl-lsp-core/src/tk_preview.rs), `tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries` (linked): Supplied C8.6 profile retains the newer command generation while unavailable ttk construction is omitted; captured widget names own no later span, prefixless aliases retain written names, and a known if replacement hides its apparent body.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/tk_preview.rs](../../../../rust/tcl-lsp-core/src/tk_preview.rs), `analyse_tk_ui_with_analysis`: Use actual current AnalysisResult complete input/store/configuration and selected constructor roles; withheld source yields SourceContextUnavailable rather than an empty-clean preview.
 - [rust/tcl-lsp-core/src/tk_preview.rs](../../../../rust/tcl-lsp-core/src/tk_preview.rs), `tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source` (linked): Actual Server Tk preview consumes complete current AnalysisResult via analyse_tk_ui_with_analysis; the original standalone source/profile API shares the collector. Typed unavailable status, missing complete input, changed grammar/store/availability or source correspondence yields no widget facts plus SourceContextUnavailable uncertainty. Collector reads actual availability and source grammar; source widget advice supplies no Native identity, body entry or execution. Source/software definition only; no executed assertion or Native process result is attached by this binding.
 - [rust/tcl-lsp-server/src/original_document_metadata_tests.rs](../../../../rust/tcl-lsp-server/src/original_document_metadata_tests.rs), `original_document_metadata_tests::tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay` (linked): Actual Server Tk preview consumes complete current AnalysisResult via analyse_tk_ui_with_analysis; the original standalone source/profile API shares the collector. Typed unavailable status, missing complete input, changed grammar/store/availability or source correspondence yields no widget facts plus SourceContextUnavailable uncertainty. Collector reads actual availability and source grammar; source widget advice supplies no Native identity, body entry or execution. Source/software definition only; no executed assertion or Native process result is attached by this binding.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
-
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.

@@ -20,7 +20,7 @@ These are measured TMM iRule results from the active standalone lab appliance. T
 | Client/backend | `dev.bragi0.com`, `192.0.2.201`; backends `192.0.2.201:18080` and `:18084` |
 | Return path | Every test VIP used SNAT automap. The `r2286i` backend recorded 2,496 correlated requests and every peer was `192.0.2.10`; the client received each correlated response through the VIP. |
 
-The complete inventory is [inventory.txt](evidence/r2286_20261006c/appliance/inventory.txt). The actual roster traffic is in [CMP-enabled identity JSONL](evidence/r2286_20261006c/dev/traffic-identity_group-cmp_yes.jsonl) and [CMP-disabled identity JSONL](evidence/r2286_20261006c/dev/traffic-identity_group-cmp_no.jsonl).
+The complete inventory is `inventory.txt`. The actual roster traffic is in CMP-enabled identity JSONL and CMP-disabled identity JSONL.
 
 Complete `tmsh show sys version` output:
 
@@ -74,7 +74,7 @@ The supplied LF and CRLF files are distinct byte sequences.
 | reverse attachment only | enabled, units 0–3 | Did not replace the current value; explicit event priority controlled writes |
 | collision single-rule recreation | enabled, units 0–3 | Initial A→B `INIT_b`; recreate A → `INIT_a` everywhere; recreate B → `INIT_b` everywhere |
 
-Raw state responses are in the `traffic-static-group-*`, `traffic-global-*`, and `traffic-collision-*` files under [dev evidence](evidence/r2286_20261006c/dev/). Single-rule recreation is separately retained under [single-recreate](evidence/r2286_20261006c/single-recreate/).
+Raw state responses are in the `traffic-static-group-*`, `traffic-global-*`, and `traffic-collision-*` files under [dev evidence](evidence/r2286_20261006c/dev/). Single-rule recreation is separately retained under single-recreate.
 
 ## F5 procedures and event frames
 
@@ -101,11 +101,11 @@ The original owner-local controls and the expanded `r2286i` folder/partition mat
 
 These results support a distinct F5 procedure-owner path, not ordinary Tcl namespace resolution. The spelling `foo::proc1` is valid for an iRule named `foo` at the caller's partition root. The counterexamples are load-order-independent runtime absence before the provider is activated, no same-folder leaf search, `namespace current == ::`, empty `namespace which`, rejection of a Tcl-rooted `::foo::proc1`, and procedure retention after deletion of the provider's configuration object. Absolute object paths are required to address folder-contained rules unambiguously.
 
-The original procedure results are in [canonical raw LTM log](evidence/r2286_20261006c/appliance/ltm-raw.log). Expanded proof is in the [r2286i raw LTM log](evidence/r2286_20261006hi/appliance/ltm-raw.log), [attachment transcripts](evidence/r2286_20261006hi/appliance/attachments/), [traffic responses](evidence/r2286_20261006hi/dev/traffic/), and [backend observations](evidence/r2286_20261006hi/dev/backend.log).
+The original procedure results are in canonical raw LTM log. Expanded proof is in the r2286i raw LTM log, attachment transcripts, traffic responses, and backend observations.
 
 ## Literal and dynamic Unicode logging
 
-Each literal fixture contains the exact UTF-8 bytes named below. Files were transferred without text conversion, checked against [manifest.json](evidence/r2286_20261006hi/appliance/manifest.json), and loaded independently.
+Each literal fixture contains the exact UTF-8 bytes named below. Files were transferred without text conversion, checked against `manifest.json`, and loaded independently.
 
 | Payload | UTF-8 hex | Literal load/runtime result | Dynamic bytearray result |
 | --- | --- | --- | --- |
@@ -162,7 +162,7 @@ Every row below loaded without warning, ran first and repeated on the CMP-disabl
 
 ## Loader matrix and exact rejection classes
 
-The canonical set produced 40 `ACCEPT`, 13 `REJECT`, no warnings, and no indeterminate loads. Complete status and per-rule logs are [load-driver-summary.tsv](evidence/r2286_20261006c/appliance/load-driver-summary.tsv) and [journals](evidence/r2286_20261006c/appliance/journals/).
+The canonical set produced 40 `ACCEPT`, 13 `REJECT`, no warnings, and no indeterminate loads. Complete status and per-rule logs are `load-driver-summary.tsv` and journals.
 
 | Cases | Verdict | Exact diagnostic class |
 | --- | --- | --- |
@@ -192,7 +192,7 @@ The isolated edge controls remove confounding source features:
 | Dynamic embedded NUL | ACCEPT; decoded result `3 410042 0 VALUE 0 VALUE 1` on all four TMMs |
 | Literal embedded NUL | REJECT; `Syntax Error … can't parse TCL script beginning with`; the diagnostic output stopped after the source bytes `set x "A` at the NUL boundary |
 
-The raw edge-control evidence, including exact `.conf.hex` files and the literal-NUL loader bytes, is under [r2286_20261006de](evidence/r2286_20261006de/).
+The raw edge-control evidence, including exact `.conf.hex` files and the literal-NUL loader bytes, is under r2286_20261006de.
 
 ## Five-context F5 Tcl divergence matrix
 
@@ -227,7 +227,7 @@ Selected discriminators:
 
 The current codebase comparison exposes two concrete modelling corrections. First, `BigIpExecutionContext` has no iCall variant even though the measured iCall surface is real and separately invokable; it must not be silently treated as iApp merely because this build produced identical rows. Second, current documentation/runtime comments mark bare `matches` semantics and `not` precedence as unmeasured; this run measures both discriminators above. The APL presentation DSL and Tcl callbacks embedded in APL remain unmeasured and must not inherit the implementation/iCall results.
 
-The execution mechanisms follow F5's primary documentation for [iRule `call`](https://clouddocs.f5.com/api/irules/call.html), [tmsh CLI scripts](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/cli/cli_script.html), [iApp templates](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_application_template.html), [iCall scripts](https://clouddocs.f5.com/cli/tmsh-reference/v15/modules/sys/sys_icall_script.html), [iCall events](https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_icall_event.html), and [triggered handlers](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_icall_handler_triggered.html). Raw results are [TMM LTM](evidence/r2286_20261006l/ltm-raw.log), [tmsh](evidence/r2286_20261006l/cli-run.txt), [iApp and iCall](evidence/r2286_20261006l/scriptd-results.txt), [tclsh8.4](evidence/r2286_20261006l/host-tclsh8.4.txt), and [tclsh8.5](evidence/r2286_20261006l/host-tclsh8.5.txt).
+The execution mechanisms follow F5's primary documentation for [iRule `call`](https://clouddocs.f5.com/api/irules/call.html), [tmsh CLI scripts](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/cli/cli_script.html), [iApp templates](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_application_template.html), [iCall scripts](https://clouddocs.f5.com/cli/tmsh-reference/v15/modules/sys/sys_icall_script.html), [iCall events](https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_icall_event.html), and [triggered handlers](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_icall_handler_triggered.html). Raw results are TMM LTM, [tmsh](evidence/r2286_20261006l/cli-run.txt), [iApp and iCall](evidence/r2286_20261006l/scriptd-results.txt), `tclsh8.4`, and `tclsh8.5`.
 
 ## Reproduction commands
 
@@ -289,26 +289,26 @@ bash run-deep-context.sh r2286l /var/tmp/r2286l-fixtures \
   /var/tmp/r2286l-evidence
 ```
 
-The exact attachment commands, requested/actual CMP state, and full VIP configurations are in [attachments](evidence/r2286_20261006c/appliance/attachments/). The committed [run-appliance-matrix.sh](run-appliance-matrix.sh) and [traffic-control.py](traffic-control.py) reproduce the bounded sequencing used here.
+The exact attachment commands, requested/actual CMP state, and full VIP configurations are in attachments. The committed [run-appliance-matrix.sh](run-appliance-matrix.sh) and [traffic-control.py](traffic-control.py) reproduce the bounded sequencing used here.
 
 ## Cleanup and retained evidence
 
 The supplied `runtime_cleanup` could not load because its outer source contains the rejected Unicode names. The separate ASCII-only cleanup names only the generated ASCII runtime objects. It ran after every dynamic case on the CMP-disabled TMM and then across `0:0`–`0:3`; the final post-collision cleanup also covered all four pairs. Unicode runtime names were never created because both Unicode rules rejected at load.
 
-All owned virtual servers, pools, named nodes, partitions, folders, rules, CLI scripts, iApp templates/services, iCall scripts/handlers and generated events were removed by exact name. Final `tmsh list` calls returned explicit “was not found” results. The backend, artifact server, traffic controllers, log tails and evidence receivers were stopped by recorded PID; their owned listener ports were absent. See [main cleanup](evidence/r2286_20261006c/appliance/cleanup.txt), [final runtime cleanup](evidence/r2286_20261006c/final-runtime-cleanup/), [edge cleanup](evidence/r2286_20261006de/appliance/cleanup.txt), [procedure/partition cleanup](evidence/r2286_20261006hi/appliance/cleanup-verification.txt), [five-context cleanup](evidence/r2286_20261006l/cleanup-verification.txt), [final live cleanup audit](evidence/r2286_20261006l/final-live-cleanup-audit.txt), and [dev process cleanup](evidence/r2286_20261006c/dev/process-cleanup.txt).
+All owned virtual servers, pools, named nodes, partitions, folders, rules, CLI scripts, iApp templates/services, iCall scripts/handlers and generated events were removed by exact name. Final `tmsh list` calls returned explicit “was not found” results. The backend, artifact server, traffic controllers, log tails and evidence receivers were stopped by recorded PID; their owned listener ports were absent. See main cleanup, final runtime cleanup, edge cleanup, `procedure/partition cleanup`, five-context cleanup, final live cleanup audit, and dev process cleanup.
 
 The retained evidence bundles are:
 
-- [Compressed complete bundle](evidence/resolution-2286-bigip-evidence-20261006.tar.gz)
+- Compressed complete bundle
 - [Main appliance and traffic evidence](evidence/r2286_20261006c/)
-- [Independent LF/CRLF, Unicode, and NUL evidence](evidence/r2286_20261006de/)
-- [Continuous raw main `/var/log/ltm`](evidence/r2286_20261006c/appliance/ltm-raw.log)
-- [Raw backend observations](evidence/r2286_20261006c/dev/backend.log)
-- [Procedure/folder/partition appliance bundle](evidence/r2286_20261006hi/r2286i-appliance-evidence.tgz)
-- [Procedure/folder/partition client/backend bundle](evidence/r2286_20261006hi/r2286i-dev-evidence-v2.tgz)
-- [Five-context appliance bundle](evidence/r2286_20261006l/r2286l-appliance-evidence.tgz)
-- [Continuous raw procedure/Unicode `/var/log/ltm`](evidence/r2286_20261006hi/appliance/ltm-raw.log)
-- [Continuous raw five-context `/var/log/ltm`](evidence/r2286_20261006l/ltm-raw.log)
+- `Independent LF/CRLF, Unicode, and NUL evidence`
+- `Continuous raw main `/var/log/ltm``
+- Raw backend observations
+- `Procedure/folder/partition appliance bundle`
+- `Procedure/folder/partition client/backend bundle`
+- Five-context appliance bundle
+- `Continuous raw procedure/Unicode `/var/log/ltm``
+- `Continuous raw five-context `/var/log/ltm``
 
 ## Coverage limits
 
@@ -326,4 +326,4 @@ The retained evidence bundles are:
 
 ## Post-test appliance state
 
-The final live state is recorded in [phonehome-update-telemetry-final-verification.txt](evidence/r2286_20261006l/phonehome-update-telemetry-final-verification.txt): `auto-check` and `auto-phonehome` are disabled; `f5_update_checker` is boot-disabled and down; `telemd` is unregistered; there are no `telemd`, `phonehome_upload`, or `updatecheck` processes; root cron has no uploader or update-check entry; all three active executable paths are absent and their retained copies are non-executable; `/usr` is read-only; and `/config/startup` invokes the idempotent enforcement script after future boots. The remaining persistent appliance state is this deliberately retained call-out suppression and its dated backup/log under `/config/phonehome-disabled`; no test traffic object or test process remains.
+The final live state is recorded in `phonehome-update-telemetry-final-verification.txt`: `auto-check` and `auto-phonehome` are disabled; `f5_update_checker` is boot-disabled and down; `telemd` is unregistered; there are no `telemd`, `phonehome_upload`, or `updatecheck` processes; root cron has no uploader or update-check entry; all three active executable paths are absent and their retained copies are non-executable; `/usr` is read-only; and `/config/startup` invokes the idempotent enforcement script after future boots. The remaining persistent appliance state is this deliberately retained call-out suppression and its dated backup/log under `/config/phonehome-disabled`; no test traffic object or test process remains.

@@ -20,55 +20,11 @@ Readonly source declaration roles for Registry-selected definition-body member g
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native execution of this Rust implementation question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,9 +39,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/original_members.rs](../../../../rust/tcl-compiler/src/analyser/original_members.rs), `analyser::original_members::tests::original_method_source_roles_retain_complete_words_across_routes_and_readonly_names` (linked): Canonical body/formal words retain full source/config through a route move and readonly loop names; forwards have no body role and a foreign source word is refused. The actual source dialect is retained, while an unknown or lexically incompatible dialect remains absent. Literal generated declarations retain the same full-source installer schema and its explicit uncertainty; direct declarations retain no installer.
 - [rust/tcl-compiler/src/analyser/original_members.rs](../../../../rust/tcl-compiler/src/analyser/original_members.rs), `analyser::original_members::tests::original_literal_member_installer_keeps_known_shadow_and_shape_barriers` (linked): A genuine prior foreach shadow, a multi-variable installer and a computed list supply neither an effective metadata fold nor generated method declarations.
 - [rust/tcl-compiler/src/analyser/original_members.rs](../../../../rust/tcl-compiler/src/analyser/original_members.rs), `analyser::original_members::tests::original_readonly_method_names_keep_the_selected_option_position` (linked): Tcl 9 readonly opaque list-child names retain the selected private flag and complete formal/body words; static zero-containing names remain distinct naming producers.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selector is a linked implementation obligation without an attached execution receipt. All seven native providers remain not-tested for this source-role retention question.

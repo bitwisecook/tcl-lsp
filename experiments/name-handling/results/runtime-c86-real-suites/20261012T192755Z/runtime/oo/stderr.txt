@@ -1,1 +1,0 @@
-run_script: execution refused: original command deletion caller namespace native handler policy is not selected

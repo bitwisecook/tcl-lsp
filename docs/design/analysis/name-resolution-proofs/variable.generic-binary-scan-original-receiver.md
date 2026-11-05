@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-plain.stdout`: tcl8.4 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-plain.stderr`: tcl8.4 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-qualified.stdout`: tcl8.4 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-qualified.stderr`: tcl8.4 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-index.stdout`: tcl8.4 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-index.stderr`: tcl8.4 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-binary_nul.stdout`: tcl8.4 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-binary_nul.stderr`: tcl8.4 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-decomposed.stdout`: tcl8.4 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-binary_scan-decomposed.stderr`: tcl8.4 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-plain.stdout`: tcl8.5 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-plain.stderr`: tcl8.5 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-qualified.stdout`: tcl8.5 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-qualified.stderr`: tcl8.5 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-index.stdout`: tcl8.5 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-index.stderr`: tcl8.5 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-binary_nul.stdout`: tcl8.5 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-binary_nul.stderr`: tcl8.5 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-decomposed.stdout`: tcl8.5 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-binary_scan-decomposed.stderr`: tcl8.5 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-plain.stdout`: tcl8.6 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-plain.stderr`: tcl8.6 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-qualified.stdout`: tcl8.6 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-qualified.stderr`: tcl8.6 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-index.stdout`: tcl8.6 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-index.stderr`: tcl8.6 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-binary_nul.stdout`: tcl8.6 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-binary_nul.stderr`: tcl8.6 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-decomposed.stdout`: tcl8.6 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-binary_scan-decomposed.stderr`: tcl8.6 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-plain.stdout`: tcl9.0 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-plain.stderr`: tcl9.0 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-qualified.stdout`: tcl9.0 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-qualified.stderr`: tcl9.0 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-index.stdout`: tcl9.0 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-index.stderr`: tcl9.0 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-binary_nul.stdout`: tcl9.0 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-binary_nul.stderr`: tcl9.0 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-decomposed.stdout`: tcl9.0 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-binary_scan-decomposed.stderr`: tcl9.0 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-plain.stdout`: tcl9.1 binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-plain.stderr`: tcl9.1 binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-qualified.stdout`: tcl9.1 binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-qualified.stderr`: tcl9.1 binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-index.stdout`: tcl9.1 binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-index.stderr`: tcl9.1 binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-binary_nul.stdout`: tcl9.1 binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-binary_nul.stderr`: tcl9.1 binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-decomposed.stdout`: tcl9.1 binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-binary_scan-decomposed.stderr`: tcl9.1 binary_scan-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl`: Exact original binary_scan-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-plain.stdout`: jim binary_scan-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-plain.stderr`: jim binary_scan-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-qualified.tcl`: Exact original binary_scan-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-qualified.stdout`: jim binary_scan-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-qualified.stderr`: jim binary_scan-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-index.tcl`: Exact original binary_scan-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-index.stdout`: jim binary_scan-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-index.stderr`: jim binary_scan-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-binary_nul.tcl`: Exact original binary_scan-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-binary_nul.stdout`: jim binary_scan-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-binary_nul.stderr`: jim binary_scan-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-decomposed.tcl`: Exact original binary_scan-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-decomposed.stdout`: jim binary_scan-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-binary_scan-decomposed.stderr`: jim binary_scan-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/binary_scan-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

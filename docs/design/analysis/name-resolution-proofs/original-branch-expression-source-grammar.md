@@ -20,51 +20,11 @@ Two marked source/API controls compare retained lexical/numeric axes and indepen
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No external provider execution answers this original branch source-parser contract. Selected software lexical/numeric fixtures supply no Native result, object, source preparation, handler, frame or executable rewrite equivalence.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No external provider execution answers this original branch source-parser contract. Selected software lexical/numeric fixtures supply no Native result, object, source preparation, handler, frame or executable rewrite equivalence.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No external provider execution answers this original branch source-parser contract. Selected software lexical/numeric fixtures supply no Native result, object, source preparation, handler, frame or executable rewrite equivalence.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No external provider execution answers this original branch source-parser contract. Selected software lexical/numeric fixtures supply no Native result, object, source preparation, handler, frame or executable rewrite equivalence.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No external provider execution answers this original branch source-parser contract. Selected software lexical/numeric fixtures supply no Native result, object, source preparation, handler, frame or executable rewrite equivalence.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No external provider execution answers this original branch source-parser contract. Selected software lexical/numeric fixtures supply no Native result, object, source preparation, handler, frame or executable rewrite equivalence.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: f5-bigip.
-
-No external provider execution answers this original branch source-parser contract. Selected software lexical/numeric fixtures supply no Native result, object, source preparation, handler, frame or executable rewrite equivalence.
-
-## Historical references
-
-- `naming-optimiser-original-branch-expression-source-grammar-definition` (implementation): [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs). Current source parser and authored software control definitions; no executed assertion or external provider result.
 
 ## Source inspection
 
@@ -80,8 +40,6 @@ The listed Rust source defines the current original source parser and its condit
 - [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs), `optimiser::branch_folding::tests::original_branch_source_parser_keeps_retained_grammar_and_numeric_axes` (linked): Original branch source AST topology follows the retained C8/C9 variable closing policy and literal Unicode/parenthesis names independently of the actual selected numeric policy. A lexer overlay cannot donate new numeral forms, and a numeric policy cannot donate different source-name boundaries.
 - [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs), `optimiser::branch_folding::tests::original_branch_source_topology_keeps_equivalence_permission_separate` (linked): Closed unchanged literal expressions retain the independently selected rewrite-equivalence premise; an original scalar-name AST without the required operand proof cannot justify replacing it with a constant. Missing policy remains refused despite parseable topology; no Native process or edit equivalence is measured.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named controls bind current source/API definitions without execution claims. Actual Native observations and independent Rust compilation/test receipts retain their own scopes.
+- [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs)

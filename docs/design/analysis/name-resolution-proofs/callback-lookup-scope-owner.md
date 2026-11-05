@@ -24,55 +24,17 @@ Registration syntax supplies count/scope metadata only. These source controls ne
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -96,26 +58,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/signature_scan/mod.rs](../../../../rust/tcl-compiler/src/signature_scan/mod.rs), `signature_scan::original_callback_scan_tests::original_callback_header_scan_keeps_readonly_lineage_without_scope` (linked): Header-only scans retain readonly native list or trace SCRIPT-equivalent head lineage without any lookup; substituted trace head is unavailable.
 - [rust/tcl-compiler/src/signature_scan/mod.rs](../../../../rust/tcl-compiler/src/signature_scan/mod.rs), `signature_scan::original_callback_scan_tests::original_callback_scan_respects_selected_installer_moves_and_terminal_barriers` (linked): Moved and aliased installers retain authentic prefixes; known replacement/deletion supplies no callback row, with no argc or rename permission.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/command_binding/original_callback_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/original_callback_lookup.rs), `SourceInvocationBinding::original_callback_prefix`: Retain the authentic callback operand and selected appended-count/scope purpose without converting registration-time metadata into a future trigger lookup.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::execution_trace_source_counts_keep_unavailable_future_frame` (linked): Execution-trace source registrations retain exact selected enter/leave appended-count alternatives and TriggerFrame purpose while future lookup is absent; unavailable future coordinates cannot supply arity diagnostics.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::mixed_execution_trace_source_counts_do_not_issue_a_future_lookup` (linked): Mixed execution-trace enter/leave source alternatives retain both appended counts across exact/default/variadic handler shapes without issuing future lookup or installer-frame arity claims.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-registry",
-  "selected_lookup_scopes_require_executable_positions_and_reference_timing"
-]
-```
-
-Also run the named Studio round-trip selector. Scope annotations do not execute a callback; no Native entry or Normal grant follows.

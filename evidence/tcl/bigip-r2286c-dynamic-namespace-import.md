@@ -55,7 +55,7 @@ The wrapper recorded Tcl completion code 1 in 32 log lines. Its recorded errorCo
 UNAVAILABLE⟦EOF⟧
 ```
 
-### TMM unit 1, captured result 3
+### TMM unit 1, captured result 3; TMM unit 2, captured result 5; TMM unit 3, captured result 7
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
 - Recorded input channel: HTTP_REQUEST.
@@ -74,7 +74,7 @@ The wrapper recorded Tcl completion code 0 in 1 log lines. Its recorded errorCod
 UNAVAILABLE⟦EOF⟧
 ```
 
-### TMM unit 1, captured result 4
+### TMM unit 1, captured result 4; TMM unit 2, captured result 6
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
 - Recorded input channel: HTTP_REQUEST.
@@ -88,63 +88,6 @@ can't import command "p": already exists⟦EOF⟧
 ```
 
 The wrapper recorded Tcl completion code 1 in 31 log lines. Its recorded errorCode field was:
-
-```text-visible
-UNAVAILABLE⟦EOF⟧
-```
-
-### TMM unit 2, captured result 5
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-EXPORTED⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0 in 1 log lines. Its recorded errorCode field was:
-
-```text-visible
-UNAVAILABLE⟦EOF⟧
-```
-
-### TMM unit 2, captured result 6
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-can't import command "p": already exists⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1 in 31 log lines. Its recorded errorCode field was:
-
-```text-visible
-UNAVAILABLE⟦EOF⟧
-```
-
-### TMM unit 3, captured result 7
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-EXPORTED⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0 in 1 log lines. Its recorded errorCode field was:
 
 ```text-visible
 UNAVAILABLE⟦EOF⟧

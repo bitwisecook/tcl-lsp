@@ -32,10 +32,10 @@ One-level TclOO superclass or single mixin, ASCII names and bodies, CLI file-scr
 
 ## Evidence and reconfirmation
 
-The [exact source](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl), [provider receipt](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/receipt.json) and peer stream files retain the complete invocation. The receipt records the input channel, exit status and streams. Each process exits 0 with empty stderr.
+The [exact source](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl), provider receipt and peer stream files retain the complete invocation. The receipt records the input channel, exit status and streams. Each process exits 0 with empty stderr.
 
 Run `tclsh rust/tcl-compiler/tests/data/native_original_lifecycle_providers/source.tcl` using the exact intended provider executable. Compare the complete raw streams and executable hash to the receipt. This is file-script input; it supplies no counted native EvalEx or document-decoding comparison.
 
 The native observation is distinct from the Rust source evaluator contract. Linked Rust selectors independently verify source ownership and completion; these native rows do not grant physical frames, argv references or compiler admission.
 
-The current Jim control records patchlevel `0.84-9-g5bac7c9`, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03` and its own executable hash in [the separate tagged receipt](../../../../rust/tcl-compiler/tests/data/native_original_lifecycle_providers/tagged-jim/receipt.json). The initial invocation remains available with its original executable hash; its patchlevel was not recorded.
+The current Jim control records patchlevel `0.84-9-g5bac7c9`, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03` and its own executable hash in the separate tagged receipt. The initial invocation remains available with its original executable hash; its patchlevel was not recorded.

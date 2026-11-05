@@ -20,53 +20,11 @@ Selected Jim084 Runtime dictionary key enumeration, member value read and patter
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No guest execution receipt for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No guest execution receipt for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No guest execution receipt for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No guest execution receipt for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No guest execution receipt for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No guest execution receipt for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No guest execution receipt for this implementation question.
-
-## Historical references
-
-- `source-array_cmd_get` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). JSON pointer `/source_anchors/0/snippet`. Exact LF-only full-source/snippet join for array_cmd_get; source version/revision unrecorded and no native launch/outcome inferred.
-- `source-array_cmd_names` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). JSON pointer `/source_anchors/1/snippet`. Exact LF-only full-source/snippet join for array_cmd_names; source version/revision unrecorded and no native launch/outcome inferred.
-- `source-array_cmd_unset` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json). JSON pointer `/source_anchors/2/snippet`. Exact LF-only full-source/snippet join for array_cmd_unset; source version/revision unrecorded and no native launch/outcome inferred.
 
 ## Source inspection
 
@@ -160,31 +118,11 @@ static int array_cmd_unset(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/state_traits.rs](../../../../runtime/rust/src/state_traits.rs), `native_dictionary_array_pairs`: Authentic selected Jim dictionary root at exact frame with existing native name/object/context and dictionary member owners; no C array cell donation.
 - [runtime/rust/src/cmd_array.rs](../../../../runtime/rust/src/cmd_array.rs), `cmd_array::tests::jim_dictionary_array_reads_keep_static_copies_and_selected_frames` (linked): Static copied root preserves the captured dictionary while the outer root changes; independent local and upvar roots remain distinct at their actual selected frames.
 - [runtime/rust/src/cmd_array.rs](../../../../runtime/rust/src/cmd_array.rs), `cmd_array::tests::jim_array_byte_keys_count_and_unset_without_unicode_projection` (linked): Original opaque dictionary keys enumerate/read/unset through the shared byte and object owners; malformed roots remain guest errors/absence as appropriate.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-runtime",
-  "jim_dictionary_array_reads_keep_static_copies_and_selected_frames"
-]
-```
-
-The linked selectors require the actual Runtime package test environment; no command execution is claimed by this source/implementation record.
-
 
 ## Exact original-source349 software outcomes
 
@@ -195,4 +133,8 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 2 | 0 | 0 | 0 |
 | `isolated` | 2 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-array-enumeration-source.json)

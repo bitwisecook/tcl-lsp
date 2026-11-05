@@ -20,55 +20,11 @@ Rust Compiler definition mapping and Core type hints under retained source image
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,9 +39,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `ssa::original_definition_name_tests::original_ssa_definition_names_preserve_exact_operands_and_distinct_cells` (linked): Requires genuine point tokens for the first tokenless AssignConst and exact decoded original receiver inputs/distinct SSA byte cells for opaque siblings and an indexed target.
 - [rust/tcl-lsp-core/src/inlay_hints.rs](../../../../rust/tcl-lsp-core/src/inlay_hints.rs), `inlay_hints::original_variable_type_tests::original_type_hints_match_exact_ssa_cells_without_reporting_variable_maps` (linked): Inferred type hints require actual retained AnalysisResult input, the authentic original SSA definition operand/cell and Module/FunctionUnit metadata. Clearing reporting maps cannot replace those owners; missing input withdraws all hints. No entered native read, current value or edit grant follows.
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `ssa::tests::original_definition_subjects_keep_supplied_availability_and_missing_input_separate` (linked): An independently kept genuine C86 entry retains original receiver bytes and the actual SSA cell under current supplied metadata. Same-store C84 availability, missing/foreign metadata, changed strict source grammar and a missing Module input withdraw the projection. The software control grants no current read, value, edit or native cache result.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result.

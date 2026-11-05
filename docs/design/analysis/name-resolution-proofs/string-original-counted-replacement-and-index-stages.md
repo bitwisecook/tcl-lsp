@@ -22,76 +22,45 @@ All six providers return the exact original subject for the four unchanged cases
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Recorded compiler invocation/output, actual static library, all selected headers/source/configuration bytes and CLI identities. Independent same-library diagnostic queries exact library patchlevel; complete toolchain/load closure is unmeasured.. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only.. Dialect: tcl8.4.
+Status: `observed`. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only. Version: tcl8.4 8.4.20.
 
 Raw four-byte UTF input is stored as this build's 16-bit units: replacing é in Aé€😀Z produces 4158e282acc3b0efbe9fefbe98efbe805a. Counted ordinary index1-NUL-tail fails; end-1-NUL-tail succeeds. Fresh changed results may have String primary with absent resident bytes, and some retain resident bytes; exact case distinctions are in the streams.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Recorded compiler invocation/output, actual static library, all selected headers/source/configuration bytes and CLI identities. Independent same-library diagnostic queries exact library patchlevel; complete toolchain/load closure is unmeasured.. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only.. Dialect: tcl8.5.
+Status: `observed`. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only. Version: tcl8.5 8.5.19.
 
 The measured raw four-byte storage output matches8.4. Counted ordinary index1-NUL-tail succeeds, and end-1-NUL-tail succeeds. Fresh changed header/resident states remain case-specific.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Recorded compiler invocation/output, actual static library, all selected headers/source/configuration bytes and CLI identities. Independent same-library diagnostic queries exact library patchlevel; complete toolchain/load closure is unmeasured.. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only.. Dialect: tcl8.6.
+Status: `observed`. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only. Version: tcl8.6 8.6.18.
 
 Replacing é in Aé€😀Z yields 4158e282aceda0bdedb8805a; deleting character index3 retains the low-surrogate encoded bytes. Counted ordinary and end-suffix indices succeed. Changed results in these cases have String primary and absent resident bytes before their result getter.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Recorded compiler invocation/output, actual static library, all selected headers/source/configuration bytes and CLI identities. Independent same-library diagnostic queries exact library patchlevel; complete toolchain/load closure is unmeasured.. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only.. Dialect: tcl9.0.
+Status: `observed`. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only. Version: tcl9.0 9.0.4.
 
 Replacing é preserves the four-byte character: 4158e282acf09f98805a; deleting index3 removes it completely. Counted ordinary index succeeds; counted end-suffix index fails. The invalid shared subject/index 2*1 retains no String primary in this case, unlike C8.x.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Recorded compiler invocation/output, actual static library, all selected headers/source/configuration bytes and CLI identities. Independent same-library diagnostic queries exact library patchlevel; complete toolchain/load closure is unmeasured.. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only.. Dialect: tcl9.1.
+Status: `observed`. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only. Version: tcl9.1 9.1.0.
 
 The measured original replacement outputs and header distinctions match 9.0 for these 21 cases, including raw four-byte units, counted index acceptance/rejection and shared invalid subject/index.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Recorded compiler invocation/output, actual static library, all selected headers/source/configuration bytes and CLI identities. Independent same-library diagnostic queries exact library patchlevel; complete toolchain/load closure is unmeasured.. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only.. Dialect: jim.
+Status: `observed`. Channel: Fresh original EvalObjv C-created counted byte objects, one retained caller reference per unique object and no extra alias argv-role references. C uses Tcl_CreateInterp without Tcl_Init; Jim uses CreateInterp/RegisterCoreCommands only. Version: jim 0.84-9-g5bac7c9.
 
 Unchanged cases return the exact subject header. Replacing é in Aé€😀Z yields 4158e282ac; replacing € yields 41c3a958f09f, a truncated UTF sequence with measured String charLength 5. The source worker appends an after-part byte extent computed from character count. Counted NUL bytes remain raw rather than C modified UTF. Shared subject/first index 2*1 succeeds, changes that same original to Index primary and returns 322a58.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No appliance process is retained for these exact original header inputs.. Channel: No BIG-IP original-header driver capture.. Dialect: F5 iRules.
+Status: `not-tested`. Channel: No BIG-IP original-header driver capture.
 
 C Tcl and Jim original-header results do not establish BIG-IP or TMM behaviour.
-
-## Historical references
-
-- `original-counted-probe` (input): [runtime/rust/tests/data/native_original_string_replacement629/probe.c](../../../../runtime/rust/tests/data/native_original_string_replacement629/probe.c). Exact counted C byte arrays and alias argv roles; original header snapshots precede the result getter.
-- `original-request` (input): [runtime/rust/tests/data/native_original_string_replacement629/request.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/request.json). Original problem and requirements; request entries do not supply outcomes.
-- `actual-case-projection` (observation): [runtime/rust/tests/data/native_original_string_replacement629/interpretation.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/interpretation.json). All126 actual stream projections with original stream hashes and separate pre-getter/post-getter fields.
-- `exact-input-map` (provider): [runtime/rust/tests/data/native_original_string_replacement629/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/pinned-input-map.json). Exact original pins and complete round-tripped source/header/static-library/compiler/CLI bytes join.
-- `exact-input-bytes` (provider): [runtime/rust/tests/data/native_original_string_replacement629/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_string_replacement629/pinned-input-bytes.tar.gz). Complete content-addressed retained pinned inputs; compressed bundle hashes do not claim omitted build/load dependencies.
-- `exact-source-windows` (source-anchor): [runtime/rust/tests/data/native_original_string_replacement629/source-windows.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/source-windows.json). Original Jim replacement and C84/C85 internal storage decoder macro, exact physical LF/source joins.
-- `all-original-retention` (provider): [runtime/rust/tests/data/native_original_string_replacement629/retention.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/retention.json). Every complete original stream, receipt and driver image has a canonical lossless retention identity.
-- `tcl8.4-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.4.20/receipt.json). Actual original compile, earlier CLI version,21 case-member source pins and per-process bindings.
-- `tcl8.4-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/8.4.20/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.4.20/same-library-version/receipt.json). Independent diagnostic compiled against identical actual static library; executes after original cases and changes none of their receipts.
-- `tcl8.4-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_string_replacement629/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.4.20/same-library-version/execute.stdout). Actual linked library patchlevel query output, independently joined through unchanged static library bytes.
-- `tcl8.5-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.5.19/receipt.json). Actual original compile, earlier CLI version,21 case-member source pins and per-process bindings.
-- `tcl8.5-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/8.5.19/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.5.19/same-library-version/receipt.json). Independent diagnostic compiled against identical actual static library; executes after original cases and changes none of their receipts.
-- `tcl8.5-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_string_replacement629/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.5.19/same-library-version/execute.stdout). Actual linked library patchlevel query output, independently joined through unchanged static library bytes.
-- `tcl8.6-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.6.18/receipt.json). Actual original compile, earlier CLI version,21 case-member source pins and per-process bindings.
-- `tcl8.6-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/8.6.18/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.6.18/same-library-version/receipt.json). Independent diagnostic compiled against identical actual static library; executes after original cases and changes none of their receipts.
-- `tcl8.6-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_string_replacement629/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.6.18/same-library-version/execute.stdout). Actual linked library patchlevel query output, independently joined through unchanged static library bytes.
-- `tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.0.4/receipt.json). Actual original compile, earlier CLI version,21 case-member source pins and per-process bindings.
-- `tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.0.4/same-library-version/receipt.json). Independent diagnostic compiled against identical actual static library; executes after original cases and changes none of their receipts.
-- `tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_string_replacement629/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.0.4/same-library-version/execute.stdout). Actual linked library patchlevel query output, independently joined through unchanged static library bytes.
-- `tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.1.0/receipt.json). Actual original compile, earlier CLI version,21 case-member source pins and per-process bindings.
-- `tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.1.0/same-library-version/receipt.json). Independent diagnostic compiled against identical actual static library; executes after original cases and changes none of their receipts.
-- `tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_string_replacement629/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.1.0/same-library-version/execute.stdout). Actual linked library patchlevel query output, independently joined through unchanged static library bytes.
-- `jim-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/Jim/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/Jim/receipt.json). Actual original compile, earlier CLI version,21 case-member source pins and per-process bindings.
-- `jim-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/receipt.json). Independent diagnostic compiled against identical actual static library; executes after original cases and changes none of their receipts.
-- `jim-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/execute.stdout). Actual linked library patchlevel query output, independently joined through unchanged static library bytes.
-- `exact-source-snippet-0` (source-anchor): [runtime/rust/tests/data/native_original_string_replacement629/source-windows.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/source-windows.json). JSON pointer `/anchors/0/snippet`. Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash.
-- `exact-source-snippet-1` (source-anchor): [runtime/rust/tests/data/native_original_string_replacement629/source-windows.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/source-windows.json). JSON pointer `/anchors/1/snippet`. Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash.
-- `exact-source-snippet-2` (source-anchor): [runtime/rust/tests/data/native_original_string_replacement629/source-windows.json](../../../../runtime/rust/tests/data/native_original_string_replacement629/source-windows.json). JSON pointer `/anchors/2/snippet`. Exact original physical-LF source snippet selected as decoded JSON text, joined to the retained whole source hash.
 
 ## Source inspection
 
@@ -131,7 +100,6 @@ Jim_Obj *JimStringReplaceObj(Jim_Interp *interp,
 
     return objPtr;
 }
-
 
 ```
 
@@ -173,7 +141,6 @@ tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-syntax/src/native_tcl_utf.rs), `legacy_storage_plain_char_promotion_is_separate_from_public_unit_decoding` (linked): Software source definition checks legacy storage plain char promotion is separate from public unit decoding.
@@ -181,8 +148,12 @@ tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 - [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_replacement_matches_every_native_observed_projection` (linked): Software source definition checks replacement matches every native observed projection.
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_replacement_matches_every_native_observed_projection` (linked): Software source definition checks replacement matches every native observed projection.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Retain the unchanged probe and all21 inputs. Original compile/launch vectors and exact environments are in each provider receipt; each case uses a new process. Recreate libraries from their separately supported build configuration and verify the selected headers/static-library bytes, or treat rebuilt bytes as a new experiment. The pinned input tar preserves every measured whole input, while omitted system linker/toolchain dependencies remain outside its closure. Same-library version diagnostics are separate processes, not rows inserted into the original cases.
+- [runtime/rust/tests/data/native_original_string_replacement629/probe.c](../../../../runtime/rust/tests/data/native_original_string_replacement629/probe.c)
+- [runtime/rust/tests/data/native_original_string_replacement629/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.4.20/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_string_replacement629/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.5.19/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_string_replacement629/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/8.6.18/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_string_replacement629/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.0.4/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_string_replacement629/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/9.1.0/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_string_replacement629/Jim/same-library-version/execute.stdout)

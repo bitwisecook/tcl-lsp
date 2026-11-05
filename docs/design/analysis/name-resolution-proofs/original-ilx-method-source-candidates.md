@@ -28,57 +28,11 @@ Readonly original iRulesLX method/source-constructor candidates and independentl
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-Focused consumer validation is recorded under `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/bigip-lsp/`; unexecuted checks remain explicit in the outstanding file.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -107,13 +61,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/ilx_navigation.rs](../../../../rust/tcl-lsp-core/src/ilx_navigation.rs), `ilx_navigation::tests::original_ilx_analysis_ingress_keeps_configuration_and_never_recaptures_stale_source` (linked): Actual retained BOM Skip/Content configurations select separate readonly source views; source-only ingress has no events or reached commands, and changed whole source or foreign Registry declines without recapture.
 - [rust/tcl-compiler/src/analyser/input.rs](../../../../rust/tcl-compiler/src/analyser/input.rs), `analyser::input::tests::original_file_ingress_keeps_supplied_bom_configuration_and_default_source_policy` (linked): Actual F5 and C9.1 inputs retain both supplied LeadingBom Skip and Content, full configuration and current source correspondence. F5 original set vectors follow the selected BOM rule; default ingress retains its profile file policy. No native source execution or event/body entry is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Exact linked Rust selectors exercise authentic source-vector, full-owner currency and independent handle obligations. No Rust execution receipt or native provider observation is attached to this implementation contract.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -122,8 +69,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -133,4 +79,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 1 | 0 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

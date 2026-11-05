@@ -1,8 +1,0 @@
-{
-  "base": "9ffdce1364f286450499deaf915a037deea28117",
-  "file": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs",
-  "before_sha256": "53990efe79c9bb4bdcd93c3bd5325899c58639c46ea453c3b6c23b5c61ea9d67",
-  "after_sha256": "6ed50e40ab7df0acdf39b395308b69548e5c1d5ed9ad6ec3d380fecade475b20",
-  "status": "Blocked/routed to LSP owner; off-tree, uncompiled, semantically unproven",
-  "scope": "reuse the already captured immutable inventory for nested currentness checks; preserves all checks; per-lens outer inventory and occurrence rebuilding remain"
-}

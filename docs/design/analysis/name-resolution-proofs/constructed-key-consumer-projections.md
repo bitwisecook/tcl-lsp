@@ -22,78 +22,45 @@ Current analytical reporting and constructed-key projections, explicit lexical h
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not applicable to this analytical metadata projection question. Build: No provider process applies to constructed-key or literal-reporting projections.. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only. Version: tcl8.4 not applicable to this analytical metadata projection question.
 
 External tcl8.4 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not applicable to this analytical metadata projection question. Build: No provider process applies to constructed-key or literal-reporting projections.. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only. Version: tcl8.5 not applicable to this analytical metadata projection question.
 
 External tcl8.5 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not applicable to this analytical metadata projection question. Build: No provider process applies to constructed-key or literal-reporting projections.. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only. Version: tcl8.6 not applicable to this analytical metadata projection question.
 
 External tcl8.6 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not applicable to this analytical metadata projection question. Build: No provider process applies to constructed-key or literal-reporting projections.. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only. Version: tcl9.0 not applicable to this analytical metadata projection question.
 
 External tcl9.0 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not applicable to this analytical metadata projection question. Build: No provider process applies to constructed-key or literal-reporting projections.. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only. Version: tcl9.1 not applicable to this analytical metadata projection question.
 
 External tcl9.1 execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.
 
 ### jim
 
-Status: `not-tested`. Version: not applicable to this analytical metadata projection question. Build: No provider process applies to constructed-key or literal-reporting projections.. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only.. Dialect: jim.
+Status: `not-tested`. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only. Version: jim not applicable to this analytical metadata projection question.
 
 External jim execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.
 
 ### bigip
 
-Status: `not-tested`. Version: not applicable to this analytical metadata projection question. Build: No provider process applies to constructed-key or literal-reporting projections.. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only.. Dialect: f5-bigip.
+Status: `not-tested`. Channel: Fixed analytical Unicode reporting/constructed labels and software helper calls only. Version: bigip not applicable to this analytical metadata projection question.
 
 External bigip execution is not applicable to these analytical metadata projections. Colon examples assert authored display-key partition or literal reporting Strings, not native namespace interpretation, lookup, class ownership, factory admission or creation execution. No provider outcome or chronology is inferred.
-
-## Historical references
-
-- `syntax-projection-scoped-b9e949293c12` (observation): [Scoped syntax projection receipt](rust-validation/syntax-projection-20261103/receipt.json). Proof-scoped fixed syntax helper controls in a shared receipt; no compiler, Core, diagnostic, frame, Native provider or whole-proof result follows.
-
-- `metadata-projection-source-0` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `metadata-projection-source-1` (implementation): [rust/tcl-compiler/src/analyser/class_hierarchy.rs](../../../../rust/tcl-compiler/src/analyser/class_hierarchy.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `metadata-projection-source-2` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `metadata-projection-source-3` (implementation): [rust/tcl-compiler/src/analyser/recovery.rs](../../../../rust/tcl-compiler/src/analyser/recovery.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `metadata-projection-source-4` (implementation): [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs). Original invocation completion and retained whole-source advice query the common purpose owner. Supplied refusal remains unknown; independently guarded authored/Native source routes are preserved.
-- `metadata-projection-source-5` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed source role: Constructed key holder/tail and counted written-command parts remain separate source projections; no lookup or namespace identity follows. The separate receipt records only named fixed syntax software controls; no consumer, Native or provider result follows.
-- `metadata-projection-source-6` (implementation): [rust/tcl-syntax/src/naming/reporting.rs](../../../../rust/tcl-syntax/src/naming/reporting.rs). Pure literal reporting QName namespace projection under its explicitly selected purpose; no source or Native namespace/lookup authority. Source entry alone does not execute a consumer; a separately retained Syntax control checks fixed reporting examples.
-- `metadata-projection-source-7` (implementation): [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `metadata-projection-source-8` (implementation): [rust/tcl-compiler/src/analyser/handlers/retained_static_context_tests.rs](../../../../rust/tcl-compiler/src/analyser/handlers/retained_static_context_tests.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `metadata-projection-source-9` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `metadata-projection-source-10` (implementation): [rust/tcl-compiler/src/command_binding/namespace_context.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_context.rs). Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution.
-- `receiver-selected-source598-4eda8b24595a9447` (implementation): [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-92b30b6155dd3d48` (implementation): [rust/tcl-lsp-core/src/implementation.rs](../../../../rust/tcl-lsp-core/src/implementation.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-25d2ef4700a35adc` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-b4b47bc24979d9a6` (implementation): [rust/tcl-registry/src/profiles.rs](../../../../rust/tcl-registry/src/profiles.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-7ffd1b770d34ce06` (implementation): [rust/tcl-registry/src/model/assembly.rs](../../../../rust/tcl-registry/src/model/assembly.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-745f40e488371f68` (implementation): [rust/tcl-registry/src/model/namespace_ownership.rs](../../../../rust/tcl-registry/src/model/namespace_ownership.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-1d35bdad1ac0e388` (implementation): [rust/tcl-registry/src/model/mod.rs](../../../../rust/tcl-registry/src/model/mod.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-c328394619e17984` (implementation): [rust/tcl-compiler/src/analyser/irules_event_checks.rs](../../../../rust/tcl-compiler/src/analyser/irules_event_checks.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-compatibility602-7a8fd2e912c99e2a` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). Current authored one-root compatibility consumer with actual fixed source controls. Original selected reference and public naming permissions remain independent; no assertion or external-provider outcome is attached.
-- `receiver-compatibility602-834e0bf1515bb1fe` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). Current authored one-root compatibility consumer with actual fixed source controls. Original selected reference and public naming permissions remain independent; no assertion or external-provider outcome is attached.
-- `receiver-inlay-constructed-source608` (implementation): [rust/tcl-lsp-core/src/inlay_hints.rs](../../../../rust/tcl-lsp-core/src/inlay_hints.rs). Current constructed FunctionUnit/scope one-root projection and actual Logical inlay consumer control. No Native identity, source rewrite, executed assertion or provider outcome is attached.
-
-- `syntax-reporting-source-role-review` (observation): [separate source review](rust-validation/syntax-reporting-20261103/source-review.json). Separate source review references the earlier retained named Syntax reporting control; no new execution, compiler/W214 consumer, Native provider, lookup or whole-proof result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -138,8 +105,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `command_binding::tests::opaque_namespace_imports_preserve_empty_command_tails` (linked): An opaque ns import withdraws trust for ns::, ::ns::, longer trailing separator runs and ordinary ns members while preserving independent root ns and other namespace candidates.
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `command_binding::tests::rebound_candidates_include_relative_qualified_names` (linked): Authored rebound invalidation retains rooted namespace/global candidates for both bare and relative qualified names, keeps rooted names single and creates zero positive binding rows.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained receipt records two named constructed-key syntax controls and refers to the independently retained written-parts control. Other consumer controls remain source definitions; no provider execution is attached. Literal reporting, constructed-key partition and original source/namespace/target ownership remain separate.
+- [rust/tcl-compiler/src/analyser](../../../../rust/tcl-compiler/src/analyser)
+- [rust/tcl-compiler](../../../../rust/tcl-compiler)
+- [rust/tcl-syntax](../../../../rust/tcl-syntax)
+- [rust/tcl-syntax/src](../../../../rust/tcl-syntax/src)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust](../../../../rust)
+- [rust/tcl-lsp-server](../../../../rust/tcl-lsp-server)
+- [rust/tcl-registry](../../../../rust/tcl-registry)

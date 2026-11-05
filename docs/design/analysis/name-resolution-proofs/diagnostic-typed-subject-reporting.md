@@ -24,56 +24,11 @@ These three controls bind Core/Server software data transport and refusal only. 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This reporting/provenance invariant is a Rust implementation contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-## Historical references
-
-- `source-owner` (implementation): [rust/tcl-compiler/src/analyser/diagnostic_subject.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject.rs). Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
-- `reporting-transport` (implementation): [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs). Current typed diagnostic subject manufacturer or readonly reporting transport. Code provenance is separate from native execution and writable-source authority.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,8 +39,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `tests::package_transport_ignores_message_and_fixes_but_retains_opaque_bytes` (linked): Changing message/fix presentation preserves the serialized counted package bytes; distinct opaque keys remain distinct.
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `tests::absent_malformed_future_or_wrong_code_payload_never_recreates_subject` (linked): Absent, malformed, future-version or wrong-code reporting payloads cannot recreate a typed subject.
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `tests::unresolved_transport_uses_the_emitting_original_source_owner` (linked): W123 transports original source units/channel and emitting geometry despite a changed diagnostic message.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-lsp-core/src/diagnostic_report.rs](../../../../rust/tcl-lsp-core/src/diagnostic_report.rs), `standalone_findings`: Resolve one complete explicit standalone input before the source walk and retain typed unavailable-generation refusal rather than empty-clean findings.
 - [rust/tcl-lsp-core/src/diagnostic_report.rs](../../../../rust/tcl-lsp-core/src/diagnostic_report.rs), `document_report_with_analysis`: Carry actual retained analysis and its typed unavailable status into Report policy without reconstructing source ownership from findings.
@@ -98,6 +51,7 @@ A named test is a coverage binding, not a claim that it executed.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-The linked Rust tests state diagnostic-subject and reporting assertions. An independent exact-source validation receipt is required to establish their outcome; native guest execution does not verify this reporting invariant.
+- [rust/tcl-compiler/src/analyser/diagnostic_subject.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject.rs)
+- [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs)

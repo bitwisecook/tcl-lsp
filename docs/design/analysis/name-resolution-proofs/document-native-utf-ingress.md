@@ -34,34 +34,6 @@ Counted evaluation preserves raw NUL, four-byte supplementary source bytes and C
 
 An additional marked source-renderer definition reads the exact independently retained ingress observation bytes and checks their Document text inverse and roundtrip. Invalid opaque bytes, NativeValue modified-NUL input and a legacy unpaired surrogate cannot become Document text through this inverse.
 
-## Historical references
-
-- `probe`: `rust/tcl-syntax/tests/data/native_source_ingress/probe.c`. Public C API probe and original source-to-value operations.
-- `source`: `rust/tcl-syntax/tests/data/native_source_ingress/source.tcl`. Exact126 source bytes, including three literal zero bytes and three actual U+1F600 characters.
-- `input-description`: `rust/tcl-syntax/tests/data/native_source_ingress/input.json`. Exact source/probe hashes and source hex.
-- `fixture`: `rust/tcl-syntax/tests/data/native_source_ingress/observations.tsv`. Derived byte rows used by Rust tests; exact native stdout remains separate.
-- `receipt-8.4.20`: `rust/tcl-syntax/tests/data/native_source_ingress/8.4.20/receipt.json`. Actual compile/run commands, library/header/executable/input/output hashes and native rows.
-- `stdout-8.4.20`: `rust/tcl-syntax/tests/data/native_source_ingress/8.4.20/stdout.jsonl`. Actual seventeen native JSON rows including startup patchlevel.
-- `stderr-8.4.20`: `rust/tcl-syntax/tests/data/native_source_ingress/8.4.20/stderr`. Empty native stderr; process exit recorded in receipt.
-- `receipt-8.5.19`: `rust/tcl-syntax/tests/data/native_source_ingress/8.5.19/receipt.json`. Actual compile/run commands, library/header/executable/input/output hashes and native rows.
-- `stdout-8.5.19`: `rust/tcl-syntax/tests/data/native_source_ingress/8.5.19/stdout.jsonl`. Actual seventeen native JSON rows including startup patchlevel.
-- `stderr-8.5.19`: `rust/tcl-syntax/tests/data/native_source_ingress/8.5.19/stderr`. Empty native stderr; process exit recorded in receipt.
-- `receipt-8.6.18`: `rust/tcl-syntax/tests/data/native_source_ingress/8.6.18/receipt.json`. Actual compile/run commands, library/header/executable/input/output hashes and native rows.
-- `stdout-8.6.18`: `rust/tcl-syntax/tests/data/native_source_ingress/8.6.18/stdout.jsonl`. Actual seventeen native JSON rows including startup patchlevel.
-- `stderr-8.6.18`: `rust/tcl-syntax/tests/data/native_source_ingress/8.6.18/stderr`. Empty native stderr; process exit recorded in receipt.
-- `receipt-9.0.4`: `rust/tcl-syntax/tests/data/native_source_ingress/9.0.4/receipt.json`. Actual compile/run commands, library/header/executable/input/output hashes and native rows.
-- `stdout-9.0.4`: `rust/tcl-syntax/tests/data/native_source_ingress/9.0.4/stdout.jsonl`. Actual seventeen native JSON rows including startup patchlevel.
-- `stderr-9.0.4`: `rust/tcl-syntax/tests/data/native_source_ingress/9.0.4/stderr`. Empty native stderr; process exit recorded in receipt.
-- `receipt-9.1.0`: `rust/tcl-syntax/tests/data/native_source_ingress/9.1.0/receipt.json`. Actual compile/run commands, library/header/executable/input/output hashes and native rows.
-- `stdout-9.1.0`: `rust/tcl-syntax/tests/data/native_source_ingress/9.1.0/stdout.jsonl`. Actual seventeen native JSON rows including startup patchlevel.
-- `stderr-9.1.0`: `rust/tcl-syntax/tests/data/native_source_ingress/9.1.0/stderr`. Empty native stderr; process exit recorded in receipt.
-- `source-8.4.20-UtfToUtfProc`: `rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.4.20-UtfToUtfProc.c`. Inspected source excerpt; explains the operation separately from observed output.
-- `source-8.6.18-UtfToUtfProc`: `rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.6.18-UtfToUtfProc.c`. Inspected source excerpt; explains the operation separately from observed output.
-- `source-9.1.0-UtfToUtfProc`: `rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/9.1.0-UtfToUtfProc.c`. Inspected source excerpt; explains the operation separately from observed output.
-- `source-8.4.20-Tcl_ReadChars`: `rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.4.20-Tcl_ReadChars.c`. Inspected source excerpt; explains the operation separately from observed output.
-- `source-8.6.18-Tcl_ReadChars`: `rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.6.18-Tcl_ReadChars.c`. Inspected source excerpt; explains the operation separately from observed output.
-- `source-9.1.0-Tcl_ReadChars`: `rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/9.1.0-Tcl_ReadChars.c`. Inspected source excerpt; explains the operation separately from observed output.
-
 ## Source anchors
 
 - tcl8.4 8.4.20 (`core-8-4-20`), `generic/tclEncoding.c`, `UtfToUtfProc`, lines [2055, 2138]. Exact source SHA `b52a3a4d8385133479cd25a815f3dbb50f66848df7353be164ac2108556240a6`; retained excerpt `rust/tcl-syntax/tests/data/native_source_ingress/source-anchors/8.4.20-UtfToUtfProc.c`, SHA `a35b1c6d11a81e442c0435d3cc16f94095ffaaa4476cdb898e9be50fa87931a7`.

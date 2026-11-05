@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 C8.5–9.1 return PATH; C8.4 and Jim preserve the actual unavailable path-option errors.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=command-path-precedence.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for command-path-precedence; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-path-precedence.tcl`. Exact 8.4.20 input for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-path-precedence.stdout`. Exact 8.4.20 stdout for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/command-path-precedence.stderr`. Exact 8.4.20 stderr for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 command-path-precedence. JSON pointer `/rows/3`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-path-precedence.tcl`. Exact 8.5.19 input for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-path-precedence.stdout`. Exact 8.5.19 stdout for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/command-path-precedence.stderr`. Exact 8.5.19 stderr for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 command-path-precedence. JSON pointer `/rows/43`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-path-precedence.tcl`. Exact 8.6.18 input for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-path-precedence.stdout`. Exact 8.6.18 stdout for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/command-path-precedence.stderr`. Exact 8.6.18 stderr for command-path-precedence; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 command-path-precedence. JSON pointer `/rows/83`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-path-precedence.tcl`. Exact 9.0.4 input for command-path-precedence; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-path-precedence.stdout`. Exact 9.0.4 stdout for command-path-precedence; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/command-path-precedence.stderr`. Exact 9.0.4 stderr for command-path-precedence; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 command-path-precedence. JSON pointer `/rows/123`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-path-precedence.tcl`. Exact 9.1.0 input for command-path-precedence; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-path-precedence.stdout`. Exact 9.1.0 stdout for command-path-precedence; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/command-path-precedence.stderr`. Exact 9.1.0 stderr for command-path-precedence; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 command-path-precedence. JSON pointer `/rows/163`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-path-precedence.tcl`. Exact Jim input for command-path-precedence; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-path-precedence.stdout`. Exact Jim stdout for command-path-precedence; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/command-path-precedence.stderr`. Exact Jim stderr for command-path-precedence; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim command-path-precedence. JSON pointer `/rows/203`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case command-path-precedence --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-command-path-precedence.md). A replay is a separate execution and must record its own results.

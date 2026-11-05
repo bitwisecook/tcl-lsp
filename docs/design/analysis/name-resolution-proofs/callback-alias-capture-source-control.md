@@ -22,88 +22,56 @@ Original fixed ASCII LF CLI file on five pinned C releases and current Jim0.84-9
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim. Version: tcl8.4 8.4.20.
 
 Exact stdout: version 8.4.20 alias_command {} | single 0 {2 1} {{FIXED 2 1}} | baked 0 {2 1} {{FIXED BAKED 2 1}} | nested 0 {2 1} {{INNER OUTER BAKED 2 1}} | moved_alias 0 {2 1} {{FIXED 2 1}} | moved_target 1 {invalid command name "target"} {} | replacement_four 1 {wrong # args: should be "target a b c d"} | replacement_baked_four 0 {2 1} . Captured words precede the selected two comparator inputs; nested INNER precedes OUTER and BAKED. Alias movement retains capture, target movement fails lookup, and four-formal replacement accepts only the added BAKED case.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim. Version: tcl8.5 8.5.19.
 
 Exact stdout: version 8.5.19 alias_command {} | single 0 {2 1} {{FIXED 2 1}} | baked 0 {2 1} {{FIXED BAKED 2 1}} | nested 0 {2 1} {{INNER OUTER BAKED 2 1}} | moved_alias 0 {2 1} {{FIXED 2 1}} | moved_target 1 {invalid command name "target"} {} | replacement_four 1 {wrong # args: should be "moved_cb b c d"} | replacement_baked_four 0 {2 1} . Captured words precede the selected two comparator inputs; nested INNER precedes OUTER and BAKED. Alias movement retains capture, target movement fails lookup, and four-formal replacement accepts only the added BAKED case.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim. Version: tcl8.6 8.6.18.
 
 Exact stdout: version 8.6.18 alias_command {} | single 0 {2 1} {{FIXED 2 1}} | baked 0 {2 1} {{FIXED BAKED 2 1}} | nested 0 {2 1} {{INNER OUTER BAKED 2 1}} | moved_alias 0 {2 1} {{FIXED 2 1}} | moved_target 1 {invalid command name "target"} {} | replacement_four 1 {wrong # args: should be "moved_cb b c d"} | replacement_baked_four 0 {2 1} . Captured words precede the selected two comparator inputs; nested INNER precedes OUTER and BAKED. Alias movement retains capture, target movement fails lookup, and four-formal replacement accepts only the added BAKED case.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim. Version: tcl9.0 9.0.4.
 
 Exact stdout: version 9.0.4 alias_command {} | single 0 {2 1} {{FIXED 2 1}} | baked 0 {2 1} {{FIXED BAKED 2 1}} | nested 0 {2 1} {{INNER OUTER BAKED 2 1}} | moved_alias 0 {2 1} {{FIXED 2 1}} | moved_target 1 {invalid command name "target"} {} | replacement_four 1 {wrong # args: should be "moved_cb b c d"} | replacement_baked_four 0 {2 1} . Captured words precede the selected two comparator inputs; nested INNER precedes OUTER and BAKED. Alias movement retains capture, target movement fails lookup, and four-formal replacement accepts only the added BAKED case.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim. Version: tcl9.1 9.1.0.
 
 Exact stdout: version 9.1.0 alias_command {} | single 0 {2 1} {{FIXED 2 1}} | baked 0 {2 1} {{FIXED BAKED 2 1}} | nested 0 {2 1} {{INNER OUTER BAKED 2 1}} | moved_alias 0 {2 1} {{FIXED 2 1}} | moved_target 1 {invalid command name "target"} {} | replacement_four 1 {wrong # args: should be "moved_cb b c d"} | replacement_baked_four 0 {2 1} . Captured words precede the selected two comparator inputs; nested INNER precedes OUTER and BAKED. Alias movement retains capture, target movement fails lookup, and four-formal replacement accepts only the added BAKED case.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF CLI file; lsort comparator public args and caught result/error; no internal object/header/native argv/cache/frame or installation-currentness claim. Version: jim 0.84-9-g5bac7c9.
 
 Exact stdout: version 0.84-9-g5bac7c9 alias_command alias | single 0 {2 1} {{FIXED 2 1}} | baked 0 {2 1} {{FIXED BAKED 2 1}} | nested 0 {2 1} {{INNER OUTER BAKED 2 1}} | moved_alias 0 {2 1} {{FIXED 2 1}} | moved_target 1 {invalid command name "target"} {} | replacement_four 1 {wrong # args: should be "target a b c d"} | replacement_baked_four 0 {2 1} . Captured words precede the selected two comparator inputs; nested INNER precedes OUTER and BAKED. Alias movement retains capture, target movement fails lookup, and four-formal replacement accepts only the added BAKED case.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance process or event callback observation is retained for this question.
-
-## Historical references
-
-- `8-4-20-receipt-json` (provider): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `8-4-20-stderr` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `8-4-20-stdout` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20/stdout). Exact entire original stdout including caught guest outcomes.
-- `8-5-19-receipt-json` (provider): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `8-5-19-stderr` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `8-5-19-stdout` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19/stdout). Exact entire original stdout including caught guest outcomes.
-- `8-6-18-receipt-json` (provider): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `8-6-18-stderr` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `8-6-18-stdout` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18/stdout). Exact entire original stdout including caught guest outcomes.
-- `9-0-4-receipt-json` (provider): [rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `9-0-4-stderr` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `9-0-4-stdout` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4/stdout). Exact entire original stdout including caught guest outcomes.
-- `9-1-0-receipt-json` (provider): [rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `9-1-0-stderr` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `9-1-0-stdout` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0/stdout). Exact entire original stdout including caught guest outcomes.
-- `jim-receipt-json` (provider): [rust/tcl-registry/tests/data/native_callback_alias_source255/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/jim/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/jim/stderr](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/jim/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_callback_alias_source255/jim/stdout](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/jim/stdout). Exact entire original stdout including caught guest outcomes.
-- `probe-tcl` (input): [rust/tcl-registry/tests/data/native_callback_alias_source255/probe.tcl](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/probe.tcl). Exact original finite ASCII source/provider request; no process outcome.
-- `request-json` (input): [rust/tcl-registry/tests/data/native_callback_alias_source255/request.json](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/request.json). Exact original finite ASCII source/provider request; no process outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "/absolute/path/to/independently-selected/native-tclsh",
-  "rust/tcl-registry/tests/data/native_callback_alias_source255/probe.tcl"
-]
-```
-
-Repeat independently for each required provider. The original receipt command, environment, exact executable and required artifact SHA, source SHA, whole stdout/stderr and process exit remain the authority. Preserve caught guest errors and all eight rows, including release-specific error presentation. No internal object, native argv/header/cache, future callable/installation, frame or BIG-IP reconfirmation follows. Related source-contract selectors are independent Rust coverage, not additional native results.
+- [rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.4.20)
+- [rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.5.19)
+- [rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/8.6.18)
+- [rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.0.4)
+- [rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/9.1.0)
+- [rust/tcl-registry/tests/data/native_callback_alias_source255/jim](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255/jim)
+- [rust/tcl-registry/tests/data/native_callback_alias_source255](../../../../rust/tcl-registry/tests/data/native_callback_alias_source255)

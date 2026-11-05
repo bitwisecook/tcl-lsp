@@ -22,71 +22,45 @@ Original fixed ASCII LF CLI source, separate fresh process per provider, exact c
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured. Version: tcl8.4 8.4.20.
 
 Actual 8.4.20 reports configurable_command0 and UNAVAILABLE reason no_original_oo_configurable_command. All property-control branches are skipped in this captured installation; no global provider/package impossibility follows. Process exits zero with empty stderr.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured. Version: tcl8.5 8.5.19.
 
 Actual 8.5.19 reports configurable_command0 and UNAVAILABLE reason no_original_oo_configurable_command. All property-control branches are skipped in this captured installation; no global provider/package impossibility follows. Process exits zero with empty stderr.
 
 ### tcl8.6
 
-Status: `unsupported`. Version: 8.6.18. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured. Version: tcl8.6 8.6.18.
 
 Actual 8.6.18 reports configurable_command0 and UNAVAILABLE reason no_original_oo_configurable_command. All property-control branches are skipped in this captured installation; no global provider/package impossibility follows. Process exits zero with empty stderr.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.. Dialect: C Tcl stock CLI.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured. Version: tcl9.0 9.0.4.
 
 Actual 9.0.4 exposes oo::configurable. Exact measured rows: DEFINITION label option_like_getter method <ReadProp-p> code 0 definition {{} -set}; DEFINITION label option_like_getter method <WriteProp-p> code 0 definition {value {set ::property_width_seen $value}}; CALL label option_like_getter operation read code 0 result getter_option_value; CALL label option_like_getter operation write code 0 result {} seen setter_value; DEFINITION label multiple_names_abbreviations method <ReadProp-p> code 0 definition {{} -set}; DEFINITION label multiple_names_abbreviations method <ReadProp-q> code 1 definition {definition not available for this kind of method}; DEFINITION label multiple_names_abbreviations method <WriteProp-q> code 0 definition {value {set ::property_width_q $value}}; DEFINITION label repeated_getter method <ReadProp-p> code 0 definition {{} -set}; DEFINITION label repeated_getter method <WriteProp-p> code 0 definition {value {set ::property_width_repeat_seen $value}}; DECL label missing_value code 1 result {missing body to go with -get option} errorCode {TCL WRONGARGS}; DECL label unknown_option code 1 result {bad option "-unknown": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -unknown}; DECL label ambiguous_option code 1 result {ambiguous option "-": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -}; DECL label invalid_kind code 1 result {ambiguous kind "r": must be readable, readwrite, or writable} errorCode {TCL LOOKUP INDEX kind r}. Option-looking -set remains the getter script and repeated getter retains its final script; quoted setter and abbreviated/multiple-name cases preserve their exact values. The default q getter definition error establishes uninspectability, not absence. Process exits zero with empty stderr.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.. Dialect: C Tcl stock CLI.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured. Version: tcl9.1 9.1.0.
 
 Actual 9.1.0 exposes oo::configurable. Exact measured rows: DEFINITION label option_like_getter method <ReadProp-p> code 0 definition {{} -set}; DEFINITION label option_like_getter method <WriteProp-p> code 0 definition {value {set ::property_width_seen $value}}; CALL label option_like_getter operation read code 0 result getter_option_value; CALL label option_like_getter operation write code 0 result {} seen setter_value; DEFINITION label multiple_names_abbreviations method <ReadProp-p> code 0 definition {{} -set}; DEFINITION label multiple_names_abbreviations method <ReadProp-q> code 1 definition {definition not available for this kind of method}; DEFINITION label multiple_names_abbreviations method <WriteProp-q> code 0 definition {value {set ::property_width_q $value}}; DEFINITION label repeated_getter method <ReadProp-p> code 0 definition {{} -set}; DEFINITION label repeated_getter method <WriteProp-p> code 0 definition {value {set ::property_width_repeat_seen $value}}; DECL label missing_value code 1 result {missing body to go with -get option} errorCode {TCL WRONGARGS}; DECL label unknown_option code 1 result {bad option "-unknown": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -unknown}; DECL label ambiguous_option code 1 result {ambiguous option "-": must be -get, -kind, or -set} errorCode {TCL LOOKUP INDEX option -}; DECL label invalid_kind code 1 result {ambiguous kind "r": must be readable, readwrite, or writable} errorCode {TCL LOOKUP INDEX kind r}. Option-looking -set remains the getter script and repeated getter retains its final script; quoted setter and abbreviated/multiple-name cases preserve their exact values. The default q getter definition error establishes uninspectability, not absence. Process exits zero with empty stderr.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable; every required artifact independently rechecked and retained. No fresh SDK build or compiler version recorded.. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured.. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: Original fixed ASCII LF source-file CLI; stock configurable availability, stored info class definition scripts and caught configure calls. No original Native source-carrier/frame/header or BIG-IP authority is measured. Version: jim 0.84-9-g5bac7c9.
 
 Actual 0.84-9-g5bac7c9 reports configurable_command0 and UNAVAILABLE reason no_original_oo_configurable_command. All property-control branches are skipped in this captured installation; no global provider/package impossibility follows. Process exits zero with empty stderr.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: BIG-IP.
+Status: `not-tested`.
 
 No appliance execution answers this exact original input question; stock C and Jim results supply no hosted result.
-
-## Historical references
-
-- `property281-probe.tcl` (input): [rust/tcl-registry/tests/data/native_property_option_width281/probe.tcl](../../../../rust/tcl-registry/tests/data/native_property_option_width281/probe.tcl). Exact original ASCII LF source file executed by all six providers.
-- `property281-request.json` (input): [rust/tcl-registry/tests/data/native_property_option_width281/request.json](../../../../rust/tcl-registry/tests/data/native_property_option_width281/request.json). Exact original authored question/provider/source request and explicit authority boundary.
-- `property281-capture.py` (input): [rust/tcl-registry/tests/data/native_property_option_width281/capture.py](../../../../rust/tcl-registry/tests/data/native_property_option_width281/capture.py). Exact Root-executed native launcher; original commands/environment/executable/artifact checks, no new run.
-- `property281-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_option_width281/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.4.20/receipt.json). Exact actual process/version/environment and complete executable/required-artifact SHA associations.
-- `property281-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.4.20/stdout). Whole original stdout; exact caught codes, body/query outcomes and value spellings retained.
-- `property281-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.4.20/stderr). Whole exact empty process stderr.
-- `property281-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_option_width281/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.5.19/receipt.json). Exact actual process/version/environment and complete executable/required-artifact SHA associations.
-- `property281-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.5.19/stdout). Whole original stdout; exact caught codes, body/query outcomes and value spellings retained.
-- `property281-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.5.19/stderr). Whole exact empty process stderr.
-- `property281-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_option_width281/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.6.18/receipt.json). Exact actual process/version/environment and complete executable/required-artifact SHA associations.
-- `property281-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.6.18/stdout). Whole original stdout; exact caught codes, body/query outcomes and value spellings retained.
-- `property281-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.6.18/stderr). Whole exact empty process stderr.
-- `property281-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_option_width281/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.0.4/receipt.json). Exact actual process/version/environment and complete executable/required-artifact SHA associations.
-- `property281-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.0.4/stdout). Whole original stdout; exact caught codes, body/query outcomes and value spellings retained.
-- `property281-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.0.4/stderr). Whole exact empty process stderr.
-- `property281-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_option_width281/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.1.0/receipt.json). Exact actual process/version/environment and complete executable/required-artifact SHA associations.
-- `property281-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.1.0/stdout). Whole original stdout; exact caught codes, body/query outcomes and value spellings retained.
-- `property281-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.1.0/stderr). Whole exact empty process stderr.
-- `property281-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_option_width281/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_option_width281/jim/receipt.json). Exact actual process/version/environment and complete executable/required-artifact SHA associations.
-- `property281-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/jim/stdout](../../../../rust/tcl-registry/tests/data/native_property_option_width281/jim/stdout). Whole original stdout; exact caught codes, body/query outcomes and value spellings retained.
-- `property281-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_property_option_width281/jim/stderr](../../../../rust/tcl-registry/tests/data/native_property_option_width281/jim/stderr). Whole exact empty process stderr.
-- `property281-source-anchors-9.0.4-TclOODefinePropertyCmd.c` (source-anchor): [rust/tcl-registry/tests/data/native_property_option_width281/source-anchors/9.0.4-TclOODefinePropertyCmd.c](../../../../rust/tcl-registry/tests/data/native_property_option_width281/source-anchors/9.0.4-TclOODefinePropertyCmd.c). Exact independently pinned source excerpt for property option-value width and final selected scripts; inspection is separate from native execution.
-- `property281-source-anchors-9.1.0-TclOODefinePropertyCmd.c` (source-anchor): [rust/tcl-registry/tests/data/native_property_option_width281/source-anchors/9.1.0-TclOODefinePropertyCmd.c](../../../../rust/tcl-registry/tests/data/native_property_option_width281/source-anchors/9.1.0-TclOODefinePropertyCmd.c). Exact independently pinned source excerpt for property option-value width and final selected scripts; inspection is separate from native execution.
 
 ## Source inspection
 
@@ -300,7 +274,6 @@ TclOODefinePropertyCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `DefinitionBodyGrammar::source_property_declarations_where`: Single byte-selector/argv-width layout behind counted declaration metadata and Name/Body/block projections; final repeated getter/setter per property.
@@ -309,8 +282,13 @@ TclOODefinePropertyCmd(
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `definer::tests::original_property_role_layout_keeps_unknown_bodies_separate_from_selectors` (linked): Independent Rust source coverage, not an executed provider result: Implementation-only source knowledge controls: Dynamic body values skipped without fake literals; unknown/missing/unsupported/ambiguous selectors and kinds, expansion/opaque argv decline; C8.6 and Jim property vocabulary unavailable. Its raw-zero option-purpose control is a Rust implementation binding, not an observation of the ASCII native probe.
 - [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs), `registry_invocation::source_scoped_body::script_purpose_tests::original_property_member_bodies_skip_option_like_values_and_quoted_options` (linked): Independent Rust source coverage, not an executed provider result: Implementation-only genuine source geometry binds ordinals2/4, quoted actual option exclusion, Unicode spans and repeated final getter to complete original argv, while ordinary bodies do not inherit definition vocabulary.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Original commands, environment overrides, exact sources/whole streams and required executable/SDK/source pins remain unchanged. Other inherited environment variables are unrecorded. The actual launcher depends on retained earlier native receipts and external SDK paths and refuses existing output directories. Its retained bytes and scratch paths do not promise portable replay; re-running creates new observations. No native or Rust process is launched by publication.
+- [rust/tcl-registry/tests/data/native_property_option_width281](../../../../rust/tcl-registry/tests/data/native_property_option_width281)
+- [rust/tcl-registry/tests/data/native_property_option_width281/8.4.20](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.4.20)
+- [rust/tcl-registry/tests/data/native_property_option_width281/8.5.19](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.5.19)
+- [rust/tcl-registry/tests/data/native_property_option_width281/8.6.18](../../../../rust/tcl-registry/tests/data/native_property_option_width281/8.6.18)
+- [rust/tcl-registry/tests/data/native_property_option_width281/9.0.4](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.0.4)
+- [rust/tcl-registry/tests/data/native_property_option_width281/9.1.0](../../../../rust/tcl-registry/tests/data/native_property_option_width281/9.1.0)
+- [rust/tcl-registry/tests/data/native_property_option_width281/jim](../../../../rust/tcl-registry/tests/data/native_property_option_width281/jim)
+- [rust/tcl-registry/tests/data/native_property_option_width281/source-anchors](../../../../rust/tcl-registry/tests/data/native_property_option_width281/source-anchors)

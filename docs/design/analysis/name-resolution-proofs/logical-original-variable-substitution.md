@@ -20,55 +20,11 @@ Current pure original Logical substitution selection. Three fixed controls compa
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,9 +34,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_variable_compilation.rs](../../../../rust/tcl-compiler/src/command_binding/original_variable_compilation.rs), `command_binding::original_variable_compilation::logical_substitution_tests::logical_original_substitution_reads_only_the_existing_symbolic_storage` (linked): Genuine original Logical scalar/array substitution reads supplied existing symbolic storage only; fixture values establish no executed C/Jim store.
 - [rust/tcl-compiler/src/command_binding/original_variable_compilation.rs](../../../../rust/tcl-compiler/src/command_binding/original_variable_compilation.rs), `command_binding::original_variable_compilation::logical_substitution_tests::logical_original_substitution_keeps_observers_and_dynamic_storage_open` (linked): Observer-sensitive and dynamic/unknown symbolic storage remain open rather than becoming fixed reads.
 - [rust/tcl-compiler/src/command_binding/original_variable_compilation.rs](../../../../rust/tcl-compiler/src/command_binding/original_variable_compilation.rs), `command_binding::original_variable_compilation::logical_substitution_tests::logical_original_substitution_refuses_missing_native_and_stale_ownership` (linked): Missing original/arena/input, Native or hosted source and stale image/configuration/site/frame/namespace cannot borrow Logical substitution ownership.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.

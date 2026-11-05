@@ -20,68 +20,28 @@ Original private TclReToGlob C API probe with counted strlen of fourteen fixed A
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
-
-Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
-
-Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
-
-Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (recorded build label; runtime query not retained). Build: Original library; probe executable. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals.. Dialect: C Tcl.
-
-Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+Status: `not-tested`.
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
-### bigip
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `observed`. Channel: Direct counted TclReToGlob call on original C ASCII pattern literals. Version: tcl8.5 8.5.19 (recorded build label; runtime query not retained); tcl8.6 8.6.18 (recorded build label; runtime query not retained); tcl9.0 9.0.4 (recorded build label; runtime query not retained); tcl9.1 9.1.0 (recorded build label; runtime query not retained).
 
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-## Historical references
-
-- `original-build-and-rows` (provider): [rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json). Exact original builds, warnings, process statuses and converter output rows.
-- `original-probe` (input): [rust/tcl-syntax/tests/data/native_regexp_glob/probe.c](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/probe.c). Exact counted pattern strings, version-selected ABI and observed output fields.
-- `tcl8.5-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt). Exact completed original fourteen converter result rows.
-- `tcl8.6-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt). Exact completed original fourteen converter result rows.
-- `tcl9.0-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt). Exact completed original fourteen converter result rows.
-- `tcl9.1-rows` (observation): [rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt). Exact completed original fourteen converter result rows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+Build exit 0, process exit 0, empty stderr. Original code/glob-hex rows: "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n". Code one is a converter decline, not a missing guest command.
 
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/native_regex.rs](../../../../rust/tcl-syntax/src/native_regex.rs), `NativeRegexpRecipe`: Independent release-selected converter recipe; outputs alone supply no selected command/cache/body authority.
 - [rust/tcl-syntax/src/native_regex.rs](../../../../rust/tcl-syntax/src/native_regex.rs), `native_regex::tests::equivalent_glob_matches_actual_counted_converter_rows` (linked): Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun.
+- [rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/manifest.json)
+- [rust/tcl-syntax/tests/data/native_regexp_glob/probe.c](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/probe.c)
+- [rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.5.19.txt)
+- [rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/8.6.18.txt)
+- [rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.0.4.txt)
+- [rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_regexp_glob/9.1.0.txt)

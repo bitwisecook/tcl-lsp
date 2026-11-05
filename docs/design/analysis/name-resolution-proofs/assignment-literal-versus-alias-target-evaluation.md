@@ -30,93 +30,27 @@ The helper receives a manually supplied recipe/context and actual source words; 
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `unsupported`. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query. Version: tcl8.4 8.4.20.
 
 Actual available query is zero, all four controls explicitly unavailable; no lassign invocation.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
-
-Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
-
-Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
-
-Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Tcl.
+Status: `observed`. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Literal both initial states succeed: first=one, one=two, old absent. Generic alias absent state errors without stores; initialized state succeeds with first=one, old=two, one absent.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Original shell ELF; exact header/static library/Makefile/source-owner hashes, startup version and raw process streams retained.. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Exact ASCII source file argument to the actual native shell; file character ingress. Separate ASCII stdin startup version query. Version: jim 0.84-9-g5bac7c9.
 
 Literal and native alias both evaluate the later target before stores: absent first errors/no targets; old first succeeds with first=one, old=two, one absent. The independent v1 Tcl-style interp-alias setup exits1 before any case.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance comparison for these exact source contexts.
-
-## Historical references
-
-- `v1-source` (input): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/cases.tcl](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/cases.tcl). Exact ASCII file source, including selected alias door and four procedure activations.
-- `v1-aggregate` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/receipt.json). Original complete six-provider build/startup/source/process correspondence.
-- `v1-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.4/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.4-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.4/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.4/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.4/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.4/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.5/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.5/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.5-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.5/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.5/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.5/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.5/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.6/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.6/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.6-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.6/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.6/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.6/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl8.6/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.0/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl9.0-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.0/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.0/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.0/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.0/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.1/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.1/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl9.1-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.1/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.1/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.1/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/tcl9.1/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v1-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/jim/receipt.json). Original exit and complete raw stream; v1 Jim exits before lassign controls at the unsupported Tcl interp-alias syntax.
-- `v1-jim-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/jim/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/jim/stdout). Original exit and complete raw stream; v1 Jim exits before lassign controls at the unsupported Tcl interp-alias syntax.
-- `v1-jim-stderr` (limitation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/jim/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1/jim/stderr). Original exit and complete raw stream; v1 Jim exits before lassign controls at the unsupported Tcl interp-alias syntax.
-- `v2-source` (input): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/cases.tcl](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/cases.tcl). Exact ASCII file source, including selected alias door and four procedure activations.
-- `v2-aggregate` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/receipt.json). Original complete six-provider build/startup/source/process correspondence.
-- `v2-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.4/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.4-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.4/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.4/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.4/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.4/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.5/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.5/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.5-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.5/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.5/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.5/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.5/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.6/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.6/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.6-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.6/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.6/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.6/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl8.6/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.0/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl9.0-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.0/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.0/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.0/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.0/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.1/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.1/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl9.1-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.1/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.1/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.1/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/tcl9.1/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/jim/receipt.json). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-jim-stdout` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/jim/stdout](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/jim/stdout). Original native stream/process or exact provider/build/startup/source correspondence.
-- `v2-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/jim/stderr](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2/jim/stderr). Original native stream/process or exact provider/build/startup/source correspondence.
-- `tcl8.5-compiler-source` (source-anchor): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl8.5.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl8.5.json). JSON pointer `/snippet`. Pinned selected compiler loop visits a target then stores before visiting the next target, or Jim receives the already evaluated argv; not native execution evidence.
-- `tcl8.6-compiler-source` (source-anchor): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl8.6.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl8.6.json). JSON pointer `/snippet`. Pinned selected compiler loop visits a target then stores before visiting the next target, or Jim receives the already evaluated argv; not native execution evidence.
-- `tcl9.0-compiler-source` (source-anchor): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl9.0.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl9.0.json). JSON pointer `/snippet`. Pinned selected compiler loop visits a target then stores before visiting the next target, or Jim receives the already evaluated argv; not native execution evidence.
-- `tcl9.1-compiler-source` (source-anchor): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl9.1.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/tcl9.1.json). JSON pointer `/snippet`. Pinned selected compiler loop visits a target then stores before visiting the next target, or Jim receives the already evaluated argv; not native execution evidence.
-- `jim-compiler-source` (source-anchor): [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/jim.json](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/source-anchors/jim.json). JSON pointer `/snippet`. Pinned selected compiler loop visits a target then stores before visiting the next target, or Jim receives the already evaluated argv; not native execution evidence.
 
 ## Source inspection
 
@@ -522,12 +456,9 @@ static int Jim_LassignCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *
 
 ```
 
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `NativeCompilationSpec::select_native_words`: Select the recipe from authentic captured source words plus explicit dialect/mode/context; missing premises retain Generic or Unknown rather than a donated compiler entry.
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `native_compilation::tests::original_assignment_selection_keeps_opaque_target_bytes_and_modes_separate` (linked): Original assignment selection retains literal document/native opaque target bytes and exact compiler mode: supported bytecode selection, direct generic execution and missing/unknown context remain separate without assuming alias target evaluation equivalence. This is the current software/API definition; no assertion outcome or new original-provider observation is attached to this binding.
@@ -539,21 +470,8 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-vm/tests/data/native_lassign_argv_evaluation/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-lassign-argv-reconfirmation"
-]
-```
-
-Requires exact retained source, executable/header/library/Makefile/source-owner and raw-stream hashes. Compares process exit and complete stdout/stderr. v1 Jim exact error path requires its original source-file argument to exist with the retained bytes; v2 is path-independent on success. --verify-only checks original bytes without launching native code. Guest errors and unsupported controls are expected observations; no compiler/normal/write or Rust pass is inferred.
+- [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v1)
+- [rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation/v2)
+- [rust/tcl-vm/tests/data/native_lassign_argv_evaluation](../../../../rust/tcl-vm/tests/data/native_lassign_argv_evaluation)

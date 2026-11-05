@@ -20,89 +20,23 @@ Seven named function controls in the shared twelve-row ASCII LF source-file prog
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Exact shell executable SHA b100108bc3747ea4fa6a4411a28756c26c8c201390a1983ae35443ce7bece817; linked library/header/configure/build flags unrecorded.. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.. Dialect: 8.4.20.
-
-All five C providers return sin for the literal pattern. Tcl 8.4 returns empty for the new caller-local, merged suffix and binary-produced opaque function controls and still returns sin after the apply helper replacement. Tcl 8.5–9.1 return caller-local local085, the sorted distinct local085/other085/shared085 names, and the opaque function with final numeric unit 255; their selected apply replacement produces the exact APPLY_HELPER085 error. Both binary-produced zero-suffix patterns return empty in all C controls. Jim explicitly rejects info functions. These are finite source/script result observations; they establish no raw resident byte representation, function lookup allocation, cache or Normal authority.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Exact shell executable SHA 6b2005f227b608208c8bfdf472d5d6c1ed9595ad10f4b7442d5ee1e23e9e400b; linked library/header/configure/build flags unrecorded.. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.. Dialect: 8.5.19.
-
-All five C providers return sin for the literal pattern. Tcl 8.4 returns empty for the new caller-local, merged suffix and binary-produced opaque function controls and still returns sin after the apply helper replacement. Tcl 8.5–9.1 return caller-local local085, the sorted distinct local085/other085/shared085 names, and the opaque function with final numeric unit 255; their selected apply replacement produces the exact APPLY_HELPER085 error. Both binary-produced zero-suffix patterns return empty in all C controls. Jim explicitly rejects info functions. These are finite source/script result observations; they establish no raw resident byte representation, function lookup allocation, cache or Normal authority.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Exact shell executable SHA 2e103024652a7d81f5496a979464fe0acad87a9033e798305be231ef484c5c5a; linked library/header/configure/build flags unrecorded.. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.. Dialect: 8.6.18.
-
-All five C providers return sin for the literal pattern. Tcl 8.4 returns empty for the new caller-local, merged suffix and binary-produced opaque function controls and still returns sin after the apply helper replacement. Tcl 8.5–9.1 return caller-local local085, the sorted distinct local085/other085/shared085 names, and the opaque function with final numeric unit 255; their selected apply replacement produces the exact APPLY_HELPER085 error. Both binary-produced zero-suffix patterns return empty in all C controls. Jim explicitly rejects info functions. These are finite source/script result observations; they establish no raw resident byte representation, function lookup allocation, cache or Normal authority.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Exact shell executable SHA f55225fd9e74448b244b90f41d3dce2989fc7e205bee4f2f0d4a08057880e668; linked library/header/configure/build flags unrecorded.. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.. Dialect: 9.0.4.
-
-All five C providers return sin for the literal pattern. Tcl 8.4 returns empty for the new caller-local, merged suffix and binary-produced opaque function controls and still returns sin after the apply helper replacement. Tcl 8.5–9.1 return caller-local local085, the sorted distinct local085/other085/shared085 names, and the opaque function with final numeric unit 255; their selected apply replacement produces the exact APPLY_HELPER085 error. Both binary-produced zero-suffix patterns return empty in all C controls. Jim explicitly rejects info functions. These are finite source/script result observations; they establish no raw resident byte representation, function lookup allocation, cache or Normal authority.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Exact shell executable SHA c5638d48d9a54d3a0d0901a4dc94698f8e018715473f8f6c2e3264408694ce47; linked library/header/configure/build flags unrecorded.. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.. Dialect: 9.1.0.
+Status: `observed`. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 All five C providers return sin for the literal pattern. Tcl 8.4 returns empty for the new caller-local, merged suffix and binary-produced opaque function controls and still returns sin after the apply helper replacement. Tcl 8.5–9.1 return caller-local local085, the sorted distinct local085/other085/shared085 names, and the opaque function with final numeric unit 255; their selected apply replacement produces the exact APPLY_HELPER085 error. Both binary-produced zero-suffix patterns return empty in all C controls. Jim explicitly rejects info functions. These are finite source/script result observations; they establish no raw resident byte representation, function lookup allocation, cache or Normal authority.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Exact shell executable SHA e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; linked library/header/configure/build flags unrecorded.. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant.. Dialect: 0.84-9-g5bac7c9.
+Status: `unsupported`. Channel: ASCII LF source-file shell ingress. Runtime binary-produced raw/encoded bytes are separate; output decimal string-index scan-%c units, not original physical bytes. No direct API/object cache/CPP/Normal grant. Version: jim 0.84-9-g5bac7c9.
 
 Observed guest rejection of info functions in all seven function controls; this is not a command-cache, fixed-table or function execution answer.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-- `source` (input): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/cases.tcl](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/cases.tcl). Exact complete ASCII LF source-file program; runtime binary values and decimal result units are separate channels.
-- `capture-runner` (input): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/capture.py](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/capture.py). Exact executed shell runner and separately queried patchlevel protocol.
-- `capture-receipts` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/receipt.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/receipt.json). Six actual command/source/executable/process and complete output attributions; no static library or configured build attribution.
-- `case-queue` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/queue.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/queue.json). Authored exact finite case inventory; not an outcome observation.
-- `offline-verifier` (reconfirmation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/replay.py](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/replay.py). Verify-only source/runner/provider/stream associations without native launches.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/receipt.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/receipt.json). Exact tcl8.4 receipt.json from the independent source-file shell capture.
-- `tcl8.4-stdout` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/stdout). Exact tcl8.4 stdout from the independent source-file shell capture.
-- `tcl8.4-stderr` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/stderr). Exact tcl8.4 stderr from the independent source-file shell capture.
-- `tcl8.4-version.stdout` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/version.stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/version.stdout). Exact tcl8.4 version.stdout from the independent source-file shell capture.
-- `tcl8.4-version.stderr` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/version.stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20/version.stderr). Exact tcl8.4 version.stderr from the independent source-file shell capture.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/receipt.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/receipt.json). Exact tcl8.5 receipt.json from the independent source-file shell capture.
-- `tcl8.5-stdout` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/stdout). Exact tcl8.5 stdout from the independent source-file shell capture.
-- `tcl8.5-stderr` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/stderr). Exact tcl8.5 stderr from the independent source-file shell capture.
-- `tcl8.5-version.stdout` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/version.stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/version.stdout). Exact tcl8.5 version.stdout from the independent source-file shell capture.
-- `tcl8.5-version.stderr` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/version.stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19/version.stderr). Exact tcl8.5 version.stderr from the independent source-file shell capture.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/receipt.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/receipt.json). Exact tcl8.6 receipt.json from the independent source-file shell capture.
-- `tcl8.6-stdout` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/stdout). Exact tcl8.6 stdout from the independent source-file shell capture.
-- `tcl8.6-stderr` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/stderr). Exact tcl8.6 stderr from the independent source-file shell capture.
-- `tcl8.6-version.stdout` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/version.stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/version.stdout). Exact tcl8.6 version.stdout from the independent source-file shell capture.
-- `tcl8.6-version.stderr` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/version.stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18/version.stderr). Exact tcl8.6 version.stderr from the independent source-file shell capture.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/receipt.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/receipt.json). Exact tcl9.0 receipt.json from the independent source-file shell capture.
-- `tcl9.0-stdout` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/stdout). Exact tcl9.0 stdout from the independent source-file shell capture.
-- `tcl9.0-stderr` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/stderr). Exact tcl9.0 stderr from the independent source-file shell capture.
-- `tcl9.0-version.stdout` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/version.stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/version.stdout). Exact tcl9.0 version.stdout from the independent source-file shell capture.
-- `tcl9.0-version.stderr` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/version.stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4/version.stderr). Exact tcl9.0 version.stderr from the independent source-file shell capture.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/receipt.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/receipt.json). Exact tcl9.1 receipt.json from the independent source-file shell capture.
-- `tcl9.1-stdout` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/stdout). Exact tcl9.1 stdout from the independent source-file shell capture.
-- `tcl9.1-stderr` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/stderr). Exact tcl9.1 stderr from the independent source-file shell capture.
-- `tcl9.1-version.stdout` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/version.stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/version.stdout). Exact tcl9.1 version.stdout from the independent source-file shell capture.
-- `tcl9.1-version.stderr` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/version.stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0/version.stderr). Exact tcl9.1 version.stderr from the independent source-file shell capture.
-- `jim-receipt.json` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/receipt.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/receipt.json). Exact jim receipt.json from the independent source-file shell capture.
-- `jim-stdout` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/stdout). Exact jim stdout from the independent source-file shell capture.
-- `jim-stderr` (observation): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/stderr). Exact jim stderr from the independent source-file shell capture.
-- `jim-version.stdout` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stdout](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stdout). Exact jim version.stdout from the independent source-file shell capture.
-- `jim-version.stderr` (provider): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stderr](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim/version.stderr). Exact jim version.stderr from the independent source-file shell capture.
-- `functions-script-prefix-0` (source-anchor): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json). JSON pointer `/source_rows/0/snippet`. Exact independently inspected C 8.5.19 InfoFunctionsCmd script-construction prefix; source/library execution association is not inferred.
-- `functions-script-prefix-1` (source-anchor): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json). JSON pointer `/source_rows/1/snippet`. Exact independently inspected C 8.6.18 InfoFunctionsCmd script-construction prefix; source/library execution association is not inferred.
-- `functions-script-prefix-2` (source-anchor): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json). JSON pointer `/source_rows/2/snippet`. Exact independently inspected C 9.0.4 InfoFunctionsCmd script-construction prefix; source/library execution association is not inferred.
-- `functions-script-prefix-3` (source-anchor): [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/functions-script-prefix.json). JSON pointer `/source_rows/3/snippet`. Exact independently inspected C 9.1.0 InfoFunctionsCmd script-construction prefix; source/library execution association is not inferred.
 
 ## Source inspection
 
@@ -182,30 +116,12 @@ tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdI
 "	    } [::namespace current]] ", -1);
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `info_functions_impl`: Use the selected native fixed table or original script and actual helpers rather than a replacement nominal table.
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `info_functions`: Preserve the selected function script/table and actual native helper lookup under the current interpreter.
 - [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers` (linked): Compare the matched finite C source/result purposes through the actual selected VM/Runtime provider; this binding claims no Rust execution or physical byte/header/cache parity.
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers` (linked): Compare the matched finite C source/result purposes through the actual selected VM/Runtime provider; this binding claims no Rust execution or physical byte/header/cache parity.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-cmd-core/tests/data/native_info_functions_loaded/replay.py",
-  "--verify-only"
-]
-```
-
-The verifier checks retained exact input/provider/stream associations and launches no native provider. The copied capture runner requires its recorded external environment and original absolute source/shell paths. Native executable/library/header/configure artifacts are not included. Numeric output units and materialised binary values supply no raw resident-string, direct counted API, cache or Rust execution claim.
-
 
 ## Exact original-source349 software outcomes
 
@@ -216,4 +132,14 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-cmd-core/tests/data/native_info_functions_loaded](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded)
+- [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.4.20)
+- [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.5.19)
+- [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/8.6.18)
+- [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.0.4)
+- [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/9.1.0)
+- [rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim](../../../../rust/tcl-cmd-core/tests/data/native_info_functions_loaded/jim)

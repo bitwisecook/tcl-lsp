@@ -292,19 +292,7 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmsh run cli script.
 - Exit status: 0
-- Standard output:
-
-```text-visible
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmsh-cli-script|setup|0|none|once|result|utf-8|0|1|696e7465727030
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmsh-cli-script|lookup|0|none|once|result|utf-8|0|1|382e342e3620382e34203a3a207b3a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c207b7d2030203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972327d
-NHO|nh20261012repair2|child-provider-and-proc-owner|tmsh-cli-script|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012repair2|child-tcltest-real-package|tmsh-cli-script|setup|0|none|once|result|utf-8|0|1|696e7465727030
-NHO|nh20261012repair2|child-tcltest-real-package|tmsh-cli-script|lookup|0|none|once|result|utf-8|0|1|322e322e38203a3a74636c746573743a3a74657374207b7d
-NHO|nh20261012repair2|child-tcltest-real-package|tmsh-cli-script|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmsh-cli-script|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012repair2|parent-proc-rename-owner|tmsh-cli-script|lookup|0|none|once|result|utf-8|0|1|7b7b7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972325f7461696c7d203a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c2030203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313272657061697232
-NHO|nh20261012repair2|parent-proc-rename-owner|tmsh-cli-script|runtime-cleanup|0|none|once|result|utf-8|0|1|756e6b6e6f776e20636f6d6d616e6420223a3a5f5f74636c5f6c73705f70726f62655f6e683230323631303132726570616972323a3a7461696c22
-```
+- Standard output: decoded below.
 
 - Standard error: empty.
 

@@ -20,55 +20,11 @@ Current shared Compiler conditional Registry source metadata for Native C/Jim pu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-- `authored-compiler-registry633-0ecd91ca3830` (implementation): [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs). Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,8 +41,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_command_table.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_table.rs), `command_binding::original_command_table::conditional_catalogue_source_tests::original_conditional_source_catalogue_requires_current_custom_cell_barriers` (linked): Authentic whole-source nested invocation selection withholds catalogue metadata after custom hosted call or Tcl defstyle cells; no outer script role can supply the missing inner selected owner.
 - [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs), `command_binding::original_command_table::advice_slot_tests::conditional_catalogue_index_preserves_actual_live_binding_obligations` (linked): Conditional registry advice under an unknown lookup retains its explicit UnknownCurrentLookup obligation, while Missing or a custom Proc binding refuses the catalogue proposal. The source candidate grants no live handler/body or Native publication.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
+- [rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_advice_slot_tests.rs)

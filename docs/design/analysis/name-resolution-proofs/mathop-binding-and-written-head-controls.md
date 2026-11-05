@@ -20,82 +20,24 @@ Ten exact ASCII sources, six shell providers; rename/import/alias/trace are actu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `observed`. Version: tcl8.4. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-10 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl8.5
-
-Status: `observed`. Version: tcl8.5. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-10 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl8.6
-
-Status: `observed`. Version: tcl8.6. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-10 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.0
-
-Status: `observed`. Version: tcl9.0. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-10 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.1
-
-Status: `observed`. Version: tcl9.1. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-10 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### jim
-
-Status: `observed`. Version: jim. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description. Version: tcl8.4 tcl8.4; tcl8.5 tcl8.5; tcl8.6 tcl8.6; tcl9.0 tcl9.0; tcl9.1 tcl9.1.
 
 10 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-## Historical references
-
-- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-1` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt](../../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `receipt-2` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_identity/cases.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/cases.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `maintained-source-replayer` (implementation): [scripts/dev/replay-grammar-native-source.py](../../../../scripts/dev/replay-grammar-native-source.py). Maintained source-only replay adapter; no fresh native execution is recorded by this contribution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_mathop.rs](../../../../runtime/rust/src/cmd_mathop.rs), `cmd_mathop::tests::selected_mathop_identity_matches_all_60_native_name_and_argv_controls` (linked): The Runtime comparison consumes all sixty unchanged recorded source/name/argument controls under authentic selected engine and explicit Jim loaded-library conformance bootstrap. Whole original public values remain independent from command-currency/opcode/header admission and no executed Rust pass is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "scripts/dev/replay-grammar-native-source.py",
-  "--proof",
-  "naming.mathop-binding-and-written-head-controls",
-  "--provider",
-  "8.4",
-  "--executable",
-  "/path/to/exact/recorded/provider",
-  "--output",
-  "/tmp/name-resolution-source-replay"
-]
-```
-
-Select each observed provider explicitly. The driver pins retained evidence bytes, checks independently launched patchlevel, preserves original source/wrapper bytes, compares process exit/stdout/stderr and writes a fresh provider receipt outside the repository. The shared two-slot limit and60-second timeout remain unchanged. Guest errors inside a catch are expected data. This driver replays source-only observations; it supplies no private-header or original-object identity evidence.
+- [rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/manifest.json)
+- [rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt](../../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/rows.txt)
+- [rust/tcl-cmd-core/tests/data/native_mathop_identity/cases.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_identity/cases.json)

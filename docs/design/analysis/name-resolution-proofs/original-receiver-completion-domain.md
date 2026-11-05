@@ -20,55 +20,11 @@ Readonly candidate selection for source class/object records and explicitly Logi
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is an editor source-schema/candidate implementation contract. No native provider execution or successful linked Rust test result is claimed.
-
-## Historical references
-
-- `receiver-whole-source609-82b2015aa5fe` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,8 +41,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::configured_receiver_completion_tests::logical_method_completion_keeps_whole_scalar_heads_and_current_source` (linked): Actual prefix and fuzzy Logical method completion retain whole braced Unicode scalar receiver heads and complete current source. Changed source, mixed literal/substitution suffixes, escaped heads, bare Unicode and array heads cannot borrow unrelated class candidates. Source syntax supplies no method identity, callable installation or rename permission.
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::configured_receiver_completion_tests::configured_scalar_completion_projection_keeps_array_and_brace_boundaries` (linked): The scalar completion projection retains the actual whole-word configuration, FirstClose/nesting distinction and separate array purposes. Dynamic indexes, compound or malformed heads and escaped/bare Unicode source do not become scalar receiver candidates; no Native cell or value is issued.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Linked selectors state source-schema, retained-context and candidate-domain obligations only. Root must retain exact frozen Rust validation receipts before a pass is claimed. Existing native naming observations are independent; this change issues no native target, successful execution, Normal, dispatch or edit capability.
+- [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs)

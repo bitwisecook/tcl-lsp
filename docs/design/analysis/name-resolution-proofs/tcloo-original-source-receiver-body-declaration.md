@@ -20,57 +20,11 @@ Two marked C8.6 source controls retain the original method m and exact source in
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original source method/body declaration and whole-vector applicability contract supplies no native deferred-body entry, method/object allocation, namespace, frame or completion observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original source method/body declaration and whole-vector applicability contract supplies no native deferred-body entry, method/object allocation, namespace, frame or completion observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original source method/body declaration and whole-vector applicability contract supplies no native deferred-body entry, method/object allocation, namespace, frame or completion observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original source method/body declaration and whole-vector applicability contract supplies no native deferred-body entry, method/object allocation, namespace, frame or completion observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original source method/body declaration and whole-vector applicability contract supplies no native deferred-body entry, method/object allocation, namespace, frame or completion observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original source method/body declaration and whole-vector applicability contract supplies no native deferred-body entry, method/object allocation, namespace, frame or completion observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original source method/body declaration and whole-vector applicability contract supplies no native deferred-body entry, method/object allocation, namespace, frame or completion observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,13 +41,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_child_receiver_visibility_keeps_unknown_namespace_and_body_owner_explicit` (linked): The visibility consumer uses the distinct selected original method-body declaration through its owns_invocation/full-input guard. This does not convert it into a Native preview-frame entry or class publication. Possible global-source fallback retains unknown executing receiver namespace and earlier local-binding obligations, and both diagnostic/source-edge subjects retain the same source receipt.
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_receiver_declaration_keeps_its_whole_parent_bom_configuration` (linked): Finite source-defined control: original receiver declaration keeps its whole parent bom configuration. Actual C9 child class/method declaration and supplied Skip/Content keep full parent parameter/body NativeWords through original_members and oo producers. The exact owned child vector belongs to its body; foreign/stale input/source refuse. No allocated class/method frame. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Marked selectors bind direct original source body ownership. Exact Rust outcomes require independently retained source/executable receipts; this source contract supplies no native body/frame/namespace or allocation observation.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -102,8 +49,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -113,4 +59,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 1 | 0 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

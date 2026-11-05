@@ -20,57 +20,11 @@ Three marked source/API controls cover complete availability and selected gramma
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-## Historical references
-
-- `naming-compiler-retained-representation-metadata-rust-tcl-compiler-src-compiler_checks.rs` (implementation): [rust/tcl-compiler/src/compiler_checks.rs](../../../../rust/tcl-compiler/src/compiler_checks.rs). Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
-- `naming-compiler-retained-representation-metadata-rust-tcl-compiler-src-shimmer-source_context.rs` (implementation): [rust/tcl-compiler/src/shimmer/source_context.rs](../../../../rust/tcl-compiler/src/shimmer/source_context.rs). Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
-- `naming-compiler-retained-representation-metadata-rust-tcl-compiler-src-word_subst.rs` (implementation): [rust/tcl-compiler/src/word_subst.rs](../../../../rust/tcl-compiler/src/word_subst.rs). Original expression-call inventories retain the complete original child owner and independently selected expression role before querying the real source purpose; Native parser/preparation and syntax guards remain separate.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -93,8 +47,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/shimmer/commit.rs](../../../../rust/tcl-compiler/src/shimmer/commit.rs), `shimmer::commit::tests::retained_increment_reads_use_literal_operand_names_without_reparsing_sigils` (linked): An actual retained FunctionUnit projects increment reads from literal original SSA names $value and unmatched Unicode é(, preserving their original symbol/version rather than stripping sigils or reparsing an element.
 - [rust/tcl-compiler/src/shimmer/byte_array.rs](../../../../rust/tcl-compiler/src/shimmer/byte_array.rs), `shimmer::byte_array::tests::retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots` (linked): Actual retained byte-provenance diagnostics keep literal sigil and Unicode store roots distinct from their plain names while selecting the same current function metadata and original source reads.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/compiler_checks.rs](../../../../rust/tcl-compiler/src/compiler_checks.rs)
+- [rust/tcl-compiler/src/shimmer/source_context.rs](../../../../rust/tcl-compiler/src/shimmer/source_context.rs)
+- [rust/tcl-compiler/src/word_subst.rs](../../../../rust/tcl-compiler/src/word_subst.rs)

@@ -24,55 +24,11 @@ The authored compatibility fixture carries its actual Logical source input and i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This class reporting-admission implementation contract supplies no native process, actual selected definition worker, closed own-method table, guaranteed Native abort, frame or edit observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,8 +38,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_class_abort_refuses_missing_retained_input` (linked): Copied advice flags and positively injected class abort rows with no actual retained input are drained without W315; the source tombstone remains.
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::original_class_abort_keeps_retained_logical_advice_despite_report_mutations` (linked): Actual custom Logical input admits all three bounded abort forms despite reporting-map/dialect mutations; later lexical advice withdrawal refuses additional candidates and preserves its source tombstone.
 - [rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs](../../../../rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs), `tcloo_navigation::native_retract_before_declare_withdraws_w315_and_keeps_the_outline` (linked): Actual Server integration source control withholds Native class W315 while retaining authored class outline/navigation; it establishes no native method table or interpreter execution.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs), `Analyser::emit_w315_definition_cannot_run`: Consume conditional authored abort candidates only under positively retained Logical declaration admission; local declaration coverage and source tombstones remain separate from an executed Native method table.
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::w315_fires_for_every_definition_aborting_retraction` (linked): Explicit retained Logical source compatibility reports missing members, occupied rename destinations and self-renames from the original authored order; populated class source facts do not establish a Native worker/table.
@@ -98,7 +52,3 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::w315_points_at_the_offending_word` (linked): The conditional Logical missing-member report retains the whole original offending name word span instead of deriving an editable subject from message prose.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Named Rust controls bind implementation source premises and refusals only. Actual compilation and assertions require separately retained validation receipts. No provider-labelled source profile supplies native execution, current allocation, entered frame or edit authority.

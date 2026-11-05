@@ -20,62 +20,11 @@ C8.6/C9.0/C9.1 fresh source class instance declarations with complete static ori
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this source transfer implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution of this source transfer implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this source transfer implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this source transfer implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this source transfer implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native execution of this source transfer implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native execution of this source transfer implementation question.
-
-## Historical references
-
-- `forward-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/0/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/1/snippet`. Exact LF source window for TclOONewForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/2/snippet`. Exact LF source window for InvokeForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/3/snippet`. Exact LF source window for DeleteForwardMethod under 8.6.18; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/4/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/5/snippet`. Exact LF source window for TclOONewForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-6` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/6/snippet`. Exact LF source window for InvokeForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-7` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/7/snippet`. Exact LF source window for DeleteForwardMethod under 9.0.4; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-8` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/8/snippet`. Exact LF source window for TclOODefineForwardObjCmd under 9.1.0; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-9` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/9/snippet`. Exact LF source window for TclOONewForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-10` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/10/snippet`. Exact LF source window for InvokeForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
-- `forward-source-11` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json). JSON pointer `/source_anchors/11/snippet`. Exact LF source window for DeleteForwardMethod under 9.1.0; registration stores the prefix, later dispatch and release are independent.
 
 ## Source inspection
 
@@ -489,7 +438,6 @@ DeleteForwardMethod(
 }
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `native_deferred_forward_setter`: Select exact C release, admitted instance forward grammar and nonempty prefix layout without target dispatch.
@@ -504,20 +452,6 @@ DeleteForwardMethod(
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `definer::original_forward_tests::original_forward_layout_requires_selected_oo_and_nonempty_prefix` (linked): Selected C86/C90/C91 require at least name and one prefix value; C84/C85/Jim and other members decline.
 - [rust/tcl-compiler/src/command_binding/receiver_self.rs](../../../../rust/tcl-compiler/src/command_binding/receiver_self.rs), `command_binding::receiver_self::tests::original_forward_override_cannot_select_the_stock_receiver_linker` (linked): A forward named variable blocks stock builtin candidate and the reached variable linker; source-only registration may complete while the unproved future call supplies no complete Normal world.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-compiler",
-  "original_forward_"
-]
-```
-
-Linked selectors require separate execution receipts. Source arguments retain pure original values only; normal source class creation uses the existing independently closed factory envelope. Future forward evaluation, custom cleanup and Native object storage are not certified.
+- [rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/source-anchors.json)

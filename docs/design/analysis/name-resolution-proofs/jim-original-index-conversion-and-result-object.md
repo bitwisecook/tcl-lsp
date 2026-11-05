@@ -20,39 +20,15 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.4.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.6.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.0.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
 
 ### jim
 
-Status: `observed`. Version: Jim; exact source/library/configuration hashes recorded; version query absent. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source.. Dialect: jim.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source. Version: jim Jim; exact source/library/configuration hashes recorded; version query absent.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -284,24 +260,6 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 }
 ```
 
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-syntax/tests/data/native_jim_index/manifest.json](../../../../rust/tcl-syntax/tests/data/native_jim_index/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-syntax/tests/data/native_jim_index/physical-manifest.json](../../../../rust/tcl-syntax/tests/data/native_jim_index/physical-manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (input): [rust/tcl-syntax/tests/data/native_jim_index/physical-probe.c](../../../../rust/tcl-syntax/tests/data/native_jim_index/physical-probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-3` (input): [rust/tcl-syntax/tests/data/native_jim_index/probe.c](../../../../rust/tcl-syntax/tests/data/native_jim_index/probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-4` (observation): [rust/tcl-syntax/tests/data/native_jim_index/rows.txt](../../../../rust/tcl-syntax/tests/data/native_jim_index/rows.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_jim_container_indices_reuse_the_original_safe_expression_primary` (linked): Software source definition checks jim container indices reuse the original safe expression primary.
@@ -311,8 +269,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_jim_index_integer_bypass_and_bad_string_preserve_primary_and_error_code_stage` (linked): Software source definition checks jim index integer bypass and bad string preserve primary and error code stage.
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_jim_list_indices_precede_list_getters_but_string_range_gets_its_subject_first` (linked): Software source definition checks jim list indices precede list getters but string range gets its subject first.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-syntax/tests/data/native_jim_index/manifest.json](../../../../rust/tcl-syntax/tests/data/native_jim_index/manifest.json)
+- [rust/tcl-syntax/tests/data/native_jim_index/physical-manifest.json](../../../../rust/tcl-syntax/tests/data/native_jim_index/physical-manifest.json)
+- [rust/tcl-syntax/tests/data/native_jim_index/physical-probe.c](../../../../rust/tcl-syntax/tests/data/native_jim_index/physical-probe.c)
+- [rust/tcl-syntax/tests/data/native_jim_index/probe.c](../../../../rust/tcl-syntax/tests/data/native_jim_index/probe.c)
+- [rust/tcl-syntax/tests/data/native_jim_index/rows.txt](../../../../rust/tcl-syntax/tests/data/native_jim_index/rows.txt)

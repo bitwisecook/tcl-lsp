@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. The recorded Jim rejects string is -failindex. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-plain.stdout`: tcl8.4 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-plain.stderr`: tcl8.4 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-qualified.stdout`: tcl8.4 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-qualified.stderr`: tcl8.4 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-index.stdout`: tcl8.4 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-index.stderr`: tcl8.4 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-binary_nul.stdout`: tcl8.4 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-binary_nul.stderr`: tcl8.4 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-decomposed.stdout`: tcl8.4 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-failindex-decomposed.stderr`: tcl8.4 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-plain.stdout`: tcl8.5 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-plain.stderr`: tcl8.5 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-qualified.stdout`: tcl8.5 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-qualified.stderr`: tcl8.5 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-index.stdout`: tcl8.5 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-index.stderr`: tcl8.5 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-binary_nul.stdout`: tcl8.5 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-binary_nul.stderr`: tcl8.5 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-decomposed.stdout`: tcl8.5 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-failindex-decomposed.stderr`: tcl8.5 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-plain.stdout`: tcl8.6 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-plain.stderr`: tcl8.6 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-qualified.stdout`: tcl8.6 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-qualified.stderr`: tcl8.6 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-index.stdout`: tcl8.6 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-index.stderr`: tcl8.6 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-binary_nul.stdout`: tcl8.6 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-binary_nul.stderr`: tcl8.6 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-decomposed.stdout`: tcl8.6 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-failindex-decomposed.stderr`: tcl8.6 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-plain.stdout`: tcl9.0 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-plain.stderr`: tcl9.0 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-qualified.stdout`: tcl9.0 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-qualified.stderr`: tcl9.0 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-index.stdout`: tcl9.0 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-index.stderr`: tcl9.0 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-binary_nul.stdout`: tcl9.0 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-binary_nul.stderr`: tcl9.0 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-decomposed.stdout`: tcl9.0 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-failindex-decomposed.stderr`: tcl9.0 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-plain.stdout`: tcl9.1 failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-plain.stderr`: tcl9.1 failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-qualified.stdout`: tcl9.1 failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-qualified.stderr`: tcl9.1 failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-index.stdout`: tcl9.1 failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-index.stderr`: tcl9.1 failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-binary_nul.stdout`: tcl9.1 failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-binary_nul.stderr`: tcl9.1 failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-decomposed.stdout`: tcl9.1 failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-failindex-decomposed.stderr`: tcl9.1 failindex-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl`: Exact original failindex-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-plain.stdout`: jim failindex-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-plain.stderr`: jim failindex-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-qualified.tcl`: Exact original failindex-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-qualified.stdout`: jim failindex-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-qualified.stderr`: jim failindex-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-index.tcl`: Exact original failindex-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-index.stdout`: jim failindex-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-index.stderr`: jim failindex-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-binary_nul.tcl`: Exact original failindex-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-binary_nul.stdout`: jim failindex-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-binary_nul.stderr`: jim failindex-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-decomposed.tcl`: Exact original failindex-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-decomposed.stdout`: jim failindex-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-failindex-decomposed.stderr`: jim failindex-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/failindex-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

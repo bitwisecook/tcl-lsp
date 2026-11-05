@@ -20,84 +20,30 @@ Only the recorded C Tcl9.1.0 process linked to the hashed private-header build i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Private C probe with public Tcl_EvalObjv entry; execution fails before a retained observation.. Dialect: Tcl.
+Status: `observed`. Channel: Private C probe with public Tcl_EvalObjv entry; execution fails before a retained observation. Version: tcl9.1 9.1.0.
 
 The recorded compiler succeeds and the isolated native process exits -11 with empty stdout/stderr. This is an observed process failure; no guest property ownership was measured.
 
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
-
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (observation): [runtime/rust/tests/data/native_property_clientdata/initial-manifest.json](../../../../runtime/rust/tests/data/native_property_clientdata/initial-manifest.json). Compile success and run exit -11, exact failed probe/build/executable hashes; no emitted native rows.
-- `e1` (input): [runtime/rust/tests/data/native_property_clientdata/initial-probe.c](../../../../runtime/rust/tests/data/native_property_clientdata/initial-probe.c). Exact failed C probe whose hash matches the original receipt.
-- `e2` (observation): [runtime/rust/tests/data/native_property_clientdata/initial-native.tsv](../../../../runtime/rust/tests/data/native_property_clientdata/initial-native.tsv). Empty retained stdout for the failed process.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I${TCL_SOURCE}/generic",
-  "-I${TCL_SOURCE}/unix",
-  "runtime/rust/tests/data/native_property_clientdata/initial-probe.c",
-  "${TCL_BUILD}/libtcl${TCL_ABI}.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "${PROBE_EXE}"
-]
-```
-
-The expected original process failure is not a successful guest comparison. Reconfirming it may terminate the isolated probe process; it must never be counted as a passed property test. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted.
+- [runtime/rust/tests/data/native_property_clientdata/initial-manifest.json](../../../../runtime/rust/tests/data/native_property_clientdata/initial-manifest.json)
+- [runtime/rust/tests/data/native_property_clientdata/initial-probe.c](../../../../runtime/rust/tests/data/native_property_clientdata/initial-probe.c)
+- [runtime/rust/tests/data/native_property_clientdata/initial-native.tsv](../../../../runtime/rust/tests/data/native_property_clientdata/initial-native.tsv)

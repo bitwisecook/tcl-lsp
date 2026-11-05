@@ -20,55 +20,11 @@ Lexical-only Core and MCP variable extraction compatibility. Single braced/quote
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust consumer contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This Rust consumer contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs). Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,8 +34,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs), `refactor::extract_variable::tests::logical_invalid_multiword_value_never_becomes_a_four_argument_set` (linked): Invalid multiword values, absent parser and unsafe names refuse.
 - [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs), `refactor::extract_variable::tests::logical_one_line_body_insertion_remains_inside_the_original_body` (linked): One-line procedure insertion stays inside its actual body.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named fixed Rust selectors bind validation obligations. No Rust execution receipt is attached to this implementation contract. No native interpreter experiment or overall passing suite is claimed. Missing authority and unsupported source purposes remain explicit in the scope and conclusion.
+- [rust/tcl-lsp-core/src/refactor/extract_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_variable.rs)

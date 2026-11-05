@@ -16,55 +16,10 @@ set q 1; trace variable q r {list}; trace vinfo q⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case t_trace_old
+### TMM log tag tmm, RULE_INIT, case t_trace_old; TMM log tag tmm1, RULE_INIT, case t_trace_old; TMM log tag tmm2, RULE_INIT, case t_trace_old; TMM log tag tmm3, RULE_INIT, case t_trace_old
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{r list} {r list} {r list} {r list} {r list}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm1, RULE_INIT, case t_trace_old
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{r list} {r list} {r list} {r list} {r list}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm2, RULE_INIT, case t_trace_old
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{r list} {r list} {r list} {r list} {r list}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm3, RULE_INIT, case t_trace_old
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -106,25 +61,10 @@ The wrapper recorded Tcl completion code 0.
 
 The wrapper recorded Tcl completion code 0.
 
-### iApp implementation, case t_trace_old
+### iApp implementation, case t_trace_old; iCall script, case t_trace_old
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{r list}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iCall script, case t_trace_old
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
+- Recorded input channel: iApp implementation; iCall script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.

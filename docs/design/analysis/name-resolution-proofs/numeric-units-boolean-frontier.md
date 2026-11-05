@@ -22,7 +22,7 @@ C public original-object boolean getter is reached by one native callback from A
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl8.4 8.4.20 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -47,7 +47,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl8.5 8.5.19 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -72,7 +72,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl8.6 8.6.18 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -95,34 +95,9 @@ getter=2 storage=1 case=6 code=1 cache=bytearray message=657870656374656420626f6
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-getter=2 storage=0 case=0 code=1 cache=string message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022e282ac7822 errorCode=54434c2056414c5545204e554d424552 input=8078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022e282ac7822
-getter=2 storage=0 case=1 code=1 cache=string message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c07822 errorCode=54434c2056414c5545204e554d424552 input=c078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c07822
-getter=2 storage=0 case=2 code=1 cache=string message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c0807822 errorCode=54434c2056414c5545204e554d424552 input=c08078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c0807822
-getter=2 storage=0 case=3 code=1 cache=string message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022ff7822 errorCode=54434c2056414c5545204e554d424552 input=ff78 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022ff7822
-getter=2 storage=0 case=4 code=1 cache=string message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022eda0807822 errorCode=54434c2056414c5545204e554d424552 input=eda08078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022eda0807822
-getter=2 storage=0 case=5 code=1 cache=string message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022f09f98807822 errorCode=54434c2056414c5545204e554d424552 input=f09f988078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022f09f98807822
-getter=2 storage=0 case=6 code=1 cache=string message=657870656374656420626f6f6c65616e2076616c75652062757420676f7420226161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122 errorCode=54434c2056414c5545204e554d424552 input=61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161f09f988078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f7420226161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122
-getter=2 storage=1 case=0 code=1 cache=bytearray message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c2807822 errorCode=54434c2056414c5545204e554d424552 input=c28078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c2807822
-getter=2 storage=1 case=1 code=1 cache=bytearray message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3807822 errorCode=54434c2056414c5545204e554d424552 input=c38078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3807822
-getter=2 storage=1 case=2 code=1 cache=bytearray message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c380c2807822 errorCode=54434c2056414c5545204e554d424552 input=c380c28078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c380c2807822
-getter=2 storage=1 case=3 code=1 cache=bytearray message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3bf7822 errorCode=54434c2056414c5545204e554d424552 input=c3bf78 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3bf7822
-getter=2 storage=1 case=4 code=1 cache=bytearray message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3adc2a0c2807822 errorCode=54434c2056414c5545204e554d424552 input=c3adc2a0c28078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3adc2a0c2807822
-getter=2 storage=1 case=5 code=1 cache=bytearray message=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3b0c29fc298c2807822 errorCode=54434c2056414c5545204e554d424552 input=c3b0c29fc298c28078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f742022c3b0c29fc298c2807822
-getter=2 storage=1 case=6 code=1 cache=bytearray message=657870656374656420626f6f6c65616e2076616c75652062757420676f7420226161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122 errorCode=54434c2056414c5545204e554d424552 input=61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161c3b0c29fc298c28078 primitive=657870656374656420626f6f6c65616e2076616c75652062757420676f7420226161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl9.0 9.0.4 (capture association; launched patchlevel/revision unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -145,39 +120,23 @@ getter=2 storage=1 case=6 code=1 cache=bytearray message=657870656374656420626f6
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/c-error-units-probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/c-error-units-probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.4.20.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.5.19.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.6.18.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.0.4.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.1.0.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/scalar_getter/errors.rs](../../../../rust/tcl-syntax/src/scalar_getter/errors.rs), `NativeScalarGetterProtocol::failure_presentation`: Retains primitive versus evaluated diagnostic and selected error-code update independently from representation conversion.
 - [rust/tcl-syntax/src/scalar_getter/tests/error_tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/tests/error_tests.rs), `scalar_getter::tests::error_tests::invalid_octal_and_native_character_units_match_actual_releases` (linked): Compares only the exact selected primitive/propgated/error-code fields across retained rows; no native callback dispatch authority is supplied.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/c-error-units-probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/c-error-units-probe.c)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-manifest.json)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.4.20.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.5.19.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-8.6.18.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.0.4.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/units-9.1.0.txt)

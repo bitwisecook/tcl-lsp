@@ -20,54 +20,23 @@ Pinned Tcl8.6.18/9.0.4/9.1.0 function bodies and Jim revision5bac7c99ad65864c87d
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, bigip
 
-Status: `not-tested`. Version: not inspected. Build: not recorded. Channel: not inspected. Dialect: Tcl.
-
-This source-inspection question has no retained excerpt for this provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not inspected. Build: not recorded. Channel: not inspected. Dialect: Tcl.
+Status: `not-tested`. Channel: not inspected. Version: tcl8.4 not inspected; tcl8.5 not inspected; bigip not inspected.
 
 This source-inspection question has no retained excerpt for this provider.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Source inspection only; no additional executable or build was invoked.. Channel: Inspected ParseTokens/Tcl_ParseVarName and native compiler function bodies; no native input invocation.. Dialect: Tcl.
-
-ParseTokens keeps separate substitution tokens; disabled sigils are one-byte TEXT, array-index ParseTokens uses TCL_SUBST_ALL, TclSubstCompile registers TEXT/BS separately while TclCompileTokens accumulates adjacent TEXT/BS.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Source inspection only; no additional executable or build was invoked.. Channel: Inspected ParseTokens/Tcl_ParseVarName and native compiler function bodies; no native input invocation.. Dialect: Tcl.
-
-ParseTokens keeps separate substitution tokens; disabled sigils are one-byte TEXT, array-index ParseTokens uses TCL_SUBST_ALL, TclSubstCompile registers TEXT/BS separately while TclCompileTokens accumulates adjacent TEXT/BS.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Source inspection only; no additional executable or build was invoked.. Channel: Inspected ParseTokens/Tcl_ParseVarName and native compiler function bodies; no native input invocation.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected ParseTokens/Tcl_ParseVarName and native compiler function bodies; no native input invocation. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 ParseTokens keeps separate substitution tokens; disabled sigils are one-byte TEXT, array-index ParseTokens uses TCL_SUBST_ALL, TclSubstCompile registers TEXT/BS separately while TclCompileTokens accumulates adjacent TEXT/BS.
 
 ### jim
 
-Status: `inspected`. Version: 0.84-9-g5bac7c9 source revision. Build: Source inspection only; no additional executable or build was invoked.. Channel: Inspected JimExpandDictSugar; no native input invocation.. Dialect: Jim Tcl.
+Status: `inspected`. Channel: Inspected JimExpandDictSugar; no native input invocation. Version: jim 0.84-9-g5bac7c9 source revision.
 
 Dictionary-sugar index expansion invokes Jim_SubstObj on the index object with JIM_NONE, independently of the outer template mask; this excerpt does not establish C template token splitting for Jim.
-
-### bigip
-
-Status: `not-tested`. Version: not inspected. Build: not recorded. Channel: not inspected. Dialect: F5 iRules.
-
-This source-inspection question has no retained excerpt for this provider.
-
-## Historical references
-
-- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt). Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
-- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt). Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
-- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt). Exact pinned C parser, variable-index parser, substitution compiler and ordinary word compiler function windows; complete-source hashes and one-based line locations retained.
-- `source-jim` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt). Exact JimExpandDictSugar function from pinned revision5bac7c99ad65864c87da513e22e2f01703fa4e03.
 
 ## Source inspection
 
@@ -2664,7 +2633,6 @@ static Jim_Obj *JimExpandDictSugar(Jim_Interp *interp, Jim_Obj *objPtr)
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `scan_parts`: Shared selected template and recursive index component scanner.
@@ -2674,8 +2642,9 @@ static Jim_Obj *JimExpandDictSugar(Jim_Interp *interp, Jim_Obj *objPtr)
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `word_parts::template_policy_tests::c_template_retains_disabled_sigil_and_escape_token_boundaries` (linked): Selected CTcl root tokens preserve disabled-sigil/raw-zero/escape splitting; ordinary WrittenWord retains its merged text purpose.
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `word_parts::tests::outer_substitution_mask_does_not_disable_array_index_commands` (linked): Recursive scanner index children use independently enabled substitutions, while disabled outer variable substitution keeps the entire reference literal.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Source inspection only. Reconfirm each exact retained function window against the pinned full source file SHA and one-based lines; no compiler or native executable is launched. Empirical matrix comparisons remain in naming.substitution.counted-template-completions.
+- [rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/8.6.18.txt)
+- [rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.0.4.txt)
+- [rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/9.1.0.txt)
+- [rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt](../../../../rust/tcl-registry/tests/data/native_substitution_token_source/jim-5bac7c9.txt)

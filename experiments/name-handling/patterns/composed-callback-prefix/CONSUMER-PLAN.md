@@ -1,14 +1,14 @@
 # Can the original source-reference consumer accept this pair?
 
 Status: four concrete consumer tests are applied inside `references.rs`.
-The [body-helper corrected run](results/composed-callback-consumer/frozen-build-3/result.json)
+The body-helper corrected run
 executed exactly four: one adverse absence control passed; three positive and
 owner-currentness controls failed. The first actual barrier is a missing
 `source_authored_command_prefix` receipt after original builder/schema checks
 passed. Positive references retain only the declaration. Adverse absence cannot
 prove writer-caused withdrawal without an eligible positive baseline.
-The [prior helper failure and separate Logical hint failure](results/composed-callback-consumer/frozen-build-2/result.json)
-and [prior compilation failure](results/composed-callback-consumer/frozen-build-1/result.json)
+The prior helper failure and separate Logical hint failure
+and prior compilation failure
 remain retained. No assertion was weakened, no production heuristic changed,
 and native oracle observations remain independent.
 

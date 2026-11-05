@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-plain.tcl`: Exact original lset-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-plain.stdout`: tcl8.4 lset-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-plain.stderr`: tcl8.4 lset-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-qualified.tcl`: Exact original lset-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-qualified.stdout`: tcl8.4 lset-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-qualified.stderr`: tcl8.4 lset-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-index.tcl`: Exact original lset-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-index.stdout`: tcl8.4 lset-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-index.stderr`: tcl8.4 lset-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-binary_nul.tcl`: Exact original lset-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-binary_nul.stdout`: tcl8.4 lset-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-binary_nul.stderr`: tcl8.4 lset-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-decomposed.tcl`: Exact original lset-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-decomposed.stdout`: tcl8.4 lset-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lset-decomposed.stderr`: tcl8.4 lset-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-plain.tcl`: Exact original lset-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-plain.stdout`: tcl8.5 lset-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-plain.stderr`: tcl8.5 lset-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-qualified.tcl`: Exact original lset-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-qualified.stdout`: tcl8.5 lset-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-qualified.stderr`: tcl8.5 lset-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-index.tcl`: Exact original lset-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-index.stdout`: tcl8.5 lset-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-index.stderr`: tcl8.5 lset-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-binary_nul.tcl`: Exact original lset-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-binary_nul.stdout`: tcl8.5 lset-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-binary_nul.stderr`: tcl8.5 lset-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-decomposed.tcl`: Exact original lset-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-decomposed.stdout`: tcl8.5 lset-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lset-decomposed.stderr`: tcl8.5 lset-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-plain.tcl`: Exact original lset-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-plain.stdout`: tcl8.6 lset-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-plain.stderr`: tcl8.6 lset-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-qualified.tcl`: Exact original lset-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-qualified.stdout`: tcl8.6 lset-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-qualified.stderr`: tcl8.6 lset-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-index.tcl`: Exact original lset-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-index.stdout`: tcl8.6 lset-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-index.stderr`: tcl8.6 lset-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-binary_nul.tcl`: Exact original lset-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-binary_nul.stdout`: tcl8.6 lset-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-binary_nul.stderr`: tcl8.6 lset-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-decomposed.tcl`: Exact original lset-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-decomposed.stdout`: tcl8.6 lset-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lset-decomposed.stderr`: tcl8.6 lset-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-plain.tcl`: Exact original lset-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-plain.stdout`: tcl9.0 lset-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-plain.stderr`: tcl9.0 lset-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-qualified.tcl`: Exact original lset-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-qualified.stdout`: tcl9.0 lset-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-qualified.stderr`: tcl9.0 lset-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-index.tcl`: Exact original lset-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-index.stdout`: tcl9.0 lset-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-index.stderr`: tcl9.0 lset-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-binary_nul.tcl`: Exact original lset-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-binary_nul.stdout`: tcl9.0 lset-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-binary_nul.stderr`: tcl9.0 lset-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-decomposed.tcl`: Exact original lset-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-decomposed.stdout`: tcl9.0 lset-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lset-decomposed.stderr`: tcl9.0 lset-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-plain.tcl`: Exact original lset-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-plain.stdout`: tcl9.1 lset-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-plain.stderr`: tcl9.1 lset-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-qualified.tcl`: Exact original lset-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-qualified.stdout`: tcl9.1 lset-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-qualified.stderr`: tcl9.1 lset-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-index.tcl`: Exact original lset-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-index.stdout`: tcl9.1 lset-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-index.stderr`: tcl9.1 lset-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-binary_nul.tcl`: Exact original lset-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-binary_nul.stdout`: tcl9.1 lset-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-binary_nul.stderr`: tcl9.1 lset-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-decomposed.tcl`: Exact original lset-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-decomposed.stdout`: tcl9.1 lset-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lset-decomposed.stderr`: tcl9.1 lset-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-plain.tcl`: Exact original lset-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-plain.stdout`: jim lset-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-plain.stderr`: jim lset-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-qualified.tcl`: Exact original lset-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-qualified.stdout`: jim lset-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-qualified.stderr`: jim lset-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-index.tcl`: Exact original lset-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-index.stdout`: jim lset-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-index.stderr`: jim lset-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-binary_nul.tcl`: Exact original lset-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-binary_nul.stdout`: jim lset-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-binary_nul.stderr`: jim lset-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-decomposed.tcl`: Exact original lset-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-decomposed.stdout`: jim lset-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lset-decomposed.stderr`: jim lset-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/lset-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

@@ -20,55 +20,11 @@ Two fixed source-classification selectors use a Tcl9.0 grammar and an independen
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No native provider execution is attached to this source classification contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No native provider execution is attached to this source classification contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No native provider execution is attached to this source classification contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No native provider execution is attached to this source classification contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No native provider execution is attached to this source classification contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native provider execution is attached to this source classification contract.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native provider execution is attached to this source classification contract.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `scan_nested_substitution_words`: Recover nested substitution boundaries and expression roles using retained scanner grammar.
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `ssa::tests::source_ownership_classification_uses_the_retained_lexical_config` (linked): Two fixed unknown-wrapper bodies yield opposite quoted/substituted classifications under Tcl and Jim retained grammar; nondefault coordinates normalize only through the scanner owner.
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `ssa::tests::nested_source_expression_roles_use_the_retained_lexical_config` (linked): A vertical-tab nested head carries a Tcl expression role but remains a distinct Jim command head; the Registry label cannot supply a substituted read.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Named body-marked Rust selectors are authored coverage bindings. Executed outcomes require independent exact-source receipts; no native observation or Rust success is attached here.

@@ -1315,217 +1315,111 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|setup|0|none|once|result|utf-8|0|1|3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a656d6974207b6120627d
-NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a656d697422
-NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a656d6974220a202020207768696c6520657865637574696e670a223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f616c6961735f7072656669785f6c69666574696d653a3a72656e616d6564207b6320647d220a2020202028226576616c2220626f6479206c696e6520
-NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|1|2|31290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012pat1|alias-prefix-lifetime|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|setup|1|none|once|result|utf-8|0|1|63616e27742072656e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e3a3a656d6974223a20636f6d6d616e6420646f65736e2774206578697374
-NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|setup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|setup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|setup|1|none|once|errorinfo|utf-8|0|2|63616e27742072656e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e3a3a656d6974223a20636f6d6d616e6420646f65736e27742065786973740a202020207768696c6520657865637574696e670a2272656e616d65203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e3a3a656d6974203a3a
-NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|setup|1|none|once|errorinfo|utf-8|1|2|5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f62696e64696e675f6d75746174696f6e3a3a6f6c64220a2020202028226576616c2220626f6479206c696e652035290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-NHO|nh20261012pat1|computed-binding-mutation|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|computed-qualified|iapp-implementation|setup|0|none|once|result|utf-8|0|1|3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c69666965643a3a656d6974
-NHO|nh20261012pat1|computed-qualified|iapp-implementation|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c69666965643a3a656d697422
-NHO|nh20261012pat1|computed-qualified|iapp-implementation|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|computed-qualified|iapp-implementation|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|computed-qualified|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f636f6d70757465645f7175616c69666965643a3a656d6974220a202020207768696c6520657865637574696e670a222468656164220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012pat1|computed-qualified|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|1|none|once|result|utf-8|0|1|626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f72207768696368
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|1|none|once|errorinfo|utf-8|0|4|626164206f7074696f6e2022656e73656d626c65223a206d757374206265206368696c6472656e2c20636f64652c2063757272656e742c2064656c6574652c206576616c2c206578697374732c206578706f72742c20666f726765742c20696d706f72742c20696e73636f70652c206f726967696e2c20706172656e742c207175616c6966696572732c207461696c2c206f722077686963680a202020207768696c6520657865637574696e670a226e616d65737061636520656e73656d626c6520637265617465
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|1|none|once|errorinfo|utf-8|1|4|202d636f6d6d616e6420666163616465202d6d6170205b6c6973742073656e64205b6c697374203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d61703a3a656d6974207b6120627d5d5d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d61702220736372697074206c696e652033
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|1|none|once|errorinfo|utf-8|2|4|290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f656e73656d626c655f7072656669785f6d6170207b0a2020202070726f6320656d6974207b66697865642076616c75657d207b6c69737420246669786564202476616c75657d0a202020206e616d65737061636520656e73656d626c6520637265617465202e2e2e220a2020202028226576616c2220626f6479206c
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|setup|1|none|once|errorinfo|utf-8|3|4|696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-NHO|nh20261012pat1|ensemble-prefix-map|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d6973733a3a72656422
-NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d6973733a3a726564220a202020207768696c6520657865637574696e670a223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f666163746f72795f626f64795f6e6561725f6d6973733a3a726564220a2020202028226576616c2220626f6479206c696e652031290a20202020696e
-NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|1|2|766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012pat1|factory-body-near-miss|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|finite-factory|iapp-implementation|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|finite-factory|iapp-implementation|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f72793a3a72656422
-NHO|nh20261012pat1|finite-factory|iapp-implementation|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|finite-factory|iapp-implementation|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|finite-factory|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f72793a3a726564220a202020207768696c6520657865637574696e670a223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f66696e6974655f666163746f72793a3a726564220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d207769746869
-NHO|nh20261012pat1|finite-factory|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|1|2|6e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012pat1|finite-factory|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|frame-wrapper|iapp-implementation|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|frame-wrapper|iapp-implementation|lookup|0|none|once|result|utf-8|0|1|6368616e676564
-NHO|nh20261012pat1|frame-wrapper|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|frame-wrapper-near-miss|iapp-implementation|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|frame-wrapper-near-miss|iapp-implementation|lookup|0|none|once|result|utf-8|0|1|6f726967696e616c
-NHO|nh20261012pat1|frame-wrapper-near-miss|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|setup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b3a3a6368616e676522
-NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|setup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|setup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|setup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b3a3a6368616e6765220a202020207768696c6520657865637574696e670a223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6b657965645f7661726961626c655f6c696e6b3a3a6368616e6765207b73746174652e6120627d220a2020202028226576616c2220626f6479206c69
-NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|setup|1|none|once|errorinfo|utf-8|1|2|6e652039290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-NHO|nh20261012pat1|keyed-variable-link|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|list-prefix|iapp-implementation|setup|0|none|once|result|utf-8|0|1|7b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f7072656669783a3a74776f20776f7264737d207b6120627d
-NHO|nh20261012pat1|list-prefix|iapp-implementation|lookup|0|none|once|result|utf-8|0|1|7b6120627d207b6320647d
-NHO|nh20261012pat1|list-prefix|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|756e6b6e6f776e20636f6d6d616e6420223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6c6973745f7072656669783a3a74776f20776f72647322
-NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|lookup|1|none|once|result|utf-8|0|1|63616e2774207265616420223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669783a3a707265666978223a206e6f2073756368207661726961626c65
-NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|0|2|63616e2774207265616420223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669783a3a707265666978223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226c696e7365727420243a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6e616d6573706163655f63617074757265645f7072656669783a3a70726566697820656e64
-NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|1|2|207b6320647d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012pat1|namespace-captured-prefix|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|setup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|setup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|setup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|setup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f7072656669785f64656c657465645f6e6561725f6d6973733a3a436c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978
-NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|setup|1|none|once|errorinfo|utf-8|1|2|207b7d202e2e2e220a2020202028226576616c2220626f6479206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-NHO|nh20261012pat1|oo-prefix-deleted-near-miss|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|setup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|setup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|setup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|setup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c617373220a202020207768696c6520657865637574696e670a226f6f3a3a636c61737320637265617465203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f6f6f5f73656c665f7072656669783a3a436c617373207b0a202020206d6574686f6420656d6974207b76616c75657d207b6c697374206f6b202476616c75657d0a202020206d6574686f6420707265666978207b7d207b6c697374205b7365
-NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|setup|1|none|once|errorinfo|utf-8|1|2|6c665d202e2e2e220a2020202028226576616c2220626f6479206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-NHO|nh20261012pat1|oo-self-prefix|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|setup|0|none|once|result|utf-8|0|1|3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973733a3a74776f20776f726473
-NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|lookup|1|none|once|result|utf-8|0|1|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973733a3a74776f22
-NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|0|2|696e76616c696420636f6d6d616e64206e616d6520223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973733a3a74776f220a202020207768696c6520657865637574696e670a223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973733a3a74776f20776f726473207b6120627d207b6320647d220a2020202028226576616c22
-NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|lookup|1|none|once|errorinfo|utf-8|1|2|20626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c202224746172676574207b6120627d207b6320647d22220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012pat1|string-prefix-near-miss|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|756e6b6e6f776e20636f6d6d616e6420223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313270617431335f737472696e675f7072656669785f6e6561725f6d6973733a3a74776f20776f72647322
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|result|utf-8|0|1|63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|errorinfo|utf-8|0|5|63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|errorinfo|utf-8|1|5|616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a6572
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|errorinfo|utf-8|2|5|7322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|errorinfo|utf-8|3|5|746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|setup|1|none|once|errorinfo|utf-8|4|5|7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c74657374220a2020202028226576616c2220626f6479206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-NHO|nh20261012pat1|tcltest-shared-lifecycle|iapp-implementation|runtime-cleanup|0|none|once|result|utf-8|0|1|
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- alias-prefix-lifetime, setup, completion 0, result, chunk 0 of 1:
+- alias-prefix-lifetime, setup, completion 0, result:
 
 ```text-visible
 ::__tcl_lsp_probe_nh20261012pat13_alias_prefix_lifetime::emit {a b}⟦EOF⟧
 ```
 
-- alias-prefix-lifetime, lookup, completion 1, result, chunk 0 of 1:
+- alias-prefix-lifetime, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_alias_prefix_lifetime::emit"⟦EOF⟧
 ```
 
-- alias-prefix-lifetime, lookup, completion 1, metadata, chunk 0 of 1:
+- alias-prefix-lifetime, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- alias-prefix-lifetime, lookup, completion 1, errorcode, chunk 0 of 1:
+- alias-prefix-lifetime, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- alias-prefix-lifetime, lookup, completion 1, errorinfo, chunk 0 of 2:
+- alias-prefix-lifetime, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_alias_prefix_lifetime::emit"
     while executing
 "::__tcl_lsp_probe_nh20261012pat13_alias_prefix_lifetime::renamed {c d}"
-    ("eval" body line⟦SPACE⟧⟦EOF⟧
-```
-
-- alias-prefix-lifetime, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- alias-prefix-lifetime, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- alias-prefix-lifetime, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- computed-binding-mutation, setup, completion 1, result, chunk 0 of 1:
+- computed-binding-mutation, setup, completion 1, result:
 
 ```text-visible
 can't rename "::__tcl_lsp_probe_nh20261012pat13_computed_binding_mutation::emit": command doesn't exist⟦EOF⟧
 ```
 
-- computed-binding-mutation, setup, completion 1, metadata, chunk 0 of 1:
+- computed-binding-mutation, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- computed-binding-mutation, setup, completion 1, errorcode, chunk 0 of 1:
+- computed-binding-mutation, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- computed-binding-mutation, setup, completion 1, errorinfo, chunk 0 of 2:
+- computed-binding-mutation, setup, completion 1, errorinfo:
 
 ```text-visible
 can't rename "::__tcl_lsp_probe_nh20261012pat13_computed_binding_mutation::emit": command doesn't exist
     while executing
-"rename ::__tcl_lsp_probe_nh20261012pat13_computed_binding_mutation::emit ::⟦EOF⟧
-```
-
-- computed-binding-mutation, setup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-__tcl_lsp_probe_nh20261012pat13_computed_binding_mutation::old"
+"rename ::__tcl_lsp_probe_nh20261012pat13_computed_binding_mutation::emit ::__tcl_lsp_probe_nh20261012pat13_computed_binding_mutation::old"
     ("eval" body line 5)
     invoked from within
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- computed-binding-mutation, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- computed-binding-mutation, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- computed-qualified, setup, completion 0, result, chunk 0 of 1:
+- computed-qualified, setup, completion 0, result:
 
 ```text-visible
 ::__tcl_lsp_probe_nh20261012pat13_computed_qualified::emit⟦EOF⟧
 ```
 
-- computed-qualified, lookup, completion 1, result, chunk 0 of 1:
+- computed-qualified, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_computed_qualified::emit"⟦EOF⟧
 ```
 
-- computed-qualified, lookup, completion 1, metadata, chunk 0 of 1:
+- computed-qualified, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- computed-qualified, lookup, completion 1, errorcode, chunk 0 of 1:
+- computed-qualified, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- computed-qualified, lookup, completion 1, errorinfo, chunk 0 of 1:
+- computed-qualified, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_computed_qualified::emit"
@@ -1536,429 +1430,369 @@ invalid command name "::__tcl_lsp_probe_nh20261012pat13_computed_qualified::emit
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- computed-qualified, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- computed-qualified, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- ensemble-prefix-map, setup, completion 1, result, chunk 0 of 1:
+- ensemble-prefix-map, setup, completion 1, result:
 
 ```text-visible
 bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which⟦EOF⟧
 ```
 
-- ensemble-prefix-map, setup, completion 1, metadata, chunk 0 of 1:
+- ensemble-prefix-map, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- ensemble-prefix-map, setup, completion 1, errorcode, chunk 0 of 1:
+- ensemble-prefix-map, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- ensemble-prefix-map, setup, completion 1, errorinfo, chunk 0 of 4:
+- ensemble-prefix-map, setup, completion 1, errorinfo:
 
 ```text-visible
 bad option "ensemble": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which
     while executing
-"namespace ensemble create⟦EOF⟧
-```
-
-- ensemble-prefix-map, setup, completion 1, errorinfo, chunk 1 of 4:
-
-```text-visible
- -command facade -map [list send [list ::__tcl_lsp_probe_nh20261012pat13_ensemble_prefix_map::emit {a b}]]"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012pat13_ensemble_prefix_map" script line 3⟦EOF⟧
-```
-
-- ensemble-prefix-map, setup, completion 1, errorinfo, chunk 2 of 4:
-
-```text-visible
-)
+"namespace ensemble create -command facade -map [list send [list ::__tcl_lsp_probe_nh20261012pat13_ensemble_prefix_map::emit {a b}]]"
+    (in namespace eval "::__tcl_lsp_probe_nh20261012pat13_ensemble_prefix_map" script line 3)
     invoked from within
 "namespace eval ::__tcl_lsp_probe_nh20261012pat13_ensemble_prefix_map {
     proc emit {fixed value} {list $fixed $value}
     namespace ensemble create ..."
-    ("eval" body l⟦EOF⟧
-```
-
-- ensemble-prefix-map, setup, completion 1, errorinfo, chunk 3 of 4:
-
-```text-visible
-ine 2)
+    ("eval" body line 2)
     invoked from within
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- ensemble-prefix-map, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- ensemble-prefix-map, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- factory-body-near-miss, setup, completion 0, result, chunk 0 of 1:
+- factory-body-near-miss, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- factory-body-near-miss, lookup, completion 1, result, chunk 0 of 1:
+- factory-body-near-miss, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_factory_body_near_miss::red"⟦EOF⟧
 ```
 
-- factory-body-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
+- factory-body-near-miss, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- factory-body-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
+- factory-body-near-miss, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- factory-body-near-miss, lookup, completion 1, errorinfo, chunk 0 of 2:
+- factory-body-near-miss, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_factory_body_near_miss::red"
     while executing
 "::__tcl_lsp_probe_nh20261012pat13_factory_body_near_miss::red"
     ("eval" body line 1)
-    in⟦EOF⟧
-```
-
-- factory-body-near-miss, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-voked from within
+    invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- factory-body-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- factory-body-near-miss, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- finite-factory, setup, completion 0, result, chunk 0 of 1:
+- finite-factory, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- finite-factory, lookup, completion 1, result, chunk 0 of 1:
+- finite-factory, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_finite_factory::red"⟦EOF⟧
 ```
 
-- finite-factory, lookup, completion 1, metadata, chunk 0 of 1:
+- finite-factory, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- finite-factory, lookup, completion 1, errorcode, chunk 0 of 1:
+- finite-factory, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- finite-factory, lookup, completion 1, errorinfo, chunk 0 of 2:
+- finite-factory, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_finite_factory::red"
     while executing
 "::__tcl_lsp_probe_nh20261012pat13_finite_factory::red"
     ("eval" body line 1)
-    invoked from withi⟦EOF⟧
-```
-
-- finite-factory, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-n
+    invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- finite-factory, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- finite-factory, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- frame-wrapper, setup, completion 0, result, chunk 0 of 1:
+- frame-wrapper, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- frame-wrapper, lookup, completion 0, result, chunk 0 of 1:
+- frame-wrapper, lookup, completion 0, result:
 
 ```text-visible
 changed⟦EOF⟧
 ```
 
-- frame-wrapper, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- frame-wrapper, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- frame-wrapper-near-miss, setup, completion 0, result, chunk 0 of 1:
+- frame-wrapper-near-miss, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- frame-wrapper-near-miss, lookup, completion 0, result, chunk 0 of 1:
+- frame-wrapper-near-miss, lookup, completion 0, result:
 
 ```text-visible
 original⟦EOF⟧
 ```
 
-- frame-wrapper-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- frame-wrapper-near-miss, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- keyed-variable-link, setup, completion 1, result, chunk 0 of 1:
+- keyed-variable-link, setup, completion 1, result:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_keyed_variable_link::change"⟦EOF⟧
 ```
 
-- keyed-variable-link, setup, completion 1, metadata, chunk 0 of 1:
+- keyed-variable-link, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- keyed-variable-link, setup, completion 1, errorcode, chunk 0 of 1:
+- keyed-variable-link, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- keyed-variable-link, setup, completion 1, errorinfo, chunk 0 of 2:
+- keyed-variable-link, setup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_keyed_variable_link::change"
     while executing
 "::__tcl_lsp_probe_nh20261012pat13_keyed_variable_link::change {state.a b}"
-    ("eval" body li⟦EOF⟧
-```
-
-- keyed-variable-link, setup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-ne 9)
+    ("eval" body line 9)
     invoked from within
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- keyed-variable-link, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- keyed-variable-link, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- list-prefix, setup, completion 0, result, chunk 0 of 1:
+- list-prefix, setup, completion 0, result:
 
 ```text-visible
 {::__tcl_lsp_probe_nh20261012pat13_list_prefix::two words} {a b}⟦EOF⟧
 ```
 
-- list-prefix, lookup, completion 0, result, chunk 0 of 1:
+- list-prefix, lookup, completion 0, result:
 
 ```text-visible
 {a b} {c d}⟦EOF⟧
 ```
 
-- list-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- list-prefix, runtime-cleanup, completion 0, result:
 
 ```text-visible
 unknown command "::__tcl_lsp_probe_nh20261012pat13_list_prefix::two words"⟦EOF⟧
 ```
 
-- namespace-captured-prefix, setup, completion 0, result, chunk 0 of 1:
+- namespace-captured-prefix, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- namespace-captured-prefix, lookup, completion 1, result, chunk 0 of 1:
+- namespace-captured-prefix, lookup, completion 1, result:
 
 ```text-visible
 can't read "::__tcl_lsp_probe_nh20261012pat13_namespace_captured_prefix::prefix": no such variable⟦EOF⟧
 ```
 
-- namespace-captured-prefix, lookup, completion 1, metadata, chunk 0 of 1:
+- namespace-captured-prefix, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- namespace-captured-prefix, lookup, completion 1, errorcode, chunk 0 of 1:
+- namespace-captured-prefix, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- namespace-captured-prefix, lookup, completion 1, errorinfo, chunk 0 of 2:
+- namespace-captured-prefix, lookup, completion 1, errorinfo:
 
 ```text-visible
 can't read "::__tcl_lsp_probe_nh20261012pat13_namespace_captured_prefix::prefix": no such variable
     while executing
-"linsert $::__tcl_lsp_probe_nh20261012pat13_namespace_captured_prefix::prefix end⟦EOF⟧
-```
-
-- namespace-captured-prefix, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
- {c d}"
+"linsert $::__tcl_lsp_probe_nh20261012pat13_namespace_captured_prefix::prefix end {c d}"
     ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- namespace-captured-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- namespace-captured-prefix, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- oo-prefix-deleted-near-miss, setup, completion 1, result, chunk 0 of 1:
+- oo-prefix-deleted-near-miss, setup, completion 1, result:
 
 ```text-visible
 invalid command name "oo::class"⟦EOF⟧
 ```
 
-- oo-prefix-deleted-near-miss, setup, completion 1, metadata, chunk 0 of 1:
+- oo-prefix-deleted-near-miss, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- oo-prefix-deleted-near-miss, setup, completion 1, errorcode, chunk 0 of 1:
+- oo-prefix-deleted-near-miss, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- oo-prefix-deleted-near-miss, setup, completion 1, errorinfo, chunk 0 of 2:
+- oo-prefix-deleted-near-miss, setup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "oo::class"
     while executing
 "oo::class create ::__tcl_lsp_probe_nh20261012pat13_oo_prefix_deleted_near_miss::Class {
     method emit {value} {list ok $value}
-    method prefix⟦EOF⟧
-```
-
-- oo-prefix-deleted-near-miss, setup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
- {} ..."
+    method prefix {} ..."
     ("eval" body line 3)
     invoked from within
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- oo-prefix-deleted-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- oo-prefix-deleted-near-miss, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- oo-self-prefix, setup, completion 1, result, chunk 0 of 1:
+- oo-self-prefix, setup, completion 1, result:
 
 ```text-visible
 invalid command name "oo::class"⟦EOF⟧
 ```
 
-- oo-self-prefix, setup, completion 1, metadata, chunk 0 of 1:
+- oo-self-prefix, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- oo-self-prefix, setup, completion 1, errorcode, chunk 0 of 1:
+- oo-self-prefix, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- oo-self-prefix, setup, completion 1, errorinfo, chunk 0 of 2:
+- oo-self-prefix, setup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "oo::class"
     while executing
 "oo::class create ::__tcl_lsp_probe_nh20261012pat13_oo_self_prefix::Class {
     method emit {value} {list ok $value}
-    method prefix {} {list [se⟦EOF⟧
-```
-
-- oo-self-prefix, setup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-lf] ..."
+    method prefix {} {list [self] ..."
     ("eval" body line 3)
     invoked from within
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- oo-self-prefix, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- oo-self-prefix, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- string-prefix-near-miss, setup, completion 0, result, chunk 0 of 1:
+- string-prefix-near-miss, setup, completion 0, result:
 
 ```text-visible
 ::__tcl_lsp_probe_nh20261012pat13_string_prefix_near_miss::two words⟦EOF⟧
 ```
 
-- string-prefix-near-miss, lookup, completion 1, result, chunk 0 of 1:
+- string-prefix-near-miss, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_string_prefix_near_miss::two"⟦EOF⟧
 ```
 
-- string-prefix-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
+- string-prefix-near-miss, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- string-prefix-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
+- string-prefix-near-miss, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- string-prefix-near-miss, lookup, completion 1, errorinfo, chunk 0 of 2:
+- string-prefix-near-miss, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "::__tcl_lsp_probe_nh20261012pat13_string_prefix_near_miss::two"
     while executing
 "::__tcl_lsp_probe_nh20261012pat13_string_prefix_near_miss::two words {a b} {c d}"
-    ("eval"⟦EOF⟧
-```
-
-- string-prefix-near-miss, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
- body line 1)
+    ("eval" body line 1)
     invoked from within
 "eval "$target {a b} {c d}""
     ("eval" body line 1)
@@ -1966,31 +1800,31 @@ invalid command name "::__tcl_lsp_probe_nh20261012pat13_string_prefix_near_miss:
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- string-prefix-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- string-prefix-near-miss, runtime-cleanup, completion 0, result:
 
 ```text-visible
 unknown command "::__tcl_lsp_probe_nh20261012pat13_string_prefix_near_miss::two words"⟦EOF⟧
 ```
 
-- tcltest-shared-lifecycle, setup, completion 1, result, chunk 0 of 1:
+- tcltest-shared-lifecycle, setup, completion 1, result:
 
 ```text-visible
 can't read "debug": no such variable⟦EOF⟧
 ```
 
-- tcltest-shared-lifecycle, setup, completion 1, metadata, chunk 0 of 1:
+- tcltest-shared-lifecycle, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- tcltest-shared-lifecycle, setup, completion 1, errorcode, chunk 0 of 1:
+- tcltest-shared-lifecycle, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- tcltest-shared-lifecycle, setup, completion 1, errorinfo, chunk 0 of 5:
+- tcltest-shared-lifecycle, setup, completion 1, errorinfo:
 
 ```text-visible
 can't read "debug": no such variable
@@ -2000,47 +1834,23 @@ can't read "debug": no such variable
     }"
     (procedure "DebugPuts" line 3)
     invoked from within
-"DebugPuts 3 "entering ConstraintIniti⟦EOF⟧
-```
-
-- tcltest-shared-lifecycle, setup, completion 1, errorinfo, chunk 1 of 5:
-
-```text-visible
-alizer $constraint $script""
+"DebugPuts 3 "entering ConstraintInitializer $constraint $script""
     (procedure "ConstraintInitializer" line 3)
     invoked from within
 "ConstraintInitializer singleTestInterp {singleProcess}"
-    (procedure "DefineConstraintInitializer⟦EOF⟧
-```
-
-- tcltest-shared-lifecycle, setup, completion 1, errorinfo, chunk 2 of 5:
-
-```text-visible
-s" line 2)
+    (procedure "DefineConstraintInitializers" line 2)
     invoked from within
 "DefineConstraintInitializers"
     (in namespace eval "::tcltest" script line 3)
     invoked from within
 "namespace eval tcltest {
-    # Define initializers for all⟦SPACE⟧⟦EOF⟧
-```
-
-- tcltest-shared-lifecycle, setup, completion 1, errorinfo, chunk 3 of 5:
-
-```text-visible
-the built-in contraint definitions
+    # Define initializers for all the built-in contraint definitions
     DefineConstraintInitializers
 
     # Set up the const..."
     (file "/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl" line 3272)
     invoked from within
-"source /⟦EOF⟧
-```
-
-- tcltest-shared-lifecycle, setup, completion 1, errorinfo, chunk 4 of 5:
-
-```text-visible
-usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl"
+"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl"
     ("package ifneeded" script)
     invoked from within
 "package require tcltest"
@@ -2049,7 +1859,7 @@ usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl"
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- tcltest-shared-lifecycle, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- tcltest-shared-lifecycle, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧

@@ -20,66 +20,11 @@ C Tcl source-model naming under Tcl 8.4, 8.5, 8.6, 9.0 and 9.1 selected policies
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native execution of this Rust implementation question is claimed.
-
-## Historical references
-
-- `tcl8.4-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_Import.c). tcl8.4 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl8.4-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/Tcl_ForgetImport.c). tcl8.4 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.4-NamespaceImportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceImportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceImportCmd.c). tcl8.4 retained NamespaceImportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_Import.c). tcl8.5 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/Tcl_ForgetImport.c). tcl8.5 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-NamespaceImportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceImportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceImportCmd.c). tcl8.5 retained NamespaceImportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_Import.c). tcl8.6 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/Tcl_ForgetImport.c). tcl8.6 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-NamespaceImportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceImportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceImportCmd.c). tcl8.6 retained NamespaceImportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_Import.c). tcl9.0 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/Tcl_ForgetImport.c). tcl9.0 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-NamespaceImportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceImportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceImportCmd.c). tcl9.0 retained NamespaceImportCmd source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-Tcl_Import-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Import.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_Import.c). tcl9.1 retained Tcl_Import source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-Tcl_ForgetImport-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/Tcl_ForgetImport.c). tcl9.1 retained Tcl_ForgetImport source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-NamespaceImportCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceImportCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceImportCmd.c). tcl9.1 retained NamespaceImportCmd source; this is independent of Rust test or native invocation authority.
-- `jim-JimNamespaceCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c). jim retained JimNamespaceCmd source; this is independent of Rust test or native invocation authority.
 
 ## Source inspection
 
@@ -1848,7 +1793,6 @@ static int JimNamespaceCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs), `NamespaceTransition::import_preload_command`: Explicit selected metadata proposal for the global C helper; actual absence is separately resolved.
@@ -1861,8 +1805,11 @@ static int JimNamespaceCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 - [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `command_binding::original_namespace_binding::tests::original_namespace_import_completion_requires_closed_prelude_and_destinations` (linked): Present preload, occupied forced destination, self import and qualified export provide no complete root world.
 - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::tests::original_registration_source_descriptor_retains_parent_and_override_provenance` (linked): Original public namespace metadata and modern private export registration retain the same stock parent descriptor, while older/unregistered/unknown mappings and explicit authored override provenance remain separate.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact named Rust selectors are implementation coverage obligations without an attached execution receipt. The independently retained source controls and source excerpts do not grant Rust handler selection, completion or physical native authority.
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c)

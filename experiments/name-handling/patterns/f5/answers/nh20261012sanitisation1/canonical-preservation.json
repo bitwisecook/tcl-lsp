@@ -1,8 +1,0 @@
-{
-  "existing_canonical_records_preserved": 2327,
-  "existing_canonical_record_changes": 0,
-  "new_canonical_records": 279,
-  "source": "Current incoming branch parent; old accepted identities and record values are compared independently of historical pre-projection hash receipts.",
-  "checked_incoming_parent": "8b4c41ad6a272df2534e1ef4e8c27c5f4363345d",
-  "new_record_artifact_descriptors_after_final_rebase": 20703
-}

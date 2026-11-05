@@ -20,55 +20,11 @@ An immutable realm retains at most 256 exact-offset point results. A completed r
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust immutable point-projection invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation is attached to this Rust immutable point-projection invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust immutable point-projection invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust immutable point-projection invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this Rust immutable point-projection invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation is attached to this Rust immutable point-projection invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation is attached to this Rust immutable point-projection invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,9 +38,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/realm/original_bindings.rs](../../../../rust/tcl-compiler/src/realm/original_bindings.rs), `realm::original_bindings::tests::original_point_memo_shares_queries_across_genuine_enclosing_vectors` (linked): Complete stamped token carriers equal the ordinary owner; distinct genuine original nested vectors share the same exact descendant point projections.
 - [rust/tcl-compiler/src/realm/original_bindings.rs](../../../../rust/tcl-compiler/src/realm/original_bindings.rs), `realm::original_bindings::tests::original_point_memo_does_not_reuse_foreign_source_config_or_unknown_entry` (linked): Independent realms, changed complete source values, full config and genuine unknown entry retain separate projections and preserve withdrawal.
 - [rust/tcl-compiler/src/realm/original_bindings.rs](../../../../rust/tcl-compiler/src/realm/original_bindings.rs), `realm::original_bindings::tests::original_point_memo_has_bounded_retention_without_closing_absence` (linked): Retention stops at256; unrecorded points stay unknown, uncached repeated points use equivalent independent ordinary results.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked source tests are not execution evidence. The unchanged80-level/defaultstack selector records pass separately from timeout.

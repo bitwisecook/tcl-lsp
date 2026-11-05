@@ -10,72 +10,16 @@ The retained payload ran under catch in the BIG-IP wrappers for the contexts bel
 
 ## Script
 
-```tcl-visible
-set prefix __tcl_lsp_2286_r2286m_unicodebytes_
-set pre $prefix
-append pre [binary format H* c3a9]
-set decomposed $prefix
-append decomposed [binary format H* 65cc81]
-set rows [list [list lengths [string length $pre] [string length $decomposed]]]
-foreach name [list $pre $decomposed] {
-    set raw_rc [catch {binary scan $name H* raw} raw_result]
-    if {$raw_rc != 0} {set raw $raw_result}
-    set rc [catch {encoding convertto utf-8 $name} encoded]
-    if {$rc == 0} {binary scan $encoded H* encoded}
-    lappend rows [list raw_conversion $raw_rc $raw utf8_conversion $rc $encoded]
-}
-set rc [catch {set $pre PRECOMPOSED} result]
-lappend rows [list write_pre $rc $result]
-set rc [catch {set $decomposed DECOMPOSED} result]
-lappend rows [list write_decomposed $rc $result]
-foreach name [list $pre $decomposed] {
-    set rc [catch {set $name} result]
-    lappend rows [list read $rc $result]
-}
-set rc [catch {unset $pre} result]
-lappend rows [list unset_pre $rc $result]
-set rc [catch {set $decomposed} result]
-lappend rows [list remaining_decomposed $rc $result]
-foreach name [list $pre $decomposed] {catch {unset $name}}
-set rows
-```
+Fixture: [bigip-tmm-traffic-event-19](fixtures/bigip-tmm-traffic-event-19.md)
+
+- run: `r2286m_unicodebytes_`
 
 ## Results
 
-### TMM 0:0, HTTP_REQUEST
+### TMM 0:0, HTTP_REQUEST; TMM 0:1, HTTP_REQUEST; TMM 0:2, HTTP_REQUEST
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:0, HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{lengths 37 38} {raw_conversion 0 5f5f74636c5f6c73705f323238365f72323238366d5f756e69636f646562797465735fc3a9 utf8_conversion 1 {invalid command name "encoding"}} {raw_conversion 0 5f5f74636c5f6c73705f323238365f72323238366d5f756e69636f646562797465735f65cc81 utf8_conversion 1 {invalid command name "encoding"}} {write_pre 0 PRECOMPOSED} {write_decomposed 0 DECOMPOSED} {read 0 PRECOMPOSED} {read 0 DECOMPOSED} {unset_pre 0 {}} {remaining_decomposed 0 DECOMPOSED}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result appeared in 32 responses with status HTTP/1.0 200 OK.
-
-### TMM 0:1, HTTP_REQUEST
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:1, HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{lengths 37 38} {raw_conversion 0 5f5f74636c5f6c73705f323238365f72323238366d5f756e69636f646562797465735fc3a9 utf8_conversion 1 {invalid command name "encoding"}} {raw_conversion 0 5f5f74636c5f6c73705f323238365f72323238366d5f756e69636f646562797465735f65cc81 utf8_conversion 1 {invalid command name "encoding"}} {write_pre 0 PRECOMPOSED} {write_decomposed 0 DECOMPOSED} {read 0 PRECOMPOSED} {read 0 DECOMPOSED} {unset_pre 0 {}} {remaining_decomposed 0 DECOMPOSED}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result appeared in 32 responses with status HTTP/1.0 200 OK.
-
-### TMM 0:2, HTTP_REQUEST
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:2, HTTP_REQUEST.
+- Recorded input channel: TMM 0:0, HTTP_REQUEST; TMM 0:1, HTTP_REQUEST; TMM 0:2, HTTP_REQUEST.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.

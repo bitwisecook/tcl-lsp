@@ -20,57 +20,11 @@ C TclOO instance-side source declarations with authentic whole Document words an
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This implementation question has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This implementation question has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This implementation question has no native execution receipt.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -94,13 +48,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/per_item.rs](../../../../rust/tcl-compiler/src/analyser/per_item.rs), `analyser::per_item::tests::original_next_advice_reconstructs_whole_source_after_preceding_edits` (linked): The actual source-ownership fallback reconstructs complete current declaration/call words after preceding unrelated edits, retaining original source images and full member-body configuration rather than reusing detached body text.
 - [rust/tcl-compiler/src/analyser/types/original_member_context.rs](../../../../rust/tcl-compiler/src/analyser/types/original_member_context.rs), `analyser::types::original_member_context::original_member_body_purpose_tests::original_next_body_keeps_bom_alias_and_complete_member_input` (linked): Finite source-defined control: original next body keeps bom alias and complete member input. Actual full supplied input/current class/member/braced body and selected alias to TclOO next helper; BOM-prefixed original helper argv/full word config remain intact with selected count/MRO advice. Foreign source/altered or missing full input refuse. Lexical helper advice, no receiver/frame/Native entry. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-No linked Rust selector execution receipt or guest execution is claimed by this implementation record. Source MRO is source advice and can differ from a future subclass receiver chain.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -109,8 +56,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 2 | 1 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -120,4 +66,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 2 | 1 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

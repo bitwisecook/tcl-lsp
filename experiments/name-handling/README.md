@@ -11,7 +11,7 @@ Existing command/variable/namespace vectors live in
 
 | Path | Meaning |
 | --- | --- |
-| [Retained report and action source validation](results/owner-adoption-20261017/lsp-retained-report-action-source-successor/README.md) | Original source/worker/full report collection, current diagnostic publisher rejoin and actual LSP adapters; exact source reviews, retained editor failure and passing repair; real five-library build running, no test acceptance. |
+| Retained report and action source validation | Original source/worker/full report collection, current diagnostic publisher rejoin and actual LSP adapters; exact source reviews, retained editor failure and passing repair; real five-library build running, no test acceptance. |
 | [Original Jim variable construction](oracles/jim-variable-construction-20261016/evidence.json) | Canonical/Tail/Create versus root assignment, array-element distinction and CString formatter outputs; exact original scripts/provider hashes, independent of migratedRuntime acceptance. |
 | [Original C Import preload](oracles/c-import-preload-20261016/auto-import-shadow.json) | Actual C8.4 selected global direct helper versus C8.5+ current-namespace ordinary evaluation; global/local shadow and trace controls across all five releases. |
 | [Original C compiled-stack body](oracles/c-compiled-stack-body-20261016/results.json) | Dynamic Catch and For-start controls on all five original C releases, with same-header List→Bytecode observations where supported and exact original source entry slices; Rust controls unexecuted at capture. |
@@ -19,11 +19,11 @@ Existing command/variable/namespace vectors live in
 | [Original Jim assignment retirement](oracles/jim-assignment-retirement-20261016/) | Old-cell retirement precedes assignment; observer source, exact incoming/old counts and raw native output retained. |
 | [Original C compiled List body](oracles/c86-compiled-list-body-20261016/) | Actual C8.6 compiled-stack body turns the same List header into Bytecode and retains original variable error shape; generic direct-eval purpose remains separate. |
 | [Installed C/Jim provider pairing](oracles/provider-pairing-20261016/README.txt) | Five original C executable/library/Tcltest pairs and contemporaneous latest Jim setup, with reusable probes and exact hashes; setup acceptance only. |
-| [Original Jim local namespace projection and dictionary keys](results/jim-namespace-info-local-dictionary/README.md) |35 original SDK rows, exact namespace79/79 pairing and unchanged247 provider inputs per capture; local first-key/ASCII construction and no-pattern key getter observations, without accepted Import or actual outer local-producer completion. |
-| [Original Jim namespace-info projection](results/jim-namespace-info-projection/README.md) | Actual Source relay, lmap/string-cat/header observations:15rows, original namespace79/79,247 unchanged provider inputs; genuine/empty observations and mutable-case software refusals have separate acceptance, with no command-key inverse or Import grant. |
+| Original Jim local namespace projection and dictionary keys |35 original SDK rows, exact namespace79/79 pairing and unchanged247 provider inputs per capture; local first-key/ASCII construction and no-pattern key getter observations, without accepted Import or actual outer local-producer completion. |
+| Original Jim namespace-info projection | Actual Source relay, lmap/string-cat/header observations:15rows, original namespace79/79,247 unchanged provider inputs; genuine/empty observations and mutable-case software refusals have separate acceptance, with no command-key inverse or Import grant. |
 | [patterns/w114-original-reference-atoms/README.md](patterns/w114-original-reference-atoms/README.md) | Original scalar reference atoms for expression advice; fixed C5/pinned Jim grammar observations preserve RequiresReview and independent lookup/Native scope. |
 | [patterns/w307-original-ensemble-heads/README.md](patterns/w307-original-ensemble-heads/README.md) | Original scalar and command-substitution namespace head components; exact source/configuration and independent value/command-slot eligibility remain required. |
-| [results/original-workspace-import-patterns-20261015/README.md](results/original-workspace-import-patterns-20261015/README.md) | Original C5/pinned Jim escaped import patterns and reached calls; shared literal-pattern classification supplies no lookup census or Native grant. |
+| `results/original-workspace-import-patterns-20261015/README.md` | Original C5/pinned Jim escaped import patterns and reached calls; shared literal-pattern classification supplies no lookup census or Native grant. |
 | [reference-tail-proposal-20261015/README.md](reference-tail-proposal-20261015/README.md) | Original reference-tail proposals retain initial Jim signal11 and separate controlled cases; no failure is replaced or inferred to be an LSP result. |
 | [decoded-arm-script-values-20261015/README.md](decoded-arm-script-values-20261015/README.md) | Original C5/pinned Jim distinguish literal command-name braces from Return script data; no F5, Rust or Native acceptance follows. |
 | [cases.tcl](cases.tcl) | Portable C Tcl 8.4-compatible observation suite; executable measurements, no manufactured expected answers |
@@ -33,30 +33,30 @@ Existing command/variable/namespace vectors live in
 | [patterns/corpus-findings.md](patterns/corpus-findings.md) | Pinned corpus sites, reduced observations and bounded recogniser requirements |
 | [patterns/wiki-findings.md](patterns/wiki-findings.md) | Actually read Wiki sources, positive/adversarial probes and existing owner mappings |
 | [array-mode-validation/README.md](array-mode-validation/README.md) | Discrete C/Jim mode/trace questions, release-specific outcomes and native comparisons |
-| [results/native-variable-array-modes/README.md](results/native-variable-array-modes/README.md) | Variable arity and array-name controls, VM/runtime matrices and real 8.5 var.test |
-| [results/native-c84-declared-cell/README.md](results/native-c84-declared-cell/README.md) | Existing physical-cell observation and real C 8.4 startup |
-| [results/runtime-c84-real-suites/20261012T151253Z/README.md](results/runtime-c84-real-suites/20261012T151253Z/README.md) | Six real 8.4 naming suites, exact questions, inputs, results and refusals |
-| [results/RESULTS.md](results/RESULTS.md) | Scoped VM/runtime original-suite comparisons and measured gaps |
-| [results/runtime-array-search-var132-current/results.md](results/runtime-array-search-var132-current/results.md) | Original var-13.2 validation dependency: measured iterator ownership repair and exact harness replay |
+| `results/native-variable-array-modes/README.md` | Variable arity and array-name controls, VM/runtime matrices and real 8.5 var.test |
+| `results/native-c84-declared-cell/README.md` | Existing physical-cell observation and real C 8.4 startup |
+| `results/runtime-c84-real-suites/20261012T151253Z/README.md` | Six real 8.4 naming suites, exact questions, inputs, results and refusals |
+| `results/RESULTS.md` | Scoped VM/runtime original-suite comparisons and measured gaps |
+| `results/runtime-array-search-var132-current/results.md` | Original var-13.2 validation dependency: measured iterator ownership repair and exact harness replay |
 | [run_suites.py](run_suites.py) | Original-suite capture with matching source-built interpreter, original-input admission and retained provenance |
 | [upstream-integrity/README.md](upstream-integrity/README.md) | Immutable original library/test inventories selected through the shared reference manifest |
-| [results/shared-name-owner-current-20261013/README.md](results/shared-name-owner-current-20261013/README.md) | Scoped central command/variable/namespace and current Jim name controls |
+| `results/shared-name-owner-current-20261013/README.md` | Scoped central command/variable/namespace and current Jim name controls |
 | [run_jim_suites.py](run_jim_suites.py) | Original upstream Jim naming suites using Jim's actual test wrapper |
-| [results/README.md](results/README.md) | Provenance and record format; records distinguish measured, pending and unsupported |
-| [Core145 result](results/core-production145-20261014/result.json) and [retention/comparison manifest](results/core-production145-20261014/retention.json) | All196 controls:123 PASS/73 FAIL, source-subset drift0, missing/empty selection0 and no timeouts. All101 Core117 controls retained with three gains/zero regressions;95 additions49 PASS/46 FAIL. Complete202-file capture retained byte-exact; Native minifier editing capability remains an independent obligation |
-| [Compiler146 result](results/compiler-production146-20261014/result.json) and [retention/comparison manifest](results/compiler-production146-20261014/retention.json) | All313 controls:248 PASS/65 nonpassing, three harness timeouts, source-subset drift0 and no missing/empty selectors;320 files and three large logs retained losslessly. Comparison preserves264 unchanged originals (13 gains/zero regressions) plus one explicitly oracle-corrected/renamed nested-array control; corrected lineage and prior failures remain distinct from unchanged-original gains |
-| [Source owner141 controls](results/private-owner-production141-20261014/result.json) | All23 bounded declaration/consumer controls PASS, source-subset drift0; this validates AST registration rules and supplies no Native or production-semantic acceptance |
-| [Owner-resolution CLI143 result](results/owner-cli143-20261014/result.json) and [full log](results/owner-cli143-20261014/owner-resolution.log) | Actual CLI exit1 with207 reported contract failures (196 general owners/contracts and11 Source routes), source/document-subset drift0;484 log lines include warnings, and this scope is separate from the full strict-proof checker |
-| [Source owner169 controls](results/source-gate169-20261014/result.json) and [selector comparison](results/source-gate169-20261014/previous-selector-comparison.json) | All35 exact controls PASS, authored-source and expected167 source-subset drift0. All31 prior controls remain:one original type-shadow-refusal gain, zero regressions/drops, plus four passing additions. Bounded declaration/reference rules only; actual owner CLI, Runtime and full strict proofs remain independent |
-| [Owner-resolution CLI163 result](results/owner-cli163-20261014/result.json) and [full log](results/owner-cli163-20261014/owner-resolution.log) | Actual exit1 with183 reported contract failures (179 general owners/contracts and four Source routes), source/document-subset drift0; this exact capture predates the newer owner registrations and is separate from the full strict-proof checker |
-| [VM159 result](results/vm-production159-20261014/result.json) and [retention/comparison manifest](results/vm-production159-20261014/retention.json) | All58 controls PASS:all52 VM132 controls retained and now pass, plus six new copy/bootstrap controls pass; three gains/zero regressions or drops. Actual original20 automatic-error corpus and both child regressions pass. Source, compiled-input and artifact drift maps0; complete81-file capture retained byte-exact. Acceptance is this VM/original-provider scope, independently of Compiler/Core/Runtime/DB/F5 obligations |
-| [VM132 result](results/vm-production132-20261014/result.json) and [retention manifest](results/vm-production132-20261014/retention.json) | All52 controls:49 PASS/3 FAIL, full source/compiled-input/artifact drift0; all45 prior plus seven additions retained, with two original child regressions and persistent automatic-error corpus failure; complete75-file capture retained byte-exact |
+| `results/README.md` | Provenance and record format; records distinguish measured, pending and unsupported |
+| Core145 result and `retention/comparison manifest` | All196 controls:123 PASS/73 FAIL, source-subset drift0, missing/empty selection0 and no timeouts. All101 Core117 controls retained with three gains/zero regressions;95 additions49 PASS/46 FAIL. Complete202-file capture retained byte-exact; Native minifier editing capability remains an independent obligation |
+| Compiler146 result and `retention/comparison manifest` | All313 controls:248 PASS/65 nonpassing, three harness timeouts, source-subset drift0 and no missing/empty selectors;320 files and three large logs retained losslessly. Comparison preserves264 unchanged originals (13 gains/zero regressions) plus one explicitly oracle-corrected/renamed nested-array control; corrected lineage and prior failures remain distinct from unchanged-original gains |
+| Source owner141 controls | All23 bounded declaration/consumer controls PASS, source-subset drift0; this validates AST registration rules and supplies no Native or production-semantic acceptance |
+| Owner-resolution CLI143 result and full log | Actual CLI exit1 with207 reported contract failures (196 general owners/contracts and11 Source routes), source/document-subset drift0;484 log lines include warnings, and this scope is separate from the full strict-proof checker |
+| Source owner169 controls and selector comparison | All35 exact controls PASS, authored-source and expected167 source-subset drift0. All31 prior controls remain:one original type-shadow-refusal gain, zero regressions/drops, plus four passing additions. Bounded declaration/reference rules only; actual owner CLI, Runtime and full strict proofs remain independent |
+| Owner-resolution CLI163 result and full log | Actual exit1 with183 reported contract failures (179 general owners/contracts and four Source routes), source/document-subset drift0; this exact capture predates the newer owner registrations and is separate from the full strict-proof checker |
+| VM159 result and `retention/comparison manifest` | All58 controls PASS:all52 VM132 controls retained and now pass, plus six new copy/bootstrap controls pass; three gains/zero regressions or drops. Actual original20 automatic-error corpus and both child regressions pass. Source, compiled-input and artifact drift maps0; complete81-file capture retained byte-exact. Acceptance is this VM/original-provider scope, independently of Compiler/Core/Runtime/DB/F5 obligations |
+| VM132 result and retention manifest | All52 controls:49 PASS/3 FAIL, full source/compiled-input/artifact drift0; all45 prior plus seven additions retained, with two original child regressions and persistent automatic-error corpus failure; complete75-file capture retained byte-exact |
 | [oracles/variable-completion-extent-20261014/README.md](oracles/variable-completion-extent-20261014/README.md) | Original C8.4–9.1/Jim variable reference closers; exact source, raw output and retained manifest path mapping |
-| [Original Jim child startup probes](results/original-jim-child-startup-20261014/result.json) and [retention manifest](results/original-jim-child-startup-20261014/retention.json) | Three unchanged original Jim scripts with raw output and provider/source hashes, ten files retained exactly: missing-variable omission, global-scope copying and CString extents; no C Tcl, F5 or migrated-runtime equivalence claim |
+| Original Jim child startup probes and retention manifest | Three unchanged original Jim scripts with raw output and provider/source hashes, ten files retained exactly: missing-variable omission, global-scope copying and CString extents; no C Tcl, F5 or migrated-runtime equivalence claim |
 | [oracles/jim-original-key-reference-observer-20261014/result.json](oracles/jim-original-key-reference-observer-20261014/result.json) | Actual Jim command-key/object reference observation with original observer source, build and raw output; no Native runtime acceptance |
 | [f5/REQUEST.md](f5/REQUEST.md) | Appliance-chat questions, execution contexts and return protocol |
 | [f5/ANSWER-TEMPLATE.md](f5/ANSWER-TEMPLATE.md) | Answer document template |
-| [f5/answers/README.md](f5/answers/README.md) | Destination for returned documents and raw transcripts on `work` |
+| `f5/answers/README.md` | Destination for returned documents and raw transcripts on `work` |
 
 The portable suite runs in a **fresh disposable interpreter**, not in an
 application's interpreter. Its fixed `::__nh_*` names are experiment fixtures.
@@ -223,11 +223,11 @@ Runtime/VM or migrated-consumer equivalence.
 
 | Reference | Capture | Passed | Skipped | Failed |
 | --- | --- | --- | --- | --- |
-| C8.4.20 | [Original inputs and results](results/original-suite-integrity-c84-20261013/README.md) | 30 | 0 | 0 |
-| C8.5.19 | [Original inputs and results](results/original-suite-integrity-c85-20261013/README.md) | 36 | 16 | 0 |
-| C8.6.18 | [Original inputs and results](results/original-suite-integrity-c86-20261013/README.md) | 40 | 17 | 0 |
-| C9.0.4 | [Original inputs and results](results/original-suite-integrity-c90-20261013/README.md) | 40 | 17 | 0 |
-| C9.1.0 | [Original inputs and results](results/original-suite-integrity-c91-20261013/README.md) | 40 | 17 | 0 |
+| C8.4.20 | Original inputs and results | 30 | 0 | 0 |
+| C8.5.19 | Original inputs and results | 36 | 16 | 0 |
+| C8.6.18 | Original inputs and results | 40 | 17 | 0 |
+| C9.0.4 | Original inputs and results | 40 | 17 | 0 |
+| C9.1.0 | Original inputs and results | 40 | 17 | 0 |
 
 ## Run original naming suites
 
@@ -253,4 +253,4 @@ before making a conformance claim. The tool enables frame debugging on C/runtime
 and records it; absolute-frame-depth/default-debug upstream expectations still
 need launch-context interpretation. Use a new output directory for each run.
 
-- [Studio and checked source-action adoption](results/owner-adoption-20261017/lsp-studio-action-source-successor/README.md): exact reviewed source integration and first native failure, repaired editor443-input checks and original Studio Node124PASS; fresh native repair1 running, no gate acceptance.
+- Studio and checked source-action adoption: exact reviewed source integration and first native failure, repaired editor443-input checks and original Studio Node124PASS; fresh native repair1 running, no gate acceptance.

@@ -57,7 +57,7 @@ The wrapper recorded Tcl completion code 1 in 32 log lines. Its recorded errorCo
 UNAVAILABLE⟦EOF⟧
 ```
 
-### TMM unit 1, captured result 3
+### TMM unit 1, captured result 3; TMM unit 2, captured result 5; TMM unit 3, captured result 7
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
 - Recorded input channel: HTTP_REQUEST.
@@ -76,7 +76,7 @@ The wrapper recorded Tcl completion code 0 in 1 log lines. Its recorded errorCod
 UNAVAILABLE⟦EOF⟧
 ```
 
-### TMM unit 1, captured result 4
+### TMM unit 1, captured result 4; TMM unit 2, captured result 6
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
 - Recorded input channel: HTTP_REQUEST.
@@ -90,63 +90,6 @@ can't rename to "__tcl_lsp_probe_2286_r2286_20261006c_moved": command already ex
 ```
 
 The wrapper recorded Tcl completion code 1 in 31 log lines. Its recorded errorCode field was:
-
-```text-visible
-UNAVAILABLE⟦EOF⟧
-```
-
-### TMM unit 2, captured result 5
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-1 {invalid command name "__tcl_lsp_probe_2286_r2286_20261006c_one"} ORIGINAL⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0 in 1 log lines. Its recorded errorCode field was:
-
-```text-visible
-UNAVAILABLE⟦EOF⟧
-```
-
-### TMM unit 2, captured result 6
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-can't rename to "__tcl_lsp_probe_2286_r2286_20261006c_moved": command already exists⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1 in 31 log lines. Its recorded errorCode field was:
-
-```text-visible
-UNAVAILABLE⟦EOF⟧
-```
-
-### TMM unit 3, captured result 7
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-1 {invalid command name "__tcl_lsp_probe_2286_r2286_20261006c_one"} ORIGINAL⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0 in 1 log lines. Its recorded errorCode field was:
 
 ```text-visible
 UNAVAILABLE⟦EOF⟧

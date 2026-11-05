@@ -20,55 +20,11 @@ Rust source presentation and diagnostic assistance. Hints and version-gate sourc
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native provider observation or executed Rust result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -148,9 +104,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `actual_method_colours_do_not_promote_compound_or_escaped_variable_heads` (linked): Method semantic colours accept genuine scalar receivers and refuse compound, escaped and array-element command heads.
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `actual_implicit_self_colours_require_the_sole_original_variable_word` (linked): Implicit self colours require one genuine original scalar receiver word, excluding interpolated or array-element heads.
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `actual_loop_collection_names_follow_the_retained_brace_configuration` (linked): Loop collection handle propagation uses the actual brace grammar and refuses missing or foreign retained source inputs.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact named Rust selectors are linked coverage. No Rust execution receipt or native provider observation is attached to this implementation contract.

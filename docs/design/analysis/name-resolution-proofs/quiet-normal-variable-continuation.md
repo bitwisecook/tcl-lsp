@@ -20,55 +20,11 @@ This contract covers quiet selected setters with an exact current original write
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/normal_variable_continuation.rs](../../../../rust/tcl-compiler/src/command_binding/normal_variable_continuation.rs), `retain_quiet_normal_variables`: Retain the original selected setter post-state only after exact write and quiet command boundary closure.
 - [rust/tcl-compiler/src/command_binding/normal_variable_continuation.rs](../../../../rust/tcl-compiler/src/command_binding/normal_variable_continuation.rs), `complete_normal_variable_continuation`: Meet every represented live alternative and command-exit observer before the continuation becomes queryable.
 - [rust/tcl-compiler/src/command_binding/normal_variable_continuation.rs](../../../../rust/tcl-compiler/src/command_binding/normal_variable_continuation.rs), `command_binding::normal_variable_continuation::tests::quiet_normal_store_continuation_requires_actual_write_and_handler_closure` (linked): A fresh quiet setter retains its actual VALUE continuation; unknown entry, incompatible array contents and command execution traces decline.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-No executable replay protocol is attached.

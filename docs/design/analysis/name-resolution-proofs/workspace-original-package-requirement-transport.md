@@ -20,56 +20,11 @@ Current Core implementation contract. The exact regression distinguishes an opaq
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-## Historical references
-
-- `workspace-requirements` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). Inspected original requirement metadata/projection and exact constraints/preference/unknown/withdrawal regression.
-- `generic-source-graph` (implementation): [rust/tcl-lsp-core/src/source_graph.rs](../../../../rust/tcl-lsp-core/src/source_graph.rs). Inspected generic ancestor/positioned descendant requirement transport retaining complete K records.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +34,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/source_graph.rs](../../../../rust/tcl-lsp-core/src/source_graph.rs), `descendant_requirements`: Retain complete requirement records at independent source statement positions and body bounds.
 - [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs), `workspace_index::tests::original_requirement_graph_keeps_constraints_preference_and_unknowns` (linked): Checks exact opaque key, complete version alternatives/exact flag, local/caller preference, Unknown, cyclic ancestor transport and removal.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked assertion must be executed under the coherent Rust workspace before claiming a passing result. Source hashes bind the inspected implementation and test; a source edit or formatter requires review/reissue. Package graph advice and provider selection do not establish that a Tcl loader or source file executed.
+- [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs)
+- [rust/tcl-lsp-core/src/source_graph.rs](../../../../rust/tcl-lsp-core/src/source_graph.rs)

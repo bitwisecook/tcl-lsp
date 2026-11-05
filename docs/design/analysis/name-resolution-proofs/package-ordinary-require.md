@@ -20,81 +20,9 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.4.
-
-The exact original script and recorded process/guest output are:
-
-```json
-{
-  "case": "require",
-  "script": "package ifneeded probe 1 {package provide probe 1}; package require probe",
-  "exit": 0,
-  "stdout": "0 1\n",
-  "stderr": ""
-}
-```
-
-The process status is distinct from the caught guest result. No alternative input or later frontier is substituted.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.5.
-
-The exact original script and recorded process/guest output are:
-
-```json
-{
-  "case": "require",
-  "script": "package ifneeded probe 1 {package provide probe 1}; package require probe",
-  "exit": 0,
-  "stdout": "0 1\n",
-  "stderr": ""
-}
-```
-
-The process status is distinct from the caught guest result. No alternative input or later frontier is substituted.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.6.
-
-The exact original script and recorded process/guest output are:
-
-```json
-{
-  "case": "require",
-  "script": "package ifneeded probe 1 {package provide probe 1}; package require probe",
-  "exit": 0,
-  "stdout": "0 1\n",
-  "stderr": ""
-}
-```
-
-The process status is distinct from the caught guest result. No alternative input or later frontier is substituted.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.0.
-
-The exact original script and recorded process/guest output are:
-
-```json
-{
-  "case": "require",
-  "script": "package ifneeded probe 1 {package provide probe 1}; package require probe",
-  "exit": 0,
-  "stdout": "0 1\n",
-  "stderr": ""
-}
-```
-
-The process status is distinct from the caught guest result. No alternative input or later frontier is substituted.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.1.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 The exact original script and recorded process/guest output are:
 
@@ -112,7 +40,7 @@ The process status is distinct from the caught guest result. No alternative inpu
 
 ### jim
 
-Status: `observed`. Version: Jim. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: jim.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: jim Jim.
 
 The exact original script and recorded process/guest output are:
 
@@ -130,41 +58,14 @@ The process status is distinct from the caught guest result. No alternative inpu
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_package_ordinary/8.4.20.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_package_ordinary/8.5.19.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_package_ordinary/8.6.18.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-3` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_package_ordinary/9.0.4.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_package_ordinary/9.1.0.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/Jim.tsv](../../../../rust/tcl-registry/tests/data/native_package_ordinary/Jim.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-6` (input): [rust/tcl-registry/tests/data/native_package_ordinary/capture.py](../../../../rust/tcl-registry/tests/data/native_package_ordinary/capture.py). Exact retained input/program bytes; purpose is limited to this question.
-- `file-7` (input): [rust/tcl-registry/tests/data/native_package_ordinary/leaf.tcl](../../../../rust/tcl-registry/tests/data/native_package_ordinary/leaf.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-8` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_ordinary/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-15` (input): [rust/tcl-registry/tests/data/native_package_ordinary/nested.tcl](../../../../rust/tcl-registry/tests/data/native_package_ordinary/nested.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-16` (input): [rust/tcl-registry/tests/data/native_package_ordinary/pkgIndex.tcl](../../../../rust/tcl-registry/tests/data/native_package_ordinary/pkgIndex.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `file-17` (input): [rust/tcl-registry/tests/data/native_package_ordinary/skip.tcl](../../../../rust/tcl-registry/tests/data/native_package_ordinary/skip.tcl). Exact retained input/program bytes; purpose is limited to this question.
-- `selected-input-and-outcome-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_ordinary/manifest.json). JSON pointer `/engines/0/rows/7`. Exact original script plus caught output/status for this question and provider.
-- `selected-input-and-outcome-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_ordinary/manifest.json). JSON pointer `/engines/1/rows/7`. Exact original script plus caught output/status for this question and provider.
-- `selected-input-and-outcome-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_ordinary/manifest.json). JSON pointer `/engines/2/rows/7`. Exact original script plus caught output/status for this question and provider.
-- `selected-input-and-outcome-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_ordinary/manifest.json). JSON pointer `/engines/3/rows/7`. Exact original script plus caught output/status for this question and provider.
-- `selected-input-and-outcome-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_ordinary/manifest.json). JSON pointer `/engines/4/rows/7`. Exact original script plus caught output/status for this question and provider.
-- `selected-input-and-outcome-jim` (observation): [rust/tcl-registry/tests/data/native_package_ordinary/manifest.json](../../../../rust/tcl-registry/tests/data/native_package_ordinary/manifest.json). JSON pointer `/engines/5/rows/7`. Exact original script plus caught output/status for this question and provider.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted. The manifest retains each inner source string and result. The original capture helper bytes are unavailable; the current capture.py is a separate wrapper and is not claimed as the original.
+- [rust/tcl-registry/tests/data/native_package_ordinary](../../../../rust/tcl-registry/tests/data/native_package_ordinary)

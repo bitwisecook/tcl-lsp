@@ -30,56 +30,11 @@ Marked source/API controls exercise genuine positioned dependency advice versus 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No external provider execution answers this source/API implementation contract. Its selected metadata, source geometry and refusal controls are independent of actual Native execution, presence, storage/header/cache/frame/Normal purposes.
-
-## Historical references
-
-- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-existence_query.rs` (implementation): [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs). Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
-- `naming-compiler-retained-existence-metadata-rust-tcl-compiler-src-registry_invocation-metadata_context.rs` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current actual source/API owner and marked assertion definition; no executed Rust or native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -97,8 +52,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 
 - `existence_query::tests::after_load_queries_keep_model_selection_separate_from_total_completion`: Preserves ordinary after-load and actual-call model selection, no totality, and unknown-history refusal; the separate verified-fixture receipt records execution.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/existence_query.rs](../../../../rust/tcl-compiler/src/existence_query.rs)
+- [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs)

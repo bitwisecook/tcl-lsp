@@ -20,55 +20,11 @@ Compiler original declaration advice and SSA destruction metadata under all six 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/declaration_layout.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_layout.rs), `declaration_variable_argument_keys`: Authenticates original declaration snapshots and unanimously projects byte keys through their alias context.
 - [rust/tcl-compiler/src/place_bridge.rs](../../../../rust/tcl-compiler/src/place_bridge.rs), `ssa_destruction_keys`: Uses typed original keys while preserving the conditional-advice distinction and frame/lookup guards.
 - [rust/tcl-compiler/src/command_binding/declaration_layout.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_layout.rs), `command_binding::declaration_layout::tests::original_destruction_operand_keys_follow_the_retained_alias_point` (linked): Requires the original activation key after upvar and rejects an out-of-bounds operand ordinal.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named fixed Rust tests bind this implementation contract. Execute the corresponding crate selectors against one complete current source snapshot. This record supplies no Rust execution receipt, native test result, physical object, normal-completion certificate or cache proof.

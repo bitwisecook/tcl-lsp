@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 Jim returns NEW; C8.4–9.1 retain the missing alias command errors. This creation door is distinct from the C interp alias control.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=alias-jim-prefix-rebind.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for alias-jim-prefix-rebind; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/alias-jim-prefix-rebind.tcl`. Exact 8.4.20 input for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/alias-jim-prefix-rebind.stdout`. Exact 8.4.20 stdout for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/alias-jim-prefix-rebind.stderr`. Exact 8.4.20 stderr for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 alias-jim-prefix-rebind. JSON pointer `/rows/13`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/alias-jim-prefix-rebind.tcl`. Exact 8.5.19 input for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/alias-jim-prefix-rebind.stdout`. Exact 8.5.19 stdout for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/alias-jim-prefix-rebind.stderr`. Exact 8.5.19 stderr for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 alias-jim-prefix-rebind. JSON pointer `/rows/53`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/alias-jim-prefix-rebind.tcl`. Exact 8.6.18 input for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/alias-jim-prefix-rebind.stdout`. Exact 8.6.18 stdout for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/alias-jim-prefix-rebind.stderr`. Exact 8.6.18 stderr for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 alias-jim-prefix-rebind. JSON pointer `/rows/93`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/alias-jim-prefix-rebind.tcl`. Exact 9.0.4 input for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/alias-jim-prefix-rebind.stdout`. Exact 9.0.4 stdout for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/alias-jim-prefix-rebind.stderr`. Exact 9.0.4 stderr for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 alias-jim-prefix-rebind. JSON pointer `/rows/133`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/alias-jim-prefix-rebind.tcl`. Exact 9.1.0 input for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/alias-jim-prefix-rebind.stdout`. Exact 9.1.0 stdout for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/alias-jim-prefix-rebind.stderr`. Exact 9.1.0 stderr for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 alias-jim-prefix-rebind. JSON pointer `/rows/173`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/alias-jim-prefix-rebind.tcl`. Exact Jim input for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/alias-jim-prefix-rebind.stdout`. Exact Jim stdout for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/alias-jim-prefix-rebind.stderr`. Exact Jim stderr for alias-jim-prefix-rebind; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim alias-jim-prefix-rebind. JSON pointer `/rows/213`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case alias-jim-prefix-rebind --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-alias-jim-prefix-rebind.md). A replay is a separate execution and must record its own results.

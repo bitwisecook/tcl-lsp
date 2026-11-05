@@ -9,7 +9,7 @@ counted. No BIG-IP input has been accepted or run for this supplement.
 The maintained [wild-pattern F5 bundle](f5/README.md) maps these five
 questions and every portable corpus/Wiki case to separate context records in
 [questions.json](f5/questions.json). Use its
-[answer template](f5/answer-template.md), together with
+answer template, together with
 [the existing appliance request](../f5/REQUEST.md).
 Give these observations stable IDs prefixed `corpus-f5-` and retain exact
 materialised rule definitions, attachments, input, version/build/hotfix,

@@ -1,4 +1,0 @@
-[
-  "declaration::tests::global_declaration_in_proc_body",
-  "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping"
-]

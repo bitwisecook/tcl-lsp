@@ -20,55 +20,17 @@ Native source execution with actual original effective operands and independentl
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +38,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `walk_source_target_after_observers`: Recheck the read receipt before selecting the intrinsic OK route and retain the existing exact-site quiet handler completion only after actual dispatch.
 - [rust/tcl-compiler/src/command_binding/native_result.rs](../../../../rust/tcl-compiler/src/command_binding/native_result.rs), `command_binding::native_result::tests::original_set_read_completion_requires_a_current_defined_quiet_receiver` (linked): Actual native entries retain a defined quiet Set read; undefined, array-root, read-observed and replaced-handler cases cannot acquire its completion.
 - [rust/tcl-compiler/src/command_binding/native_list_assignment.rs](../../../../rust/tcl-compiler/src/command_binding/native_list_assignment.rs), `command_binding::native_list_assignment::tests::original_native_assignment_projects_each_store_before_the_next_target` (linked): Genuine C85+ inline assignment retains earlier stores through a later target Set read, including compound index and handler replacement during target evaluation.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Named Rust selectors are coverage bindings only; no execution or Native return/result-release observation is inferred.

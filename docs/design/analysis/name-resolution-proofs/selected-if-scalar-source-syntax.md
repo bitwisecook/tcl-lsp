@@ -20,57 +20,11 @@ Five marked source/API controls cover actual C first-close versus C9 nested brac
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-lsp-core-src-refactor-datagroup-source_subject.rs` (implementation): [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-lsp-core-src-refactor-if_to_switch.rs` (implementation): [rust/tcl-lsp-core/src/refactor/if_to_switch.rs](../../../../rust/tcl-lsp-core/src/refactor/if_to_switch.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-refactor-selected-if-scalar-source-syntax-rust-tcl-mcp-src-datagroup.rs` (implementation): [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +41,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs), `datagroup::tests::selected_if_suggestions_share_actual_scalar_reference_grammar` (linked): MCP bounded equality/OR suggestions use the same actual-grammar scalar classifier for brace/Unicode/tail distinctions; regex shape supplies no variable-name grammar, original operand or execution authority.
 - [rust/tcl-lsp-core/src/refactor/datagroup.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup.rs), `refactor::datagroup::original_arm_parser_tests::original_datagroup_arm_parsing_keeps_nested_marks_and_literal_extents` (linked): Finite source-defined control: original datagroup arm parsing keeps nested marks and literal extents. Proposal shape only; selected source handlers and edits remain separate. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Current source/API owners and exact marked software control definitions only. This publication runs no command; original native observations and actual Rust receipts retain independent scopes.
+- [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs)
+- [rust/tcl-lsp-core/src/refactor/if_to_switch.rs](../../../../rust/tcl-lsp-core/src/refactor/if_to_switch.rs)
+- [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs)

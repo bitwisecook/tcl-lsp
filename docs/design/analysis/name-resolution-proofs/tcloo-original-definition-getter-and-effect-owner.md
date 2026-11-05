@@ -22,64 +22,45 @@ Selected definition class operand, definition namespace operands, method deletio
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded definition target/getter/effect owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.4 not tested for this source/API question.
 
 No original tcl8.4 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded definition target/getter/effect owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.5 not tested for this source/API question.
 
 No original tcl8.5 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded definition target/getter/effect owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.6 not tested for this source/API question.
 
 No original tcl8.6 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded definition target/getter/effect owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl9.0 not tested for this source/API question.
 
 No original tcl9.0 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded definition target/getter/effect owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl9.1 not tested for this source/API question.
 
 No original tcl9.1 process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### jim
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded definition target/getter/effect owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: jim.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: jim not tested for this source/API question.
 
 No original jim process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded definition target/getter/effect owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: bigip.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: bigip not tested for this source/API question.
 
 No original bigip process tests this definition target/getter/effect owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
-
-## Historical references
-
-- `original-source-joins` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/original-source-joins.json](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/original-source-joins.json). Exact inspected C9.1 source association records. Their absolute original paths and physical LF line basis are retained; no external execution receipt is attached.
-- `full-source-tclOODefineCmds` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclOODefineCmds.c.gz](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclOODefineCmds.c.gz). Whole exact original C9.1 source bytes retained losslessly. This source inspection supplies no configure/build replay, binary/source equivalence or external callback execution.
-- `source-window-0` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1228-1324.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1228-1324.c). GetOrCreateMethod and class/instance export helpers: authentic object-hash lookup before flags; distinct record/name/key roles are not donated to Runtime flag sets. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `source-window-1` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1704-1795.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1704-1795.c). Class worker retains selected object context before original class operand and class-facet effects. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `source-window-2` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1872-1940.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1872-1940.c). Definition-namespace worker context, kind and namespace operand/publication stages. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `source-window-3` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1951-1990.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-1951-1990.c). DeleteMethod sequential original source removal and final epoch stage. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `source-window-4` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-2064-2115.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-2064-2115.c). C91 Export per-original-operand flag effect then final epoch. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `source-window-5` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-2451-2497.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclOODefineCmds-2451-2497.c). C91 Unexport per-original-operand flag effect then final epoch. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `full-source-tclObj` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclObj.c.gz](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/tclObj.c.gz). Whole exact original C9.1 source bytes retained losslessly. This source inspection supplies no configure/build replay, binary/source equivalence or external callback execution.
-- `source-window-6` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclObj-264-272.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclObj-264-272.c). Authentic object hash key type links TclHashObjKey/AllocObjEntry. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `source-window-7` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclObj-4189-4200.c](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/source-C91-tclObj-4189-4200.c). Reached object-hash function uses actual Tcl_GetStringFromObj before hash traversal. Inspected original C9.1 source only; all external execution cells for this source/API question are not tested.
-- `full-source-storage-map` (source-anchor): [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/full-source-storage-map.json](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91/full-source-storage-map.json). Exact full-source gzip byte/hash mapping. Restore complete original source bytes before source replay; no executable or provider process is represented.
-- `implementation-source-0` (implementation): [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs). Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome.
-- `implementation-source-1` (implementation): [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs). Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome.
-- `implementation-source-2` (implementation): [runtime/rust/src/cmd_oo/original_definition_stage_tests.rs](../../../../runtime/rust/src/cmd_oo/original_definition_stage_tests.rs). Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome.
-- `implementation-source-3` (implementation): [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs). Exact current definition-stage owner or finite control. Complete file retention identifies the source; only the explicitly described definition target/getter/effect purpose is bound, without Class-facet lifecycle, introspection, entered frames or Native callback outcome.
 
 ## Source inspection
 
@@ -528,7 +509,6 @@ const Tcl_HashKeyType tclObjHashKeyType = {
     TclFreeObjEntry		/* freeEntryProc */
 };
 
-
 ```
 
 tcl9.1 9.1.0, revision `Original C9.1 source tree joined by complete byte hash; source inspection only, no callback execution or binary/source equivalence receipt`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclObj.c`, function `TclHashObjKey`, lines 4189–4200. Retained reference `source-window-7`.
@@ -549,7 +529,6 @@ TclHashObjKey(
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs), `OriginalOoTarget`: Retain the exact selected Object/Class definition target and its original object creation stamp; check current existence/torn-down state and required class membership instead of reconstructing by spelling. This is not an independent Class-facet allocation, frame, lookup or invocation grant.
@@ -566,8 +545,10 @@ TclHashObjKey(
 - [runtime/rust/src/cmd_oo/original_definition_stage_tests.rs](../../../../runtime/rust/src/cmd_oo/original_definition_stage_tests.rs), `cmd_oo::original_definition_stage_tests::visibility_compatibility_and_ordinary_metadata_changes_keep_their_selected_stages` (linked): Finite authored C8.6/C9.0 compatibility and C9.1 sequential schedules distinguish ordinary metadata edits from first typed refusal without asserting inspected chronology for the compatibility releases. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 - [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `native_tcloo_method_definition::export_order_tests::selected_export_operand_order_does_not_grant_uninspected_releases` (linked): The selected Registry protocol confines OperandThenEffect to the represented C9.1 release and keeps older supported releases on the explicitly unmeasured CompatibilityReadAll recipe. Protocol labels issue no Method record, object-hash key or callback execution authority. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Source/API inspection and exact finite definitions only. All external processes and matching owned assertion outcomes for this question are absent. The retained original C9.1 source and complete gzip hashes supply neither a compiled-source equivalence claim nor callback, frame, Method-payload or class lifecycle outcomes.
+- [runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91](../../../../runtime/rust/tests/data/original_definition_getter_effect_owner_source/C91)
+- [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs)
+- [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs)
+- [runtime/rust/src/cmd_oo/original_definition_stage_tests.rs](../../../../runtime/rust/src/cmd_oo/original_definition_stage_tests.rs)
+- [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs)

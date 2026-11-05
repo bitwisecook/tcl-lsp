@@ -24,55 +24,11 @@ Source event/snippet context does not establish handler reachability, event invo
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,14 +39,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::original_snippet_context_tests::original_snippet_variable_choices_keep_source_references_after_ui_erasure` (linked): Erased reporting variable maps preserve the genuine braced Unicode source reference, omit unsupported opaque units and decline changed whole source.
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::original_snippet_context_tests::original_snippet_events_keep_retained_cards_and_actual_script_placement` (linked): Authentic hosted event cards survive erased reporting symbol maps; nested script placement suppresses event templates while document-root placement remains available, and changed source/full configuration refuses context.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/irules_context.rs](../../../../rust/tcl-lsp-core/src/irules_context.rs), `EventHandlerFacts::from_analysis`: Require current original source/analysis correspondence, authentic selected event traits and original script placement for source authoring context.
 - [rust/tcl-lsp-core/src/irules_context.rs](../../../../rust/tcl-lsp-core/src/irules_context.rs), `EventHandlerFacts::for_profile`: Keep explicit profile compatibility construction separate from actual analysis-issued source card correspondence.
 - [rust/tcl-lsp-core/src/irules_context.rs](../../../../rust/tcl-lsp-core/src/irules_context.rs), `irules_context::tests::original_event_compatibility_constructor_uses_current_source_cards` (linked): Event compatibility construction retains genuine current source cards and original script placement; a replaced whole image cannot reuse old cards, and explicit profile construction remains a separate source compatibility path.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-The linked Rust selectors exercise source candidate and authoring placement premises. Exact executed assertions are retained independently in frozen Rust validation receipts; no native provider observation is attached to this implementation contract.

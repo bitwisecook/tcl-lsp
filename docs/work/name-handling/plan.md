@@ -2,7 +2,7 @@
 
 The source/role audit is complete for **110,709 tracked baseline paths**, with explicit current-source annexes and zero unexamined paths. The reconciled catalogue contains **1,321 caller migrations**, **377 shared-owner repairs/extensions** and **101 metadata/target-schema changes**: **1,799 semantic code changes**. There are separately **305 validation-code repairs** and **54 authored-documentation corrections**, making **2,158 confirmed required changes**. The exact catalogue records integrated/partial/remaining status separately. Examined requirements and original/provider provenance questions remain separate.
 
-[Searchable report](naming-audit.html) · [Full JSON catalogue](repository-consumer-audit-final.json) · [Current validation](current-state.md) · [Implementation obligations](implementation-ledger.md)
+Searchable report · Full JSON catalogue · [Current validation](current-state.md) · [Implementation obligations](implementation-ledger.md)
 
 Active priority is every LSP consumer plus its necessary shared Compiler/DB/Registry owners. Follow exact catalogue units for complete source/configuration/provider/selection and typed readonly/transform purposes. Runtime/VM and BIG-IP migrations and dedicated suites are deferred, with existing changes/results preserved. Uncovered BIG-IP behaviour uses the user's Tcl8.4 working assumption, separate from measured evidence. Parallel implementation covers original declaration/source geometry, genuine method/provider context, exact cursor/source roles, source-action/proposal currency and generic editor/project adapters. Do not repeat a provisional audit or count helpers/unchanged dependencies as migrations.
 

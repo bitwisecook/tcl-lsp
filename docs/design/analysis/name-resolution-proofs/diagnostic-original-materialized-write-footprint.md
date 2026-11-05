@@ -20,58 +20,11 @@ Seven marked source/API controls cover literal dollars, unmatched scalar parenth
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-command_binding-materialized_footprint.rs` (implementation): [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs). Actual token or retained materialized-world ownership supplies the common source-purpose tag before procedure roles, realm or body ownership. Complete input/source/configuration and Native allocation/caller/provider guards remain independent.
-- `naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-ir_helpers-materialized_footprint.rs` (implementation): [rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs](../../../../rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs). The genuine retained command world and complete materialized input classify source role purpose before variable ownership or immediate values. Missing ownership is opaque and no child invocation is manufactured.
-- `naming-diagnostic-original-materialized-write-footprint-rust-tcl-compiler-src-analyser-diagnostics-helpers.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs). Original statement or terminator owner and actual source purpose precede Logical summary/existence advice. The no-SSA fallback retains original terminator source tokens rather than borrowing raw input eligibility.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -108,8 +61,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `command_binding::materialized_footprint::tests::original_logical_materialized_horizon_refuses_dynamic_expanded_and_invalid_vectors` (linked): Finite source-defined control: original logical materialized horizon refuses dynamic expanded and invalid vectors. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `command_binding::materialized_footprint::tests::original_logical_materialized_root_keeps_its_actual_source_lookup_point` (linked): Actual reached Logical source point keeps the same captured input and lookup Arc. Conditional Registry source roles and MAY written names remain descriptive and grant no selected Native handler, physical store or frame.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Source/API owner and authored software controls only. Independent native public values and Rust validation receipts do not establish entered materialized-child execution; this publication executes no command.
+- [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs)
+- [rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs](../../../../rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs)
+- [rust/tcl-compiler/src/analyser/diagnostics/helpers.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/helpers.rs)

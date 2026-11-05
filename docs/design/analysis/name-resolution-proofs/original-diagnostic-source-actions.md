@@ -22,55 +22,11 @@ Current Compiler warning transport, Core context source actions and Server diagn
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -97,9 +53,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/irules_checks.rs](../../../../rust/tcl-compiler/src/irules_checks.rs), `irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor` (linked): Braced/ordinary original event operands own warning spans beside Unicode/empty body syntax; stale image/configuration refuses without activation.
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs), `code_actions::diagnostic_context::tests::original_logical_source_commands_use_actual_availability_over_catalogue_profile` (linked): One C8.6 catalogue shares genuine Logical inputs with actual C8.6 versus C8.4 availability; source command projection follows that availability and grants no Native handler/effect.
 - [rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs](../../../../rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs), `code_actions::diagnostic_context::tests::logical_source_action_commands_use_actual_body_availability_and_script_purpose` (linked): The same custom command store under actual C8.4/C9 availability retains only applicable complete Logical nested source commands; ReferenceOnly, stale source and missing input refuse without a fabricated diagnostic or Native effect.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.

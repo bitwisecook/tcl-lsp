@@ -32,27 +32,6 @@ The original raw-zero key is `6B 00 74`, modified-zero is `6B C0 80 74`, and the
 
 Current Jim returns the retained values for the six admitted key/root forms, chooses the final duplicate value, rejects an odd root or missing key, and reads the replacement root after mutation. Every tested C release rejects the scalar root as not an array. The pure ordinal recipe therefore applies only to independently selected Jim dictionary-variable input. Current cell, parent value lineage, read effects, successful completion and conversion authority remain independent.
 
-## Historical references
-
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/probe.c`. Exact root/key constructor lengths and native script source.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/receipt.json`. All six actual compile/process/library/header/executable and output identities.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/observations.tsv`. Derived exact guest code/result-byte rows for implementation comparison.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/replay.py`. Sequential strict six-provider startup and complete-row comparison.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/8.4.20/stdout.jsonl`. Original ten stdout rows, including launched patchlevel and all guest errors.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/8.4.20/receipt.json`. Actual original compile/launch and provider identity.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/8.5.19/stdout.jsonl`. Original ten stdout rows, including launched patchlevel and all guest errors.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/8.5.19/receipt.json`. Actual original compile/launch and provider identity.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/8.6.18/stdout.jsonl`. Original ten stdout rows, including launched patchlevel and all guest errors.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/8.6.18/receipt.json`. Actual original compile/launch and provider identity.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/9.0.4/stdout.jsonl`. Original ten stdout rows, including launched patchlevel and all guest errors.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/9.0.4/receipt.json`. Actual original compile/launch and provider identity.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/9.1.0/stdout.jsonl`. Original ten stdout rows, including launched patchlevel and all guest errors.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/9.1.0/receipt.json`. Actual original compile/launch and provider identity.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/jim/stdout.jsonl`. Original ten stdout rows, including launched patchlevel and all guest errors.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/jim/receipt.json`. Actual original compile/launch and provider identity.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/source-anchors/Jim_StringEqObj.c`. Pinned current Jim source explains counted equality and last duplicate replacement; independent of native output.
-- `rust/tcl-registry/tests/data/native_dictionary_variable_values/source-anchors/SetDictFromAny.c`. Pinned current Jim source explains counted equality and last duplicate replacement; independent of native output.
-
 ## Source anchors
 
 - Jim `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c::Jim_StringEqObj`, lines[2627, 2640]; source SHA `fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867`, exact excerpt SHA `56c324056af6b1ef2d6c7b9ceb85ff014a9647dab122c6bbe77fc8d01c6fcc8a`. Source inspection explains the operation and remains separate from its measured rows.

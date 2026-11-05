@@ -22,53 +22,21 @@ Exact retained full-function LF windows for C8.5.19/8.6.18/9.0.4/9.1.0 and Jim p
 
 ### tcl8.4
 
-Status: `not-tested`. Version: 8.4.20. Build: Exact full-source digest and retained LF excerpt; separately recorded configured source/header associations.. Channel: Pinned implementation function window; no native invocation.. Dialect: Tcl.
+Status: `not-tested`. Channel: Pinned implementation function window; no native invocation. Version: tcl8.4 8.4.20.
 
 No C8.4 apply implementation window inspected.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `inspected`. Version: 8.5.19. Build: Exact full-source digest and retained LF excerpt; separately recorded configured source/header associations.. Channel: Pinned implementation function window; no native invocation.. Dialect: Tcl.
-
-Pinned C8.5 SetLambdaFromAny appends the original object into the diagnostic. C8.6/C9 use Tcl_ObjPrintf with a CString operand and set TCL VALUE LAMBDA. All inspected C releases append the formal-parse lambda frame through CString printf. Jim_ApplyCoreCommand selects its own list-length and %#s diagnostic path. Later C length/element scheduling, cached lambda Proc, body preparation and namespace selection remain independent.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Exact full-source digest and retained LF excerpt; separately recorded configured source/header associations.. Channel: Pinned implementation function window; no native invocation.. Dialect: Tcl.
-
-Pinned C8.5 SetLambdaFromAny appends the original object into the diagnostic. C8.6/C9 use Tcl_ObjPrintf with a CString operand and set TCL VALUE LAMBDA. All inspected C releases append the formal-parse lambda frame through CString printf. Jim_ApplyCoreCommand selects its own list-length and %#s diagnostic path. Later C length/element scheduling, cached lambda Proc, body preparation and namespace selection remain independent.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Exact full-source digest and retained LF excerpt; separately recorded configured source/header associations.. Channel: Pinned implementation function window; no native invocation.. Dialect: Tcl.
-
-Pinned C8.5 SetLambdaFromAny appends the original object into the diagnostic. C8.6/C9 use Tcl_ObjPrintf with a CString operand and set TCL VALUE LAMBDA. All inspected C releases append the formal-parse lambda frame through CString printf. Jim_ApplyCoreCommand selects its own list-length and %#s diagnostic path. Later C length/element scheduling, cached lambda Proc, body preparation and namespace selection remain independent.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Exact full-source digest and retained LF excerpt; separately recorded configured source/header associations.. Channel: Pinned implementation function window; no native invocation.. Dialect: Tcl.
-
-Pinned C8.5 SetLambdaFromAny appends the original object into the diagnostic. C8.6/C9 use Tcl_ObjPrintf with a CString operand and set TCL VALUE LAMBDA. All inspected C releases append the formal-parse lambda frame through CString printf. Jim_ApplyCoreCommand selects its own list-length and %#s diagnostic path. Later C length/element scheduling, cached lambda Proc, body preparation and namespace selection remain independent.
-
-### jim
-
-Status: `inspected`. Version: 0.84-9-g5bac7c9. Build: Exact full-source digest and retained LF excerpt; separately recorded configured source/header associations.. Channel: Pinned implementation function window; no native invocation.. Dialect: Jim Tcl.
+Status: `inspected`. Channel: Pinned implementation function window; no native invocation. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim 0.84-9-g5bac7c9.
 
 Pinned C8.5 SetLambdaFromAny appends the original object into the diagnostic. C8.6/C9 use Tcl_ObjPrintf with a CString operand and set TCL VALUE LAMBDA. All inspected C releases append the formal-parse lambda frame through CString printf. Jim_ApplyCoreCommand selects its own list-length and %#s diagnostic path. Later C length/element scheduling, cached lambda Proc, body preparation and namespace selection remain independent.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation or source implementation claim.
-
-## Historical references
-
-- `source-tcl8.5` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-tcl8.6` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-tcl9.0` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-tcl9.1` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
-- `source-jim` (source-anchor): [rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json). JSON pointer `/snippet`. Pinned LF source function window, exact full-source association and raw snippet.
 
 ## Source inspection
 
@@ -859,15 +827,16 @@ static int Jim_ApplyCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *ar
 }
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_lambda.rs](../../../../rust/tcl-registry/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::select`: Independently selected exact engine diagnostic recipe.
 - [rust/tcl-registry/src/native_lambda.rs](../../../../rust/tcl-registry/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::conversion_error`: Counted C85 versus later C/Jim CString guest wording and error-code action.
 - [rust/tcl-registry/src/native_lambda.rs](../../../../rust/tcl-registry/src/native_lambda.rs), `NativeLambdaDiagnosticProtocol::parameter_error_frame`: Separate C-only CString formal parse frame.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Verify-only checks retained exact receipt/stream/input hashes and named fields; zero native/Rust launches. Native replay requires exact original configured provider inputs recorded in each immutable queue. Source windows reproduce exact LF range/full-source/snippet association. No unmeasured type/cache/body claim.
+- [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.5.19-source.json)
+- [rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/8.6.18-source.json)
+- [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.0.4-source.json)
+- [rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/9.1.0-source.json)
+- [rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json](../../../../rust/tcl-registry/tests/data/native_lambda_diagnostics/jim-source.json)

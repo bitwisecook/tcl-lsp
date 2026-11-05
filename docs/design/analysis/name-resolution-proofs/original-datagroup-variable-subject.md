@@ -20,56 +20,11 @@ Six marked source/API controls cover complete scalar spelling, literal dollars/b
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-refactor-original-datagroup-variable-subject-rust-tcl-lsp-core-src-refactor-datagroup-source_subject.rs` (implementation): [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-refactor-original-datagroup-variable-subject-rust-tcl-mcp-src-datagroup.rs` (implementation): [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +42,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs), `datagroup::tests::original_switch_suggestions_share_scalar_subject_and_literal_case_values` (linked): Actual-analysis MCP suggestions share original scalar subject syntax and completed literal case values; quoting and data values remain separate from variable classification.
 - [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs), `datagroup::tests::original_switch_suggestions_keep_selected_alias_and_current_analysis` (linked): Authentic selected alias/effective bound argv retains source suggestions under actual input/Realm/config; shadows and missing/stale ownership cannot borrow them.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Source/API definitions and current exact owners only. Actual Rust command receipts and native provider observations are separate; no command is executed by this publication.
+- [rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs](../../../../rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs)
+- [rust/tcl-mcp/src/datagroup.rs](../../../../rust/tcl-mcp/src/datagroup.rs)

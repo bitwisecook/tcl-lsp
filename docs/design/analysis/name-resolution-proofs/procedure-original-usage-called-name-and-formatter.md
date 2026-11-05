@@ -20,58 +20,17 @@ Read-only inspection retains the original request, whole exact jim.c and three e
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This Jim-specific source inspection supplies no provider execution or C/BIG-IP source/formatting result. Current software rendering/assertion definitions do not issue original invocation, object/header or activation ownership.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-This Jim-specific source inspection supplies no provider execution or C/BIG-IP source/formatting result. Current software rendering/assertion definitions do not issue original invocation, object/header or activation ownership.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This Jim-specific source inspection supplies no provider execution or C/BIG-IP source/formatting result. Current software rendering/assertion definitions do not issue original invocation, object/header or activation ownership.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This Jim-specific source inspection supplies no provider execution or C/BIG-IP source/formatting result. Current software rendering/assertion definitions do not issue original invocation, object/header or activation ownership.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 This Jim-specific source inspection supplies no provider execution or C/BIG-IP source/formatting result. Current software rendering/assertion definitions do not issue original invocation, object/header or activation ownership.
 
 ### jim
 
-Status: `inspected`. Version: Exact independently pinned jim.c; executable version not measured by this appendix.. Build: Read-only source content only; no interpreter/compiler/build invocation.. Channel: Whole original source plus three exact independently hashed function excerpts.. Dialect: Jim original source implementation.
+Status: `inspected`. Channel: Whole original source plus three exact independently hashed function excerpts. Version: jim Exact independently pinned jim.c; executable version not measured by this appendix.
 
 Read-only source inspection: JimCmdUsage duplicates original cmdNameObj before appending formal usage; JimSetProcWrongArgs passes the assembled object via %#s; Jim_SetResultFormatted sizes from counted length then snprintf consumes CString extent. No procedure-NUL execution, actual table/header/lifetime or Rust pass is observed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This Jim-specific source inspection supplies no provider execution or C/BIG-IP source/formatting result. Current software rendering/assertion definitions do not issue original invocation, object/header or activation ownership.
-
-## Historical references
-
-- `procedure-usage-source285-JimCmdUsage.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-JimSetProcWrongArgs.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-Jim_SetResultFormatted.c.txt` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-jim.c` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/jim.c](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/jim.c). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `procedure-usage-source285-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_usage_source285/request.json](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/request.json). Exact independently pinned original Jim source, source excerpt or read-only question request; no provider execution/physical object assertion.
-- `naming-procedure-original-usage-called-name-and-formatter-runtime-rust-src-interp.rs` (implementation): [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs). Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
-- `naming-procedure-original-usage-called-name-and-formatter-rust-tcl-registry-src-native_usage.rs` (implementation): [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs). Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
-- `naming-procedure-original-usage-called-name-and-formatter-rust-tcl-vm-src-exec.rs` (implementation): [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs). Current source/API presentation owner or marked assertion definition; no executed Rust/provider outcome.
 
 ## Source inspection
 
@@ -211,7 +170,6 @@ void Jim_SetResultFormatted(Jim_Interp *interp, const char *format, ...)
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `NativeUsageProtocol::render_procedure_name`: Select procedure-called-name presentation: Jim preserves called bytes while C selected recipe can apply its independent list quoting. Does not reconstruct genuine call identity.
@@ -220,8 +178,11 @@ void Jim_SetResultFormatted(Jim_Interp *interp, const char *format, ...)
 - [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `proc_usage`: Consume selected procedure usage presentation independently of actual ProcDef/call/header/admission ownership.
 - [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs), `native_usage::tests::procedure_usage_preserves_the_selected_name_and_final_formatter_boundary` (linked): Pure selected procedure presenter retains raw multiword Jim called-name bytes and applies its final CString boundary to already assembled p-NUL-tail usage. C counted presentation remains separately selected. This authored byte-renderer control does not execute a NUL procedure or prove original invocation/header/cache/activation identity; separately pinned source excerpts establish source facts only.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimCmdUsage.c.txt)
+- [rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/JimSetProcWrongArgs.c.txt)
+- [rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt](../../../../rust/tcl-registry/tests/data/native_procedure_usage_source285/Jim_SetResultFormatted.c.txt)
+- [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs)
+- [rust/tcl-registry/src/native_usage.rs](../../../../rust/tcl-registry/src/native_usage.rs)
+- [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs)

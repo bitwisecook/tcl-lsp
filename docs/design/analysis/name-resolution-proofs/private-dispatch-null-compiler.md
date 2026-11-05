@@ -20,59 +20,23 @@ Exact source constructor windows for C8.6.18, C9.0.4 and C9.1.0. Source inspecti
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No constructor inspected for this question.. Dialect: Tcl.
-
-No source/native observation for this exact TclOO registration question; no hook metadata is borrowed from another provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No constructor inspected for this question.. Dialect: Tcl.
+Status: `not-tested`. Channel: No constructor inspected for this question.
 
 No source/native observation for this exact TclOO registration question; no hook metadata is borrowed from another provider.
 
 ### tcl8.6
 
-Status: `inspected`. Version: 8.6.18. Build: Source inspection only; no executed build association.. Channel: Inspected object command constructors; no guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected object command constructors; no guest input. Version: tcl8.6 8.6.18.
 
 my is created with an absent compileProc. myclass is not present in this 8.6 constructor window.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 9.0.4. Build: Source inspection only; no executed build association.. Channel: Inspected object command constructors; no guest input.. Dialect: Tcl.
-
-my is created with an absent compileProc. myclass uses the same null-compiler constructor independently of its NRE procedure.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Source inspection only; no executed build association.. Channel: Inspected object command constructors; no guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected object command constructors; no guest input. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 my is created with an absent compileProc. myclass uses the same null-compiler constructor independently of its NRE procedure.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No constructor inspected for this question.. Dialect: Jim Tcl.
-
-No source/native observation for this exact TclOO registration question; no hook metadata is borrowed from another provider.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No constructor inspected for this question.. Dialect: F5 iRules.
-
-No source/native observation for this exact TclOO registration question; no hook metadata is borrowed from another provider.
-
-## Historical references
-
-- `tcl8.6-object-private-command` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl8.6-nre-wrapper` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl8.6-new-object-command` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json). JSON pointer `/windows/2/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl9.0-object-private-command` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl9.0-nre-wrapper` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl9.0-new-object-command` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json). JSON pointer `/windows/2/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl9.1-object-private-command` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl9.1-nre-wrapper` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
-- `tcl9.1-new-object-command` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json). JSON pointer `/windows/2/snippet`. Exact LF-coordinate source window; full original source and snippet digests retained. No native or Rust launch.
 
 ## Source inspection
 
@@ -253,15 +217,14 @@ tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclBasi
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_tcloo_registration.rs](../../../../rust/tcl-registry/src/native_tcloo_registration.rs), `compilation`: Select independently source-inspected stock registration hook presence; no handler/token/lookup grant.
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `Vm::native_hook_for_registry_identity`: Stamp the actual current stock registration sidecar from its retained identity and selected native dialect; replacements and actual command lookup remain separate.
 - [rust/tcl-registry/src/native_tcloo_registration.rs](../../../../rust/tcl-registry/src/native_tcloo_registration.rs), `native_tcloo_registration::tests::private_dispatch_registration_keeps_null_hooks_separate_from_helper_compilers` (linked): The exact native registration/version selects null-hook metadata; C84/85, Jim, missing family and unrelated identity decline, while next/nextto/self remain outside the absent-hook owner. No Rust execution is claimed.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Verify each exact LF window and snippet/full-file SHA against its pinned source. No executable replay or native/Rust execution is asserted.
+- [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl8.6-source.json)
+- [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.0-source.json)
+- [rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_private_dispatch_source/tcl9.1-source.json)

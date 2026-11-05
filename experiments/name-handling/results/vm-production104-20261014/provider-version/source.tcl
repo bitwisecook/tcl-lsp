@@ -1,1 +1,0 @@
-puts [list [info patchlevel]]

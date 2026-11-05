@@ -22,87 +22,39 @@ C8.6 accepts the target alone and rejects a second flag by arity. C9.0/C9.1 acce
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual compile0/process0; exact executable/library/header/Makefile source hashes and compile command retained in receipt.. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion.. Dialect: Tcl.
+Status: `observed`. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion. Version: tcl8.4 8.4.20.
 
 All 44 controls reject unavailable OO info object/class surface; setup errors and missing return-options API are separately retained.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual compile0/process0; exact executable/library/header/Makefile source hashes and compile command retained in receipt.. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion.. Dialect: Tcl.
+Status: `observed`. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion. Version: tcl8.5 8.5.19.
 
 All 44 controls reject unavailable OO info object/class surface; exact guest results/options retained.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual compile0/process0; exact executable/library/header/Makefile source hashes and compile command retained in receipt.. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion.. Dialect: Tcl.
+Status: `observed`. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion. Version: tcl8.6 8.6.18.
 
 Base public declaration query succeeds; optional flag/extra arity rejects before target, and missing target without flag rejects by object lookup. No private option supported.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Actual compile0/process0; exact executable/library/header/Makefile source hashes and compile command retained in receipt.. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion.. Dialect: Tcl.
-
-Base/private queries succeed. Exact/raw-zero private flags select; encoded zero, abbreviation and bad flags reject before missing target; extra arity and absent target retain their distinct errors.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual compile0/process0; exact executable/library/header/Makefile source hashes and compile command retained in receipt.. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion.. Dialect: Tcl.
+Status: `observed`. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Base/private queries succeed. Exact/raw-zero private flags select; encoded zero, abbreviation and bad flags reject before missing target; extra arity and absent target retain their distinct errors.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual compile0/process0; exact executable/library/header/Makefile source hashes and compile command retained in receipt.. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Separate original counted Tcl/Jim string-object argv and counted native source. Raw00 and encoded C080 operands are distinct; no external Document conversion. Version: jim 0.84-9-g5bac7c9.
 
 All 44 controls reject unavailable OO info object/class surface; exact setup/guest result and unqueried C return-options API retained.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `probe.c` (input): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/probe.c](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/probe.c). Exact source building fresh interpreters and original counted argv/source controls; public result/return-options getters are explicit.
-- `inputs.json` (input): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/inputs.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/inputs.json). Finite selected kinds/case/channel description.
-- `queue.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/queue.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/queue.json). Exact native build/input pin and output-path associations.
-- `capture.py` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/capture.py](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/capture.py). Original capture orchestration; no execution inferred from retention.
-- `receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/receipt.json). Aggregate original successful compile/process associations and reported linked versions.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/receipt.json). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.4-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/stdout.tsv). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.4-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/compile.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/compile.stdout). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.4-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/compile.stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20/compile.stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/receipt.json). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.5-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/stdout.tsv). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.5-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/compile.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/compile.stdout). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.5-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/compile.stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19/compile.stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/receipt.json). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.6-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/stdout.tsv). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.6-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/compile.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/compile.stdout). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl8.6-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/compile.stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18/compile.stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/receipt.json). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.0-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/stdout.tsv). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.0-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/compile.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/compile.stdout). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.0-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/compile.stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4/compile.stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/receipt.json). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.1-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/stdout.tsv). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.1-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/compile.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/compile.stdout). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `tcl9.1-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/compile.stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0/compile.stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/receipt.json). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `jim-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/stdout.tsv). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `jim-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/compile.stdout). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-- `jim-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim/compile.stderr). Exact original provider stream/receipt; result, options, input and setup rows are separately labelled.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -112,16 +64,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/cmd_oo/native_info_option_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_info_option_tests.rs), `cmd_oo::native_info_option_tests::variable_info_matches_original_native_option_and_target_failures` (linked): 66 direct C8.6/C9.0/C9.1 code/result byte comparisons for explicit owned declaration query preconditions; no return-options, original pointer, installer or Rust execution claim.
 - [runtime/rust/src/cmd_oo/native_info_option_tests.rs](../../../../runtime/rust/src/cmd_oo/native_info_option_tests.rs), `cmd_oo::native_info_option_tests::variable_info_matches_original_native_option_and_target_failures` (linked): 66 direct C8.6/C9.0/C9.1 code/result byte comparisons for explicit owned declaration query preconditions; no return-options, original pointer, installer or Rust execution claim.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3 rust/tcl-registry/tests/data/native_tcloo_variable_info_original/replay.py --verify-only"
-]
-```
-
-Offline verify-only checked retained264 controls/1150 protocol rows and exact source/input/receipt/stream digests; launches no native/compiler/Rust process. Original rebuild requires every exact pinned library/header/Makefile/source and fresh output directory. C8.4/Jim C return-options API not queried. No Rust execution or general declaration/observer closure inferred.
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_original](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.4.20)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.5.19)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/8.6.18)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.0.4)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_original/jim)

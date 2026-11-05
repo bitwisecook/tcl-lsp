@@ -24,55 +24,11 @@ Current direct test attributes and real module parents attach these source/API c
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,13 +41,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-cli/src/commands/pkg_discover.rs](../../../../rust/tcl-cli/src/commands/pkg_discover.rs), `commands::pkg_discover::tests::original_package_discovery_ignores_reporting_values_and_refuses_stale_or_opaque_manifest_names` (linked): Actual source producers survive reporting-value counterfactuals while stale full source and unrepresentable original units withdraw manifest identity.
 - [rust/tcl-cli/src/commands/pkg_discover.rs](../../../../rust/tcl-cli/src/commands/pkg_discover.rs), `commands::pkg_discover::tests::original_package_requirement_values_keep_actual_option_ordinals_and_unknowns` (linked): Foreground and background producers retain genuine -exact/name/version ordinals and preserve unknown requirement operands independently.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-cli/src/commands/pkg_discover.rs](../../../../rust/tcl-cli/src/commands/pkg_discover.rs), `commands::pkg_discover::tests::original_package_refinement_keeps_pack_input_availability_and_full_lexer` (linked): CLI package source refinement uses checked pack-bearing input, actual availability and full LexerConfig under the original source owner; metadata declarations are independent of package loading or callable installation.
 - [rust/tcl-cli/src/commands/pkg_discover.rs](../../../../rust/tcl-cli/src/commands/pkg_discover.rs), `commands::pkg_discover::tests::original_package_refinement_refuses_missing_foreign_stale_and_unavailable_owners` (linked): CLI package source advice withholds missing, foreign, stale and unavailable owners instead of consulting presentation or reporting-only values.
 
 Current source linkage supplies no execution or assertion credit.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.

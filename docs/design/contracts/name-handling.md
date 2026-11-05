@@ -943,7 +943,7 @@ evidence. Unsafe unmeasured numeric and cell extents also refuse.
 `Oldscan`, `ConvertLocalToUTC`, `GetJulianDayFromEraYearMonthDay` and
 `GetJulianDayFromEraYearWeekDay`, guest `env` write synchronisation and the full
 seven-worker pool remain unsupported. The
-[clock evidence index](../../../experiments/name-handling/results/runtime-c86-real-suites/README.md)
+clock evidence index
 separates original C observations, exact Runtime controls, pure calendar checks
 and Registry checks; none establishes complete upstream-suite conformance.
 

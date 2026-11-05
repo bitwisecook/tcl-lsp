@@ -20,59 +20,11 @@ Current shared below-Core source words/schema, original pre-walk ledger and Core
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-- `authored-original-command-purpose-409461ede0362ff5` (implementation): [rust/tcl-registry/src/command_descriptor_key.rs](../../../../rust/tcl-registry/src/command_descriptor_key.rs). An exact authored selected descriptor label is borrowed as pure data, preserving punctuation and granting no root encoding, written lookup, source operand, runtime token or trace identity. Software source definitions attach no new Native/provider observation or asserted outcome.
-- `authored-original-command-purpose-f5a3d9bd52713542` (implementation): [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs). The stock semantic-operation query projects exact already-authored descriptor keys without stripping labels into written Tcl names or selecting a runtime binding. Software source definitions attach no new Native/provider observation or asserted outcome.
-- `authored-original-command-purpose-8cd77de2feb97b9a` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). Selected InvocationFacts and ResolvedInvocation borrow the exact descriptor key from their original selected facts/spec label. Current selected alias-role projection is separately scoped to authored positions and supplies no runtime link. Software source definitions attach no new Native/provider observation or asserted outcome.
-- `authored-original-command-purpose-c00c3d787fd6d4ae` (implementation): [rust/tcl-compiler/src/command_binding/source_name_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/source_name_lookup.rs). The selected non-head transition lookup uses its original frozen operand, source index and the same current post-operand lookup state; a head, synthetic/root-variable or rebuilt label cannot substitute. Returned slots are candidate lookup keys, not trace-owner absence. Software source definitions attach no new Native/provider observation or asserted outcome.
-- `authored-original-command-purpose-daec57d4b69d9fd6` (implementation): [rust/tcl-compiler/src/registry_invocation/execution_trace.rs](../../../../rust/tcl-compiler/src/registry_invocation/execution_trace.rs). The three shared trace consumers first use genuine retained purpose. Execution requires the canonical original current-token observer owner; Logical and explicit Standalone retain separate source models, AuthoredSimulation declines trace absence. Initial captured trace bit, target generation, frame and complete argv/context remain authoritative. Software source definitions attach no new Native/provider observation or asserted outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -116,8 +68,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/registry_invocation/execution_trace.rs](../../../../rust/tcl-compiler/src/registry_invocation/execution_trace.rs), `registry_invocation::execution_trace::tests::original_opaque_trace_target_keeps_the_hazard_dynamic` (linked): A selected original execution-trace subject carrying non-Unicode bytes cannot be repaired into a reporting label: original trace-key projection remains unavailable, and lowering retains the dynamic trace hazard. Opaque source-name refusal does not establish an empty physical trace table. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation.
 - [rust/tcl-registry/src/command_descriptor_key.rs](../../../../rust/tcl-registry/src/command_descriptor_key.rs), `command_descriptor_key::tests::selected_descriptor_key_preserves_colons_and_grants_no_written_name_recipe` (linked): The pure selected descriptor key preserves each authored label exactly, including leading and internal colons. The fixed colon-rich label differs from written-command canonicalisation and one-root constructed-key projection; descriptor bytes grant neither a written NameKey, lookup recipe nor runtime command identity. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
+- [rust/tcl-registry/src/command_descriptor_key.rs](../../../../rust/tcl-registry/src/command_descriptor_key.rs)
+- [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs)
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs)
+- [rust/tcl-compiler/src/command_binding/source_name_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/source_name_lookup.rs)
+- [rust/tcl-compiler/src/registry_invocation/execution_trace.rs](../../../../rust/tcl-compiler/src/registry_invocation/execution_trace.rs)

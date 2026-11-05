@@ -20,9 +20,9 @@ One exact native probe uses fresh interpreters per case, counted original String
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer.. Dialect: C Tcl.
+Status: `observed`. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer. Version: tcl8.4 8.4.20; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Exact selected original JSONL rows in reached order. Hex bytes are retained without display decoding; any negative guest code remains a measured failure.
 
@@ -44,9 +44,9 @@ Exact selected original JSONL rows in reached order. Hex bytes are retained with
 {"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
 ```
 
-### tcl8.5
+### tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer.. Dialect: C Tcl.
+Status: `observed`. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer. Version: tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 Exact selected original JSONL rows in reached order. Hex bytes are retained without display decoding; any negative guest code remains a measured failure.
 
@@ -63,78 +63,6 @@ Exact selected original JSONL rows in reached order. Hex bytes are retained with
 {"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
 {"case":"array-undefined-trace-shell","op":"remove-shell","code":0,"bytes":""}
 {"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":11,"array_buckets":16,"array_entries":11}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056206b30332056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-```
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer.. Dialect: C Tcl.
-
-Exact selected original JSONL rows in reached order. Hex bytes are retained without display decoding; any negative guest code remains a measured failure.
-
-```jsonl
-{"case":"array-undefined-trace-shell","op":"setup","code":0,"bytes":""}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":9,"array_buckets":16,"array_entries":12}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032"}
-{"case":"array-undefined-trace-shell","op":"fill-shell","code":0,"bytes":"56"}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":11,"array_buckets":16,"array_entries":12}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056206b30332056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"remove-shell","code":0,"bytes":""}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":11,"array_buckets":16,"array_entries":11}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056206b30332056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-```
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer.. Dialect: C Tcl.
-
-Exact selected original JSONL rows in reached order. Hex bytes are retained without display decoding; any negative guest code remains a measured failure.
-
-```jsonl
-{"case":"array-undefined-trace-shell","op":"setup","code":0,"bytes":""}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":8,"array_buckets":16,"array_entries":12}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032"}
-{"case":"array-undefined-trace-shell","op":"fill-shell","code":0,"bytes":"56"}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":10,"array_buckets":16,"array_entries":12}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056206b30332056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"remove-shell","code":0,"bytes":""}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":10,"array_buckets":16,"array_entries":11}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056206b30332056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-```
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer.. Dialect: C Tcl.
-
-Exact selected original JSONL rows in reached order. Hex bytes are retained without display decoding; any negative guest code remains a measured failure.
-
-```jsonl
-{"case":"array-undefined-trace-shell","op":"setup","code":0,"bytes":""}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":8,"array_buckets":16,"array_entries":12}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032"}
-{"case":"array-undefined-trace-shell","op":"fill-shell","code":0,"bytes":"56"}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":10,"array_buckets":16,"array_entries":12}
-{"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056206b30332056"}
-{"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
-{"case":"array-undefined-trace-shell","op":"remove-shell","code":0,"bytes":""}
-{"case":"array-undefined-trace-shell","op":"physical-table","global_buckets":4,"global_entries":10,"array_buckets":16,"array_entries":11}
 {"case":"array-undefined-trace-shell","op":"array-names","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
 {"case":"array-undefined-trace-shell","op":"array-get","code":0,"bytes":"6b30302056206b30312056206b30322056206b30332056"}
 {"case":"array-undefined-trace-shell","op":"array-search","code":0,"bytes":"6b3030206b3031206b3032206b3033"}
@@ -142,7 +70,7 @@ Exact selected original JSONL rows in reached order. Hex bytes are retained with
 
 ### jim
 
-Status: `observed`. Version: Jim capture; patchlevel, revision and UTF configuration unrecorded. Build: compile_exit=0; exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original counted public object-vector variable/array constructors; original String script objects enter Tcl_EvalObjEx(TCL_EVAL_GLOBAL) or Jim_EvalObj; private table/ABI observer. Version: jim Jim capture.
 
 Exact selected original JSONL rows in reached order. Hex bytes are retained without display decoding; any negative guest code remains a measured failure.
 
@@ -166,24 +94,9 @@ Exact selected original JSONL rows in reached order. Hex bytes are retained with
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No original observation for this exact question is attached for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-core-types/tests/data/native_variable_tables/probe.c](../../../../rust/tcl-core-types/tests/data/native_variable_tables/probe.c). Exact original keys, constructor/evaluator flags, native metadata and independent script observer cases.
-- `receipt` (provider): [rust/tcl-core-types/tests/data/native_variable_tables/manifest.json](../../../../rust/tcl-core-types/tests/data/native_variable_tables/manifest.json). Six original source/header/library/compile/process/raw output closures; absent additional artifacts remain explicit.
-- `rows-tcl8.4` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl8.5` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl8.6` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl9.0` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-tcl9.1` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-- `rows-jim` (observation): [rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl). Full original298-row JSONL stream; relevant case/op selectors are listed in the answer.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -191,8 +104,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-core-types/src/native_hash_order.rs](../../../../rust/tcl-core-types/src/native_hash_order.rs), `NativeEntryLedger`: Keeps original entry chronology and optional selected hash order separately from defined inventory.
 - [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `frame::native_inventory_tests::trace_shells_grow_table_without_becoming_defined_inventory` (linked): Recreates C shell growth to16buckets, undefined filtering, retirement to11 and fill order. No native trace invocation or Jim parity is asserted by this model test.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No new native run or Rust execution result is claimed. Replay must compile the retained exact probe against independently identified release headers/libraries and preserve separate compile/process status and raw streams before comparing the attached original hashes. Original absolute compile paths are capture metadata, not a portable executable command. No evaluator/source/parser or native allocation authority may be obtained by matching display text. Probe code is input/observer code; absent native source excerpts supply no implementation explanation.
+- [rust/tcl-core-types/tests/data/native_variable_tables/probe.c](../../../../rust/tcl-core-types/tests/data/native_variable_tables/probe.c)
+- [rust/tcl-core-types/tests/data/native_variable_tables/manifest.json](../../../../rust/tcl-core-types/tests/data/native_variable_tables/manifest.json)
+- [rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.4.20.jsonl)
+- [rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.5.19.jsonl)
+- [rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/8.6.18.jsonl)
+- [rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.0.4.jsonl)
+- [rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/9.1.0.jsonl)
+- [rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl](../../../../rust/tcl-core-types/tests/data/native_variable_tables/Jim.jsonl)

@@ -20,75 +20,23 @@ Exact original formal bytes long<raw00>tail and body return ${long<raw00>tail}, 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable; compile command, public-header/static-library/Makefile/source-owner hashes and process streams are retained in the provider receipt.. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries.. Dialect: Tcl.
-
-Raw-zero declaration succeeds; original calls fail with code1 and exact missing-long diagnostic, while renamed calls return code0/same argv/bytes. C080 original and renamed calls succeed.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual executable; compile command, public-header/static-library/Makefile/source-owner hashes and process streams are retained in the provider receipt.. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 Raw-zero declaration succeeds; original calls fail with code1 and exact missing-long diagnostic, while renamed calls return code0/same argv/bytes. C080 original and renamed calls succeed.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable; compile command, public-header/static-library/Makefile/source-owner hashes and process streams are retained in the provider receipt.. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries.. Dialect: Tcl.
-
-Raw-zero and separate C080 original/renamed calls return code0/the same held argv object/exact bytes across all six argument inputs.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual executable; compile command, public-header/static-library/Makefile/source-owner hashes and process streams are retained in the provider receipt.. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries.. Dialect: Tcl.
-
-Raw-zero and separate C080 original/renamed calls return code0/the same held argv object/exact bytes across all six argument inputs.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable; compile command, public-header/static-library/Makefile/source-owner hashes and process streams are retained in the provider receipt.. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries.. Dialect: Tcl.
-
-Raw-zero and separate C080 original/renamed calls return code0/the same held argv object/exact bytes across all six argument inputs.
-
-### jim
-
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; compile command, public-header/static-library/Makefile/source-owner hashes and process streams are retained in the provider receipt.. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original counted Tcl_NewStringObj/Tcl_EvalObjv or Jim_NewStringObj/Jim_EvalObjVector declarations/formals/body/argv; independent ASCII NUL-terminated Tcl_Eval/Jim_Eval queries. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim 0.84-9-g5bac7c9.
 
 Raw-zero and separate C080 original/renamed calls return code0/the same held argv object/exact bytes across all six argument inputs.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance capture for this exact counted formal/body/argv question.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-vm/tests/data/native_formal_alpha/probe.c](../../../../rust/tcl-vm/tests/data/native_formal_alpha/probe.c). Exact public counted declarations/body/argv arrays and pointer equality sampled before the sole result string getter.
-- `aggregate` (provider): [rust/tcl-vm/tests/data/native_formal_alpha/v2/receipt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/receipt.json). Complete actual all-six native compile/process/header/library/Makefile/source-owner/executable/stream correspondence.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20/receipt.json). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20/stdout.tsv). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20/stderr). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19/receipt.json). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19/stdout.tsv). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19/stderr). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18/receipt.json). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18/stdout.tsv). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18/stderr). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4/receipt.json). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4/stdout.tsv). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4/stderr). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0/receipt.json). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0/stdout.tsv). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0/stderr). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_formal_alpha/v2/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/jim/receipt.json). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/jim/stdout.tsv). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `jim-stderr` (observation): [rust/tcl-vm/tests/data/native_formal_alpha/v2/jim/stderr](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/jim/stderr). Actual retained reported version/build and native completion/identity/hex rows; guest errors are separate from successful process0 and empty stderr.
-- `v1-capture-limitation` (limitation): [rust/tcl-vm/tests/data/native_formal_alpha/v1/attempt.json](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v1/attempt.json). First capture runner decoded the pointer field as a version and failed before a provider receipt; only the exact first C84 raw stream and traceback are retained, not a complete build/status association.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -96,23 +44,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/cmd_proc/native_formal_alpha_tests.rs](../../../../runtime/rust/src/cmd_proc/native_formal_alpha_tests.rs), `cmd_proc::native_formal_alpha_tests::counted_formal_renaming_keeps_whole_object_return_and_binding_boundaries` (linked): Compares the exact original proc/formal/body/value operands and retained result pointer/bytes in the separately selected Runtime interpreter contexts. No execution result is inferred from this binding.
 - [rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs](../../../../rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs), `command_binding::scalar_body_alpha::tests::original_scalar_alpha_raw_zero_requires_selected_formal_and_body_correspondence` (linked): Authentic NativeValue formal topology and body-root correspondence distinguish the observed C84/C85 raw-zero installation mismatch from C86/C9/Jim correspondence. The independently tested Document C080 projection is Rust model correspondence, outside the empirical counted-object observation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-vm/tests/data/native_formal_alpha/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-formal-alpha-reconfirmation"
-]
-```
-
-Requires the exact retained public header/static library/Makefile/source owner/probe hashes. Rebuild and compare complete process exit/stdout/stderr, including all guest errors and identity rows. --verify-only validates inputs without launches. v1 adapter failure is retained separately and has no provider receipt. No minifier/Compiler/Runtime execution is inferred.
+- [rust/tcl-vm/tests/data/native_formal_alpha](../../../../rust/tcl-vm/tests/data/native_formal_alpha)
+- [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.4.20)
+- [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.5.19)
+- [rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/8.6.18)
+- [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.0.4)
+- [rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/9.1.0)
+- [rust/tcl-vm/tests/data/native_formal_alpha/v2/jim](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v2/jim)
+- [rust/tcl-vm/tests/data/native_formal_alpha/v1](../../../../rust/tcl-vm/tests/data/native_formal_alpha/v1)

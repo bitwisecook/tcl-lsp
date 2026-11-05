@@ -16,55 +16,10 @@ expr {09}⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case num_bad_octal
+### TMM log tag tmm, RULE_INIT, case num_bad_octal; TMM log tag tmm1, RULE_INIT, case num_bad_octal; TMM log tag tmm2, RULE_INIT, case num_bad_octal; TMM log tag tmm3, RULE_INIT, case num_bad_octal
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-expected integer but got "09" (looks like invalid octal numb⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm1, RULE_INIT, case num_bad_octal
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-expected integer but got "09" (looks like invalid octal numb⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm2, RULE_INIT, case num_bad_octal
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-expected integer but got "09" (looks like invalid octal numb⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm3, RULE_INIT, case num_bad_octal
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -108,25 +63,10 @@ should be "$09" or "{09}" or "09(...)" or ... (invalid octal number?)⟦EOF⟧
 
 The wrapper recorded Tcl completion code 1.
 
-### iApp implementation, case num_bad_octal
+### iApp implementation, case num_bad_octal; iCall script, case num_bad_octal
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-expected integer but got "09" (looks like invalid octal number)⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iCall script, case num_bad_octal
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
+- Recorded input channel: iApp implementation; iCall script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.

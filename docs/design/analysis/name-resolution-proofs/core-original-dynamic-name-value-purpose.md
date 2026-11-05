@@ -28,62 +28,16 @@ Seven added controls are source/software definitions without an execution receip
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `site_resolution_rules_out`: Keep compatibility value narrowing positively Logical; source role/report data cannot issue Native or hosted cell/current-value authority.
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `rename_safety::tests::original_dynamic_name_value_narrowing_stays_in_its_logical_purpose` (linked): All five C versions, Jim and f5 source inputs retain the genuine dynamic site but cannot narrow the rename refusal here. An explicitly Logical source analysis retains other and narrows only its own target exclusion.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `namespace_variable_rename_hazard`: Keep actual full source dispatch context and original written roles, preserve unknown residuals, and distinguish literal data from source-variable interpolation under retained grammar.
 - [rust/tcl-lsp-core/src/rename_safety.rs](../../../../rust/tcl-lsp-core/src/rename_safety.rs), `walk_document`: Visit only the genuine actual analysis executable source inventory; never relex under a donor profile or supply missing metadata from a nominal catalogue.
@@ -105,7 +59,3 @@ These bindings are current software contracts without an executed assertion or e
 - [rust/tcl-lsp-core/src/namespace_rename.rs](../../../../rust/tcl-lsp-core/src/namespace_rename.rs), `namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles` (linked): Shared VariableRoot versus NamespaceName lexical pattern purpose requires a complete supplied Logical input and its actual independently authored C name policy/config. Variable roots use only split_element_ref closed geometry; namespace parentheses remain bytes. Fixed local tails no longer exclude namespace-cell hazards. The three supplied Core edit-hazard absence routes require current source currency and authentic selected name roles before lexical narrowing; missing/foreign/config drift/availability-only/unsupported/Native/Jim/hosted stays possible or unavailable. Native rename identity paths unchanged. Hazard-only fixture helpers use authentic plain Logical authoring input, actual availability and independently selected close-rule config, preserving all old source/assertions. No interpreter, Native identity, execution, cache/frame/store or edit permission supplied. This is a current source/software assertion definition only; no executed assertion or external provider outcome is attached.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
-
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.

@@ -20,58 +20,11 @@ Rust readonly source ownership and editor consumer contract. Fixed C8.6/C9.0/C9.
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This question is a Rust readonly consumer contract. No executed native observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
+Status: `not-tested`.
 
 This question is a Rust readonly consumer contract. No executed native observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This question is a Rust readonly consumer contract. No executed native observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This question is a Rust readonly consumer contract. No executed native observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This question is a Rust readonly consumer contract. No executed native observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This question is a Rust readonly consumer contract. No executed native observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This question is a Rust readonly consumer contract. No executed native observation is attached.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
-- `implementation-2` (implementation): [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
-- `implementation-3` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). The current Rust source owns the described readonly purpose. A source hash is not a test-execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +40,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs), `original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection` (linked): Retain independent URI ownership, verify readonly handles against the current full image, enumerate lenses, and select actual own-worker references.
 - [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs), `original_call_hierarchy::own_object_call_tests::original_own_object_calls_and_references_keep_the_canonical_object_worker` (linked): Prepare and group source calls/references under the actual own-object worker, with stale source withdrawal.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Run the named fixed Rust selectors in a coherent compiled workspace. No Rust execution result is recorded here; no native replay is attached to this implementation contract.
+- [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs)
+- [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs)
+- [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs)
+- [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs)

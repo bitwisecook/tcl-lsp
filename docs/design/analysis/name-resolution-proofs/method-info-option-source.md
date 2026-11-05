@@ -20,56 +20,23 @@ Full pinned LF-only InfoObjectMethodsCmd/InfoClassMethodsCmd windows for C8.6.18
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No inspected method handler for this provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No inspected method handler for this provider.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Pinned source inspection only; no executed source association is inferred.. Channel: Inspected full native method handler; no guest input.. Dialect: Tcl.
-
-All six inspected handlers first require a target and resolve it before sequential original-object Index option lookup. C8.6 has -all/-localprivate/-private; C9 adds -scope and uses the last selected scope, clearing recursion after the loop. C9 legacy local matching excludes TRUE_PRIVATE_METHOD, while explicit scope matches SCOPE_FLAGS exactly. Original local result name objects and recursive roster/result protocols are separate from these option and flag recipes.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned source inspection only; no executed source association is inferred.. Channel: Inspected full native method handler; no guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected full native method handler; no guest input. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 All six inspected handlers first require a target and resolve it before sequential original-object Index option lookup. C8.6 has -all/-localprivate/-private; C9 adds -scope and uses the last selected scope, clearing recursion after the loop. C9 legacy local matching excludes TRUE_PRIVATE_METHOD, while explicit scope matches SCOPE_FLAGS exactly. Original local result name objects and recursive roster/result protocols are separate from these option and flag recipes.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned source inspection only; no executed source association is inferred.. Channel: Inspected full native method handler; no guest input.. Dialect: Tcl.
-
-All six inspected handlers first require a target and resolve it before sequential original-object Index option lookup. C8.6 has -all/-localprivate/-private; C9 adds -scope and uses the last selected scope, clearing recursion after the loop. C9 legacy local matching excludes TRUE_PRIVATE_METHOD, while explicit scope matches SCOPE_FLAGS exactly. Original local result name objects and recursive roster/result protocols are separate from these option and flag recipes.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No inspected method handler for this provider.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance source inspection.
-
-## Historical references
-
-- `tcl8.6-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
-- `tcl8.6-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
-- `tcl9.0-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
-- `tcl9.0-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
-- `tcl9.1-InfoObjectMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
-- `tcl9.1-InfoClassMethodsCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Pinned complete LF function, including target lookup, sequential original Index and local filter.
 
 ## Source inspection
 
@@ -749,14 +716,13 @@ InfoClassMethodsCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_tcloo_info/methods.rs](../../../../rust/tcl-registry/src/native_tcloo_info/methods.rs), `NativeTclooMethodInfoSelection::matches_local`: Pure local flags mask, no method inventory or body/name object grant.
 - [rust/tcl-registry/src/native_tcloo_info/methods.rs](../../../../rust/tcl-registry/src/native_tcloo_info/methods.rs), `native_tcloo_info::methods::tests::method_options_keep_cstring_prefix_and_sequential_scope_selection` (linked): Pure selected CString prefix/ordering/filter recipe and unsupported release negatives, separate from original Index/cache and target authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Reproduce exact LF ranges and full/snippet digests from each pinned source path; native replay does not reinspect source.
+- [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl8.6-source.json)
+- [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.0-source.json)
+- [rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_method_info_original/tcl9.1-source.json)

@@ -16,55 +16,10 @@ expr {SomeInvalidOperator()}⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case e_invalid_function
+### TMM log tag tmm, RULE_INIT, case e_invalid_function; TMM log tag tmm1, RULE_INIT, case e_invalid_function; TMM log tag tmm2, RULE_INIT, case e_invalid_function; TMM log tag tmm3, RULE_INIT, case e_invalid_function; iApp implementation, case e_invalid_function; iCall script, case e_invalid_function
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-unknown math function "SomeInvalidOperator"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm1, RULE_INIT, case e_invalid_function
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-unknown math function "SomeInvalidOperator"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm2, RULE_INIT, case e_invalid_function
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-unknown math function "SomeInvalidOperator"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm3, RULE_INIT, case e_invalid_function
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT; iApp implementation; iCall script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -102,36 +57,6 @@ The wrapper recorded Tcl completion code 1.
 
 ```text-visible
 invalid command name "tcl::mathfunc::SomeInvalidOperator"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iApp implementation, case e_invalid_function
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-unknown math function "SomeInvalidOperator"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iCall script, case e_invalid_function
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-unknown math function "SomeInvalidOperator"⟦EOF⟧
 ```
 
 The wrapper recorded Tcl completion code 1.

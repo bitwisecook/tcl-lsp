@@ -20,57 +20,11 @@ A Rust consumer and input-ownership invariant for reporting-based workspace diag
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This input-ownership and workspace-consumer implementation question has no native execution observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This input-ownership and workspace-consumer implementation question has no native execution observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This input-ownership and workspace-consumer implementation question has no native execution observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This input-ownership and workspace-consumer implementation question has no native execution observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This input-ownership and workspace-consumer implementation question has no native execution observation.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This input-ownership and workspace-consumer implementation question has no native execution observation.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This input-ownership and workspace-consumer implementation question has no native execution observation.
-
-## Historical references
-
-- `receiver-workspace-source603-fc5e047254448481` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
-- `receiver-workspace-source603-e53bdf1bc59ff08f` (implementation): [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs). Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
-- `receiver-workspace-source603-6923f13443c0c002` (implementation): [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs). Current authored shared immutable registry currency and actual server Logical source reporting consumer/control. Full source/configuration and actual availability remain separate; no Native, loader, source execution or assertion outcome is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -110,13 +64,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs), `original_workspace_diagnostics_tests::original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners` (linked): Workspace reporting withholds changed pack generations, missing input, stale grammar and populated unavailable owners; the reporting result supplies no physical frame or Native execution authority.
 - [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs), `original_workspace_diagnostics_tests::original_workspace_reporting_currency_keeps_full_store_and_independent_context` (linked): The actual Logical server reporting-context consumer accepts two genuine contexts over one frozen Arc command store while preserving different release availability. A same-profile foreign projected store with an authored row, missing input, stale complete source configuration and the genuine C8.6 source case refuse. Restoring the genuine original context remains nonvacuous. Source definition only; no matched owned assertion outcome or external-provider observation is attached.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact linked Rust selectors state source-input and consumer assertions. Independent execution receipts belong in the validation ledger. No native C, Jim or appliance run answers this implementation question.
-
-
 ## Consulted sibling source publication
 
 The existing Logical workspace diagnostic refinement retains the actual selected indexed declaration owner, complete input and immutable source image. A coherent document/index query captures open target revision and URI admission before asynchronous work; Pending target publications are unavailable rather than renewed by equal text. Saved siblings retain their authentic published path admission and the exact raw bytes whose shared decode agrees with the selected source image. No source census or runtime command loading follows.
@@ -124,3 +71,9 @@ The existing Logical workspace diagnostic refinement retains the actual selected
 The real push cache/mailbox commit, direct cached-report reborrow and proposed-source final projection retain these consulted inputs. Actual open revisions, full inputs, declaration allocation membership and selected saved bytes are rejoined at the synchronous publication boundary. MemoryStore borrows URI mappings and saved images together; Native/WASI immediately reobserve selected paths/images and do not exclude external filesystem writers. Optional stale pack notices can be omitted, but stale required sibling sources cannot yield a completed report. The same actual input/factory producers guard the publication; no synthetic identity, counter or Native/equivalence/edit grant is added.
 
 Fixed source controls `unsaved_document_mapping_and_saved_sibling_share_one_actual_provider_borrow` and `actual_selected_source_revision_and_header_allocation_are_not_renewed` cover the mixed provider callback and retained revision/allocation boundaries. They are unexecuted source bindings until Root records actual validation. Conditional source declaration advice remains separate from runtime dispatch and any complete workspace declaration inventory.
+
+## Evidence
+
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)
+- [rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs](../../../../rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs)
+- [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs)

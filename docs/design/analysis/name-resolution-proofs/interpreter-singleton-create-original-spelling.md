@@ -20,75 +20,23 @@ Seven fixed paths: counted raw-zero/encoded C080/opaque FF/D800, singleton brace
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
-
-All five C builds create the whole singleton original spelling, return that original object, and require the additional braced address to reach its braced child key. An explicit empty operand creates an empty-key child; an empty lookup still names the current interpreter, while the one-empty-element path reaches the child.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
-
-All five C builds create the whole singleton original spelling, return that original object, and require the additional braced address to reach its braced child key. An explicit empty operand creates an empty-key child; an empty lookup still names the current interpreter, while the one-empty-element path reaches the child.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
-
-All five C builds create the whole singleton original spelling, return that original object, and require the additional braced address to reach its braced child key. An explicit empty operand creates an empty-key child; an empty lookup still names the current interpreter, while the one-empty-element path reaches the child.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
-
-All five C builds create the whole singleton original spelling, return that original object, and require the additional braced address to reach its braced child key. An explicit empty operand creates an empty-key child; an empty lookup still names the current interpreter, while the one-empty-element path reaches the child.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Tcl.
+Status: `observed`. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 All five C builds create the whole singleton original spelling, return that original object, and require the additional braced address to reach its braced child key. An explicit empty operand creates an empty-key child; an empty lookup still names the current interpreter, while the one-empty-element path reaches the child.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; source/header/Makefile/library/probe/build command and process stream hashes are retained.. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator.. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: Public counted Tcl_NewStringObj/Tcl_EvalObjv path/argv and original ListObjIndex result children; Jim control uses its own direct ASCII evaluator. Version: jim 0.84-9-g5bac7c9.
 
 Named C-style path API is rejected with the original wrong-argument outcome.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this API question.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-vm/tests/data/native_interpreter_paths/probe.c](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/probe.c). Exact counted native constructor/argv and public API input program, including genuine raw zero versus encoded C080; original create identity checked independently of string reporting.
-- `runner` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/capture.py](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/capture.py). Exact original build/launch procedure; original captured paths are retained, not a portable replayer.
-- `aggregate` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/receipt.json](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/receipt.json). All-six actual compile/process/header/library/Makefile/source-owner/executable/stream joins and reported versions.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20/receipt.json). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20/stdout.tsv). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20/stderr). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19/receipt.json). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19/stdout.tsv). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19/stderr). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18/receipt.json). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18/stdout.tsv). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18/stderr). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4/receipt.json). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4/stdout.tsv). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4/stderr). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0/receipt.json). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0/stdout.tsv). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0/stderr). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_interpreter_paths/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/jim/receipt.json). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/jim/stdout.tsv). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-- `jim-stderr` (observation): [rust/tcl-vm/tests/data/native_interpreter_paths/jim/stderr](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/jim/stderr). Exact actual provider build/process association and complete result stream; guest errors and unsupported operations remain distinct from process success.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -97,8 +45,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/interp/native_interpreter_paths.rs](../../../../rust/tcl-vm/src/interp/native_interpreter_paths.rs), `interp::native_interpreter_paths::tests::original_interpreter_paths_keep_counted_objects_and_child_cstring_keys` (linked): Original object-vector C path inputs retain byte keys/result identity and singleton/malformed geometry. No Rust execution or full native handler/CPP grant is inferred.
 - [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::tests::original_interpreter_paths_preserve_child_keys_and_create_result_objects` (linked): Original counted C path objects preserve create-result allocation, CString child selection, singleton source spelling and malformed-list errors through actual runtime tables; this is a binding, not an executed comparison receipt.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Original build runner retains workspace paths and new-output-directory requirement. Exact original source/build/executable/status/stdout/stderr hashes are retained, but no portable replay or Rust/native launch is claimed by this publication.
+- [rust/tcl-vm/tests/data/native_interpreter_paths](../../../../rust/tcl-vm/tests/data/native_interpreter_paths)
+- [rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.4.20)
+- [rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.5.19)
+- [rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/8.6.18)
+- [rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.0.4)
+- [rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/9.1.0)
+- [rust/tcl-vm/tests/data/native_interpreter_paths/jim](../../../../rust/tcl-vm/tests/data/native_interpreter_paths/jim)

@@ -20,56 +20,11 @@ Eleven marked software controls comprise ten conditional completion models and o
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: f5-bigip.
-
-No external provider execution answers this original Logical procedure-completion contract. Selected Tcl/Jim grammar fixtures test conditional source ownership/count/read obligations, not actual procedure activation, Native Normal or deletion equivalence.
-
-## Historical references
-
-- `naming-interprocedural-original-procedure-completion-source-context-completion-definition` (implementation): [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs). Complete original Module/source-entry purpose owns the Logical completion walk; held Native Jim remains distinct even when the raw input qualifies for Logical naming.
-- `naming-interprocedural-original-procedure-completion-source-context-call-definition` (implementation): [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs). Original Module/procedure/header/body correspondence and current invocation metadata precede genuine Logical procedure-call/parameter source models; labels and raw input flags grant no allocation or execution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -93,8 +48,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs), `interprocedural::completion::tests::original_completion_retains_selected_jim_formal_binding_strategy` (linked): An explicitly Logical Jim source model retains selected defaults, rest-position/named-rest count strategy and intersection of direct scalar bindings. Caller-link and array destinations cannot borrow those local scalar obligations; no Jim activation is observed.
 - [rust/tcl-compiler/src/optimiser/elimination.rs](../../../../rust/tcl-compiler/src/optimiser/elimination.rs), `optimiser::elimination::tests::original_completion_deletion_consumer_uses_same_module_and_header` (linked): The elimination call no-error query joins its summary to the same actual Module, original header and Registry. Missing Module, foreign registry or changed formals withdraw it; SCCP presence, observers, purity and edit permission remain independently required.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named controls bind current authored source/API assertions and do not claim execution. Exact compiled-artifact/test receipts retain their actual outcomes separately. Native formal, frame, Handler/Normal and erasure obligations remain independent of this Logical source model.
+- [rust/tcl-compiler/src/interprocedural/completion.rs](../../../../rust/tcl-compiler/src/interprocedural/completion.rs)
+- [rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs](../../../../rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs)

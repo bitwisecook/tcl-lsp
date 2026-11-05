@@ -22,73 +22,45 @@ One original fixed ASCII LF file per fresh provider process selects an explicit 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Exact CLI executable; original required library/header/Makefile/source associations and recorded environment are retained and independently rechecked. No fresh build command or compiler binary version is recorded.. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Dialect: C Tcl stock interp alias CLI.
+Status: `observed`. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Version: tcl8.4 8.4.20.
 
 Actual C interp alias API 8.4.20 records four exact rows: child_alias ::A::a 0 ::A::a 0 VALUE; child_alias A::relative 0 A::relative 0 VALUE; child_alias plain 0 plain 0 VALUE; child_alias ::::extra 0 ::::extra 0 VALUE. Creation results remain the original alias spellings while each child call returns VALUE with code zero. This is the measured provider-specific API branch; no return-value or private storage/key/frame equivalence is inferred. Whole process exits zero with empty stderr.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Exact CLI executable; original required library/header/Makefile/source associations and recorded environment are retained and independently rechecked. No fresh build command or compiler binary version is recorded.. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Dialect: C Tcl stock interp alias CLI.
+Status: `observed`. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Version: tcl8.5 8.5.19.
 
 Actual C interp alias API 8.5.19 records four exact rows: child_alias ::A::a 0 ::A::a 0 VALUE; child_alias A::relative 0 A::relative 0 VALUE; child_alias plain 0 plain 0 VALUE; child_alias ::::extra 0 ::::extra 0 VALUE. Creation results remain the original alias spellings while each child call returns VALUE with code zero. This is the measured provider-specific API branch; no return-value or private storage/key/frame equivalence is inferred. Whole process exits zero with empty stderr.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Exact CLI executable; original required library/header/Makefile/source associations and recorded environment are retained and independently rechecked. No fresh build command or compiler binary version is recorded.. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Dialect: C Tcl stock interp alias CLI.
+Status: `observed`. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Version: tcl8.6 8.6.18.
 
 Actual C interp alias API 8.6.18 records four exact rows: child_alias ::A::a 0 ::A::a 0 VALUE; child_alias A::relative 0 A::relative 0 VALUE; child_alias plain 0 plain 0 VALUE; child_alias ::::extra 0 ::::extra 0 VALUE. Creation results remain the original alias spellings while each child call returns VALUE with code zero. This is the measured provider-specific API branch; no return-value or private storage/key/frame equivalence is inferred. Whole process exits zero with empty stderr.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Exact CLI executable; original required library/header/Makefile/source associations and recorded environment are retained and independently rechecked. No fresh build command or compiler binary version is recorded.. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Dialect: C Tcl stock interp alias CLI.
+Status: `observed`. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Version: tcl9.0 9.0.4.
 
 Actual C interp alias API 9.0.4 records four exact rows: child_alias ::A::a 0 ::A::a 0 VALUE; child_alias A::relative 0 A::relative 0 VALUE; child_alias plain 0 plain 0 VALUE; child_alias ::::extra 0 ::::extra 0 VALUE. Creation results remain the original alias spellings while each child call returns VALUE with code zero. This is the measured provider-specific API branch; no return-value or private storage/key/frame equivalence is inferred. Whole process exits zero with empty stderr.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Exact CLI executable; original required library/header/Makefile/source associations and recorded environment are retained and independently rechecked. No fresh build command or compiler binary version is recorded.. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Dialect: C Tcl stock interp alias CLI.
+Status: `observed`. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Version: tcl9.1 9.1.0.
 
 Actual C interp alias API 9.1.0 records four exact rows: child_alias ::A::a 0 ::A::a 0 VALUE; child_alias A::relative 0 A::relative 0 VALUE; child_alias plain 0 plain 0 VALUE; child_alias ::::extra 0 ::::extra 0 VALUE. Creation results remain the original alias spellings while each child call returns VALUE with code zero. This is the measured provider-specific API branch; no return-value or private storage/key/frame equivalence is inferred. Whole process exits zero with empty stderr.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable; original required library/header/Makefile/source associations and recorded environment are retained and independently rechecked. No fresh build command or compiler binary version is recorded.. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Dialect: Jim actual interp interface.
+Status: `observed`. Channel: ASCII LF source file; explicit provider API branches, C interp alias and Jim child-handle alias; public returned names and child calls, no private key or shared storage claim. Version: jim 0.84-9-g5bac7c9.
 
 Actual Jim child-handle alias API 0.84-9-g5bac7c9 records four exact rows: child_alias ::A::a 0 {} 0 VALUE; child_alias A::relative 0 {} 0 VALUE; child_alias plain 0 {} 0 VALUE; child_alias ::::extra 0 {} 0 VALUE. Creation results remain empty while each child call returns VALUE with code zero. This is the measured provider-specific API branch; no return-value or private storage/key/frame equivalence is inferred. Whole process exits zero with empty stderr.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: BIG-IP.
+Status: `not-tested`.
 
 No appliance execution answers this exact API/input question; stock C/Jim public outcomes supply no hosted result.
-
-## Historical references
-
-- `alias199-probe.tcl` (input): [rust/tcl-registry/tests/data/native_child_alias_publication199/probe.tcl](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/probe.tcl). Exact original ASCII LF source executed by all six providers.
-- `alias199-request.json` (input): [rust/tcl-registry/tests/data/native_child_alias_publication199/request.json](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/request.json). Unchanged authored human question, required providers and original source/input channel; canonical catalogue ID is assigned independently.
-- `alias199-capture.py` (input): [rust/tcl-registry/tests/data/native_child_alias_publication199/capture.py](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/capture.py). Exact Root-executed launcher bytes; original external provider paths, explicit source/executable/artifact checks and recorded process commands. No new launch is claimed.
-- `alias199-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/receipt.json). Whole actual process receipt, original command/environment/version and required executable/library/header/build/source pin associations.
-- `alias199-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stdout). Whole exact stdout; original public codes, name spellings, calls and provider-specific results are retained without normalisation.
-- `alias199-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20/stderr). Whole exact empty process stderr.
-- `alias199-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/receipt.json). Whole actual process receipt, original command/environment/version and required executable/library/header/build/source pin associations.
-- `alias199-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stdout). Whole exact stdout; original public codes, name spellings, calls and provider-specific results are retained without normalisation.
-- `alias199-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19/stderr). Whole exact empty process stderr.
-- `alias199-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/receipt.json). Whole actual process receipt, original command/environment/version and required executable/library/header/build/source pin associations.
-- `alias199-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stdout). Whole exact stdout; original public codes, name spellings, calls and provider-specific results are retained without normalisation.
-- `alias199-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18/stderr). Whole exact empty process stderr.
-- `alias199-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/receipt.json). Whole actual process receipt, original command/environment/version and required executable/library/header/build/source pin associations.
-- `alias199-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stdout). Whole exact stdout; original public codes, name spellings, calls and provider-specific results are retained without normalisation.
-- `alias199-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4/stderr). Whole exact empty process stderr.
-- `alias199-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/receipt.json). Whole actual process receipt, original command/environment/version and required executable/library/header/build/source pin associations.
-- `alias199-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stdout). Whole exact stdout; original public codes, name spellings, calls and provider-specific results are retained without normalisation.
-- `alias199-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0/stderr). Whole exact empty process stderr.
-- `alias199-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_child_alias_publication199/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/jim/receipt.json). Whole actual process receipt, original command/environment/version and required executable/library/header/build/source pin associations.
-- `alias199-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/jim/stdout](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/jim/stdout). Whole exact stdout; original public codes, name spellings, calls and provider-specific results are retained without normalisation.
-- `alias199-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_child_alias_publication199/jim/stderr](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/jim/stderr). Whole exact empty process stderr.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -96,8 +68,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/tests/native_compilation_conformance.rs](../../../../rust/tcl-vm/tests/native_compilation_conformance.rs), `native_compilation_conformance::child_alias_publication_matches_original_supported_provider_apis` (linked): Full original source and retained provider stdout bind VM public conformance after version metadata; actual assertions require separate validation receipts and do not establish private interpreter storage or API equivalence.
 - [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::tests::jim_child_alias_result_is_born_in_the_actual_parent_allocator` (linked): The actual Jim child alias API returns an empty result owned by the genuine parent allocator and object context; the distinct actual child allocator/context refuses that result. Parent and child retain no Host refusal. This software ownership control is separate from the captured public provider rows and supplies no private native allocation observation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Whole exact commands, streams, environment overrides and required executable/library/header/Makefile/source associations remain in unchanged receipts. Other inherited environment variables are unrecorded. The exact executed launcher depends on original external provider paths and prior receipts, and is not a portable replay promise. Re-running produces new observations. A current source hash association does not prove the executable was built from that source. Publication and proof checking execute no native or Rust process.
+- [rust/tcl-registry/tests/data/native_child_alias_publication199](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199)
+- [rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.4.20)
+- [rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.5.19)
+- [rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/8.6.18)
+- [rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.0.4)
+- [rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/9.1.0)
+- [rust/tcl-registry/tests/data/native_child_alias_publication199/jim](../../../../rust/tcl-registry/tests/data/native_child_alias_publication199/jim)

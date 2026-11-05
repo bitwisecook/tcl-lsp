@@ -66,7 +66,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The retained transcripts answer only lappend receiver destruction/recreation in a read callback with the exact legacy/modern syntax and reporter sequence. Tcl 9 legacy trace rejection and current Jim trace absence remain actual guest outcomes; the modern C rows independently reach callbacks. Receiver continuity, reported callback names, error code and later stored value are separate fields, with no general callback, compiler or normal-read grant.
@@ -74,60 +73,6 @@ The retained transcripts answer only lappend receiver destruction/recreation in 
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl`: Exact original lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-lappend-recreate-receiver.stdout`: tcl8.4 lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-lappend-recreate-receiver.stderr`: tcl8.4 lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-lappend-recreate-receiver.tcl`: Exact original modern-lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-lappend-recreate-receiver.stdout`: tcl8.4 modern-lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-trace-modern-lappend-recreate-receiver.stderr`: tcl8.4 modern-lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl`: Exact original lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-lappend-recreate-receiver.stdout`: tcl8.5 lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-lappend-recreate-receiver.stderr`: tcl8.5 lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-lappend-recreate-receiver.tcl`: Exact original modern-lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-lappend-recreate-receiver.stdout`: tcl8.5 modern-lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-trace-modern-lappend-recreate-receiver.stderr`: tcl8.5 modern-lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl`: Exact original lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-lappend-recreate-receiver.stdout`: tcl8.6 lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-lappend-recreate-receiver.stderr`: tcl8.6 lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-lappend-recreate-receiver.tcl`: Exact original modern-lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-lappend-recreate-receiver.stdout`: tcl8.6 modern-lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-trace-modern-lappend-recreate-receiver.stderr`: tcl8.6 modern-lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl`: Exact original lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-lappend-recreate-receiver.stdout`: tcl9.0 lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-lappend-recreate-receiver.stderr`: tcl9.0 lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-lappend-recreate-receiver.tcl`: Exact original modern-lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-lappend-recreate-receiver.stdout`: tcl9.0 modern-lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-trace-modern-lappend-recreate-receiver.stderr`: tcl9.0 modern-lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl`: Exact original lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-lappend-recreate-receiver.stdout`: tcl9.1 lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-lappend-recreate-receiver.stderr`: tcl9.1 lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-lappend-recreate-receiver.tcl`: Exact original modern-lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-lappend-recreate-receiver.stdout`: tcl9.1 modern-lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-trace-modern-lappend-recreate-receiver.stderr`: tcl9.1 modern-lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl`: Exact original lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-lappend-recreate-receiver.stdout`: jim lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-lappend-recreate-receiver.stderr`: jim lappend-recreate-receiver original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-modern-lappend-recreate-receiver.tcl`: Exact original modern-lappend-recreate-receiver script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-lappend-recreate-receiver.stdout`: jim modern-lappend-recreate-receiver original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-trace-modern-lappend-recreate-receiver.stderr`: jim modern-lappend-recreate-receiver original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/trace-lappend-recreate-receiver.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

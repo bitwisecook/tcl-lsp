@@ -20,57 +20,11 @@ Readonly authored root-script source advice in independently selected C Tcl/Jim 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This source-advice implementation question is not a native execution observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This source-advice implementation question is not a native execution observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This source-advice implementation question is not a native execution observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This source-advice implementation question is not a native execution observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This source-advice implementation question is not a native execution observation.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This source-advice implementation question is not a native execution observation.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This source-advice implementation question is not a native execution observation.
-
-## Historical references
-
-- `original-compiler-purpose-a41b187442e0` (implementation): [rust/tcl-compiler/src/command_binding/source_transition_advice.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice.rs). Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome.
-- `current-original-source-purpose-35a9d754d36aeb02` (implementation): [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs). Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion.
-- `current-original-source-purpose-2760f3974abf9410` (implementation): [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs). Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -103,8 +57,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs), `command_binding::source_transition_advice::body_effects::original_source_expression_topology_tests::original_logical_expression_child_retains_alias_actual_base_and_no_native_recipe` (linked): Actual Logical alias child preserves original input/head/absolute span/whole image/config and refuses changed source, config or shifted child. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs), `command_binding::source_transition_advice::body_effects::original_expression_purpose_frontier_tests::original_logical_expression_topology_cannot_supply_missing_native_parser_purpose` (linked): Actual Logical BodyWalk visits the child using source topology; selecting a C naming axis without its original Native parser cannot borrow that topology, and visits zero Native child commands. Software source definition only; no Native chronology, runtime authority or assertion outcome is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact linked Rust selectors state implementation assertions. No executed Rust or native observation is attached here. The initial opaque source command deliberately prevents complete runtime execution from answering this source-only question.
+- [rust/tcl-compiler/src/command_binding/source_transition_advice.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice.rs)
+- [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs)
+- [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs)

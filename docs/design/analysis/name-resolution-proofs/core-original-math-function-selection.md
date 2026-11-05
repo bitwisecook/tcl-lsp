@@ -20,62 +20,11 @@ Core readonly expression-function selection, including local overrides, independ
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust consumer contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This Rust consumer contract has no native execution receipt.
-
-## Historical references
-
-- `core-math-package-current-software-controls` (observation): [current scoped Core math receipt](rust-validation/core-math-package-current-20261103/receipt.json.gz). Current scoped receipt records 5 exact Core math controls for this question, direct verification of six subject source-role hashes across two questions, and review of the two changed source roles. Historical failed contexts remain in the unchanged previous canonical receipt; the current parent Logical rename failure remains explicit. The Registry catalogue control remains unexecuted. No Native/provider, immutable-evidence or complete gate result follows.
-
-- `core-math-scoped-software-controls` (observation): [scoped Core math receipt](rust-validation/core-math-current-20261103/receipt.json.gz). Separate receipt records 5 exact Core math controls for this question, six reviewed source roles across two questions, original failed cohort context and complete parent custody limitations. The Registry catalogue control is unexecuted. No Native/provider or complete gate result follows.
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/math_function_symbol.rs](../../../../rust/tcl-lsp-core/src/math_function_symbol.rs). Reviewed current source role: occurrences checks complete source image/configuration and exact Registry correspondence; select_at_offset keeps missing original selection terminal, joins procedure metadata by original allocation site, and never looks up a same-named reporting procedure. Three exact controls cover six selected profiles, original override allocation after cleared reporting maps, changed source, and unrelated same-named procedure refusal. These readonly selectors issue no command-word edit or runtime result. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs). Reviewed current source role: OriginalMathFunctionOccurrence retains source origin/configuration, checked expression ordinal/span, selected dispatch and exact Registry semantic key. selected_registry_spec checks that retained key; fixed table metadata has no command reference. Occurrence production consumes original declaration/expression receipts and declines conflicting selected metadata. The five direct Core math controls and the separate original-allocation hierarchy control exercise these readonly producer/consumer joins; this review supplies no new diagnostic-presence, effect-absence or Native lookup observation. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation.
-- `source-catalogue-implementation-0` (implementation): [rust/tcl-registry/src/model/context.rs](../../../../rust/tcl-registry/src/model/context.rs). Reviewed current source metadata projection and fixed authored controls only; no executed Rust or Native provider result.
-- `source-catalogue-implementation-1` (implementation): [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs). Reviewed current source role: collect_expr uses source_math_function only for independent lexical catalogue presentation; only CapabilityAnswer::Yes sets defaultLibrary. Native presentation instead requires the original occurrence and selected Registry spec. The exact Core token control checks configured known sqrt versus unknown/unavailable cbrt and invented names. The separate Registry release/build/missing-core control is unexecuted, and its context.rs evidence pin remains held. The separate receipt records only the named Core software controls; this source snapshot supplies no Native/provider observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -94,8 +43,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/model/context.rs](../../../../rust/tcl-registry/src/model/context.rs), `model::context::tests::source_math_catalogue_retains_core_release_build_and_unknown` (linked): Actual core release/build and missing or unknown selection govern membership; compatibility targets do not retarget assistance.
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `semantic_tokens::original_definition_vocabulary_tests::logical_math_default_library_uses_configured_source_catalogue` (linked): Only the configured known lexical catalogue marks defaultLibrary, separately from Native target selection.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The current scoped receipt records 5 exact Core math controls for this question on executable 7db7caba01bb279a3f7cdf90d7ae3d90ad9ba4c9d30f4f326afb7a3aed559788. Its parent Core31 cohort has 30 passes and one ordinary Logical rename failure; eight hover controls and three package-prefilter controls pass separately. The previous canonical math receipt retains its original 29-pass/two-failure parent and seven-pass/one-failure hover context unchanged. The linked Registry release/build/missing/unknown catalogue control remains unexecuted and its context.rs source pin remains held. The original mixed source-pin batch remains held. Native/provider observations, runtime behavior, editor hosts, performance and the complete LSP/proof/release gates remain separate; all parent custody limits apply.
+- [rust/tcl-lsp-core/src/math_function_symbol.rs](../../../../rust/tcl-lsp-core/src/math_function_symbol.rs)
+- [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs)
+- [rust/tcl-registry/src/model/context.rs](../../../../rust/tcl-registry/src/model/context.rs)
+- [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs)

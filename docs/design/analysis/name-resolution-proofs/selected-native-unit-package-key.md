@@ -20,76 +20,14 @@ Rust implementation contract under the explicit contexts used by the linked test
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_package.rs](../../../../rust/tcl-registry/src/native_package.rs), `from_native_units`: Project package identity through the independently retained package naming recipe.
 - [rust/tcl-registry/src/native_package.rs](../../../../rust/tcl-registry/src/native_package.rs), `matches_ascii`: Match explicitly authored ASCII Registry metadata without a display conversion.
 - [rust/tcl-registry/src/native_package.rs](../../../../rust/tcl-registry/src/native_package.rs), `native_package::tests::package_name_keys_keep_native_units_and_package_extent_separate` (linked): Keep raw-zero extent separate from modified zero, opaque units and distinct producer policies.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "--manifest-path",
-  "rust/Cargo.toml",
-  "native_package::tests::package_name_keys_keep_native_units_and_package_extent_separate"
-]
-```
-
-Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records.

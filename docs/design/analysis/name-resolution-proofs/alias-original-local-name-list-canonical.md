@@ -30,16 +30,6 @@ The retained public object-vector probe and its exact C8.4.20, C8.5.19, C8.6.18,
 
 The C8.5–C9.1 captures change both original one-element List flags from noncanonical 0 to canonical 1 while preserving the List primary. C8.4 has no equivalent flag and the probe reports its explicit 0 compatibility value. The counted-zero untyped operand reports -1 and is not a List-canonical claim.
 
-## Historical references
-
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/manifest.json`: Recorded release, process completion and exact output hashes; canonical-list files retain flag-column projections with separate hashes. Compile command, executable and linked library hashes are not retained here.
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/probe.c`: Exact native object producers, object-vector calls and observation order. Public source scripts are ASCII and evaluated through Tcl_Eval; name operands are directly constructed counted Tcl_Obj values.
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.4.20.txt`: Retained canonical-flag column projection for C Tcl 8.4.20
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.5.19.txt`: Retained canonical-flag column projection for C Tcl 8.5.19
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/8.6.18.txt`: Retained canonical-flag column projection for C Tcl 8.6.18
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/9.0.4.txt`: Retained canonical-flag column projection for C Tcl 9.0.4
-- `rust/tcl-vm/tests/data/native_alias_simple/canonical/9.1.0.txt`: Retained canonical-flag column projection for C Tcl 9.1.0
-
 ## Rust comparisons
 
 - `rust/tcl-vm/src/interp/native_variable_names.rs`: `interp::native_variable_names::tests::alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners`. Compare canonical snapshots independently of type/reference-count rows. The C8.4 probe flag is a compatibility value, not a measured field.

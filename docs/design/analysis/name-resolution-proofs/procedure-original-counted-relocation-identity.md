@@ -20,84 +20,24 @@ Exactly four counted FF/NUL name moves per engine. C releases and hashed Jim lib
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `observed`. Version: 8.4.20. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.. Dialect: Tcl.
-
-Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.. Dialect: Tcl.
-
-Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.. Dialect: Tcl.
-
-Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.. Dialect: Tcl.
-
-Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.. Dialect: Tcl.
-
-Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.
-
-### jim
-
-Status: `observed`. Version: Jim; patchlevel/revision not retained. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Direct counted Tcl_Obj/Jim_Obj names supplied to native rename calls; ASCII source setup, no character-channel conversion. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim Jim; patchlevel/revision not retained.
 
 Four counted-name moves: rename code0, original command identity1, future call code0/result ::B.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (observation): [runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json). Six exact original compile/run receipts and inline24-control streams with source/header/library hashes.
-- `e1` (input): [runtime/rust/tests/data/native_procedure_relocation/raw-probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-probe.c). Exact directly constructed counted original and destination procedure name operands, including FF and NUL.
-- `e2` (observation): [runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv). Twenty-four projected success/command-identity/future namespace rows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_procedure_relocation_tests.rs](../../../../runtime/rust/src/interp/native_procedure_relocation_tests.rs), `relocation_of_original_counted_names_matches_native_binding_identity` (linked): Compare the counted rename command identity and future namespace for all24 controls.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I${TCL_SOURCE}/generic",
-  "-I${TCL_SOURCE}/unix",
-  "runtime/rust/tests/data/native_procedure_relocation/raw-probe.c",
-  "${TCL_BUILD}/libtcl${TCL_ABI}.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "${PROBE_EXE}"
-]
-```
-
-Jim uses -DJIM_PROBE=1 and its matching captured header/library; preserve lengths and literal zero bytes of both operands. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted.
+- [runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-manifest.json)
+- [runtime/rust/tests/data/native_procedure_relocation/raw-probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-probe.c)
+- [runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/raw-observations.tsv)

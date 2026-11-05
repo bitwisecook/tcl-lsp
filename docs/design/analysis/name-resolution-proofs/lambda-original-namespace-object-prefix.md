@@ -22,74 +22,27 @@ Six fresh source-file CLI processes retain six queried versions and78 sequential
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual CLI executable SHA f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a with retained SDK/header/library/build/source pins, environment and runner associations. No compile command or compiler binary version is retained for this source-file runner.. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls.. Dialect: Tcl.
+Status: `unsupported`. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls. Version: tcl8.4 8.4.20.
 
 All three namespace setups succeed, but each of the ten Apply controls fails because apply is unavailable, with errorCode NONE. No lambda namespace selection or binary-produced namespace value acceptance is measured for this release.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: Actual CLI executable SHA e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a with retained SDK/header/library/build/source pins, environment and runner associations. No compile command or compiler binary version is retained for this source-file runner.. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls.. Dialect: Tcl.
-
-Plain/relative/absolute colon spellings return::ns; omitted/empty namespaces return root::. All three binary-format-produced00 suffix variants fail namespace lookup with the complete suffix preserved in the diagnostic/errorCode. Literal UTF8 :é returns::é. These source-produced values do not establish raw counted original String00 behavior; the independent SDK constructor/getter question supplies that channel.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual CLI executable SHA 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff with retained SDK/header/library/build/source pins, environment and runner associations. No compile command or compiler binary version is retained for this source-file runner.. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls.. Dialect: Tcl.
-
-Plain/relative/absolute colon spellings return::ns; omitted/empty namespaces return root::. All three binary-format-produced00 suffix variants fail namespace lookup with the complete suffix preserved in the diagnostic/errorCode. Literal UTF8 :é returns::é. These source-produced values do not establish raw counted original String00 behavior; the independent SDK constructor/getter question supplies that channel.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual CLI executable SHA f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1 with retained SDK/header/library/build/source pins, environment and runner associations. No compile command or compiler binary version is retained for this source-file runner.. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls.. Dialect: Tcl.
-
-Plain/relative/absolute colon spellings return::ns; omitted/empty namespaces return root::. All three binary-format-produced00 suffix variants fail namespace lookup with the complete suffix preserved in the diagnostic/errorCode. Literal UTF8 :é returns::é. These source-produced values do not establish raw counted original String00 behavior; the independent SDK constructor/getter question supplies that channel.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual CLI executable SHA 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d with retained SDK/header/library/build/source pins, environment and runner associations. No compile command or compiler binary version is retained for this source-file runner.. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Plain/relative/absolute colon spellings return::ns; omitted/empty namespaces return root::. All three binary-format-produced00 suffix variants fail namespace lookup with the complete suffix preserved in the diagnostic/errorCode. Literal UTF8 :é returns::é. These source-produced values do not establish raw counted original String00 behavior; the independent SDK constructor/getter question supplies that channel.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual CLI executable SHA e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806 with retained SDK/header/library/build/source pins, environment and runner associations. No compile command or compiler binary version is retained for this source-file runner.. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Exact UTF8 LF source file with literal U+00E9 in two source lines and no literal NUL; binary format produces the three00-containing values. One fresh CLI process shares namespace setup across thirteen sequential caught controls. Version: jim 0.84-9-g5bac7c9.
 
 The exact returned namespace current strings retain a literal root prefix before the complete supplied namespace spelling: :ns→:::ns, :::ns→:::::ns, ns→::ns and::ns→::::ns. Omitted/empty namespaces return::. All three binary-produced00 suffix cases complete0 and preserve the full00/suffix in the reported namespace string. Literal UTF8 :é returns:::é. These Jim results are independent of C namespace allocation and constructor/getter behavior.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation of these exact lambda namespace source controls.
-
-## Historical references
-
-- `lambda188-probe.tcl` (input): [rust/tcl-registry/tests/data/native_lambda_namespace_source/probe.tcl](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/probe.tcl). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-request.json` (input): [rust/tcl-registry/tests/data/native_lambda_namespace_source/request.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/request.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-capture.py` (input): [rust/tcl-registry/tests/data/native_lambda_namespace_source/capture.py](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/capture.py). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18/receipt.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18/stderr). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18/stdout). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0/receipt.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0/stderr). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0/stdout). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20/receipt.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20/stderr). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20/stdout). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4/receipt.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4/stderr). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4/stdout). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19/receipt.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19/stderr). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19/stdout). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_lambda_namespace_source/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/jim/receipt.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/jim/stderr](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/jim/stderr). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_lambda_namespace_source/jim/stdout](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/jim/stdout). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-- `lambda188-sdk-queue.json` (provider): [rust/tcl-registry/tests/data/native_lambda_namespace_source/sdk-queue.json](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/sdk-queue.json). Exact retained original source/request/runner, SDK association or raw native stream. Request/receipt ASCII and explicit-escape wording remains immutable; the actual source has literal UTF8 U+00E9 and canonical channel metadata describes those bytes.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -101,17 +54,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `lambda_namespace`: Retain the independently selected original lambda namespace input/getter route and its separate source or runtime purpose; linked Rust coverage does not promote native field samples or entered frame correspondence.
 - [runtime/rust/src/cmd_proc.rs](../../../../runtime/rust/src/cmd_proc.rs), `apply_native_c`: Retain the independently selected original lambda namespace input/getter route and its separate source or runtime purpose; linked Rust coverage does not promote native field samples or entered frame correspondence.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_lambda_namespace_source/capture.py"
-]
-```
-
-Retained runner uses original absolute SDK associations and writes provider folders; exact executable/environment pins and a fresh output directory are required. Keep literal UTF8 source and binary-produced inputs unchanged. CLI rendering does not attest native getter bytes, original object identity or raw String00 extent.
+- [rust/tcl-registry/tests/data/native_lambda_namespace_source](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source)
+- [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.6.18)
+- [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.1.0)
+- [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.4.20)
+- [rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/9.0.4)
+- [rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/8.5.19)
+- [rust/tcl-registry/tests/data/native_lambda_namespace_source/jim](../../../../rust/tcl-registry/tests/data/native_lambda_namespace_source/jim)

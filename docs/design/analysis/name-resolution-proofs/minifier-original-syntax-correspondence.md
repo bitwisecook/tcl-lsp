@@ -24,58 +24,11 @@ Syntax output and reporting symbols do not prove Native rename identity or execu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust consumer contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This Rust consumer contract has no native execution receipt.
-
-## Historical references
-
-- `minifier-lexer-original-plan-20261103` (observation): [Scoped lexer geometry receipt](rust-validation/lexer-geometry-20261103/receipt.json). Four exact current-owned lexer original-plan source-geometry controls, in a shared scoped receipt. No Core minifier, Native provider or whole-proof result follows.
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lexer/src/native_script_words.rs](../../../../rust/tcl-lexer/src/native_script_words.rs). Current lexical source owner and fixed authored assertions. This source entry supplies no execution or Native result; the separate receipt reports only four named lexer plan controls.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -91,13 +44,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_recursive_minification_uses_only_current_authenticated_script_regions` (linked): Six selected protocols retain authenticated script-region gap edits while custom shadows, ordinary data and cooked/unsupported body geometry cannot borrow recursive source roles.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_hosted_syntax_compaction_preserves_zero_gap_word_and_bracket_boundaries` (linked): The retained f5-irules source configuration owns its implicit brace separator; actual zero-gap NativeWord geometry preserves parent, bracket and empty-word boundaries, with idempotent source compaction and no appliance observation.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `Backend::minify_document_command`: Keep compact syntax correspondence and symbol reporting separate from the explicitly supplied alpha-rename contract; isolated missing-contract requests preserve a refusal.
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::minify_document_command_compact_includes_symbol_map` (linked): The actual compact Server minifier returns matching renamed formal source and symbol-map data for the local formal contract; the separate isolated request retains syntax output and reports missing-alpha-rename-contract rather than treating syntax as permission.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-The named Rust selectors exercise the scoped implementation premises. Four named lexer lexical-plan controls passed in the separately retained scoped software receipt; no Core minifier execution receipt or native provider observation is attached. Missing permissions and the bounded complete-source subset remain explicit.
+- [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs)
+- [rust/tcl-lexer/src/native_script_words.rs](../../../../rust/tcl-lexer/src/native_script_words.rs)

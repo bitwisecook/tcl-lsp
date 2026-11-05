@@ -20,64 +20,14 @@ Rust Registry metadata selection for oo::class under C8.6 and later and oo::conf
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/commands/tcl/oo_class.rs](../../../../rust/tcl-registry/src/commands/tcl/oo_class.rs), `OO_NATIVE_COMPILATION`: Shared intrinsic stock object-command no-hook descriptor, without factory completion or body authority.
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `NativeCompilationSpec::select`: Generic argv settlement for independently selected no-hook descriptors; compiler-bearing unresolved modes remain unknown.
 - [rust/tcl-registry/src/commands/tcl/oo_class.rs](../../../../rust/tcl-registry/src/commands/tcl/oo_class.rs), `commands::tcl::oo_class::tests::original_stock_metaclass_compilation_has_no_hook_without_factory_authority` (linked): Available stock metaclasses select NoHook and Generic under Unknown compilation mode; earlier unsupported release surfaces remain unavailable.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact named Rust selector is a validation obligation without an attached execution receipt. Actual command-token compiler roles, native OO capability and successful factory transfer remain separate.

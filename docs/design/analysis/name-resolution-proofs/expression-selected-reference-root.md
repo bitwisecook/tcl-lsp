@@ -20,65 +20,11 @@ Six linked source definitions cover shared naming roots, three named permissive 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `syntax-naming-scoped-c628d0b9f736` (observation): [Scoped syntax naming receipt](rust-validation/syntax-naming-20261103/receipt.json). Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows.
-
-- `selected-reference-root-preflight-corrected-control-20261103` (observation): [Scoped preflight control receipt](rust-validation/expression-preflight-20261103/receipt-fixed.json). One corrected current-owned permissive-expression API software control, with its prior failing run and labelled diagnostic probe retained separately. No Native provider, other control or whole-proof result follows.
-
-- `naming-expression-selected-reference-root-ast.rs` (implementation): [rust/tcl-syntax/src/expr/ast.rs](../../../../rust/tcl-syntax/src/expr/ast.rs). Raw analytical reads preserve lexical token/source span correspondence before selecting the original variable root. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution.
-- `naming-expression-selected-reference-root-checked.rs` (implementation): [rust/tcl-syntax/src/expr/checked.rs](../../../../rust/tcl-syntax/src/expr/checked.rs). Checked byte-source parser carries independently selected context and root source bytes through checked parsing. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution.
-- `naming-expression-selected-reference-root-jim_function_tree.rs` (implementation): [rust/tcl-syntax/src/expr/jim_function_tree.rs](../../../../rust/tcl-syntax/src/expr/jim_function_tree.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-expression-selected-reference-root-parser.rs` (implementation): [rust/tcl-syntax/src/expr/parser.rs](../../../../rust/tcl-syntax/src/expr/parser.rs). Permissive Pratt profile, grammar and context entry points retain selected root handling; fixed Tcl 8.4 profile preflight remains separate. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution.
-- `naming-expression-selected-reference-root-naming.rs` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed source role: Selected variable reference root and closed-element partition source owner; no Native read or cell. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-
-- `expression-topology-fixed-software-controls` (observation): [separate scoped software receipt](rust-validation/expression-topology-20261103/receipt.json). Separate current-owned Syntax software receipt for six named raw-read and substitution/topology controls; only the relevant named cases apply to this proof. No Native/provider, compiler/editor, consumer or whole-proof outcome follows; reused dependency artifacts and external tools/cache are outside custody.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -91,8 +37,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/expr/ast.rs](../../../../rust/tcl-syntax/src/expr/ast.rs), `expr::ast::tests::raw_expression_reads_share_selected_scalar_and_array_roots` (linked): Raw analytical reads retain complete original scalar tails, literal dollar roots and closed combined-element names under actual lexical grammar; collection admits only scanner/token source-span correspondence, without physical Native read/header proof.
 - [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs), `naming::tests::scalar_parentheses_share_the_closed_element_partition` (linked): Both selected brace-close styles retain complete unmatched/tail scalar roots, repeated closed index parentheses and literal-dollar authored names consistently through normalise/split source projection. No Native cell/read/header or resolved-name sigil reinterpretation is granted.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained follow-up receipt records the six named syntax software controls. The earlier failed permissive control and labelled probe remain preserved in the parent receipt chain. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-syntax/src/expr/ast.rs](../../../../rust/tcl-syntax/src/expr/ast.rs)
+- [rust/tcl-syntax/src/expr/checked.rs](../../../../rust/tcl-syntax/src/expr/checked.rs)
+- [rust/tcl-syntax/src/expr/jim_function_tree.rs](../../../../rust/tcl-syntax/src/expr/jim_function_tree.rs)
+- [rust/tcl-syntax/src/expr/parser.rs](../../../../rust/tcl-syntax/src/expr/parser.rs)
+- [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs)

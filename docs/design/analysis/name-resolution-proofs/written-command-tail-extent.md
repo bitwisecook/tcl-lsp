@@ -20,63 +20,17 @@ Current Rust consumer and source geometry contract. Native naming observations r
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-source` (implementation): [rust/tcl-syntax/src/naming/command_geometry.rs](../../../../rust/tcl-syntax/src/naming/command_geometry.rs). Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/naming/command_geometry.rs](../../../../rust/tcl-syntax/src/naming/command_geometry.rs), `NativeNameProtocol::command_tail_extent`: Select original native command input and retain the terminal component byte range independently of existence and editing.
 - [rust/tcl-syntax/src/naming/command_geometry.rs](../../../../rust/tcl-syntax/src/naming/command_geometry.rs), `naming::command_geometry::tests::original_command_tail_extents_preserve_native_input_and_written_qualifiers` (linked): The shared command-tail owner first applies the selected native command input at known root coordinates, then partitions its original terminal component. C uses the CString prefix; Jim retains its root-flat object. Empty terminal components decline. The returned byte range is readonly correspondence and grants neither command existence nor edit permission.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named fixed Rust selectors are reproducible source contract checks. Their execution is not asserted by this record. Native experiments are independently scoped.
+- [rust/tcl-syntax/src/naming/command_geometry.rs](../../../../rust/tcl-syntax/src/naming/command_geometry.rs)

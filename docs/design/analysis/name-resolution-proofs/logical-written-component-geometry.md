@@ -22,59 +22,45 @@ Current Rust source/API definitions in tcl-syntax and tcl-lsp-core, actual paren
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust written-component contract. Channel: Current Rust source/API and finite model definitions. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Current Rust source/API and finite model definitions.
 
 The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl8.4 execution or provider result is attached.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust written-component contract. Channel: Current Rust source/API and finite model definitions. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Current Rust source/API and finite model definitions.
 
 The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl8.5 execution or provider result is attached.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust written-component contract. Channel: Current Rust source/API and finite model definitions. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Current Rust source/API and finite model definitions.
 
 The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl8.6 execution or provider result is attached.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust written-component contract. Channel: Current Rust source/API and finite model definitions. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Current Rust source/API and finite model definitions.
 
 The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl9.0 execution or provider result is attached.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust written-component contract. Channel: Current Rust source/API and finite model definitions. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Current Rust source/API and finite model definitions.
 
 The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original tcl9.1 execution or provider result is attached.
 
 ### jim
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust written-component contract. Channel: Current Rust source/API and finite model definitions. Dialect: jim.
+Status: `not-tested`. Channel: Current Rust source/API and finite model definitions.
 
 The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original jim execution or provider result is attached.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust written-component contract. Channel: Current Rust source/API and finite model definitions. Dialect: bigip.
+Status: `not-tested`. Channel: Current Rust source/API and finite model definitions.
 
 The shared written byte geometry and selected Logical occurrence contract are inspected Rust definitions only. No original bigip execution or provider result is attached.
-
-## Historical references
-
-- `syntax-naming-scoped-820ba59cf950` (observation): [Scoped syntax naming receipt](rust-validation/syntax-naming-20261103/receipt.json). Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows.
-
-- `written-geometry-0` (implementation): [rust/tcl-lsp-core/src/lib.rs](../../../../rust/tcl-lsp-core/src/lib.rs). Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit.
-- `written-geometry-1` (implementation): [rust/tcl-lsp-core/src/namespace_rename.rs](../../../../rust/tcl-lsp-core/src/namespace_rename.rs). Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit.
-- `written-geometry-2` (implementation): [rust/tcl-syntax/src/lib.rs](../../../../rust/tcl-syntax/src/lib.rs). Reviewed source role: Public naming module export; source API role only. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-- `written-geometry-3` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed source role: Counted written qualifier component extents; no editable source container. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-- `receiver-selected-source598-40909face5565cfe` (implementation): [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -94,8 +80,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs), `rename::tests::logical_rename_preserves_original_separator_runs_unicode_and_array_extent` (linked): Fixed source replacement helpers preserve complete separator runs, Unicode byte geometry and whole array suffixes under the supplied variable grammar. Actual Analyser source replacement retains current-image correspondence and declines changed source. These source extents require independent caller edit permission. Source definition only; no matched owned assertion outcome or new external-provider observation is attached.
 - [rust/tcl-lsp-core/src/namespace_rename.rs](../../../../rust/tcl-lsp-core/src/namespace_rename.rs), `namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards` (linked): A genuine Logical Analyser namespace-forget producer returns exact Unicode replacement extents under complete current source and lexical admission. Changed input and deferred callback hazards refuse; the shared constructed qualification helper preserves literal-colon holders and the root marker. Source definition only; no matched owned assertion outcome or new external-provider observation is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained receipt records only the named syntax extent control; other controls have no attached execution outcome. The shared written extent query does not establish Native operand/container/edit admission or external provider behavior.
+- [rust/tcl-lsp-core/src/lib.rs](../../../../rust/tcl-lsp-core/src/lib.rs)
+- [rust/tcl-lsp-core/src/namespace_rename.rs](../../../../rust/tcl-lsp-core/src/namespace_rename.rs)
+- [rust/tcl-syntax/src/lib.rs](../../../../rust/tcl-syntax/src/lib.rs)
+- [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs)
+- [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs)

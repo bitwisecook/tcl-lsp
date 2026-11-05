@@ -20,39 +20,15 @@ One fixed ASCII script-file program in a fresh current Jim native process. Actua
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-No observation for this exact question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-No observation for this exact question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-No observation for this exact question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-No observation for this exact question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
+Status: `not-tested`.
 
 No observation for this exact question.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Selected executable; compiler, configure/UTF flags and linked dependencies are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: Jim Tcl.
+Status: `observed`. Channel: Fixed ASCII script-file argument in a fresh native shell process. Version: jim 0.84-9-g5bac7c9.
 
 Exact stdout:
 
@@ -65,38 +41,12 @@ RESULT __r2286_absent__ 1 {package, unknown command "__r2286_absent__": should b
 
 The list/names catch results are both 0 and contain the identical printed package sequence. The absent-member catch result is 1 and omits list from the help roster. Outer process status is 0 and stderr is empty.
 
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this exact question.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl). Exact original ASCII program for successful list/names and deliberate miss.
-- `capture` (provider): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/receipt.json). Original selected executable/source/stream digests, argv and process status.
-- `stdout` (observation): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout). Exact complete stdout with actual patchlevel and all three caught results.
-- `stderr` (observation): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr). Exact empty stderr byte stream.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/commands/tcl/package_.rs](../../../../rust/tcl-registry/src/commands/tcl/package_.rs), `commands::tcl::package_::tests::jim_package_inventory_keeps_hidden_list_and_excludes_ifneeded` (linked): Authored genuine Jim-point inventory keeps list and names with zero-argument List metadata; the native error text and returned package sequence are evidence-only, not reproduced by this Rust test.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "/workspace/.proofs/native-providers/jimtcl/jimsh",
-  "/workspace/.proofs/captured-package-future-frame122/probe.tcl"
-]
-```
-
-The original argument vector names capture-machine paths. The identical retained source is in rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl; replay it with an independently verified current Jim executable in a fresh process. Executable digest is recorded, while compiler, configure/UTF flags and linked dependencies are unrecorded. The native script result is not a counted object-vector, physical native object, Rust test or compilation-admission receipt. C and appliance providers were not run for this question.
+- [rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/probe.tcl)
+- [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stdout)
+- [rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/stderr)

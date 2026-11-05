@@ -6,6 +6,6 @@ For the fixed nonnumeric literal `GET`, the observed numeric comparison operator
 
 The observations preceded the bounded known-nonnumeric controls. They do not generalise to unknown values or establish complete transformation equivalence.
 
-This evidence concerns actual expression/name grammar and literal values. It supplies no F5 execution, reached lookup, frame, Native/Rust acceptance or edit authority. See the [name-handling contract](../../../docs/design/contracts/name-handling.md), [pattern catalogue](../patterns/README.md) and [result index](../results/README.md).
+This evidence concerns actual expression/name grammar and literal values. It supplies no F5 execution, reached lookup, frame, Native/Rust acceptance or edit authority. See the [name-handling contract](../../../docs/design/contracts/name-handling.md), [pattern catalogue](../patterns/README.md) and result index.
 
 Original outputs remain immutable. `SHA256SUMS` covers all evidence and replay support. Run `python replay.py --out /tmp/new-nonnumeric-expression-literals-20261015-capture` for a separate reproduction with the retained providers and init files. The runner verifies provider hashes, refuses an existing output directory and never overwrites these original outputs. Any replay is separate evidence.

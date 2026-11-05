@@ -20,63 +20,11 @@ Current conditional source inventory sharing. Two marked fixed controls assert e
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-source-namespace-inventory-selection-sharing-origin_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-source-namespace-inventory-selection-sharing-pre_handler_failure.rs` (implementation): [rust/tcl-compiler/src/command_binding/pre_handler_failure.rs](../../../../rust/tcl-compiler/src/command_binding/pre_handler_failure.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-source-namespace-inventory-selection-sharing-shared_inventory.rs` (implementation): [rust/tcl-compiler/src/command_binding/shared_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/shared_inventory.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `implementation-source-0` (implementation): [rust/tcl-compiler/src/command_binding/retained_body_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/retained_body_inventory.rs). Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
-- `implementation-source-1` (implementation): [rust/tcl-compiler/src/command_binding/namespace_context.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_context.rs). Exact retained source inventory, cold selector, typed namespace or lowering consumer. This source/API evidence supplies no matching owned assertion outcome, measured time/allocation gain, external observation or present Native admission.
-- `implementation-source-2` (implementation): [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs). Authentic descent retains independently selected namespace, complete parent/body/source/input/configuration correspondence and the opaque readonly geometry owner; the temporary parent/enclosing owner is restored. Source selection does not manufacture Native body entry, lookup or handler authority, and conditional frame purpose remains distinct.
-- `implementation-source-3` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations.
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.namespace-inventory-selection-sharing`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -93,8 +41,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/retained_body_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/retained_body_inventory.rs), `command_binding::retained_body_inventory::tests::original_body_projection_children_cannot_restore_filtered_or_foreign_origins` (linked): Different namespace keys keep distinct selected inventories. A child selects from its already filtered owner and cannot recover the sibling points or expression preparations; a foreign original source selection remains empty under the existing cold-selector semantics. The control does not require structural selection to authenticate current execution. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 - [rust/tcl-compiler/src/command_binding/retained_body_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/retained_body_inventory.rs), `command_binding::retained_body_inventory::tests::original_body_projection_uses_actual_native_namespace_incarnation` (linked): Two held genuine Rust VM entries have equal namespace display and different typed namespace identities. The exact cold-selector parity and shared same-key view are preserved, while the other actual namespace incarnation selects an empty point/preparation inventory. Holding software entry metadata grants no original C execution, current handler admission or physical reference-count parity. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs)
+- [rust/tcl-compiler/src/command_binding/pre_handler_failure.rs](../../../../rust/tcl-compiler/src/command_binding/pre_handler_failure.rs)
+- [rust/tcl-compiler/src/command_binding/shared_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/shared_inventory.rs)
+- [rust/tcl-compiler/src/command_binding/retained_body_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/retained_body_inventory.rs)
+- [rust/tcl-compiler/src/command_binding/namespace_context.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_context.rs)
+- [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs)
+- [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs)

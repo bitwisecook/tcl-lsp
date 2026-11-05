@@ -32,57 +32,11 @@ This source planning fixture is not a new original Native procedure invocation. 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -110,8 +64,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/common_aot_plan.rs](../../../../rust/tcl-compiler/src/common_aot_plan.rs), `common_aot_plan::tests::unentered_unknown_caller_keeps_a_refusal_without_fabricating_a_reached_call` (linked): Original uncalled conditional caller retains an Unknown binding refusal and unresolved caller-type premise. Its source body cannot manufacture a reached procedure dispatch or singleton argument type.
 - [rust/tcl-compiler/src/common_aot_plan.rs](../../../../rust/tcl-compiler/src/common_aot_plan.rs), `common_aot_plan::tests::unknown_actual_type_poisons_cross_call_formal_propagation` (linked): The original caller is actually entered through an original eval operand whose type is not a represented SSA actual. The independent selected-caller join keeps two selected calls and unknown type poison without inventing formal v0 or deriving static type from runtime value bytes.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/common_aot_plan/authored_source.rs](../../../../rust/tcl-compiler/src/common_aot_plan/authored_source.rs), `OriginalAuthoredProgramSourcePlan::build`: Read only current complete explicitly AuthoredSimulation Module and original per-point schemas; root source accounting and conditional declaration/type/storage templates are separate from executable program coverage.
 - [rust/tcl-compiler/src/common_aot_plan/authored_source.rs](../../../../rust/tcl-compiler/src/common_aot_plan/authored_source.rs), `OriginalAuthoredProgramSourcePlan::storage_templates`: Enumerate possible original literal scalar destinations and contents types without allocating a program cell, emitting code or supplying current contents.
 - [rust/tcl-compiler/src/common_aot_plan.rs](../../../../rust/tcl-compiler/src/common_aot_plan.rs), `common_aot_plan::tests::authored_source_templates_withdraw_changed_module_and_point_owners` (linked): Readonly explicitly authored schemas and literal storage templates require matching Module/input/config/store/entry/namespace and complete root source inventory; missing point carrier keeps a typed residual and zero templates. No executable coverage or materialised cell follows.
@@ -128,11 +80,6 @@ No assertion outcome is attached to these source bindings; software outcomes ret
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
-
-Fixed Rust selectors are linked without an attached execution receipt. Physical native layout fixtures and separate empirical compiler comparison outcomes do not grant activation, observer, value, Normal, relocation or edit authority.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -144,8 +91,7 @@ The table reports only admitted selectors attached to this question by exact com
 | `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
 | `integration-compiler-original-child-guards344` | 0 | 1 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -156,4 +102,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | `integration-compiler-focused-consumer-tests347` | 1 | 0 |
 | `integration-compiler-original-source-trace347` | 1 | 0 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

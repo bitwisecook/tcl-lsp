@@ -30,59 +30,11 @@ Five added fixed source controls bind the actual package action, complete versus
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original source package-action context and reviewed insertion contract supplies no native package installation, loader or execution observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original source package-action context and reviewed insertion contract supplies no native package installation, loader or execution observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original source package-action context and reviewed insertion contract supplies no native package installation, loader or execution observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original source package-action context and reviewed insertion contract supplies no native package installation, loader or execution observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original source package-action context and reviewed insertion contract supplies no native package installation, loader or execution observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original source package-action context and reviewed insertion contract supplies no native package installation, loader or execution observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original source package-action context and reviewed insertion contract supplies no native package installation, loader or execution observation.
-
-## Historical references
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `own-source350-core-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json). JSON pointer `/by_question/naming.core.original-package-source-action-context`. Exact original source350 body/question/document joins to the owned Core image, actual inventory/admission and 14 passing selections. Other source images and external-provider answers receive no outcome.
-- `receiver-selected-source598-1e935e75fa5d0b0d` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-1d049f3fab4cedc7` (implementation): [rust/tcl-registry/src/model/assembly.rs](../../../../rust/tcl-registry/src/model/assembly.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-7c61bded9baa6d7a` (implementation): [rust/tcl-registry/src/model/namespace_ownership.rs](../../../../rust/tcl-registry/src/model/namespace_ownership.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -111,8 +63,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input` (linked): Genuine positioned absent nonpackage source retains the standalone authoring suggestion; stale image and changed full configuration refuse. Source definition only, with no matching current execution outcome attached.
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct` (linked): The shared syntax receipt distinguishes body coverage from package-name uncertainty and absent/dynamic/malformed command closure; stale images withdraw both accessors. Source definition only, with no matching current execution outcome attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Body-marked selectors bind source metadata, current input and reviewed proposal geometry. Exact Rust outcomes remain independently recorded; no native provider process, package installation or loader result is attached.
+- [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs)
+- [rust/tcl-registry/src/model/assembly.rs](../../../../rust/tcl-registry/src/model/assembly.rs)
+- [rust/tcl-registry/src/model/namespace_ownership.rs](../../../../rust/tcl-registry/src/model/namespace_ownership.rs)

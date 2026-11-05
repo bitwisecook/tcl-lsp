@@ -14,7 +14,6 @@ How does one readonly Core/Workspace selector preserve genuine class/selector in
 
 The sealed query retains the original selector and complete consumer image/configuration. A temporal receiver selection identifies its canonical local member independently of the queried route. Pure external class lookup checks earlier occupied proc and class headers before selecting a source own-table candidate. Explicit instance declaration advice uses the shared exact-record MRO and validates relation occupation. Local Core and Workspace candidates share the same declaration/lookup kernel; local definition, references and hover preserve the complete nested declaration image. A lexical variable root or retained variable conflict keeps its separate variable editor purpose even when the produced value is an OO selector. Missing original method lookup or selector owners are terminal. Missing receiver entries, reporting-only class guesses, incomplete ledgers or relations, duplicate independent owners and stale source are terminal. Identical complete views within one URI are deduplicated; equal documents under different URIs remain independent. Declaration advice supplies no live object, native dispatch, callback execution or source edit.
 
-
 A separate readonly self-selector report joins a genuine original TclOO member script to its exact canonical source class/member through complete member argv, ParamList/body words and lexical definition parent. Its selected source schema must retain the Registry self-dispatch role and current complete input/configuration/context. The shared source relation order supplies own or inherited declaration correspondence without a rendered class key. Every original command-schema debt remains, and declaration installation, body entry, receiver existence, actual method lookup, observer state and runtime inheritance remain open applicability obligations. Missing source/input ownership differs from an available partial positive catalogue; an empty catalogue alone supplies no census or absence. A report is a complete source occurrence census only for one document whose checked source walk observes every command in every reachable region with a proven layout: each definition member routes by its selected effect and carries no forward, filter, visibility, retraction, mixin, method reference, command prefix, command name or opaque script; each immediate self-dispatch keeps its Registry selector layout and corresponds one-to-one with the typed method/property catalogue; every other command has complete selected roles, retains no callback script or command prefix, evaluates no substitution template, installs no member outside a selected definition body, does not select a descriptor that declares an implementation namespace (the qualified `oo::Helpers` spellings and every `dict` call) and is not a method-context helper without a declared dispatch kind; and no other literal operand text names the member outside a walked nested script. Unknown or dynamic heads, dynamic selectors and scripts, and unavailable member geometry stay partial, and the server keeps a census partial, in both unresolved and resolved lenses, while other documents are retained. Core readonly reference reports and lenses consume this facet through explicit wrappers. The pre-existing reference kernel, strong method inventories, receiver entries, frame selectors and transformation callers do not receive it. Complete census lens counts are exact for that document; positive partial lens counts are lower bounds; unavailable or zero partial counts do not claim reference absence.
 
 Tcl 9.0+ class delegates (user rule "C Tcl decides semantics", applied 2026-10-21): a Registry-described `classmethod` member is a method of the class's delegate, which C Tcl mixes into the class object and whose superclasses are the delegates of the class's superclasses (`SetDelegateSuperclasses`, generic/tclOOBasic.c). Class-object lookup therefore takes delegate members first along the superclass-only linearisation from the dispatching class, then the class object's other own members, which are never inherited. Probes on tclsh 9.0.4 and 9.1.0: after `oo::class create Factory {classmethod make {} {...}}; oo::class create SubFactory {superclass Factory}`, `SubFactory make` runs `Factory`'s classmethod; a class with both `classmethod m` and `self method m` answers the classmethod; `self method own` on a superclass is `unknown method "own"` on the subclass; `namespace eval ::b {namespace import ::a::Factory; Factory make}` runs `::a::Factory`'s classmethod (`namespace origin Factory` is `::a::Factory`). tclsh 8.6.18 has no `classmethod` (`invalid command name "classmethod"`), so an 8.x profile retains no delegate member and its class-object advice stays the own table. An unresolved superclass relation stays terminal once an ancestor delegate could answer; every other class-object guard above is unchanged.
@@ -25,56 +24,11 @@ Readonly local Core and Workspace method source candidates and selector occurren
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This readonly editor integration is a Rust implementation invariant; no native provider observation answers this question.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs). Exact current Rust consumer source and linked fixed assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). Exact current Rust consumer source and linked fixed assertions; no native or Rust execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -95,7 +49,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs), `method_symbol::tests::original_method_selection_leaves_lexical_variable_reads_with_the_variable_owner` (linked): An actual SourceVariable read in the second word remains a variable query for an unresolved command and external class head; a retained original root conflict keeps the variable facade's refusal instead of borrowing OO advice.
 - [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs), `method_symbol::tests::original_method_lookup_owner_absence_is_terminal_before_reporting_assistance` (linked): A retained non-variable original method operand declines after removing its original lookup or substituting a lookup from a foreign source; local public definition, references and hover do not borrow reporting assistance.
 
-
 - [rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs](../../../../rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs), `original_source_self_method_references`: Retain partial direct instance-side self-selector correspondences under the actual original member/schema/source owner; unavailable source input stays distinct from an empty positive set.
 - [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs), `readonly_reference_report`: Add genuine source correspondences only to a readonly report selected by exact canonical class/member identity, independently of the existing reference and edit inventories.
 - [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs), `readonly_local_reference_report`: Keep declaration inclusion and existing local readonly positives while retaining the independent source coverage distinction.
@@ -104,13 +57,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs](../../../../rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs), `analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources` (linked): Wrong/missing/stale/foreign source, non-self commands, wrong contextual spelling, dynamic selectors, nested procedures and unavailable inheritance provide no positive correspondence; report-map corruption cannot replace the original source owner. This source-defined control has no attached current assertion result.
 - [rust/tcl-lsp-core/src/original_declaration.rs](../../../../rust/tcl-lsp-core/src/original_declaration.rs), `original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories` (linked): Separate readonly reports retain two original self-selector positives and partial coverage while the pre-existing source kernel and legacy transformation inventories remain unchanged; unavailable input withdraws the report. This source-defined control has no attached current assertion result.
 - [rust/tcl-lsp-core/src/code_lens.rs](../../../../rust/tcl-lsp-core/src/code_lens.rs), `code_lens::readonly_source_count_tests::partial_source_lens_titles_do_not_report_unknown_absence` (linked): Partial positive counts retain their numeric lower bound, unavailable/zero partial coverage does not claim absence, and existing-inventory labels remain unchanged. This source-defined control has no attached current assertion result.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named fixed Rust test is a source coverage binding. No Rust test result or native provider capture is attached to this contract; C Tcl, Jim and BIG-IP have not tested this Rust invariant.
-
 
 ## Readonly member source reborrow and parent correspondence
 
@@ -139,3 +85,8 @@ Separate source-defined control (unexecuted): `analyser::class_hierarchy::origin
 Readonly source member correspondence additionally requires the actual whole original static head to select the exact same descriptor under the retained full ContextRegistry as the already selected source schema. `ResolvedContext::resolve_spec` and Registry's existing rooted-fallback rule own this spelling/provider applicability: an authored contextual helper does not establish an ordinary global command. The Compiler adds no spelling whitelist, root-prefix heuristic, reconstructed name identity or alternate Registry. Missing/dynamic/expanded head or a different/unavailable selected descriptor withholds the partial reference. Existing whole argv/body/formals/parent/member/schema joins, source-currentness and all six applicability debts remain unchanged; no Native receiver, frame, lookup, Normal, census or edit grant follows.
 
 The original retained refusal `readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources` remains byte-identical. Its ordinary targeted12 failure on `::my ping` exposed canonical schema metadata being reused without checking original head applicability, rather than an invalid refusal premise. The fixed additional control `original_head_applicability_tests::readonly_self_reference_requires_the_selected_descriptor_for_original_head` binds real Tcl8.6/9.0 analyses and retained Registry contexts for bare/braced/quoted static helper words versus their rooted spellings, with direct reference positives and unchanged member/observer debts. It is an unexecuted source definition; Root owns ordinary replay. This is repair of the existing original-method source correspondence purpose, with no additional semantic owner/helper/test count.
+
+## Evidence
+
+- [rust/tcl-lsp-core/src/method_symbol.rs](../../../../rust/tcl-lsp-core/src/method_symbol.rs)
+- [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs)

@@ -20,56 +20,11 @@ Static original Logical definitions under a positively retained complete input, 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical definition model has no native interpreter observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust Logical definition model has no native interpreter observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical definition model has no native interpreter observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical definition model has no native interpreter observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical definition model has no native interpreter observation.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This Rust Logical definition model has no native interpreter observation.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This Rust Logical definition model has no native interpreter observation.
-
-## Historical references
-
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.logical-procedure-definition-model`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -91,9 +46,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_static_values_keep_checked_source_and_native_channel_boundaries` (linked): Complete quiet retained Logical original Document values; checked UTF8 and NUL refusal; source/config/Native mode gates unchanged, no Native value/name/handler/frame/Normal/publication receipt
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_captured_values_keep_exact_unicode_bytes_and_refuse_unknown_units` (linked): Two genuine Logical source capture consumers read the shared exact literal_bytes facet with checked UTF-8/no-zero projection. Original source/vector/context/store/selection guards and capture order remain unchanged. Unknown, opaque, expansion, non-UTF-8 and zero-containing values refuse. Existing Unicode producer and independent symbolic cell/storage guards preserved; no Native name/argv/handler/frame/value/Normal grants. Software definition only; no assertion result or Native value/argv completion is attached.
 - [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs), `command_binding::logical_definition::tests::logical_definition_keeps_unrepresentable_names_distinct_from_literal_replacement` (linked): Retained Logical source procedure lookup accepts literal/explicit replacement and braced literal escape names but does not identify interpreted unrepresentable escape names with that replacement. No Native publication, unit policy or execution outcome follows.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Five exact body-marked Rust selectors retain authored model definition, full context roster, source-mode and current input boundaries. Executed outcomes require independently retained validation receipts. This Logical model contract supplies no native provider observation or Native execution permission.

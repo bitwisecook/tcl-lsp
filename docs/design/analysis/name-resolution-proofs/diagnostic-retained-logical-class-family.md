@@ -24,55 +24,11 @@ These source diagnostics do not execute a factory, object dispatcher, method ret
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,8 +37,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/diagnostics/validity.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/validity.rs), `analyser::diagnostics::validity::logical_class_family_tests::logical_class_family_uses_observed_definer_without_borrowing_native_formals` (linked): Genuine Logical source class definer family retains its observed metadata while independent formal grammar remains unavailable.
 - [rust/tcl-compiler/src/analyser/diagnostics/validity.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/validity.rs), `analyser::diagnostics::validity::logical_class_family_tests::logical_class_family_refuses_defaults_missing_and_stale_source_context` (linked): Default/stand-in family, absent actual input and stale source/configuration/context cannot donate a Logical family descriptor.
 - [rust/tcl-compiler/src/analyser/diagnostics/validity.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/validity.rs), `analyser::diagnostics::validity::logical_class_family_tests::native_and_hosted_family_classification_cannot_fall_back_to_logical_reports` (linked): All five C, Jim and hosted inputs refuse Logical family fallback when reporting canonical source fields are withdrawn.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs), `Analyser::e001_for_bare_object_dispatch`: Require retained local source class family for each candidate before conditional zero-method variable-head advice; independently unavailable or different source families withhold it.
 - [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs), `Analyser::e001_for_bare_cmd_dispatch`: Read the genuine source object-returning head/family and original site geometry before conditional bare substitution advice; type or reporting names confer no entered receiver.
@@ -95,7 +49,3 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::tp_e001_bare_dispatch_on_method_return_captured_handle` (linked): A retained source method-return handle may carry conditional object-family information to a later bare variable consumer without runtime receiver or method dispatch authority.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.

@@ -20,55 +20,11 @@ Pure Syntax/Registry original-source geometry for the five C Tcl native string r
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This question specifies a Rust implementation contract; no native provider observation or Rust execution result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/native_compiler_words.rs](../../../../rust/tcl-registry/src/native_compiler_words.rs), `original_literal_extent`: Attaches shared literal/escaped unit extents to the original retained whole word.
 - [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs), `backslash::executable_text_tests::escaped_text_extents_keep_complete_escapes_and_channel_unit_boundaries` (linked): Checks complete surrogate escape extents, rejects interior and out-of-bounds native ranges, and preserves channel-specific zero-unit boundaries.
 - [rust/tcl-registry/src/native_compiler_words.rs](../../../../rust/tcl-registry/src/native_compiler_words.rs), `native_compiler_words::tests::original_literal_extents_preserve_grouping_escapes_and_channel_units` (linked): Checks captured word grouping and escaped native ranges against the exact original source image.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named fixed Rust tests bind this implementation contract. Execute the corresponding crate selectors against one complete current source snapshot. This record supplies no Rust execution receipt, native test result, physical object, normal-completion certificate or cache proof.

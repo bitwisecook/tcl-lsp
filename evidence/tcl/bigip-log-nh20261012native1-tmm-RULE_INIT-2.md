@@ -389,118 +389,94 @@ call measure $nh_phase old-init-procedure read
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|setup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|lookup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|6f776e65722043414c4c4552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|setup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|lookup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|root-absolute|tmm-RULE_INIT|setup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-absolute|tmm-RULE_INIT|lookup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|other-owner|tmm-RULE_INIT|setup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|other-owner|tmm-RULE_INIT|lookup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f54484552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-absolute|tmm-RULE_INIT|setup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-absolute|tmm-RULE_INIT|lookup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|6f776e657220464f4c444552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|setup|0|0:0|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:0|old-init|result|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c205f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479206c696e65203129
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:0|old-init|result|binary-scan-tcl-value|1|2|0a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:0|old-init|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:0|old-init|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- bare-local, setup, completion 0, result, chunk 0 of 1:
+- bare-local, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- bare-local, lookup, completion 0, result, chunk 0 of 1:
+- bare-local, lookup, completion 0, result:
 
 ```text-visible
 owner CALLER argc 2 argv {{a b} {{x} ::tail}}⟦EOF⟧
 ```
 
-- root-relative, setup, completion 0, result, chunk 0 of 1:
+- root-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-relative, lookup, completion 0, result, chunk 0 of 1:
+- root-relative, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- root-absolute, setup, completion 0, result, chunk 0 of 1:
+- root-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-absolute, lookup, completion 0, result, chunk 0 of 1:
+- root-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- other-owner, setup, completion 0, result, chunk 0 of 1:
+- other-owner, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- other-owner, lookup, completion 0, result, chunk 0 of 1:
+- other-owner, lookup, completion 0, result:
 
 ```text-visible
 owner OTHER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-absolute, setup, completion 0, result, chunk 0 of 1:
+- folder-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-absolute, lookup, completion 0, result, chunk 0 of 1:
+- folder-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner FOLDER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-leaf-relative, setup, completion 0, result, chunk 0 of 1:
+- folder-leaf-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, result, chunk 0 of 2:
+- folder-leaf-relative, lookup, completion 1, result:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call __tcl_lsp_probe_nh20261012native1_folded::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body line 1)⟦EOF⟧
-```
-
-- folder-leaf-relative, lookup, completion 1, result, chunk 1 of 2:
-
-```text-visible
-
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, metadata, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, errorcode, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
@@ -525,237 +501,175 @@ NONE⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|lookup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|6f776e65722043414c4c4552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|lookup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|root-absolute|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-absolute|tmm-RULE_INIT|lookup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|other-owner|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|other-owner|tmm-RULE_INIT|lookup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f54484552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-absolute|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-absolute|tmm-RULE_INIT|lookup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|6f776e657220464f4c444552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:1|old-init|result|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c205f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479206c696e65203129
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:1|old-init|result|binary-scan-tcl-value|1|2|0a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:1|old-init|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:1|old-init|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:1|old-init|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c205f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479206c696e65203129
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:1|old-init|errorinfo|binary-scan-tcl-value|1|2|0a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|partition-absolute|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|partition-absolute|tmm-RULE_INIT|lookup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|6f776e657220504152544954494f4e206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:1|old-init|result|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f616273656e743a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:1|old-init|result|binary-scan-tcl-value|1|2|206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:1|old-init|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:1|old-init|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:1|old-init|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f616273656e743a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:1|old-init|errorinfo|binary-scan-tcl-value|1|2|206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|setup|0|0:1|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:1|old-init|result|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f616273656e74206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f616273656e74207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:1|old-init|result|binary-scan-tcl-value|1|2|6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- bare-local, setup, completion 0, result, chunk 0 of 1:
+- bare-local, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- bare-local, lookup, completion 0, result, chunk 0 of 1:
+- bare-local, lookup, completion 0, result:
 
 ```text-visible
 owner CALLER argc 2 argv {{a b} {{x} ::tail}}⟦EOF⟧
 ```
 
-- root-relative, setup, completion 0, result, chunk 0 of 1:
+- root-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-relative, lookup, completion 0, result, chunk 0 of 1:
+- root-relative, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- root-absolute, setup, completion 0, result, chunk 0 of 1:
+- root-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-absolute, lookup, completion 0, result, chunk 0 of 1:
+- root-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- other-owner, setup, completion 0, result, chunk 0 of 1:
+- other-owner, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- other-owner, lookup, completion 0, result, chunk 0 of 1:
+- other-owner, lookup, completion 0, result:
 
 ```text-visible
 owner OTHER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-absolute, setup, completion 0, result, chunk 0 of 1:
+- folder-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-absolute, lookup, completion 0, result, chunk 0 of 1:
+- folder-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner FOLDER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-leaf-relative, setup, completion 0, result, chunk 0 of 1:
+- folder-leaf-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, result, chunk 0 of 2:
+- folder-leaf-relative, lookup, completion 1, result:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call __tcl_lsp_probe_nh20261012native1_folded::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body line 1)⟦EOF⟧
-```
-
-- folder-leaf-relative, lookup, completion 1, result, chunk 1 of 2:
-
-```text-visible
-
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, metadata, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, errorcode, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, errorinfo, chunk 0 of 2:
+- folder-leaf-relative, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call __tcl_lsp_probe_nh20261012native1_folded::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body line 1)⟦EOF⟧
-```
-
-- folder-leaf-relative, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- partition-absolute, setup, completion 0, result, chunk 0 of 1:
+- partition-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- partition-absolute, lookup, completion 0, result, chunk 0 of 1:
+- partition-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner PARTITION argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- missing-rule, setup, completion 0, result, chunk 0 of 1:
+- missing-rule, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, result, chunk 0 of 2:
+- missing-rule, lookup, completion 1, result:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_absent::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body⟦EOF⟧
-```
-
-- missing-rule, lookup, completion 1, result, chunk 1 of 2:
-
-```text-visible
- line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, metadata, chunk 0 of 1:
+- missing-rule, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, errorcode, chunk 0 of 1:
+- missing-rule, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, errorinfo, chunk 0 of 2:
+- missing-rule, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_absent::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body⟦EOF⟧
-```
-
-- missing-rule, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
- line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- missing-proc, setup, completion 0, result, chunk 0 of 1:
+- missing-proc, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, result, chunk 0 of 2:
+- missing-proc, lookup, completion 1, result:
 
 ```text-visible
 proc __nh_nh20261012native1_absent not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_provider::__nh_nh20261012native1_absent {a b} {{x} ::tail}"
-    ("eval" bo⟦EOF⟧
-```
-
-- missing-proc, lookup, completion 1, result, chunk 1 of 2:
-
-```text-visible
-dy line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
@@ -785,395 +699,281 @@ dy line 1)
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e65722043414c4c4552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|root-absolute|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-absolute|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|other-owner|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|other-owner|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f54484552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-absolute|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-absolute|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e657220464f4c444552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:2|old-init|result|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c205f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479206c696e65203129
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:2|old-init|result|binary-scan-tcl-value|1|2|0a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:2|old-init|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:2|old-init|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c205f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479206c696e65203129
-NHO|nh20261012native1|folder-leaf-relative|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|1|2|0a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|partition-absolute|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|partition-absolute|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e657220504152544954494f4e206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:2|old-init|result|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f616273656e743a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:2|old-init|result|binary-scan-tcl-value|1|2|206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:2|old-init|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:2|old-init|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f616273656e743a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479
-NHO|nh20261012native1|missing-rule|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|1|2|206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:2|old-init|result|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f616273656e74206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f616273656e74207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:2|old-init|result|binary-scan-tcl-value|1|2|6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:2|old-init|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:2|old-init|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f616273656e74206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f616273656e74207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f
-NHO|nh20261012native1|missing-proc|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|1|2|6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|computed-variable-target|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|computed-variable-target|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|2|7461726765742d686578203266343336663664366436663665326635663566373436333663356636633733373035663730373236663632363535663665363833323330333233363331333033313332366536313734363937363635333135663730373236663736363936343635373233613361356635663665363835663665363833323330333233363331333033313332366536313734363937363635333135663734363137323637363537342076616c7565207b6f776e6572204f4c4420617267632032206172
-NHO|nh20261012native1|computed-variable-target|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|1|2|6776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-NHO|nh20261012native1|computed-list-target|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|computed-list-target|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|2|7461726765742d686578203266343336663664366436663665326635663566373436333663356636633733373035663730373236663632363535663665363833323330333233363331333033313332366536313734363937363635333135663730373236663736363936343635373233613361356635663665363835663665363833323330333233363331333033313332366536313734363937363635333135663734363137323637363537342076616c7565207b6f776e6572204f4c4420617267632032206172
-NHO|nh20261012native1|computed-list-target|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|1|2|6776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-NHO|nh20261012native1|literal-matched-arguments|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|literal-matched-arguments|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|list-prefix-arguments|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|list-prefix-arguments|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|space-joined-near-miss|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|space-joined-near-miss|tmm-RULE_INIT|lookup|1|0:2|old-init|result|binary-scan-tcl-value|0|1|77726f6e67202320617267733a2073686f756c64206265202263616c6c205f5f6e685f6e6832303236313031326e6174697665315f746172676574203c66697865643e203c76616c75653e
-NHO|nh20261012native1|space-joined-near-miss|tmm-RULE_INIT|lookup|1|0:2|old-init|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|space-joined-near-miss|tmm-RULE_INIT|lookup|1|0:2|old-init|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|space-joined-near-miss|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|0|2|77726f6e67202320617267733a2073686f756c64206265202263616c6c205f5f6e685f6e6832303236313031326e6174697665315f746172676574203c66697865643e203c76616c75653e0a202020207768696c6520657865637574696e670a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f7461726765742061206220632064220a20202020282265
-NHO|nh20261012native1|space-joined-near-miss|tmm-RULE_INIT|lookup|1|0:2|old-init|errorinfo|binary-scan-tcl-value|1|2|76616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c2022247072656669782063206422220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|provider-lifetime|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|provider-lifetime|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-NHO|nh20261012native1|provider-local-upvar-write|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|provider-local-upvar-write|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d696e69747d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d696e69747d206c6576656c20317d2063616c6c6572207b43414c4c45525f5752495445206f6c642d696e69747d
-NHO|nh20261012native1|provider-shared-write-readback|tmm-RULE_INIT|setup|0|0:2|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|0|3|7068617365206f6c6420616374696f6e20726561642070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665313a3a63656c6c2030207b4e414d4553504143455f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d203a3a5f5f6e685f6e6832303236313031326e6174697665315f676c6f62616c2030207b474c4f42414c5f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d207374617469633a3a5f5f6e685f6e
-NHO|nh20261012native1|provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|1|3|6832303236313031326e6174697665315f7374617469632030207b5354415449435f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665313a3a63656c6c2030207b4e414d4553504143455f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d203a3a5f5f6e685f6e6832303236313031326e6174697665315f676c6f62616c2030207b474c4f42414c5f
-NHO|nh20261012native1|provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:2|old-init|result|binary-scan-tcl-value|2|3|5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665315f7374617469632030207b5354415449435f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- bare-local, setup, completion 0, result, chunk 0 of 1:
+- bare-local, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- bare-local, lookup, completion 0, result, chunk 0 of 1:
+- bare-local, lookup, completion 0, result:
 
 ```text-visible
 owner CALLER argc 2 argv {{a b} {{x} ::tail}}⟦EOF⟧
 ```
 
-- root-relative, setup, completion 0, result, chunk 0 of 1:
+- root-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-relative, lookup, completion 0, result, chunk 0 of 1:
+- root-relative, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- root-absolute, setup, completion 0, result, chunk 0 of 1:
+- root-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-absolute, lookup, completion 0, result, chunk 0 of 1:
+- root-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- other-owner, setup, completion 0, result, chunk 0 of 1:
+- other-owner, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- other-owner, lookup, completion 0, result, chunk 0 of 1:
+- other-owner, lookup, completion 0, result:
 
 ```text-visible
 owner OTHER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-absolute, setup, completion 0, result, chunk 0 of 1:
+- folder-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-absolute, lookup, completion 0, result, chunk 0 of 1:
+- folder-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner FOLDER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-leaf-relative, setup, completion 0, result, chunk 0 of 1:
+- folder-leaf-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, result, chunk 0 of 2:
+- folder-leaf-relative, lookup, completion 1, result:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call __tcl_lsp_probe_nh20261012native1_folded::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body line 1)⟦EOF⟧
-```
-
-- folder-leaf-relative, lookup, completion 1, result, chunk 1 of 2:
-
-```text-visible
-
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, metadata, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, errorcode, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, errorinfo, chunk 0 of 2:
+- folder-leaf-relative, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call __tcl_lsp_probe_nh20261012native1_folded::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body line 1)⟦EOF⟧
-```
-
-- folder-leaf-relative, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- partition-absolute, setup, completion 0, result, chunk 0 of 1:
+- partition-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- partition-absolute, lookup, completion 0, result, chunk 0 of 1:
+- partition-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner PARTITION argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- missing-rule, setup, completion 0, result, chunk 0 of 1:
+- missing-rule, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, result, chunk 0 of 2:
+- missing-rule, lookup, completion 1, result:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_absent::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body⟦EOF⟧
-```
-
-- missing-rule, lookup, completion 1, result, chunk 1 of 2:
-
-```text-visible
- line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, metadata, chunk 0 of 1:
+- missing-rule, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, errorcode, chunk 0 of 1:
+- missing-rule, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, errorinfo, chunk 0 of 2:
+- missing-rule, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_absent::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body⟦EOF⟧
-```
-
-- missing-rule, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
- line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- missing-proc, setup, completion 0, result, chunk 0 of 1:
+- missing-proc, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, result, chunk 0 of 2:
+- missing-proc, lookup, completion 1, result:
 
 ```text-visible
 proc __nh_nh20261012native1_absent not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_provider::__nh_nh20261012native1_absent {a b} {{x} ::tail}"
-    ("eval" bo⟦EOF⟧
-```
-
-- missing-proc, lookup, completion 1, result, chunk 1 of 2:
-
-```text-visible
-dy line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, metadata, chunk 0 of 1:
+- missing-proc, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, errorcode, chunk 0 of 1:
+- missing-proc, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, errorinfo, chunk 0 of 2:
+- missing-proc, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_absent not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_provider::__nh_nh20261012native1_absent {a b} {{x} ::tail}"
-    ("eval" bo⟦EOF⟧
-```
-
-- missing-proc, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-dy line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- computed-variable-target, setup, completion 0, result, chunk 0 of 1:
+- computed-variable-target, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- computed-variable-target, lookup, completion 0, result, chunk 0 of 2:
+- computed-variable-target, lookup, completion 0, result:
 
 ```text-visible
-target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 ar⟦EOF⟧
+target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
 ```
 
-- computed-variable-target, lookup, completion 0, result, chunk 1 of 2:
-
-```text-visible
-gv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
-```
-
-- computed-list-target, setup, completion 0, result, chunk 0 of 1:
+- computed-list-target, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- computed-list-target, lookup, completion 0, result, chunk 0 of 2:
+- computed-list-target, lookup, completion 0, result:
 
 ```text-visible
-target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 ar⟦EOF⟧
+target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
 ```
 
-- computed-list-target, lookup, completion 0, result, chunk 1 of 2:
-
-```text-visible
-gv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
-```
-
-- literal-matched-arguments, setup, completion 0, result, chunk 0 of 1:
+- literal-matched-arguments, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- literal-matched-arguments, lookup, completion 0, result, chunk 0 of 1:
+- literal-matched-arguments, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- list-prefix-arguments, setup, completion 0, result, chunk 0 of 1:
+- list-prefix-arguments, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- list-prefix-arguments, lookup, completion 0, result, chunk 0 of 1:
+- list-prefix-arguments, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- space-joined-near-miss, setup, completion 0, result, chunk 0 of 1:
+- space-joined-near-miss, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, result, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, result:
 
 ```text-visible
 wrong # args: should be "call __nh_nh20261012native1_target <fixed> <value>⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, errorinfo, chunk 0 of 2:
+- space-joined-near-miss, lookup, completion 1, errorinfo:
 
 ```text-visible
 wrong # args: should be "call __nh_nh20261012native1_target <fixed> <value>
     while executing
 "call /Common/__tcl_lsp_probe_nh20261012native1_provider::__nh_nh20261012native1_target a b c d"
-    ("e⟦EOF⟧
-```
-
-- space-joined-near-miss, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-val" body line 1)
+    ("eval" body line 1)
     invoked from within
 "eval "$prefix c d""
     ("eval" body line 1)
@@ -1181,52 +981,40 @@ val" body line 1)
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- provider-lifetime, setup, completion 0, result, chunk 0 of 1:
+- provider-lifetime, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- provider-lifetime, lookup, completion 0, result, chunk 0 of 1:
+- provider-lifetime, lookup, completion 0, result:
 
 ```text-visible
 phase old value {owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
 ```
 
-- provider-local-upvar-write, setup, completion 0, result, chunk 0 of 1:
+- provider-local-upvar-write, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- provider-local-upvar-write, lookup, completion 0, result, chunk 0 of 1:
+- provider-local-upvar-write, lookup, completion 0, result:
 
 ```text-visible
 provider {local {PROVIDER_LOCAL old-init} before CALLER_BEFORE after {CALLER_WRITE old-init} level 1} caller {CALLER_WRITE old-init}⟦EOF⟧
 ```
 
-- provider-shared-write-readback, setup, completion 0, result, chunk 0 of 1:
+- provider-shared-write-readback, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- provider-shared-write-readback, lookup, completion 0, result, chunk 0 of 3:
+- provider-shared-write-readback, lookup, completion 0, result:
 
 ```text-visible
-phase old action read provider {rows {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_WRITE load-old-init-procedure} static::__nh_n⟦EOF⟧
-```
-
-- provider-shared-write-readback, lookup, completion 0, result, chunk 1 of 3:
-
-```text-visible
-h20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}} level 1} caller {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_⟦EOF⟧
-```
-
-- provider-shared-write-readback, lookup, completion 0, result, chunk 2 of 3:
-
-```text-visible
-WRITE load-old-init-procedure} static::__nh_nh20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}}⟦EOF⟧
+phase old action read provider {rows {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_WRITE load-old-init-procedure} static::__nh_nh20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}} level 1} caller {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_WRITE load-old-init-procedure} static::__nh_nh20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}}⟦EOF⟧
 ```
 
 - bare-local: intended operation reached.
@@ -1270,36 +1058,29 @@ WRITE load-old-init-procedure} static::__nh_nh20261012native1_static 0 {STATIC_W
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|setup|0|0:3|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|bare-local|tmm-RULE_INIT|lookup|0|0:3|old-init|result|binary-scan-tcl-value|0|1|6f776e65722043414c4c4552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|setup|0|0:3|old-init|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-relative|tmm-RULE_INIT|lookup|0|0:3|old-init|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- bare-local, setup, completion 0, result, chunk 0 of 1:
+- bare-local, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- bare-local, lookup, completion 0, result, chunk 0 of 1:
+- bare-local, lookup, completion 0, result:
 
 ```text-visible
 owner CALLER argc 2 argv {{a b} {{x} ::tail}}⟦EOF⟧
 ```
 
-- root-relative, setup, completion 0, result, chunk 0 of 1:
+- root-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-relative, lookup, completion 0, result, chunk 0 of 1:
+- root-relative, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
@@ -1316,331 +1097,254 @@ owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native1|bare-local|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|bare-local|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e65722043414c4c4552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d
-NHO|nh20261012native1|root-relative|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-relative|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|root-absolute|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|root-absolute|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|other-owner|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|other-owner|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e6572204f54484552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-absolute|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-absolute|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e657220464f4c444552206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|folder-leaf-relative|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-leaf-relative|tmm-procedure|lookup|1|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|folder-leaf-relative|tmm-procedure|lookup|1|0:2|old-init-procedure|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|folder-leaf-relative|tmm-procedure|lookup|1|0:2|old-init-procedure|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|folder-leaf-relative|tmm-procedure|lookup|1|0:2|old-init-procedure|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c205f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f666f6c6465643a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479206c696e65203129
-NHO|nh20261012native1|folder-leaf-relative|tmm-procedure|lookup|1|0:2|old-init-procedure|errorinfo|binary-scan-tcl-value|1|2|0a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|partition-absolute|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|partition-absolute|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e657220504152544954494f4e206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|missing-rule|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-rule|tmm-procedure|lookup|1|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-rule|tmm-procedure|lookup|1|0:2|old-init-procedure|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|missing-rule|tmm-procedure|lookup|1|0:2|old-init-procedure|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|missing-rule|tmm-procedure|lookup|1|0:2|old-init-procedure|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f746172676574206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f616273656e743a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f6479
-NHO|nh20261012native1|missing-rule|tmm-procedure|lookup|1|0:2|old-init-procedure|errorinfo|binary-scan-tcl-value|1|2|206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|missing-proc|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-proc|tmm-procedure|lookup|1|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|missing-proc|tmm-procedure|lookup|1|0:2|old-init-procedure|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|missing-proc|tmm-procedure|lookup|1|0:2|old-init-procedure|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|missing-proc|tmm-procedure|lookup|1|0:2|old-init-procedure|errorinfo|binary-scan-tcl-value|0|2|70726f63205f5f6e685f6e6832303236313031326e6174697665315f616273656e74206e6f7420666f756e6420286c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f616273656e74207b6120627d207b7b787d203a3a7461696c7d220a2020202028226576616c2220626f
-NHO|nh20261012native1|missing-proc|tmm-procedure|lookup|1|0:2|old-init-procedure|errorinfo|binary-scan-tcl-value|1|2|6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|computed-variable-target|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|computed-variable-target|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|2|7461726765742d686578203266343336663664366436663665326635663566373436333663356636633733373035663730373236663632363535663665363833323330333233363331333033313332366536313734363937363635333135663730373236663736363936343635373233613361356635663665363835663665363833323330333233363331333033313332366536313734363937363635333135663734363137323637363537342076616c7565207b6f776e6572204f4c4420617267632032206172
-NHO|nh20261012native1|computed-variable-target|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|1|2|6776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-NHO|nh20261012native1|computed-list-target|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|computed-list-target|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|2|7461726765742d686578203266343336663664366436663665326635663566373436333663356636633733373035663730373236663632363535663665363833323330333233363331333033313332366536313734363937363635333135663730373236663736363936343635373233613361356635663665363835663665363833323330333233363331333033313332366536313734363937363635333135663734363137323637363537342076616c7565207b6f776e6572204f4c4420617267632032206172
-NHO|nh20261012native1|computed-list-target|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|1|2|6776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-NHO|nh20261012native1|literal-matched-arguments|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|literal-matched-arguments|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|list-prefix-arguments|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|list-prefix-arguments|tmm-procedure|lookup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|setup|0|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:2|old-init-procedure|result|binary-scan-tcl-value|0|1|77726f6e67202320617267733a2073686f756c64206265202263616c6c205f5f6e685f6e6832303236313031326e6174697665315f746172676574203c66697865643e203c76616c75653e
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:2|old-init-procedure|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:2|old-init-procedure|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- bare-local, setup, completion 0, result, chunk 0 of 1:
+- bare-local, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- bare-local, lookup, completion 0, result, chunk 0 of 1:
+- bare-local, lookup, completion 0, result:
 
 ```text-visible
 owner CALLER argc 2 argv {{a b} {{x} ::tail}}⟦EOF⟧
 ```
 
-- root-relative, setup, completion 0, result, chunk 0 of 1:
+- root-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-relative, lookup, completion 0, result, chunk 0 of 1:
+- root-relative, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- root-absolute, setup, completion 0, result, chunk 0 of 1:
+- root-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- root-absolute, lookup, completion 0, result, chunk 0 of 1:
+- root-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- other-owner, setup, completion 0, result, chunk 0 of 1:
+- other-owner, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- other-owner, lookup, completion 0, result, chunk 0 of 1:
+- other-owner, lookup, completion 0, result:
 
 ```text-visible
 owner OTHER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-absolute, setup, completion 0, result, chunk 0 of 1:
+- folder-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-absolute, lookup, completion 0, result, chunk 0 of 1:
+- folder-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner FOLDER argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- folder-leaf-relative, setup, completion 0, result, chunk 0 of 1:
+- folder-leaf-relative, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, result, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, metadata, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, errorcode, chunk 0 of 1:
+- folder-leaf-relative, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- folder-leaf-relative, lookup, completion 1, errorinfo, chunk 0 of 2:
+- folder-leaf-relative, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call __tcl_lsp_probe_nh20261012native1_folded::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body line 1)⟦EOF⟧
-```
-
-- folder-leaf-relative, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- partition-absolute, setup, completion 0, result, chunk 0 of 1:
+- partition-absolute, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- partition-absolute, lookup, completion 0, result, chunk 0 of 1:
+- partition-absolute, lookup, completion 0, result:
 
 ```text-visible
 owner PARTITION argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- missing-rule, setup, completion 0, result, chunk 0 of 1:
+- missing-rule, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, result, chunk 0 of 1:
+- missing-rule, lookup, completion 1, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, metadata, chunk 0 of 1:
+- missing-rule, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, errorcode, chunk 0 of 1:
+- missing-rule, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- missing-rule, lookup, completion 1, errorinfo, chunk 0 of 2:
+- missing-rule, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_target not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_absent::__nh_nh20261012native1_target {a b} {{x} ::tail}"
-    ("eval" body⟦EOF⟧
-```
-
-- missing-rule, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
- line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- missing-proc, setup, completion 0, result, chunk 0 of 1:
+- missing-proc, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, result, chunk 0 of 1:
+- missing-proc, lookup, completion 1, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, metadata, chunk 0 of 1:
+- missing-proc, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, errorcode, chunk 0 of 1:
+- missing-proc, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- missing-proc, lookup, completion 1, errorinfo, chunk 0 of 2:
+- missing-proc, lookup, completion 1, errorinfo:
 
 ```text-visible
 proc __nh_nh20261012native1_absent not found (line 1)
     invoked from within
 "call /Common/__tcl_lsp_probe_nh20261012native1_provider::__nh_nh20261012native1_absent {a b} {{x} ::tail}"
-    ("eval" bo⟦EOF⟧
-```
-
-- missing-proc, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-dy line 1)
+    ("eval" body line 1)
     invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- computed-variable-target, setup, completion 0, result, chunk 0 of 1:
+- computed-variable-target, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- computed-variable-target, lookup, completion 0, result, chunk 0 of 2:
+- computed-variable-target, lookup, completion 0, result:
 
 ```text-visible
-target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 ar⟦EOF⟧
+target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
 ```
 
-- computed-variable-target, lookup, completion 0, result, chunk 1 of 2:
-
-```text-visible
-gv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
-```
-
-- computed-list-target, setup, completion 0, result, chunk 0 of 1:
+- computed-list-target, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- computed-list-target, lookup, completion 0, result, chunk 0 of 2:
+- computed-list-target, lookup, completion 0, result:
 
 ```text-visible
-target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 ar⟦EOF⟧
+target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
 ```
 
-- computed-list-target, lookup, completion 0, result, chunk 1 of 2:
-
-```text-visible
-gv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
-```
-
-- literal-matched-arguments, setup, completion 0, result, chunk 0 of 1:
+- literal-matched-arguments, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- literal-matched-arguments, lookup, completion 0, result, chunk 0 of 1:
+- literal-matched-arguments, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- list-prefix-arguments, setup, completion 0, result, chunk 0 of 1:
+- list-prefix-arguments, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- list-prefix-arguments, lookup, completion 0, result, chunk 0 of 1:
+- list-prefix-arguments, lookup, completion 0, result:
 
 ```text-visible
 owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}⟦EOF⟧
 ```
 
-- space-joined-near-miss, setup, completion 0, result, chunk 0 of 1:
+- space-joined-near-miss, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, result, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, result:
 
 ```text-visible
 wrong # args: should be "call __nh_nh20261012native1_target <fixed> <value>⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
@@ -1681,71 +1385,47 @@ NONE⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native1|computed-list-target|tmm-procedure|lookup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|2|7461726765742d686578203266343336663664366436663665326635663566373436333663356636633733373035663730373236663632363535663665363833323330333233363331333033313332366536313734363937363635333135663730373236663736363936343635373233613361356635663665363835663665363833323330333233363331333033313332366536313734363937363635333135663734363137323637363537342076616c7565207b6f776e6572204f4c4420617267632032206172
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|setup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:3|old-init-procedure|result|binary-scan-tcl-value|0|1|77726f6e67202320617267733a2073686f756c64206265202263616c6c205f5f6e685f6e6832303236313031326e6174697665315f746172676574203c66697865643e203c76616c75653e
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:3|old-init-procedure|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:3|old-init-procedure|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:3|old-init-procedure|errorinfo|binary-scan-tcl-value|0|2|77726f6e67202320617267733a2073686f756c64206265202263616c6c205f5f6e685f6e6832303236313031326e6174697665315f746172676574203c66697865643e203c76616c75653e0a202020207768696c6520657865637574696e670a2263616c6c202f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f7461726765742061206220632064220a20202020282265
-NHO|nh20261012native1|space-joined-near-miss|tmm-procedure|lookup|1|0:3|old-init-procedure|errorinfo|binary-scan-tcl-value|1|2|76616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c2022247072656669782063206422220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-NHO|nh20261012native1|provider-lifetime|tmm-procedure|setup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|provider-lifetime|tmm-procedure|lookup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|1|7068617365206f6c642076616c7565207b6f776e6572204f4c44206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-NHO|nh20261012native1|provider-local-upvar-write|tmm-procedure|setup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|provider-local-upvar-write|tmm-procedure|lookup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|1|70726f7669646572207b6c6f63616c207b50524f56494445525f4c4f43414c206f6c642d696e69742d70726f6365647572657d206265666f72652043414c4c45525f4245464f5245206166746572207b43414c4c45525f5752495445206f6c642d696e69742d70726f6365647572657d206c6576656c20327d2063616c6c6572207b43414c4c45525f5752495445206f6c642d696e69742d70726f6365647572657d
-NHO|nh20261012native1|provider-shared-write-readback|tmm-procedure|setup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native1|provider-shared-write-readback|tmm-procedure|lookup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|0|3|7068617365206f6c6420616374696f6e20726561642070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665313a3a63656c6c2030207b4e414d4553504143455f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d203a3a5f5f6e685f6e6832303236313031326e6174697665315f676c6f62616c2030207b474c4f42414c5f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d207374617469633a3a5f5f6e685f6e
-NHO|nh20261012native1|provider-shared-write-readback|tmm-procedure|lookup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|1|3|6832303236313031326e6174697665315f7374617469632030207b5354415449435f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d7d206c6576656c20327d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665313a3a63656c6c2030207b4e414d4553504143455f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d203a3a5f5f6e685f6e6832303236313031326e6174697665315f676c6f62616c2030207b474c4f42414c5f
-NHO|nh20261012native1|provider-shared-write-readback|tmm-procedure|lookup|0|0:3|old-init-procedure|result|binary-scan-tcl-value|2|3|5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665315f7374617469632030207b5354415449435f5752495445206c6f61642d6f6c642d696e69742d70726f6365647572657d7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- computed-list-target, lookup, completion 0, result, chunk 0 of 2:
+- computed-list-target, lookup, completion 0, result:
 
 ```text-visible
 target-hex 2f436f6d6d6f6e2f5f5f74636c5f6c73705f70726f62655f6e6832303236313031326e6174697665315f70726f76696465723a3a5f5f6e685f6e6832303236313031326e6174697665315f746172676574 value {owner OLD argc 2 ar⟦EOF⟧
 ```
 
-- space-joined-near-miss, setup, completion 0, result, chunk 0 of 1:
+- space-joined-near-miss, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, result, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, result:
 
 ```text-visible
 wrong # args: should be "call __nh_nh20261012native1_target <fixed> <value>⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
+- space-joined-near-miss, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- space-joined-near-miss, lookup, completion 1, errorinfo, chunk 0 of 2:
+- space-joined-near-miss, lookup, completion 1, errorinfo:
 
 ```text-visible
 wrong # args: should be "call __nh_nh20261012native1_target <fixed> <value>
     while executing
 "call /Common/__tcl_lsp_probe_nh20261012native1_provider::__nh_nh20261012native1_target a b c d"
-    ("e⟦EOF⟧
-```
-
-- space-joined-near-miss, lookup, completion 1, errorinfo, chunk 1 of 2:
-
-```text-visible
-val" body line 1)
+    ("eval" body line 1)
     invoked from within
 "eval "$prefix c d""
     ("eval" body line 1)
@@ -1753,52 +1433,40 @@ val" body line 1)
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- provider-lifetime, setup, completion 0, result, chunk 0 of 1:
+- provider-lifetime, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- provider-lifetime, lookup, completion 0, result, chunk 0 of 1:
+- provider-lifetime, lookup, completion 0, result:
 
 ```text-visible
 phase old value {owner OLD argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
 ```
 
-- provider-local-upvar-write, setup, completion 0, result, chunk 0 of 1:
+- provider-local-upvar-write, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- provider-local-upvar-write, lookup, completion 0, result, chunk 0 of 1:
+- provider-local-upvar-write, lookup, completion 0, result:
 
 ```text-visible
 provider {local {PROVIDER_LOCAL old-init-procedure} before CALLER_BEFORE after {CALLER_WRITE old-init-procedure} level 2} caller {CALLER_WRITE old-init-procedure}⟦EOF⟧
 ```
 
-- provider-shared-write-readback, setup, completion 0, result, chunk 0 of 1:
+- provider-shared-write-readback, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- provider-shared-write-readback, lookup, completion 0, result, chunk 0 of 3:
+- provider-shared-write-readback, lookup, completion 0, result:
 
 ```text-visible
-phase old action read provider {rows {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_WRITE load-old-init-procedure} static::__nh_n⟦EOF⟧
-```
-
-- provider-shared-write-readback, lookup, completion 0, result, chunk 1 of 3:
-
-```text-visible
-h20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}} level 2} caller {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_⟦EOF⟧
-```
-
-- provider-shared-write-readback, lookup, completion 0, result, chunk 2 of 3:
-
-```text-visible
-WRITE load-old-init-procedure} static::__nh_nh20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}}⟦EOF⟧
+phase old action read provider {rows {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_WRITE load-old-init-procedure} static::__nh_nh20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}} level 2} caller {::__nh_nh20261012native1::cell 0 {NAMESPACE_WRITE load-old-init-procedure} ::__nh_nh20261012native1_global 0 {GLOBAL_WRITE load-old-init-procedure} static::__nh_nh20261012native1_static 0 {STATIC_WRITE load-old-init-procedure}}⟦EOF⟧
 ```
 
 - computed-list-target: intended operation reached.

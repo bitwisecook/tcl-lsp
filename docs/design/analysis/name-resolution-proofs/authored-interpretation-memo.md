@@ -20,55 +20,17 @@ Authored-source interpretation with no retained native entry. Exact source bytes
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,9 +40,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_analysis_cache.rs](../../../../rust/tcl-compiler/src/command_binding/source_analysis_cache.rs), `command_binding::source_analysis_cache::tests::authored_source_memo_matches_complete_input_and_independent_builder_clones` (linked): An exact memo hit retains the same immutable state while a returned builder can mutate its table/layout inventories without affecting the cached result.
 - [rust/tcl-compiler/src/command_binding/source_analysis_cache.rs](../../../../rust/tcl-compiler/src/command_binding/source_analysis_cache.rs), `command_binding::source_analysis_cache::tests::authored_source_memo_distinguishes_channel_config_entry_frame_and_registry` (linked): Different source channels/configurations/entry uncertainty/frame/Registry miss the cache, and retained native entries are ineligible.
 - [rust/tcl-compiler/src/command_binding/source_analysis_cache.rs](../../../../rust/tcl-compiler/src/command_binding/source_analysis_cache.rs), `command_binding::source_analysis_cache::tests::authored_source_memo_bounds_history_and_refuses_oversized_sources` (linked): A fixed seventeen-source history retains sixteen entries, evicts the oldest exact key, keeps the newest exact key, and refuses oversized complete source inputs.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors exercise the scoped implementation premises. No Rust execution receipt or native provider observation is attached.

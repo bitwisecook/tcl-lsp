@@ -20,57 +20,9 @@ Original counted Tcl_NewStringObj names are passed with the separate ASCII ::n n
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20 (recorded release association; launched patchlevel unqueried). Build: Header; static library; observer binary; init.tcl; compile/run statuses0. Compiler/configure details are unrecorded.. Channel: Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.. Dialect: C Tcl.
-
-Selected original ordinal rows:
-
-```text
-1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-```
-Each returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19 (recorded release association; launched patchlevel unqueried). Build: Header; static library; observer binary; init.tcl; compile/run statuses0. Compiler/configure details are unrecorded.. Channel: Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.. Dialect: C Tcl.
-
-Selected original ordinal rows:
-
-```text
-1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-```
-Each returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18 (recorded release association; launched patchlevel unqueried). Build: Header; static library; observer binary; init.tcl; compile/run statuses0. Compiler/configure details are unrecorded.. Channel: Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.. Dialect: C Tcl.
-
-Selected original ordinal rows:
-
-```text
-1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-```
-Each returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (recorded release association; launched patchlevel unqueried). Build: Header; static library; observer binary; init.tcl; compile/run statuses0. Compiler/configure details are unrecorded.. Channel: Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.. Dialect: C Tcl.
-
-Selected original ordinal rows:
-
-```text
-1 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-4 code0 3a3a6e3a3a61c0803a3a62 3a3a61c0803a3a62
-```
-Each returned token is the counted resident-byte hex of a reached result-list member. No installed-command or native execution outcome is inferred.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (recorded release association; launched patchlevel unqueried). Build: Header; static library; observer binary; init.tcl; compile/run statuses0. Compiler/configure details are unrecorded.. Channel: Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members.. Dialect: C Tcl.
+Status: `observed`. Channel: Public original counted Tcl_NewStringObj argv into actual auto_qualify; counted original result-list members. Version: tcl8.4 8.4.20 (recorded release association; launched patchlevel unqueried); tcl8.5 8.5.19 (recorded release association; launched patchlevel unqueried); tcl8.6 8.6.18 (recorded release association; launched patchlevel unqueried); tcl9.0 9.0.4 (recorded release association; launched patchlevel unqueried); tcl9.1 9.1.0 (recorded release association; launched patchlevel unqueried).
 
 Selected original ordinal rows:
 
@@ -82,42 +34,27 @@ Each returned token is the counted resident-byte hex of a reached result-list me
 
 ### jim
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No Jim auto_qualify original-object capture is attached to this C-library question; a Rust recipe refusal is an independent implementation boundary.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance auto_qualify capture is attached; C library outputs do not establish BIG-IP loader or event behaviour.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-syntax/tests/data/native_autoload_keys/probe.c](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/probe.c). Exact counted original input and reached auto_qualify result-list observer.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json). Five recorded source/build/init-library associations; unrecorded fields are not inferred.
-- `provider-tcl8.4` (provider): [rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json). JSON pointer `/engines/0`. Exact provider build and successful process association.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv). Exact counted returned keys; selected ordinal rows are named explicitly in the answer.
-- `provider-tcl8.5` (provider): [rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json). JSON pointer `/engines/1`. Exact provider build and successful process association.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv). Exact counted returned keys; selected ordinal rows are named explicitly in the answer.
-- `provider-tcl8.6` (provider): [rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json). JSON pointer `/engines/2`. Exact provider build and successful process association.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv). Exact counted returned keys; selected ordinal rows are named explicitly in the answer.
-- `provider-tcl9.0` (provider): [rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json). JSON pointer `/engines/3`. Exact provider build and successful process association.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv). Exact counted returned keys; selected ordinal rows are named explicitly in the answer.
-- `provider-tcl9.1` (provider): [rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json). JSON pointer `/engines/4`. Exact provider build and successful process association.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv). Exact counted returned keys; selected ordinal rows are named explicitly in the answer.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/naming/autoload.rs](../../../../rust/tcl-syntax/src/naming/autoload.rs), `native_autoload_command_candidates`: Selected C resident-byte candidate recipe; this pure inventory supplies no loader or original-object authority.
 - [rust/tcl-syntax/src/naming/autoload.rs](../../../../rust/tcl-syntax/src/naming/autoload.rs), `naming::autoload::tests::native_autoload_keys_follow_original_regsub_rebuilding` (linked): Compares all25 actual C key projection rows by selected release, including these original ordinal cases; the Jim refusal and constructed namespace preservation are independent Rust assertions.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact C probe is retained, but the original argv[1] initialisation script and argv[2] library path are not attached as an argument-vector receipt. The recorded init.tcl digest alone does not reconstruct that source. No exact original-bootstrap runner is claimed. A new reconfirmation must independently supply and hash the selected init.tcl/library and initialisation script, compile this unchanged probe against its selected headers/static library, and record actual runtime version, process status and separate raw streams. Existing five-row projections are retained evidence, not a newly executed run or Rust pass.
+- [rust/tcl-syntax/tests/data/native_autoload_keys/probe.c](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/probe.c)
+- [rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/manifest.json)
+- [rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/8.4.20.tsv)
+- [rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/8.5.19.tsv)
+- [rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/8.6.18.tsv)
+- [rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/9.0.4.tsv)
+- [rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv](../../../../rust/tcl-syntax/tests/data/native_autoload_keys/9.1.0.tsv)

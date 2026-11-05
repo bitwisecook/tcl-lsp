@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 All six programs return VALUE with the captured empty roster. An empty info locals result does not negate the independently observed binding read.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=variable-qualified-target.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for variable-qualified-target; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/variable-qualified-target.tcl`. Exact 8.4.20 input for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/variable-qualified-target.stdout`. Exact 8.4.20 stdout for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/variable-qualified-target.stderr`. Exact 8.4.20 stderr for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 variable-qualified-target. JSON pointer `/rows/25`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/variable-qualified-target.tcl`. Exact 8.5.19 input for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/variable-qualified-target.stdout`. Exact 8.5.19 stdout for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/variable-qualified-target.stderr`. Exact 8.5.19 stderr for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 variable-qualified-target. JSON pointer `/rows/65`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/variable-qualified-target.tcl`. Exact 8.6.18 input for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/variable-qualified-target.stdout`. Exact 8.6.18 stdout for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/variable-qualified-target.stderr`. Exact 8.6.18 stderr for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 variable-qualified-target. JSON pointer `/rows/105`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/variable-qualified-target.tcl`. Exact 9.0.4 input for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/variable-qualified-target.stdout`. Exact 9.0.4 stdout for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/variable-qualified-target.stderr`. Exact 9.0.4 stderr for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 variable-qualified-target. JSON pointer `/rows/145`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/variable-qualified-target.tcl`. Exact 9.1.0 input for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/variable-qualified-target.stdout`. Exact 9.1.0 stdout for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/variable-qualified-target.stderr`. Exact 9.1.0 stderr for variable-qualified-target; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 variable-qualified-target. JSON pointer `/rows/185`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/variable-qualified-target.tcl`. Exact Jim input for variable-qualified-target; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/variable-qualified-target.stdout`. Exact Jim stdout for variable-qualified-target; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/variable-qualified-target.stderr`. Exact Jim stderr for variable-qualified-target; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim variable-qualified-target. JSON pointer `/rows/225`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case variable-qualified-target --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-variable-qualified-target.md). A replay is a separate execution and must record its own results.

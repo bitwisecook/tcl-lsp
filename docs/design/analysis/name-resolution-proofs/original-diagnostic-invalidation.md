@@ -20,56 +20,11 @@ Rust workspace diagnostic scheduling contract. Fixed tests preserve exact source
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). Current typed invalidation owner and meaningful fixed assertion source; no Rust or native execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current typed invalidation owner and meaningful fixed assertion source; no Rust or native execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +34,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs), `workspace_index::tests::diagnostic_source_context_retains_currency_and_clears_reused_slots` (linked): Clone, remove, reused-slot and stale full configuration paths preserve or withdraw actual source context without stale inventory.
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::original_diagnostic_invalidation_keeps_opaque_dependencies_and_foreign_surfaces_separate` (linked): An opaque provider edit with unchanged report projections reaches its genuine original byte-key caller; independent sibling keys stay separate, unknown/current-source mismatch retains all relevant Tcl participants and foreign JS/BIG-IP surfaces remain excluded.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact Rust selectors check invalidation scheduling and retained ownership. Native interpreters do not execute this server scheduling contract; Rust execution is recorded independently.
+- [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs)
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)

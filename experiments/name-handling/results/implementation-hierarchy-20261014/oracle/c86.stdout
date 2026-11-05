@@ -1,5 +1,0 @@
-SUPER ::Outer::Inner::Base ::Outer::Inner::Child
-MIXIN ::Traits::Inner::Base ::Traits::Inner::Child
-OWNER ::B::Base
-COLON_PREFLIGHT 1 :::::Leaf does not refer to an object
-ROOT COLON

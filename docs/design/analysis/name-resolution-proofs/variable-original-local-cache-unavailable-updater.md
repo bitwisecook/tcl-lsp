@@ -22,7 +22,7 @@ Five fresh interpreters per C release, actual ASCII procedure body proc p {} {se
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (captured release association; launched patchlevel unqueried). Build: headers={'/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h': '824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf', '/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h': 'f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a'}; compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep. Version: tcl8.4 8.4.20 (captured release association; launched patchlevel unqueried).
 
 Exact selected independent subprocess outcomes:
 
@@ -50,39 +50,9 @@ Exact selected independent subprocess outcomes:
 ```
 Process0 is distinct from the printed guest completion. Fatal processes have no reached guest/result snapshot.
 
-### tcl8.5
+### tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.5.19 (captured release association; launched patchlevel unqueried). Build: headers={'/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h': 'c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5', '/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h': '72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa'}; compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep.. Dialect: C Tcl.
-
-Exact selected independent subprocess outcomes:
-
-```json
-[
-  {
-    "case": 2,
-    "exit": -6,
-    "stdout": "",
-    "stderr": "updateStringProc of type localVarName should not be called\n"
-  },
-  {
-    "case": 3,
-    "exit": -6,
-    "stdout": "",
-    "stderr": "updateStringProc of type localVarName should not be called\n"
-  },
-  {
-    "case": 4,
-    "exit": -6,
-    "stdout": "",
-    "stderr": "updateStringProc of type localVarName should not be called\n"
-  }
-]
-```
-Process0 is distinct from the printed guest completion. Fatal processes have no reached guest/result snapshot.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18 (captured release association; launched patchlevel unqueried). Build: headers={'/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h': 'aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245', '/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h': 'e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e'}; compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep. Version: tcl8.5 8.5.19 (captured release association; launched patchlevel unqueried); tcl8.6 8.6.18 (captured release association; launched patchlevel unqueried).
 
 Exact selected independent subprocess outcomes:
 
@@ -110,39 +80,9 @@ Exact selected independent subprocess outcomes:
 ```
 Process0 is distinct from the printed guest completion. Fatal processes have no reached guest/result snapshot.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: headers={'/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h': 'eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a', '/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h': 'f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053'}; compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep.. Dialect: C Tcl.
-
-Exact selected independent subprocess outcomes:
-
-```json
-[
-  {
-    "case": 2,
-    "exit": -4,
-    "stdout": "",
-    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
-  },
-  {
-    "case": 3,
-    "exit": -4,
-    "stdout": "",
-    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
-  },
-  {
-    "case": 4,
-    "exit": -4,
-    "stdout": "",
-    "stderr": "UpdateStringProc should not be invoked for type localVarName\n"
-  }
-]
-```
-Process0 is distinct from the printed guest completion. Fatal processes have no reached guest/result snapshot.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: headers={'/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h': '30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950', '/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h': 'fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc'}; compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C evaluator enters original compiled procedure; public ObjGetVar2/ObjSetVar2 and private original-cell lookup surround explicit Tcl_InvalidateStringRep. Version: tcl9.0 9.0.4 (captured release association; launched patchlevel unqueried); tcl9.1 9.1.0 (captured release association; launched patchlevel unqueried).
 
 Exact selected independent subprocess outcomes:
 
@@ -170,27 +110,11 @@ Exact selected independent subprocess outcomes:
 ```
 Process0 is distinct from the printed guest completion. Fatal processes have no reached guest/result snapshot.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation of this exact question is retained for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No observation of this exact question is retained for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c). Exact original object/cache/getter order and five modes.
-- `receipt` (observation): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json). Original full per-mode native process status/stdout/stderr and release-specific fatal diagnostics.
-- `projection` (observation): [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt). All 25 checked projected paths. updater-unavailable labels summarize fatal status; exact signals remain in receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -198,8 +122,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_variable_names.rs](../../../../runtime/rust/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths` (linked): Compares 25 ordinary/fatal native paths; Rust host refusal is an independent implementation response to the measured fatal native updater, not a native guest completion.
 - [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths` (linked): Compares 25 ordinary/fatal native paths; Rust host refusal is an independent implementation response to the measured fatal native updater, not a native guest completion.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native execution or Rust test result is asserted. A new comparison must compile the exact retained probe against independently identified release headers and archive, preserve its original API/flags and declared observer references, then capture separate process status, stdout and stderr. Original absolute compiler paths are attribution metadata, not a portable replay command. The probe is input source, not an excerpt of the Tcl/Jim implementation.
+- [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/probe.c)
+- [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/manifest.json)
+- [rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt](../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt)

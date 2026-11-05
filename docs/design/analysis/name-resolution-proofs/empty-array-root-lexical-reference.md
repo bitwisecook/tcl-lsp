@@ -24,102 +24,40 @@ This is a software source-edit geometry binding only. Original Native lexical re
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
-
-EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
-
-EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
-
-EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
-
-EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Tcl.
+Status: `observed`. Channel: ASCII file bytes supplied directly to native shell stdin. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 EMPTY_LEXICAL=VALUE; EMPTY_BRACED=VALUE; EMPTY_SCALAR=error variable is array; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual shell executable; independent header/source-owner/Makefile SHA retained in provider receipt. No native compilation was performed by this capture.. Channel: ASCII file bytes supplied directly to native shell stdin. Dialect: Jim Tcl.
+Status: `observed`. Channel: ASCII file bytes supplied directly to native shell stdin. Version: jim 0.84-9-g5bac7c9.
 
 EMPTY_LEXICAL=error syntax expression (k); EMPTY_BRACED=VALUE; EMPTY_SCALAR=k VALUE; EMPTY_LITERAL=$(k); NAMED_INDEX=ARRAY.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `input` (input): [rust/tcl-lexer/tests/data/native_empty_array_root/cases.tcl](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/cases.tcl). Exact ASCII source including five caught controls and actual info patchlevel query.
-- `capture` (provider): [rust/tcl-lexer/tests/data/native_empty_array_root/receipt.json](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/receipt.json). Original six process/build/input/stream receipts; executable inputs are hashes, not bundled ELF objects.
-- `tcl8.4-receipt` (provider): [rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20/receipt.json](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20/receipt.json). Original actual launched executable/hash and reported-version/process/output receipt.
-- `tcl8.4-stdout` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20/stdout](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20/stdout). Full original actual version and five case code/result hex rows.
-- `tcl8.4-stderr` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20/stderr](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20/stderr). Original empty process stderr; caught guest errors appear in stdout rows.
-- `tcl8.5-receipt` (provider): [rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19/receipt.json](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19/receipt.json). Original actual launched executable/hash and reported-version/process/output receipt.
-- `tcl8.5-stdout` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19/stdout](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19/stdout). Full original actual version and five case code/result hex rows.
-- `tcl8.5-stderr` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19/stderr](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19/stderr). Original empty process stderr; caught guest errors appear in stdout rows.
-- `tcl8.6-receipt` (provider): [rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18/receipt.json](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18/receipt.json). Original actual launched executable/hash and reported-version/process/output receipt.
-- `tcl8.6-stdout` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18/stdout](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18/stdout). Full original actual version and five case code/result hex rows.
-- `tcl8.6-stderr` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18/stderr](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18/stderr). Original empty process stderr; caught guest errors appear in stdout rows.
-- `tcl9.0-receipt` (provider): [rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4/receipt.json](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4/receipt.json). Original actual launched executable/hash and reported-version/process/output receipt.
-- `tcl9.0-stdout` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4/stdout](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4/stdout). Full original actual version and five case code/result hex rows.
-- `tcl9.0-stderr` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4/stderr](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4/stderr). Original empty process stderr; caught guest errors appear in stdout rows.
-- `tcl9.1-receipt` (provider): [rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0/receipt.json](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0/receipt.json). Original actual launched executable/hash and reported-version/process/output receipt.
-- `tcl9.1-stdout` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0/stdout](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0/stdout). Full original actual version and five case code/result hex rows.
-- `tcl9.1-stderr` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0/stderr](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0/stderr). Original empty process stderr; caught guest errors appear in stdout rows.
-- `jim-receipt` (provider): [rust/tcl-lexer/tests/data/native_empty_array_root/jim/receipt.json](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/jim/receipt.json). Original actual launched executable/hash and reported-version/process/output receipt.
-- `jim-stdout` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/jim/stdout](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/jim/stdout). Full original actual version and five case code/result hex rows.
-- `jim-stderr` (observation): [rust/tcl-lexer/tests/data/native_empty_array_root/jim/stderr](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/jim/stderr). Original empty process stderr; caught guest errors appear in stdout rows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `decompose_spanned`: Retain the selected C array-reference or Jim expression component geometry without inferring a runtime value or array cell.
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `word_parts::template_policy_tests::jim_expression_components_retain_parentheses_and_native_token_sites` (linked): The shared lexer retains Jim expression parentheses while C selects an array reference with an empty root; this is lexical geometry only, separate from observed native values.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/original_name_edit.rs](../../../../rust/tcl-lsp-core/src/original_name_edit.rs), `original_variable_root_name_edit`: Keep original variable-root source geometry and the independently selected index when constructing the lexical edit, including an empty root.
 - [rust/tcl-lsp-core/src/original_name_edit.rs](../../../../rust/tcl-lsp-core/src/original_name_edit.rs), `original_name_edit::original_variable_root_edit_tests::original_c_empty_array_root_edit_preserves_the_independent_index` (linked): Original C lexical root edit changes only the qualified root to empty while retaining the exact independent array index and original span; edit geometry supplies no runtime permission.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-lexer/tests/data/native_empty_array_root/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-empty-array-root-reconfirmation"
-]
-```
-
-Requires exact recorded shell ELF/header/source-owner/Makefile inputs. Compares complete stdout/stderr and process status; caught guest errors are data. --verify-only launches no engine. This protocol neither compiles nor executes Rust.
+- [rust/tcl-lexer/tests/data/native_empty_array_root](../../../../rust/tcl-lexer/tests/data/native_empty_array_root)
+- [rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.4.20)
+- [rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.5.19)
+- [rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/8.6.18)
+- [rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.0.4)
+- [rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/9.1.0)
+- [rust/tcl-lexer/tests/data/native_empty_array_root/jim](../../../../rust/tcl-lexer/tests/data/native_empty_array_root/jim)

@@ -1,8 +1,0 @@
-NHO|nh20261012stock3|wiki-code-4|stock-8.5|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012stock3|wiki-code-4|stock-8.5|setup|0|none|once|returnoptions|utf-8|0|1|2d636f64652030202d6c6576656c2030
-oracle 8.5.13 library /usr/share/tcl8.5 tcltest 2.3.4
-NHO|nh20261012stock3|wiki-code-4|stock-8.5|body-return|0|none|once|result|utf-8|0|1|31
-++++ wiki-code-4 PASSED
-:	Total	30	Passed	1	Skipped	29	Failed	0
-NHO|nh20261012stock3|wiki-code-4|stock-8.5|lookup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012stock3|wiki-code-4|stock-8.5|lookup|0|none|once|returnoptions|utf-8|0|1|2d636f64652030202d6c6576656c2030

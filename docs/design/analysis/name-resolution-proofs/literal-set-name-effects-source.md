@@ -20,89 +20,23 @@ Source inspection of pinned Tcl8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0. Complete
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.4.20. Build: Pinned release source inspection only; no guest build or execution.. Channel: Exact C source, not guest input.. Dialect: Tcl.
-
-Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Pinned release source inspection only; no guest build or execution.. Channel: Exact C source, not guest input.. Dialect: Tcl.
-
-Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Pinned release source inspection only; no guest build or execution.. Channel: Exact C source, not guest input.. Dialect: Tcl.
-
-Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned release source inspection only; no guest build or execution.. Channel: Exact C source, not guest input.. Dialect: Tcl.
-
-Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned release source inspection only; no guest build or execution.. Channel: Exact C source, not guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Exact C source, not guest input. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Literal Set compiles literal pushes and load/store opcodes; compiled-local allocation is metadata only. Command-token nested compilation is separately reached and excluded.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
-
-- `e1`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
-
-- `e2`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
-
-- `e3`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.4.20-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
-
-- `e4`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
-
-- `e5`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-PushVarName.txt`. Exact full PushVarName definition; source full-file hash and line range retained independently.
-
-- `e6`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
-
-- `e7`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.5.19-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
-
-- `e8`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
-
-- `e9`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
-
-- `e10`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
-
-- `e11`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/8.6.18-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
-
-- `e12`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
-
-- `e13`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
-
-- `e14`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
-
-- `e15`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.0.4-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
-
-- `e16`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileSetCmd.txt`. Exact full TclCompileSetCmd definition; source full-file hash and line range retained independently.
-
-- `e17`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclPushVarName.txt`. Exact full TclPushVarName definition; source full-file hash and line range retained independently.
-
-- `e18`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclCompileTokens.txt`. Exact full TclCompileTokens definition; source full-file hash and line range retained independently.
-
-- `e19`: `rust/tcl-registry/tests/data/native_literal_set_compiler_source/9.1.0-TclFindCompiledLocal.txt`. Exact full TclFindCompiledLocal definition; source full-file hash and line range retained independently.
 
 ## Source inspection
 
@@ -3234,9 +3168,3 @@ TclFindCompiledLocal(
 - `rust/tcl-registry/src/native_compilation.rs`: `native_compilation::tests::original_literal_set_compiler_effects_do_not_grant_opcode_admission` (linked). The Rust consumer excludes nested/dynamic vectors and retains Unknown native admission independently; this is not guest execution.
 
 A linked selector records coverage, not executed results.
-
-## Replay
-
-Exact source inspection.
-
-Compare pinned C release sources against exact full-file and definition hashes. No current native guest observation or Rust execution is implied by this source record.

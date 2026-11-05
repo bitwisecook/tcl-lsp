@@ -16,55 +16,10 @@ set c tmsh::version; catch {eval $c} v; set v⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case p_tmsh_version
+### TMM log tag tmm, RULE_INIT, case p_tmsh_version; TMM log tag tmm1, RULE_INIT, case p_tmsh_version; TMM log tag tmm2, RULE_INIT, case p_tmsh_version; TMM log tag tmm3, RULE_INIT, case p_tmsh_version
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-invalid command name "tmsh::version"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm1, RULE_INIT, case p_tmsh_version
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-invalid command name "tmsh::version"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm2, RULE_INIT, case p_tmsh_version
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-invalid command name "tmsh::version"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm3, RULE_INIT, case p_tmsh_version
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -106,25 +61,10 @@ invalid command name "tmsh::version"⟦EOF⟧
 
 The wrapper recorded Tcl completion code 0.
 
-### iApp implementation, case p_tmsh_version
+### iApp implementation, case p_tmsh_version; iCall script, case p_tmsh_version
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-21.1.0.1⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iCall script, case p_tmsh_version
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
+- Recorded input channel: iApp implementation; iCall script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.

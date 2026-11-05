@@ -24,63 +24,23 @@ The added hosted-family control and extended scheduling negatives are software m
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `contract` (implementation): [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs). Current complete-policy equality kernel and actual negative-axis test; this implementation source supplies no native execution observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs), `InvocationDialect::execution_point`: Resolve selected actual-family point; foreign compatible C base supplies no C implementation.
 - [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs), `InvocationDialect::has_same_execution_policy`: Normalise point representation only and retain exact equality of every other invocation policy field.
 - [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs), `invocation_words::tests::execution_policy_comparison_normalises_only_the_selected_point` (linked): All five C profile records match equivalent explicit point in both directions, while independent policy and foreign/build negatives reject.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-dialect/src/profile.rs](../../../../rust/tcl-dialect/src/profile.rs), `DialectProfile::runtime_core_family`: Resolve actual core provider or hosted F5 trunk package family once; catalogue signature compatibility supplies no execution point.
 - [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs), `InvocationDialect::of_profile`: Retain the shared actual runtime core family independently of typed compatible Tcl signature release.
@@ -89,20 +49,6 @@ A named test is a coverage binding, not a claim that it executed.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-registry",
-  "invocation_words::tests::execution_policy_comparison_normalises_only_the_selected_point",
-  "--",
-  "--exact"
-]
-```
-
-Run the named selector against its exact current source to check the pure implementation contract. It supplies no native interpreter behavior or compiler/token/cache grant; original namespace and switch vector controls keep their independently owned assertions.
+- [rust/tcl-registry/src/invocation_words.rs](../../../../rust/tcl-registry/src/invocation_words.rs)

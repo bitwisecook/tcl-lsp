@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 The five C programs return VALUE and ::leaf/::moved/rename; Jim preserves the missing trace command error.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=trace-command-rename-report.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for trace-command-rename-report; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/trace-command-rename-report.tcl`. Exact 8.4.20 input for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/trace-command-rename-report.stdout`. Exact 8.4.20 stdout for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/trace-command-rename-report.stderr`. Exact 8.4.20 stderr for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 trace-command-rename-report. JSON pointer `/rows/31`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/trace-command-rename-report.tcl`. Exact 8.5.19 input for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/trace-command-rename-report.stdout`. Exact 8.5.19 stdout for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/trace-command-rename-report.stderr`. Exact 8.5.19 stderr for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 trace-command-rename-report. JSON pointer `/rows/71`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/trace-command-rename-report.tcl`. Exact 8.6.18 input for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/trace-command-rename-report.stdout`. Exact 8.6.18 stdout for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/trace-command-rename-report.stderr`. Exact 8.6.18 stderr for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 trace-command-rename-report. JSON pointer `/rows/111`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/trace-command-rename-report.tcl`. Exact 9.0.4 input for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/trace-command-rename-report.stdout`. Exact 9.0.4 stdout for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/trace-command-rename-report.stderr`. Exact 9.0.4 stderr for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 trace-command-rename-report. JSON pointer `/rows/151`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/trace-command-rename-report.tcl`. Exact 9.1.0 input for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/trace-command-rename-report.stdout`. Exact 9.1.0 stdout for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/trace-command-rename-report.stderr`. Exact 9.1.0 stderr for trace-command-rename-report; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 trace-command-rename-report. JSON pointer `/rows/191`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/trace-command-rename-report.tcl`. Exact Jim input for trace-command-rename-report; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/trace-command-rename-report.stdout`. Exact Jim stdout for trace-command-rename-report; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/trace-command-rename-report.stderr`. Exact Jim stderr for trace-command-rename-report; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim trace-command-rename-report. JSON pointer `/rows/231`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case trace-command-rename-report --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-trace-command-rename-report.md). A replay is a separate execution and must record its own results.

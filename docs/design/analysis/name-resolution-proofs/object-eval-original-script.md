@@ -20,53 +20,23 @@ Pinned source inspection of Tcl8.6.18/9.0.4/9.1.0 stock object eval handler only
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Pinned source inspection; no executed build association.. Channel: Inspected stock native TclOO object eval handler; no guest input.. Dialect: Tcl.
-
-Single original script operand is retained; multiple original operands go through Tcl_ConcatObj before flags0 original object evaluation in the object frame.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned source inspection; no executed build association.. Channel: Inspected stock native TclOO object eval handler; no guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected stock native TclOO object eval handler; no guest input. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Single original script operand is retained; multiple original operands go through Tcl_ConcatObj before flags0 original object evaluation in the object frame.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned source inspection; no executed build association.. Channel: Inspected stock native TclOO object eval handler; no guest input.. Dialect: Tcl.
-
-Single original script operand is retained; multiple original operands go through Tcl_ConcatObj before flags0 original object evaluation in the object frame.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `tcl8.6-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json). JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
-- `tcl9.0-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json). JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
-- `tcl9.1-object-eval` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json). JSON pointer `/window/snippet`. Exact pinned stock object eval source, one original operand versus Tcl_ConcatObj and flags0 original evaluation; no executed build association.
 
 ## Source inspection
 
@@ -268,7 +238,6 @@ TclOO_Object_Eval(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/cmd_oo.rs](../../../../rust/tcl-vm/src/cmd_oo.rs), `builtin_method`: Stock object eval arm retains one operand or delegates multi-operand construction, preserving actual frame/namespace and compilation refusal.
@@ -277,8 +246,8 @@ TclOO_Object_Eval(
 - [rust/tcl-vm/src/cmd_oo/native_eval_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_eval_tests.rs), `cmd_oo::native_eval_tests::object_eval_retains_original_script_and_concat_children` (linked): Implementation contract exercises current actual core object adapter with original List versus two original concat children, returns same opaque child and preserves source operand lack of string representation; no native/Rust launch claim.
 - [runtime/rust/src/cmd_oo/native_eval_tests.rs](../../../../runtime/rust/src/cmd_oo/native_eval_tests.rs), `cmd_oo::native_eval_tests::object_eval_retains_original_script_and_concat_children` (linked): Independent Runtime implementation contract for original object/concat transport at current object frame; no Native object or completion authority inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact retained source/full-file/snippet SHA and LF inspection only; original List/concat dispatch and actual body/observer/Normal behavior require their independent selected owners. No test execution claimed.
+- [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl8.6-source.json)
+- [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.0-source.json)
+- [rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_object_eval_source/tcl9.1-source.json)

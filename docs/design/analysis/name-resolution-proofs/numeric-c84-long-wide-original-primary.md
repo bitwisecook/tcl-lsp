@@ -22,7 +22,7 @@ Exactly C8.4 capture with public original Int/Long/Wide/String/Double constructo
 
 ### tcl8.4
 
-Status: `observed`. Version: not queried (capture association; launched patchlevel/revision unqueried). Build: compile_exit=0; exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct public Tcl_GetIntFromObj/Tcl_GetLongFromObj/Tcl_GetWideIntFromObj before original byte observer.. Dialect: C Tcl.
+Status: `observed`. Channel: Direct public Tcl_GetIntFromObj/Tcl_GetLongFromObj/Tcl_GetWideIntFromObj before original byte observer. Version: tcl8.4 launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -71,59 +71,19 @@ ROW	12	2	NULL	NULL	1	1	1	777	657870656374656420696e74656765722062757420676f74202
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-No native observation of this exact question is attached for this provider.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No native observation of this exact question is attached for this provider.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No native observation of this exact question is attached for this provider.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/scalar_getter.rs](../../../../rust/tcl-syntax/src/scalar_getter.rs), `NativeScalarGetterProtocol::cached_conversion`: Keeps the retained C8.4 long primary separate from primitive Wide conversion.
 - [rust/tcl-syntax/src/scalar_getter/tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/tests.rs), `scalar_getter::tests::legacy_long_and_wide_retain_distinct_native_primary_caches` (linked): Checks39 original primitive/cache/value windows independently of unobserved interpreter error-code state.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/probe.c)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/manifest.json)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/long84/8.4.20.tsv)

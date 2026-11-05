@@ -137,5 +137,76 @@ class EvidenceFormatTests(unittest.TestCase):
             self.assertEqual(result.read_bytes(), script)
 
 
+FIXTURE = (
+    "# Fixture\n\n## Setup\n\nRun it.\n\n## Template\n\n```tcl-visible\n"
+    "set op [binary format H* ⟦HEX:op⟧]\nputs ⟦PARAM:case⟧|$op⟦EOF⟧\n```\n\n"
+    "## Constants\n\n### unused-later\n\n```tcl-visible\nx⟦EOF⟧\n```\n"
+)
+
+
+class FixtureTests(unittest.TestCase):
+    def write(self, root: Path, fixture: str, script: str) -> Path:
+        (root / "fixtures").mkdir()
+        (root / "fixtures/f.md").write_text(fixture)
+        case = root / "case.md"
+        case.write_text(
+            "# Case\n\n## Script\n\nFixture: [f](fixtures/f.md)\n\n" + script
+        )
+        return case
+
+    def test_case_composes_exact_bytes_from_fixture(self) -> None:
+        fixture = FIXTURE.replace("### unused-later", "### case").replace(
+            "x⟦EOF⟧", "a b⟦EOF⟧"
+        )
+        script = "### op\n\n" + evidence.markdown_block(b"lsort {b a}\n")
+        with tempfile.TemporaryDirectory() as temp:
+            case = self.write(Path(temp), fixture, script)
+            self.assertEqual(
+                evidence.script_from_markdown(case.read_text(), case),
+                b"set op [binary format H* 6c736f7274207b6220617d0a]\nputs a b|$op",
+            )
+            self.assertEqual(evidence.validate_fixture(fixture), [])
+
+    def test_inline_values_fill_param_slots(self) -> None:
+        fixture = FIXTURE.split("\n## Constants")[0]
+        script = "- case: `alias-1`\n\n### op\n\n" + evidence.markdown_block(b"x")
+        with tempfile.TemporaryDirectory() as temp:
+            case = self.write(Path(temp), fixture, script)
+            self.assertEqual(
+                evidence.script_from_markdown(case.read_text(), case),
+                b"set op [binary format H* 78]\nputs alias-1|$op",
+            )
+
+    def test_missing_unused_and_repeated_values_are_rejected(self) -> None:
+        fixture = FIXTURE.split("\n## Constants")[0]
+        for script in (
+            "- case: `a`\n",
+            "- case: `a`\n- extra: `b`\n\n### op\n\n" + evidence.markdown_block(b"x"),
+        ):
+            with self.subTest(script=script), tempfile.TemporaryDirectory() as temp:
+                case = self.write(Path(temp), fixture, script)
+                with self.assertRaises(ValueError):
+                    evidence.script_from_markdown(case.read_text(), case)
+        self.assertTrue(evidence.validate_fixture(FIXTURE))
+
+    def test_decoded_below_is_accepted_only_for_decodable_fields(self) -> None:
+        sample = (
+            HERE.parents[1] / "evidence/tcl/fresh-local-variable-existence.md"
+        ).read_text()
+        decoded = sample.replace(
+            "- Standard output:\n\n```text-visible\n0 0\n```",
+            "- Standard output: decoded below.",
+            1,
+        )
+        self.assertNotEqual(decoded, sample)
+        self.assertEqual(evidence.validate_document(decoded), [])
+        errors = evidence.validate_document(
+            sample.replace(
+                "- Standard error: empty.", "- Standard error: decoded below.", 1
+            )
+        )
+        self.assertTrue(any("standard error" in error for error in errors), errors)
+
+
 if __name__ == "__main__":
     unittest.main()

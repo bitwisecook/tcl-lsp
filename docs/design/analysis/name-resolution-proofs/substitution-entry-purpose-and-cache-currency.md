@@ -20,58 +20,11 @@ C86/C90/C91 compiled original-template entry and independent Runtime implementat
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record is a Rust implementation contract; no native or Rust execution is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This record is a Rust implementation contract; no native or Rust execution is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record is a Rust implementation contract; no native or Rust execution is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record is a Rust implementation contract; no native or Rust execution is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record is a Rust implementation contract; no native or Rust execution is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This record is a Rust implementation contract; no native or Rust execution is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This record is a Rust implementation contract; no native or Rust execution is claimed.
-
-## Historical references
-
-- `e0` (implementation): [rust/tcl-runtime-api/src/native_substitution.rs](../../../../rust/tcl-runtime-api/src/native_substitution.rs). Implementation source at the recorded digest. It is not native execution evidence.
-- `e1` (implementation): [rust/tcl-compiler/src/codegen/native_substitution.rs](../../../../rust/tcl-compiler/src/codegen/native_substitution.rs). Implementation source at the recorded digest. It is not native execution evidence.
-- `e2` (implementation): [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs). Implementation source at the recorded digest. It is not native execution evidence.
-- `e3` (implementation): [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs). Implementation source at the recorded digest. It is not native execution evidence.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,22 +36,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs), `Interp::prepare_original_c_substitution`: Independent runtime original template artifact and strong borrowed local-name ownership.
 - [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs), `interp::native_substitution_entry_tests::substitution_entry_requires_selected_handler_and_independent_source_context` (linked): Genuine entry positive; opaque handler, foreign interpreter, unknown engine/string recipe, mismatched recipe, Document and script-only service negatives; legacy/Jim cannot acquire compiled purpose.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-vm",
-  "interp::native_substitution_entry_tests::substitution_entry_requires_selected_handler_and_independent_source_context",
-  "--",
-  "--exact"
-]
-```
-
-Run the listed selectors against the complete current API, Compiler, VM and runtime implementation. Native oracle captures do not execute or validate this Rust implementation. Native frame/refcount observations remain independent empirical questions.
+- [rust/tcl-runtime-api/src/native_substitution.rs](../../../../rust/tcl-runtime-api/src/native_substitution.rs)
+- [rust/tcl-compiler/src/codegen/native_substitution.rs](../../../../rust/tcl-compiler/src/codegen/native_substitution.rs)
+- [rust/tcl-vm/src/interp/native_substitution_entry_tests.rs](../../../../rust/tcl-vm/src/interp/native_substitution_entry_tests.rs)
+- [runtime/rust/src/interp/native_body_artifact/native_substitution.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_substitution.rs)

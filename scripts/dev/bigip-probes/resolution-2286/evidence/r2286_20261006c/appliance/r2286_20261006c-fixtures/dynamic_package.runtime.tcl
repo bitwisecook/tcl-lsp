@@ -1,1 +1,0 @@
-list [package provide Tcl] [catch {package require Tcl} required] $required

@@ -20,55 +20,11 @@ Rust implementation contract for explicitly supplied hosted execution contexts, 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,9 +38,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs), `var_resolve::worker_execution_ingress_tests::different_hosted_contexts_with_equal_values_withdraw_cell_contents` (linked): Entered frames and restoration retain the context, while unequal host contexts withdraw equal known bytes and observer/binding certainty.
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `command_binding::hosted_storage_entry_tests::hosted_storage_entry_is_independent_of_registry_and_source_name_policy` (linked): Entry options retain independent host policy without a worker, publication provider or registry-profile inference.
 - [rust/tcl-registry/src/f5/storage.rs](../../../../rust/tcl-registry/src/f5/storage.rs), `f5::storage::tests::hosted_domain_uses_exact_resolved_components` (linked): Exact root/static components differ from nested, raw-zero and literal-colon components; non-TMM contexts do not acquire TMM storage classification.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The linked Rust selectors exercise context, geometry and join premises. No executed Rust receipt or native appliance protocol is attached to this record. Actual worker publication and the unanswered appliance publication question remain independent.

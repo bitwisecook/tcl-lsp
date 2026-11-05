@@ -20,64 +20,14 @@ Rust structure-elimination environment projection. The fixed source control reta
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/optimiser/structure_elimination.rs](../../../../rust/tcl-compiler/src/optimiser/structure_elimination.rs), `sccp_env_for`: Project unanimous source bindings and constant lattice versions without promoting display labels to expression identities.
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `SsaSourceView`: Supply existing whole-function unanimous source bindings independently of SSA presentation labels.
 - [rust/tcl-compiler/src/optimiser/structure_elimination.rs](../../../../rust/tcl-compiler/src/optimiser/structure_elimination.rs), `optimiser::structure_elimination::tests::original_sccp_environment_withdraws_rebound_source_names_despite_display_collisions` (linked): Retains two distinct genuine alias-read cell/version receipts and a reused display label; differing constant lattice entries cannot reintroduce the non-unanimous source spelling.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Fixed Rust selectors are linked without an attached execution receipt. Genuine source cell correspondence and isolated lattice constants do not grant Normal completion, observer closure, physical Native frames or source rewrite equivalence.

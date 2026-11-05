@@ -9,7 +9,7 @@ Paused 4 November 2026, 22:57 UTC, at the user's request after the autoload repa
 
 ## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
 
-USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read the current handoff first.
 
 External role; no duplicate or takeover. Prior owner header stale, reported. Preserve completed authenticated equivalence proof and integrated optimisation; final shipping Tcl performance remains unaccepted. iRules timing alone is waived. This entry does not refresh owner evidence.
 
@@ -25,7 +25,7 @@ Last updated: 2026-10-24 03:22 UTC
 **Perf six-file source change is LANDED: 9ffdce1364f286450499deaf915a037deea28117.** One source commit,
 exactly the six requested files, no realm/interprocedural hunks or switch.
 Do not restart the completed long proof jobs. Final results and timing scope:
-[perf-NOTES.md](../handoff/reviews/merge-inventory-20261019/perf-NOTES.md).
+`perf-NOTES.md`.
 No PR or force push. Attribution: Co-Authored-By: Codex <noreply@openai.com>.
 
 perf-realm-interprocedural.patch proven at 83774d43464c7d177bcd505ef22fe898ffee9a25, ready for the compiler agent
@@ -116,7 +116,7 @@ The user authorized **authenticated full-report comparison** as the new perf equ
 
 ### Coordinator dependency delivery — 2026-10-23T01:05:06.334470+00:00 (owner header unchanged)
 
-Compiler has frozen the user2256 report-only API proposal v7, patch `2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b`, with bounded naming peer review `b52aea24`. [Exact API and 14-control handoff](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-v7-20261023T0101Z/) and [guarded execution preparation](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-focused14-v1-20261023T0106Z/) are preparation only. Canonical product does not yet include this API; no typing or control/corpus run is claimed. Existing perf session can prepare the harness off-tree from the frozen signatures; wait for root publication and successful controls before actual full all-old/mixed proof. Equal alone passes; Different and Unavailable fail the proof. Keep strict global/runtime equality and cache cutoffs separately recorded, complete source/input/registry/body/hosted authentication and count guards unchanged. Realm/interprocedural patch remains withheld until this owner records it proven. Root has not duplicated or taken over perf. Filename times are labels; see actual receipt timestamps.
+Compiler has frozen the user2256 report-only API proposal v7, patch `2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b`, with bounded naming peer review `b52aea24`. Exact API and 14-control handoff and guarded execution preparation are preparation only. Canonical product does not yet include this API; no typing or control/corpus run is claimed. Existing perf session can prepare the harness off-tree from the frozen signatures; wait for root publication and successful controls before actual full all-old/mixed proof. Equal alone passes; Different and Unavailable fail the proof. Keep strict global/runtime equality and cache cutoffs separately recorded, complete source/input/registry/body/hosted authentication and count guards unchanged. Realm/interprocedural patch remains withheld until this owner records it proven. Root has not duplicated or taken over perf. Filename times are labels; see actual receipt timestamps.
 
 Current procs41 timing follow-up: same opt1 source/input, two further full
 old/new/old comparisons Equal:2831/5324/2268ms and2184/1379/2538ms. Retain

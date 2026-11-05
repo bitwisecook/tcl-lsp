@@ -20,64 +20,14 @@ Implementation contract for independently selected source-only baseline policies
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
+Status: `not-tested`. Channel: Rust implementation contract. Version: tcl8.4 not applicable; tcl8.5 not applicable; tcl8.6 not applicable; tcl9.0 not applicable; tcl9.1 not applicable; jim not applicable; bigip not applicable.
 
 No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### jim
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Jim Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### bigip
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: F5 iRules.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs), `OriginalSourceCommandWorld::for_baseline`: Once-only source baseline selection before any branch or command operation.
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `ModuleCommandBindings::initial_from_baseline`: Build the original world alongside the same immutable canonical table baseline.
 - [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs), `command_binding::source_command_world::tests::original_world_baseline_is_selected_before_branching` (linked): Initial and unchanged selected branches share an equal policy/world; joining them stays available, while unavailable and unknown history cannot be reseeded.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors listed above exercise the implementation premises. No execution receipt or native provider observation is attached to this implementation contract.

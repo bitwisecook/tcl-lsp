@@ -26,7 +26,7 @@ These pure for_tcl_version recipes authenticate no actual host, alias target, fr
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Archive SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011; probe SHA 90b9f81776a024bc0f5c02a65cafb8cf6edb30ea7d3bd6c3e5f625c3f757f135. Channel: Original source bodies through private compiled Tcl procedure artifact. Dialect: Tcl.
+Status: `observed`. Channel: Original source bodies through private compiled Tcl procedure artifact. Version: tcl8.4 8.4.20.
 
 28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.
 
@@ -67,7 +67,7 @@ R|27|0|int|0|1|30|
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Archive SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df; probe SHA 69a0cb47c01a1814167bb21a97a4e1145ea4c479f7d12f81d34a0d41ba6bf8bd. Channel: Original source bodies through private compiled Tcl procedure artifact. Dialect: Tcl.
+Status: `observed`. Channel: Original source bodies through private compiled Tcl procedure artifact. Version: tcl8.5 8.5.19.
 
 28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.
 
@@ -108,7 +108,7 @@ R|27|0|int|1|2|30|upvar:4,existScalar:4,
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Archive SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6; probe SHA 89a051c8ad61680652b869a27c81176ea69a39e5afb24efd6f867d0f56f4c113. Channel: Original source bodies through private compiled Tcl procedure artifact. Dialect: Tcl.
+Status: `observed`. Channel: Original source bodies through private compiled Tcl procedure artifact. Version: tcl8.6 8.6.18.
 
 28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.
 
@@ -147,50 +147,9 @@ R|26|0|int|1|2|30|upvar:4,existScalar:4,
 R|27|0|int|1|2|30|upvar:4,existScalar:4,
 ```
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Archive SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04; probe SHA dfc2ab87b933c71110c970d92dff4ebdc4f05d9e944ed096f56c58e448dc5697. Channel: Original source bodies through private compiled Tcl procedure artifact. Dialect: Tcl.
-
-28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.
-
-```text
-H|0|0|localVarName|1|3|78
-R|0|0|none|1|3|4c4f43414c|upvar:4,
-H|1|0|parsedVarName|1|3|78
-R|1|0|none|1|2|474c4f42414c|upvar:4,
-H|2|0|parsedVarName|1|3|78
-R|2|0|none|1|2|474c4f42414c|
-R|3|0|none|1|3|4e4557|upvar:4,
-R|4|0|none|1|4|4e4557|upvar:4,
-R|5|0|list|0|1|4c4f43414c204c4f43414c4152524159|upvar:4,upvar:5,
-R|6|0|list|0|1|4c4f43414c204c4f43414c4152524159207b782061286b297d|upvar:4,upvar:5,
-R|7|1|none|1|4|53544f50|upvar:4,upvar:5,
-R|8|1|string|1|1|626164207661726961626c65206e616d6520223a3a616c696173223a2063616e277420637265617465206e616d657370616365207661726961626c6520746861742072656665727320746f2070726f636564757265207661726961626c65|
-R|9|1|string|1|1|626164207661726961626c65206e616d652022616c696173286b29223a2063616e2774206372656174652061207363616c6172207661726961626c652074686174206c6f6f6b73206c696b6520616e20617272617920656c656d656e74|existScalar:4,
-R|10|0|none|1|3|4c4f43414c|upvar:4,
-R|11|1|string|1|1|626164206c6576656c20226b22|
-R|12|0|int|0|2|31|existScalar:2,
-R|13|0|int|1|2|31|existArray:3,
-R|14|0|int|1|2|31|existStk,
-R|15|0|int|1|2|31|existArrayStk,
-H|16|0|localVarName|1|3|78
-R|16|0|none|1|1||existStk,
-R|17|0|int|1|2|31|existArray:3,
-R|18|0|int|1|2|31|existArrayStk,
-R|19|0|int|1|2|31|existStk,
-R|20|0|int|0|2|30|existStk,
-R|21|0|int|1|2|30|existArray:3,
-R|22|0|int|1|2|31|existScalar:2,
-R|23|1|none|1|4|53544f50|existStk,
-R|24|1|string|1|1|626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f7665|upvar:4,existScalar:4,
-R|25|1|string|1|1|626164206f7074696f6e20227661726961626c65223a206d757374206265206164642c20696e666f2c206f722072656d6f7665|upvar:4,existScalar:4,
-R|26|0|int|1|2|30|upvar:4,existScalar:4,
-R|27|0|int|1|2|30|upvar:4,existScalar:4,
-```
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Archive SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33; probe SHA b94842937c64ab94d21ef98243e2f07735f052b75656e87a7e98db96c9e238f4. Channel: Original source bodies through private compiled Tcl procedure artifact. Dialect: Tcl.
+Status: `observed`. Channel: Original source bodies through private compiled Tcl procedure artifact. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 28 result windows and four name-header windows; compile/run exit 0. All fields remain separated by their original R/H prefixes.
 
@@ -231,30 +190,15 @@ R|27|0|int|1|2|30|upvar:4,existScalar:4,
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json). Original compiler argv/library/binary/stdout hashes and window counts for all five C providers.
-- `e1` (input): [rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c). Original case scripts, initial globals/procedure frames and original object/header observation probe.
-- `e2` (input): [rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs). Exact shared 28-program roster retained by current comparisons.
-- `e3` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e4` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e5` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
-- `e7` (observation): [rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt). All 28 completion/opcode rows and four header observation rows, including guest failures.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -276,8 +220,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_variable_names.rs](../../../../runtime/rust/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::legacy_existence_preserves_original_name_caches_and_object_reads_still_adopt_them` (linked): Genuine C8.4 software Exists leaves original scalar/list/combined/NUL name primaries untouched while a separately reached actual object Read adopts its own name cache. No new native header or completed read grant.
 - [runtime/rust/src/cmd_eval/native_frame_reference_tests.rs](../../../../runtime/rust/src/cmd_eval/native_frame_reference_tests.rs), `cmd_eval::native_frame_reference_tests::required_upvar_level_does_not_borrow_optional_leading_frame_default` (linked): Genuine original k level objects keep optional-current-frame success distinct from required UPVAR BadLevel, with reached lookup classification and actual software String type/resident bad-level bytes. Unknown/bootstrap/width/frame purposes remain independent; native private header identity is not asserted.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-syntax/src/native_variable_name.rs](../../../../rust/tcl-syntax/src/native_variable_name.rs), `NativeVariableNameProtocol::alias_local_input`: Project actual alias-local operands through their retained name purpose without adopting a lookup cache or authenticating an interpreter.
 - [rust/tcl-syntax/src/native_variable_name.rs](../../../../rust/tcl-syntax/src/native_variable_name.rs), `NativeVariableNameProtocol::alias_local_is_element`: Use the selected release's independent C-string shape test before counted simple lookup, retaining the C8.4 allowance.
 - [rust/tcl-syntax/src/native_variable_name.rs](../../../../rust/tcl-syntax/src/native_variable_name.rs), `NativeVariableNameProtocol::alias_namespace_inversion_reason`: Retain exact selected rejection wording as a pure recipe, independently of actual alias execution and error-code publication.
@@ -285,31 +227,6 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-syntax/src/native_variable_name.rs](../../../../rust/tcl-syntax/src/native_variable_name.rs), `native_variable_name::tests::alias_rejection_recipe_retains_original_release_boundaries` (linked): Pure selected C release recipes preserve the original C8.4 namespace-to-procedure alias rejection wording and the later wording; explicit typed rejection error-code selection starts at C8.6. This checks a software policy, not an executed Guest error or frame inversion.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I/path/to/recorded/generic",
-  "-I/path/to/recorded/unix",
-  "rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c",
-  "/path/to/recorded/libtcl.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "/tmp/native-variable-proof"
-]
-```
-
-Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses private interpreter/frame/compiler headers; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred.
-
 
 ## Exact original-source349 software outcomes
 
@@ -320,4 +237,15 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 0 | 0 | 0 | 1 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/manifest.json)
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/probe.c)
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/cases.rs)
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt)
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt)
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt)
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt)
+- [rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt)

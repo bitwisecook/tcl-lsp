@@ -24,56 +24,11 @@ The added source/software assertion has no execution result attached. Selected s
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs). Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs). Current refactor/shared SSA owner source and fixed assertions; no execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,13 +39,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `refactor::inline_variable::tests::original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps` (linked): Exact braced Unicode original store/read remains selectable with reporting maps cleared under each independently selected source dialect. Stale complete source and missing actual input refuse. The conditional rewrite still requires original SSA/read/observer/value-motion permission; metadata alone supplies no edit equivalence.
 - [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `refactor::inline_variable::tests::original_inline_variable_rejects_reassigned_cells_observers_and_value_effect_movement` (linked): Refuse reassigned/unset cells, observed reads, upvar alias mutation and moving an evaluated value.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `inline_variable`: Join current original source context, selected setter/effective operands and exact written read geometry before independent movement/read/edit permission queries.
 - [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs), `refactor::inline_variable::tests::logical_inline_set_uses_selected_operation_and_preserves_capture_geometry` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
 
-## Replay
+## Evidence
 
-The named fixed Rust selectors bind source rewrite assertions; their execution outcome is recorded separately. Native shell controls are independently authored scripts, not Rust-generated edits.
+- [rust/tcl-lsp-core/src/refactor/inline_variable.rs](../../../../rust/tcl-lsp-core/src/refactor/inline_variable.rs)
+- [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs)

@@ -6,7 +6,7 @@ Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 T
 
 Current VM269 source221 seals126 PASS/6 FAIL across132 exact controls; all260131 retained with5 gains and0 prior-PASS regressions. Adopted later fixture corrections are unexecuted. Genuine remaining naming consumers include the selected C namespace-deletion incarnation receipt and no-argument Parent current-holder read; portable drafts need API/lifetime peers. Backend/publication/ABI/WASM scopes remain independent.
 
-Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; `handoff/README.md` contains explicitly unadopted continuation work.
 
 ## Retained bounded audit
 
@@ -96,4 +96,4 @@ matches require per-callsite dispositions before any entire-codebase completion
 claim. This audit reconciles actual target entry points and representative map
 owners; it does not declare that all those additional consumers are done.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

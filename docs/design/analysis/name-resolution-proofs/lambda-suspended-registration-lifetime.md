@@ -20,55 +20,17 @@ VM implementation transport and a genuine selected C8.6 fixture. This is not a n
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +38,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `Vm::retire_original_lambda_registration`: Retire only the still-attached lifecycle key; later same-name allocations are separate.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `build_lambda_proc`: Create and retain the actual implementation registration separately from lambda body namespace and native header/cache claims.
 - [rust/tcl-vm/src/command/native_apply_original_tests.rs](../../../../rust/tcl-vm/src/command/native_apply_original_tests.rs), `command::native_apply_original_tests::parked_lambda_registration_retires_after_coroutine_deletion` (linked): An actual suspended frame retains exactly one attached lambda-registration handle. The private implementation holder yields no guest command enumeration; deleting the coroutine, normal lambda return and lambda error all detach the original handle and remove it from the parked roster.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact linked Rust selector exercises the independently retained registration lifecycle. No execution receipt is attached. Native commandless lambda storage remains outside this implementation-registration contract.

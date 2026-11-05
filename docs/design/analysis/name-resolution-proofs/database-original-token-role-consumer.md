@@ -20,55 +20,11 @@ Rust database and readonly semantic-token integration for a Tcl8.6 authored docu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This Rust database/semantic-token consumer contract is not a native provider experiment. No behavior is asserted for this provider.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,9 +33,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `VarNameArgRoles::from_analysis`: Retain original declaration byte/policy/site metadata independently of UI maps.
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `full_with_cu_and_facts`: Apply retained roles only at a genuine current original caller lookup under the full source configuration.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::original_db_token_roles_keep_opaque_declarations_and_full_caller_currency` (linked): The light DB and project role tiers preserve a real opaque writer role after UI/report-name counterfactuals; the distinct ordinary procedure cannot borrow it, and stale source, changed strict_quoting configuration and missing original caller input withdraw the token role.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selector is a coverage binding. No Rust execution receipt or native provider observation is attached to this implementation contract.

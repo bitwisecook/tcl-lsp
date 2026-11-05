@@ -656,15 +656,13 @@ PY_VENV := $(ROOT).venv-typecheck
 PY_FILES = $(shell git -C $(ROOT) ls-files '*.py' \
 	':(exclude,glob)rust/*/tests/data/**/*.py' \
 	':(exclude,glob)runtime/rust/tests/data/**/*.py' \
-	':(exclude,glob)scripts/dev/bigip-probes/resolution-2286/evidence/**/*.py' \
 	':(exclude)scripts/dev/replay-namespace-delete-callback-events.py' \
 	':(exclude,glob)experiments/**/*.py' \
 	':(exclude,glob)docs/**/*.py')
 
 # These legacy development tools remain excluded from type checking while their
 # historical workflows are retired. Ruff still lints them.
-PY_TYPECHECK_EXCLUDED = scripts/dev/update-name-resolution-proof-index.py \
-	scripts/dev/bigip-probes/resolution-2286/generate-followup-controls.py
+PY_TYPECHECK_EXCLUDED = scripts/dev/bigip-probes/resolution-2286/generate-followup-controls.py
 PY_TYPECHECK_FILES = $(filter-out $(PY_TYPECHECK_EXCLUDED),$(PY_FILES))
 
 .PHONY: lint-py format-py typecheck-py test-py-engine py-venv python-engine-source-hash

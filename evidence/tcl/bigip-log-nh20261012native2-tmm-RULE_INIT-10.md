@@ -81,155 +81,27 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-RULE_INIT, unit 0:0, invocation rejected-provider-shared-write-readback
+### tmm-RULE_INIT, unit 0:0, invocation rejected-provider-shared-write-readback; tmm-RULE_INIT, unit 0:1, invocation rejected-provider-shared-write-readback; tmm-RULE_INIT, unit 0:2, invocation rejected-provider-shared-write-readback
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|setup|0|0:0|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:0|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|4|70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a6563746564
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:0|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|1|4|2d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:0|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|2|4|637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:0|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|3|4|617265642d77726974652d726561646261636b7d7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- rejected-provider-shared-write-readback, setup, completion 0, result, chunk 0 of 1:
+- rejected-provider-shared-write-readback, setup, completion 0, result:
 
 ```text-visible
 provider-write⟦EOF⟧
 ```
 
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 0 of 4:
+- rejected-provider-shared-write-readback, lookup, completion 0, result:
 
 ```text-visible
-phase rejected action provider-write provider {rows {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 1 of 4:
-
-```text-visible
--provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}} level 1} caller {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE reje⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 2 of 4:
-
-```text-visible
-cted-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-sh⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 3 of 4:
-
-```text-visible
-ared-write-readback}}⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:1, invocation rejected-provider-shared-write-readback
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|setup|0|0:1|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:1|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|4|70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a6563746564
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:1|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|1|4|2d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:1|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|2|4|637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:1|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|3|4|617265642d77726974652d726561646261636b7d7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- rejected-provider-shared-write-readback, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider-write⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 0 of 4:
-
-```text-visible
-phase rejected action provider-write provider {rows {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 1 of 4:
-
-```text-visible
--provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}} level 1} caller {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE reje⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 2 of 4:
-
-```text-visible
-cted-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-sh⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 3 of 4:
-
-```text-visible
-ared-write-readback}}⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:2, invocation rejected-provider-shared-write-readback
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|setup|0|0:2|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:2|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|4|70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a6563746564
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:2|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|1|4|2d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:2|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|2|4|637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:2|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|3|4|617265642d77726974652d726561646261636b7d7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- rejected-provider-shared-write-readback, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider-write⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 0 of 4:
-
-```text-visible
-phase rejected action provider-write provider {rows {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 1 of 4:
-
-```text-visible
--provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}} level 1} caller {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE reje⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 2 of 4:
-
-```text-visible
-cted-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-sh⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 3 of 4:
-
-```text-visible
-ared-write-readback}}⟦EOF⟧
+phase rejected action provider-write provider {rows {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}} level 1} caller {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}}⟦EOF⟧
 ```
 
 - rejected-provider-shared-write-readback: intended operation reached.
@@ -241,46 +113,20 @@ ared-write-readback}}⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|setup|0|0:3|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:3|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|0|4|70686173652072656a656374656420616374696f6e2070726f76696465722d77726974652070726f7669646572207b726f7773207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a6563746564
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:3|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|1|4|2d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d7d206c6576656c20317d2063616c6c6572207b3a3a5f5f6e685f6e6832303236313031326e6174697665323a3a63656c6c2030207b4e414d4553504143455f57524954452072656a65
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:3|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|2|4|637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d203a3a5f5f6e685f6e6832303236313031326e6174697665325f676c6f62616c2030207b474c4f42414c5f57524954452072656a65637465642d70726f76696465722d7368617265642d77726974652d726561646261636b7d207374617469633a3a5f5f6e685f6e6832303236313031326e6174697665325f7374617469632030207b5354415449435f57524954452072656a65637465642d70726f76696465722d7368
-NHO|nh20261012native2|rejected-provider-shared-write-readback|tmm-RULE_INIT|lookup|0|0:3|rejected-provider-shared-write-readback|result|binary-scan-tcl-value|3|4|617265642d77726974652d726561646261636b7d7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- rejected-provider-shared-write-readback, setup, completion 0, result, chunk 0 of 1:
+- rejected-provider-shared-write-readback, setup, completion 0, result:
 
 ```text-visible
 provider-write⟦EOF⟧
 ```
 
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 0 of 4:
+- rejected-provider-shared-write-readback, lookup, completion 0, result:
 
 ```text-visible
-phase rejected action provider-write provider {rows {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 1 of 4:
-
-```text-visible
--provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}} level 1} caller {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE reje⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 2 of 4:
-
-```text-visible
-cted-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-sh⟦EOF⟧
-```
-
-- rejected-provider-shared-write-readback, lookup, completion 0, result, chunk 3 of 4:
-
-```text-visible
-ared-write-readback}}⟦EOF⟧
+phase rejected action provider-write provider {rows {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}} level 1} caller {::__nh_nh20261012native2::cell 0 {NAMESPACE_WRITE rejected-provider-shared-write-readback} ::__nh_nh20261012native2_global 0 {GLOBAL_WRITE rejected-provider-shared-write-readback} static::__nh_nh20261012native2_static 0 {STATIC_WRITE rejected-provider-shared-write-readback}}⟦EOF⟧
 ```
 
 - rejected-provider-shared-write-readback: intended operation reached.

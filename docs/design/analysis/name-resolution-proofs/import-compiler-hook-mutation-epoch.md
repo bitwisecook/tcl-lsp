@@ -22,7 +22,7 @@ Exact private C Command.compileProc and Interp.compileEpoch observer after compl
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations. Version: tcl8.4 8.4.20 (capture association; launched patchlevel unqueried).
 
 Exact event snapshots:
 
@@ -35,7 +35,7 @@ delete_source	0	0	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible s
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations. Version: tcl8.5 8.5.19 (capture association; launched patchlevel unqueried).
 
 Exact event snapshots:
 
@@ -56,7 +56,7 @@ delete_source	0	13	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations. Version: tcl8.6 8.6.18 (capture association; launched patchlevel unqueried).
 
 Exact event snapshots:
 
@@ -77,7 +77,7 @@ delete_source	0	28	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations. Version: tcl9.0 9.0.4 (capture association; launched patchlevel unqueried).
 
 Exact event snapshots:
 
@@ -98,7 +98,7 @@ delete_source	0	31	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: compile_exit=0; exit=0. Compiler version, full configure flags and launched runtime patchlevel were not queried by this probe.. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations.. Dialect: C Tcl.
+Status: `observed`. Channel: Private C field observer following public Tcl_Eval, Tcl_HideCommand/Tcl_ExposeCommand and Tcl_SetEnsembleFlags mutations. Version: tcl9.1 9.1.0 (capture association; launched patchlevel unqueried).
 
 Exact event snapshots:
 
@@ -117,39 +117,23 @@ hide_fresh	0	32	1	0	-1	0	-1
 expose_fresh	0	33	1	0	1	0	1
 delete_source	0	35	-1	-1	-1	-1	-1. All reached guest codes are0; absent visible slots are−1. Pointer equality is compiler function equality only.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-vm/tests/data/native_import_hook_copy/probe.c](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/probe.c). Exact private fields, conditional release-specific program and compiler pointer comparison.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_import_hook_copy/manifest.json](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/manifest.json). Original full per-release observations, empty stderr, compile/run status and actual private-header/library/executable hashes.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_import_hook_copy/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/8.4.20.tsv). Full 5-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source.
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_import_hook_copy/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/8.5.19.tsv). Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source.
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_import_hook_copy/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/8.6.18.tsv). Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source.
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_import_hook_copy/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/9.0.4.tsv). Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source.
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_import_hook_copy/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/9.1.0.tsv). Full 13-event sequence; columns event,code,compileEpoch,source-hook,old-hook,fresh-hook,old-pointer-equal-source,fresh-pointer-equal-source.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `native_compiler_binding_at_lookup`: Reissues the imported compiler selection and callable implementation independently from source attachment.
 - [rust/tcl-vm/src/interp/native_cache_tests.rs](../../../../rust/tcl-vm/src/interp/native_cache_tests.rs), `interp::native_cache_tests::imported_compiler_attachments_match_all_57_original_native_snapshots` (linked): Checks all 57 reached snapshots, copied attachments and relative compiler epoch deltas; Rust native token/implementation assertions remain additional implementation obligations.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. A new native run must compile the retained exact probe against independently identified release headers and library, preserve the counted input channel, and record separate status/stdout/stderr before comparing the retained stream. Original absolute compiler paths and binary digests are capture metadata, not a currently runnable command. No native implementation explanation is inferred from the probe. Retained run.py is an original capture writer with hardcoded external paths and a non-existing-manifest assertion, not a portable reconfirmation runner; it must not overwrite this evidence.
+- [rust/tcl-vm/tests/data/native_import_hook_copy/probe.c](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/probe.c)
+- [rust/tcl-vm/tests/data/native_import_hook_copy/manifest.json](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/manifest.json)
+- [rust/tcl-vm/tests/data/native_import_hook_copy/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/8.4.20.tsv)
+- [rust/tcl-vm/tests/data/native_import_hook_copy/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/8.5.19.tsv)
+- [rust/tcl-vm/tests/data/native_import_hook_copy/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/8.6.18.tsv)
+- [rust/tcl-vm/tests/data/native_import_hook_copy/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/9.0.4.tsv)
+- [rust/tcl-vm/tests/data/native_import_hook_copy/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_import_hook_copy/9.1.0.tsv)

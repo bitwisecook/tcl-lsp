@@ -20,56 +20,11 @@ Rust implementation contract for supplied WorkerExecution and interpreter owners
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record tests the Rust model; no engine observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This record tests the Rust model; no engine observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record tests the Rust model; no engine observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record tests the Rust model; no engine observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This record tests the Rust model; no engine observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This record tests the Rust model; no engine observation for this question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This record tests the Rust model; no engine observation for this question.
-
-## Historical references
-
-- `event-cell` (implementation): [rust/tcl-compiler/src/connection_scope.rs](../../../../rust/tcl-compiler/src/connection_scope.rs). Current shared Rust implementation, independently of native provider observations.
-- `execution-join` (implementation): [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs). Current shared Rust implementation, independently of native provider observations.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,21 +33,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/connection_scope.rs](../../../../rust/tcl-compiler/src/connection_scope.rs), `connection_scope::tests::cross_event_cells_keep_native_bytes_and_supplied_execution_context` (linked): Opaque names with equal reporting strings remain distinct; worker, epoch, connection and unknown execution context distinguish cross-event cells.
 - [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs), `var_resolve::worker_execution_ingress_tests::execution_context_join_cannot_retain_equal_values_from_different_cells` (linked): Same execution preserves known values; differing execution/interpreter owners withdraw equal bytes, cache and contents receipts.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-compiler",
-  "--lib",
-  "execution_context_join_cannot_retain_equal_values_from_different_cells"
-]
-```
-
-Run the second linked selector separately. Root executed both focused tests in frozen snapshot 039 and reported both passing; this is Rust execution, not an appliance observation. No native broadcast protocol is attached.
+- [rust/tcl-compiler/src/connection_scope.rs](../../../../rust/tcl-compiler/src/connection_scope.rs)
+- [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs)

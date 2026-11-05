@@ -1,1 +1,0 @@
-INPUT_DRIFT: no guarded result admission

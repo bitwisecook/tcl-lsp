@@ -26,55 +26,11 @@ This current API refinement adds no selector or executed result. The original Do
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this document geometry contract. Dialect: tcl8.4.
-
-No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this document geometry contract. Dialect: tcl8.5.
+Status: `not-tested`. Channel: No original external process for this document geometry contract.
 
 No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this document geometry contract. Dialect: tcl8.6.
-
-No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this document geometry contract. Dialect: tcl9.0.
-
-No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this document geometry contract. Dialect: tcl9.1.
-
-No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this document geometry contract. Dialect: jim.
-
-No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this document geometry contract. Dialect: bigip.
-
-No original C, Jim or BIG-IP process answers the software Document projection contract. Authored Unicode/line-ending tests assert geometry and refusal only; provider input-channel behaviour and Native authority are independent.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -86,12 +42,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `source_map::document_line_ending_projection_tests::document_projection_round_trips_whole_unicode_words_across_mixed_endings` (linked): Mixed CRLF/lone-CR/LF source keeps complete original bytes and whole Unicode braced-word extents; every valid presentation Unicode boundary round-trips and Unicode interiors refuse.
 - [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `source_map::document_line_ending_projection_tests::document_projection_refuses_collapsed_boundary_native_values_and_non_source_extents` (linked): Collapsed CR/LF middle endpoints, Unicode interiors, out-of-range coordinates, NativeValue and invalid UTF-8 refuse; empty, LF, lone-CR and CRLF whole extents retain checked round-trip geometry.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `DocumentLineEndingProjection::into_text`: Consume only derived Document LF presentation; original source identity, checked coordinate geometry, grammar and Native value/execution authority do not transfer to the String.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Source/API definitions only; no Rust assertion or external provider operation is attached. Native original-source/file-channel CRLF observations330 retain their independent request, version and input-channel scope.

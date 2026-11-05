@@ -20,55 +20,11 @@ Authored Rust source-schema controls only. Complete genuine body/child source an
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -89,9 +45,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/hover/original_registry.rs](../../../../rust/tcl-lsp-core/src/hover/original_registry.rs), `schema_hover`: Read scoped documentation from the already selected current source descriptor.
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `registry_head`: Read selected scoped source role metadata without global-name relookup.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_scoped_words_keep_body_issuer_and_selected_subcommand_schema` (linked): Genuine report-style body membership retains whole image/configuration/context and top scoped vocabulary. Complete original {bogus} supplies shared Unknown selector metadata and a typed W001 subject; changed whole source withdraws the schema. No report package installation or safe-interpreter alias is asserted.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact named Rust selector binds scoped source-schema coverage. This contract supplies no native execution observation; current-source assertions and independent frozen validation receipts retain their own limits.

@@ -16,10 +16,10 @@ list "a"b⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case g_quote_chain
+### TMM log tag tmm, RULE_INIT, case g_quote_chain; TMM log tag tmm1, RULE_INIT, case g_quote_chain; TMM log tag tmm2, RULE_INIT, case g_quote_chain; TMM log tag tmm3, RULE_INIT, case g_quote_chain; iApp implementation, case g_quote_chain; iCall script, case g_quote_chain; tmsh CLI script, case g_quote_chain; TMM log tag tmm, RULE_INIT, case w_quote_bare; TMM log tag tmm1, RULE_INIT, case w_quote_bare; TMM log tag tmm2, RULE_INIT, case w_quote_bare; TMM log tag tmm3, RULE_INIT, case w_quote_bare; iApp implementation, case w_quote_bare; iCall script, case w_quote_bare
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT; iApp implementation; iCall script; tmsh CLI script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -31,52 +31,7 @@ a b⟦EOF⟧
 
 The wrapper recorded Tcl completion code 0.
 
-### TMM log tag tmm1, RULE_INIT, case g_quote_chain
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm2, RULE_INIT, case g_quote_chain
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm3, RULE_INIT, case g_quote_chain
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### appliance tclsh8.4, case g_quote_chain
+### appliance tclsh8.4, case g_quote_chain; appliance tclsh8.4, case w_quote_bare
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.13.
 - Recorded input channel: appliance tclsh8.4.
@@ -91,7 +46,7 @@ extra characters after close-quote⟦EOF⟧
 
 The wrapper recorded Tcl completion code 1.
 
-### appliance tclsh8.5, case g_quote_chain
+### appliance tclsh8.5, case g_quote_chain; appliance tclsh8.5, case w_quote_bare
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.5.13.
 - Recorded input channel: appliance tclsh8.5.
@@ -105,171 +60,6 @@ extra characters after close-quote⟦EOF⟧
 ```
 
 The wrapper recorded Tcl completion code 1.
-
-### iApp implementation, case g_quote_chain
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iCall script, case g_quote_chain
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### tmsh CLI script, case g_quote_chain
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: tmsh CLI script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm, RULE_INIT, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm1, RULE_INIT, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm2, RULE_INIT, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm3, RULE_INIT, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### appliance tclsh8.4, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.13.
-- Recorded input channel: appliance tclsh8.4.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-extra characters after close-quote⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### appliance tclsh8.5, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.5.13.
-- Recorded input channel: appliance tclsh8.5.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-extra characters after close-quote⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iApp implementation, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iCall script, case w_quote_bare
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
 
 ### tmsh CLI script, case w_quote_bare
 

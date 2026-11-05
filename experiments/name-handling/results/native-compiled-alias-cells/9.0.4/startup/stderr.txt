@@ -1,1 +1,0 @@
-run_script: execution refused: actual original simple variable cell native handler policy is not selected

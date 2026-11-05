@@ -16,55 +16,10 @@ expr {not "abc" starts_with "a"}⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case e_precedence_not_starts
+### TMM log tag tmm, RULE_INIT, case e_precedence_not_starts; TMM log tag tmm1, RULE_INIT, case e_precedence_not_starts; TMM log tag tmm2, RULE_INIT, case e_precedence_not_starts; TMM log tag tmm3, RULE_INIT, case e_precedence_not_starts; iApp implementation, case e_precedence_not_starts; iCall script, case e_precedence_not_starts
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-can't use non-numeric string as operand of "!"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm1, RULE_INIT, case e_precedence_not_starts
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-can't use non-numeric string as operand of "!"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm2, RULE_INIT, case e_precedence_not_starts
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-can't use non-numeric string as operand of "!"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### TMM log tag tmm3, RULE_INIT, case e_precedence_not_starts
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT; iApp implementation; iCall script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -104,36 +59,6 @@ The wrapper recorded Tcl completion code 1.
 invalid bareword "not"
 in expression "not "abc" starts_with "a"";
 should be "$not" or "{not}" or "not(...)" or ...⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iApp implementation, case e_precedence_not_starts
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-can't use non-numeric string as operand of "!"⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iCall script, case e_precedence_not_starts
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-can't use non-numeric string as operand of "!"⟦EOF⟧
 ```
 
 The wrapper recorded Tcl completion code 1.

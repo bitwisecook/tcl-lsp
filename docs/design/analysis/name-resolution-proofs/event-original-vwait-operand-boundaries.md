@@ -20,56 +20,11 @@ C8.4–9.1 and pinned Jim0.84 pure argv grammar and source roles only. Complete 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt attached to this implementation contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution receipt attached to this implementation contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt attached to this implementation contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt attached to this implementation contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native execution receipt attached to this implementation contract.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native execution receipt attached to this implementation contract.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native execution receipt attached to this implementation contract.
-
-## Historical references
-
-- `vwait-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. tcl8.4 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/1/snippet`. tcl8.5 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/2/snippet`. tcl8.6 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/3/snippet`. tcl9.0 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/4/snippet`. tcl9.1 complete actual Tcl_VwaitObjCmd argv/global-name owner; no execution claim.
-- `vwait-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json). JSON pointer `/source_anchors/5/snippet`. jim complete actual JimELVwaitCommand argv/global-name owner; no execution claim.
 
 ## Source inspection
 
@@ -1081,7 +1036,6 @@ static int JimELVwaitCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_vwait.rs](../../../../rust/tcl-registry/src/native_vwait.rs), `NativeVwaitProtocol::form`: Selected basic versus extended argv boundary, separate from event capabilities.
@@ -1096,8 +1050,6 @@ static int JimELVwaitCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 - [rust/tcl-registry/src/native_vwait/native_observation_tests.rs](../../../../rust/tcl-registry/src/native_vwait/native_observation_tests.rs), `native_vwait::native_observation_tests::original_vwait_basic_boundaries_match_twenty_four_native_source_rows` (linked): Compare 24 retained native ASCII source results and queried provider versions, then independently check selected basic versus lone -- parser purpose and source roles. No raw original argv, options object, event capability or Rust execution result is inferred.
 - [rust/tcl-registry/src/native_vwait/native_observation_tests.rs](../../../../rust/tcl-registry/src/native_vwait/native_observation_tests.rs), `native_vwait::native_observation_tests::original_vwait_extended_boundaries_match_sixty_native_source_rows` (linked): Compare 60 retained native ASCII source result/arity boundaries and queried provider versions against separately selected grammar/source roles. Excludes the final namespace-read composition; no host notifier, signal delivery or Rust execution result is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust selectors assert selected original argv grammar, source roles and typed refusal before event processing. No executed Rust receipt is attached. Full host notifier, channel and Jim signal/script implementations remain unavailable. No native probe execution is attached; exact source anchors supply inspection only.
+- [rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_event_original/vwait-source-anchors.json)

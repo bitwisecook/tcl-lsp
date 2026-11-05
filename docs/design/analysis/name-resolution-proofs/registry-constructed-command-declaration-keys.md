@@ -22,59 +22,45 @@ Finite CommandRegistry catalogue declaration metadata, its existing compatibilit
 
 ### tcl8.4
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-catalogue query.. Build: Current Registry/Syntax source and two fixed software control definitions only.. Channel: Exact Registry descriptor labels and rooted constructed reporting keys.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Exact Registry descriptor labels and rooted constructed reporting keys. Version: tcl8.4 No external provider execution is attached to this source-catalogue query.
 
 This source-only question records no external tcl8.4 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-catalogue query.. Build: Current Registry/Syntax source and two fixed software control definitions only.. Channel: Exact Registry descriptor labels and rooted constructed reporting keys.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Exact Registry descriptor labels and rooted constructed reporting keys. Version: tcl8.5 No external provider execution is attached to this source-catalogue query.
 
 This source-only question records no external tcl8.5 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-catalogue query.. Build: Current Registry/Syntax source and two fixed software control definitions only.. Channel: Exact Registry descriptor labels and rooted constructed reporting keys.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Exact Registry descriptor labels and rooted constructed reporting keys. Version: tcl8.6 No external provider execution is attached to this source-catalogue query.
 
 This source-only question records no external tcl8.6 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-catalogue query.. Build: Current Registry/Syntax source and two fixed software control definitions only.. Channel: Exact Registry descriptor labels and rooted constructed reporting keys.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Exact Registry descriptor labels and rooted constructed reporting keys. Version: tcl9.0 No external provider execution is attached to this source-catalogue query.
 
 This source-only question records no external tcl9.0 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-catalogue query.. Build: Current Registry/Syntax source and two fixed software control definitions only.. Channel: Exact Registry descriptor labels and rooted constructed reporting keys.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Exact Registry descriptor labels and rooted constructed reporting keys. Version: tcl9.1 No external provider execution is attached to this source-catalogue query.
 
 This source-only question records no external tcl9.1 result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.
 
 ### jim
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-catalogue query.. Build: Current Registry/Syntax source and two fixed software control definitions only.. Channel: Exact Registry descriptor labels and rooted constructed reporting keys.. Dialect: jim.
+Status: `not-tested`. Channel: Exact Registry descriptor labels and rooted constructed reporting keys. Version: jim No external provider execution is attached to this source-catalogue query.
 
 This source-only question records no external jim result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.
 
 ### bigip
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-catalogue query.. Build: Current Registry/Syntax source and two fixed software control definitions only.. Channel: Exact Registry descriptor labels and rooted constructed reporting keys.. Dialect: bigip.
+Status: `not-tested`. Channel: Exact Registry descriptor labels and rooted constructed reporting keys. Version: bigip No external provider execution is attached to this source-catalogue query.
 
 This source-only question records no external bigip result. Descriptor equality and constructed-key reporting do not authenticate a current installed command, package load, Native namespace, import or execution.
-
-## Historical references
-
-- `registry-declaration-source-0` (implementation): [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs). Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome.
-- `registry-declaration-source-1` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Current Syntax source definition of constructed root removal. Source entry alone does not establish Registry caller behavior, Native/provider execution or an installed table; the separately retained helper probe reports fixed cases.
-- `registry-unroot-direct-helper-software-observation` (observation): [separate fixed helper receipt](rust-validation/registry-unroot-20261103/receipt.json). Separate direct Syntax helper probe and rerun for six text/byte pairs and two opaque-byte cases; no Registry consumer, provider or complete proof result. Reused generated outputs and external toolchain/cache outside custody.
-- `registry-declaration-source-2` (implementation): [rust/tcl-registry/src/command_descriptor_key.rs](../../../../rust/tcl-registry/src/command_descriptor_key.rs). Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome.
-- `registry-declaration-source-3` (implementation): [rust/tcl-registry/src/spec.rs](../../../../rust/tcl-registry/src/spec.rs). Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome.
-- `registry-declaration-source-4` (implementation): [rust/tcl-registry/src/lib.rs](../../../../rust/tcl-registry/src/lib.rs). Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome.
-- `registry-declaration-source-5` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). Current shared constructed-key/descriptor/declaration owner or actual guarded import consumer source. Fixed controls remain unexecuted; no external provider or installed-table outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -86,8 +72,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::declaration_key_tests::rooted_declaration_queries_preserve_one_root_and_exact_descriptor_bytes` (linked): The stock set declaration accepts one constructed root and refuses a repeated-root key that would erase literal colons. A genuinely inserted ::literal descriptor is declared only at its one-root constructed key; selected colon-run, trailing-empty and Unicode labels retain their exact bytes. An unrooted argument to the rooted query declines. These are catalogue metadata results, not written Tcl namespace or installed-command outcomes.
 - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::declaration_key_tests::catalogue_declarations_keep_operator_context_and_package_metadata_separate` (linked): Existing global set, qualified math operator and qualified helper declarations remain available, while bare operator imports and method-only global forms decline. A genuine inserted package-required declaration remains catalogue metadata with its original required_package value; its unrelated global tail is absent. No package load or Native table state is asserted.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Two fixed Registry source definitions remain unexecuted. The separately retained helper probe and rerun cover only the specified Syntax examples; reused generated outputs and external tools/cache are outside custody. No Registry consumer, C Tcl/Jim/BIG-IP provider, command installation, package load or private/native chronology is established.
+- [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs)
+- [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs)
+- [rust/tcl-registry/src/command_descriptor_key.rs](../../../../rust/tcl-registry/src/command_descriptor_key.rs)
+- [rust/tcl-registry/src/spec.rs](../../../../rust/tcl-registry/src/spec.rs)
+- [rust/tcl-registry/src/lib.rs](../../../../rust/tcl-registry/src/lib.rs)
+- [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs)

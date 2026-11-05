@@ -20,58 +20,11 @@ Selected Jim084 Runtime plain non-link variable removal. No C Tcl removal, stati
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-- `jim-source` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). Pinned source already associated with the independently retained Info capture; those observations do not measure static unset.
-- `unset-windows` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json). Exact LF source windows, separate from execution.
-- `historical-source` (input): [rust/tcl-syntax/tests/data/body_execution/native-static-storage.tcl](../../../../rust/tcl-syntax/tests/data/body_execution/native-static-storage.tcl). Retained finite source input; no complete native process receipt is attached.
-- `historical-result` (limitation): [rust/tcl-syntax/tests/data/body_execution/native-static-storage-jim.txt](../../../../rust/tcl-syntax/tests/data/body_execution/native-static-storage-jim.txt). Retained finite output includes unsetstatic error; absent full process provenance prevents an interpreter-outcome claim.
-- `unset-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. Exact LF source window for SetVariableFromAny; no native execution claim.
-- `unset-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json). JSON pointer `/source_anchors/1/snippet`. Exact LF source window for Jim_UnsetVariable; no native execution claim.
-- `current-primary-table-owner-0` (implementation): [runtime/rust/src/vars/entered_container.rs](../../../../runtime/rust/src/vars/entered_container.rs). Current checked primary-table source/API owner. Static membership, links, original operation currency and frame identity retain independent guards; no C/Jim process or software assertion outcome is attached.
-- `current-primary-table-owner-1` (implementation): [runtime/rust/src/interp/native_jim_links.rs](../../../../runtime/rust/src/interp/native_jim_links.rs). Current checked primary-table source/API owner. Static membership, links, original operation currency and frame identity retain independent guards; no C/Jim process or software assertion outcome is attached.
 
 ## Source inspection
 
@@ -142,7 +95,6 @@ static int SetVariableFromAny(Jim_Interp *interp, struct Jim_Obj *objPtr)
     return JIM_OK;
 }
 
-
 ```
 
 jim source version not independently recorded, revision `Source revision unrecorded; exact retained full-file SHA identifies the inspected bytes.`, `rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c`, function `Jim_UnsetVariable`, lines 5017–5067. Retained reference `unset-window-1`.
@@ -199,9 +151,7 @@ int Jim_UnsetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
     return retval;
 }
 
-
 ```
-
 
 ## Consumer bindings
 
@@ -209,8 +159,10 @@ int Jim_UnsetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
 - [runtime/rust/src/interp/native_jim_links.rs](../../../../runtime/rust/src/interp/native_jim_links.rs), `Interp::unset_original_jim_variable_entered`: Retain selected original target recursion and dictionary-member separation, capture the actual plain primary-table place before removal, preserve the first full cause and release the captured owner before the final original currency check.
 - [runtime/rust/src/cmd_proc.rs](../../../../runtime/rust/src/cmd_proc.rs), `cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement` (linked): Static fallback unset refuses without destroying retained storage, while the existing literal/copy/raw-link/formal/array-member and command-retirement cases retain their separate outcomes.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact linked Rust selector has no execution receipt in this question. Retained finite static source/output has no complete provider process provenance and cannot establish a native interpreter outcome.
+- [rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_procedure_static_original/jim-primary-unset-source-anchors.json)
+- [rust/tcl-syntax/tests/data/body_execution/native-static-storage.tcl](../../../../rust/tcl-syntax/tests/data/body_execution/native-static-storage.tcl)
+- [rust/tcl-syntax/tests/data/body_execution/native-static-storage-jim.txt](../../../../rust/tcl-syntax/tests/data/body_execution/native-static-storage-jim.txt)
+- [runtime/rust/src/vars/entered_container.rs](../../../../runtime/rust/src/vars/entered_container.rs)
+- [runtime/rust/src/interp/native_jim_links.rs](../../../../runtime/rust/src/interp/native_jim_links.rs)

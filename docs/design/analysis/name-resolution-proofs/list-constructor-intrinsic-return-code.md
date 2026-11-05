@@ -20,56 +20,17 @@ Inspected exact C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and Jim5bac7 handler functions
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `inspected`. Version: 8.4.20. Build: Source inspection only; no executed build association.. Channel: Inspected original handler function body; no guest input.. Dialect: Tcl.
-
-The handler constructs a list from the original object vector, publishes it and returns the fixed OK constant; child getters are absent from this function. Prior-result release may affect world state but is not used to choose the intrinsic return code.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Source inspection only; no executed build association.. Channel: Inspected original handler function body; no guest input.. Dialect: Tcl.
-
-The handler constructs a list from the original object vector, publishes it and returns the fixed OK constant; child getters are absent from this function. Prior-result release may affect world state but is not used to choose the intrinsic return code.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Source inspection only; no executed build association.. Channel: Inspected original handler function body; no guest input.. Dialect: Tcl.
-
-The handler constructs a list from the original object vector, publishes it and returns the fixed OK constant; child getters are absent from this function. Prior-result release may affect world state but is not used to choose the intrinsic return code.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Source inspection only; no executed build association.. Channel: Inspected original handler function body; no guest input.. Dialect: Tcl.
-
-The handler constructs a list from the original object vector, publishes it and returns the fixed OK constant; child getters are absent from this function. Prior-result release may affect world state but is not used to choose the intrinsic return code.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Source inspection only; no executed build association.. Channel: Inspected original handler function body; no guest input.. Dialect: Tcl.
-
-The handler constructs a list from the original object vector, publishes it and returns the fixed OK constant; child getters are absent from this function. Prior-result release may affect world state but is not used to choose the intrinsic return code.
-
-### jim
-
-Status: `inspected`. Version: pinned5bac7c99ad65864c87da513e22e2f01703fa4e03. Build: Source inspection only; no executed build association.. Channel: Inspected original handler function body; no guest input.. Dialect: Jim Tcl.
+Status: `inspected`. Channel: Inspected original handler function body; no guest input. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim pinned5bac7c99ad65864c87da513e22e2f01703fa4e03.
 
 The handler constructs a list from the original object vector, publishes it and returns the fixed OK constant; child getters are absent from this function. Prior-result release may affect world state but is not used to choose the intrinsic return code.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `tcl8.4-source` (source-anchor): [rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.4-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.4-source.json). JSON pointer `/snippet`. Exact original selected constructor signature/body including unconditional intrinsic return; pinned full source digest.
-- `tcl8.5-source` (source-anchor): [rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.5-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.5-source.json). JSON pointer `/snippet`. Exact original selected constructor signature/body including unconditional intrinsic return; pinned full source digest.
-- `tcl8.6-source` (source-anchor): [rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.6-source.json). JSON pointer `/snippet`. Exact original selected constructor signature/body including unconditional intrinsic return; pinned full source digest.
-- `tcl9.0-source` (source-anchor): [rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.0-source.json). JSON pointer `/snippet`. Exact original selected constructor signature/body including unconditional intrinsic return; pinned full source digest.
-- `tcl9.1-source` (source-anchor): [rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.1-source.json). JSON pointer `/snippet`. Exact original selected constructor signature/body including unconditional intrinsic return; pinned full source digest.
-- `jim-source` (source-anchor): [rust/tcl-registry/tests/data/native_list_constructor_return/jim-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/jim-source.json). JSON pointer `/snippet`. Exact original selected constructor signature/body including unconditional intrinsic return; pinned full source digest.
 
 ## Source inspection
 
@@ -200,15 +161,17 @@ static int Jim_ListCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *arg
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_result.rs](../../../../rust/tcl-registry/src/native_result.rs), `NativeResultContract::list_constructor_completion_code`: Select only the original C/Jim list constructor intrinsic return code after exact argv cardinality; result release, effects, observers and Normal completion remain separate.
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `PreparedSourceNativeInvocation::completion_route`: Use the independently selected Leaf+ListArguments intrinsic code under genuine handler dispatch without issuing native Normal or world-effect certificates.
 - [rust/tcl-registry/src/native_result.rs](../../../../rust/tcl-registry/src/native_result.rs), `native_result::tests::list_intrinsic_code_retains_unknown_effects_and_requires_native_cardinality` (linked): C5 and Jim empty/dynamic/native-byte operand vectors select only OK; missing dialect, hosted unsupported protocol, unknown argv shape, expansion, offset and different result contract decline. This test binding is not an execution claim.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Reproduce exact full source SHA and retained function window/snippet SHA. No executable replay or Rust test is claimed.
+- [rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.4-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.4-source.json)
+- [rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.5-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.5-source.json)
+- [rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl8.6-source.json)
+- [rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.0-source.json)
+- [rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/tcl9.1-source.json)
+- [rust/tcl-registry/tests/data/native_list_constructor_return/jim-source.json](../../../../rust/tcl-registry/tests/data/native_list_constructor_return/jim-source.json)

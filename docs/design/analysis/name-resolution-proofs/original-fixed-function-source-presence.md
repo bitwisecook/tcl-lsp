@@ -20,55 +20,11 @@ The marked source test independently checks C84/Jim original Pi absence, abs pre
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This checked fixed-table expression identifier and quiet original source snapshot contract supplies no native math dispatch, implicit commandName, function token, operand evaluation, result or runtime frame observation. Related native implicit-function captures remain independent.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +36,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs), `original_function_snapshot_is_closed`: Keep the separate command-table original lookup bound to C ordinary-object effects; fixed-table text cannot satisfy this purpose.
 - [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs), `original_function_snapshot_has_quiet_context`: Share the existing full policy, domain, observer and callback barriers without changing entry or reached-Unknown precedence.
 - [rust/tcl-compiler/src/command_binding/original_math_function.rs](../../../../rust/tcl-compiler/src/command_binding/original_math_function.rs), `command_binding::original_math_function::tests::original_fixed_function_absence_retains_source_snapshot_without_command_name` (linked): The marked source test independently checks C84/Jim original Pi absence, abs presence, absent command name/reference/registry identity, stale source refusal, terminal reached Unknown, operand-side-effect/opaque mutation/shadow controls. Related native Pi observations remain a separate question; Jim native syntax error is not claimed to be an executed missing-command call.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Marked source controls bind fixed-table presence/absence and terminal Unknown under complete original snapshot ownership. Related native implicit-function-slot-presence and original-function-navigation questions retain their own evidence and purpose. This contract supplies no executed operand topology, implicit command name, mutable slot, compiler/header/frame or Normal result.

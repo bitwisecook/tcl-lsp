@@ -20,58 +20,17 @@ The exact C9.1 property-name TU retains an11-row full output; this question sele
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
+Status: `not-tested`.
 
 This exact original-object C9.1 probe has no observation for this provider.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0 (original build/source association; probe does not query runtime patchlevel). Build: Original source and build references in receipt; compiler command/status0 retained, compiler version not recorded.. Channel: compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated. Dialect: tcl9.1.
+Status: `observed`. Channel: compiled public Tcl_EvalObjv original-object argv and entered Tcl_Eval script; private object/cache observer where stated. Version: tcl9.1 9.1.0 (original build/source association; probe does not query runtime patchlevel).
 
 Selected original rows: [["property-read","34","0","1","0","3","tcl::oo property name"],["accessor-reader","34","0","1","2","1","TclOO method name"],["name-duplicate","34","0","1","3","2","tcl::oo property name"],["duplicate-release","34","0","1","2","1","none"]]. Columns are label,Foundation epoch,delta,pointer predicate,first count,second count,type; the counts/types refer to the property member or accessor children according to the exact row producer. Compile/process status0, empty stderr, no timeout. Earlier seven native rows are retained prerequisites and have their own shared header/epoch questions.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This exact original-object C9.1 probe has no observation for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c). Exact original-object constructors, invocation and pre-render cache observer.
-- `receipt` (provider): [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json). Original compile/process status, original source/header/library/executable digests, environment and full streams.
-- `rows` (observation): [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv). Exact full original stdout retained separately.
-- `capture` (limitation): [rust/tcl-registry/tests/data/native_property_names/capture.py](../../../../rust/tcl-registry/tests/data/native_property_names/capture.py). Original fixed-path capture adapter; it overwrites local outputs and is not a read-only verifier.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +39,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/obj/native_property_name.rs](../../../../runtime/rust/src/obj/native_property_name.rs), `tests::original_property_name_duplicate_reuses_and_releases_accessor_children` (linked): Compares identity-preserving duplicate retain/release deltas for actual original accessor children. Its raw-FF/zero input and missing string/provider refusal assertions are separate Rust contract controls, not observed in this ASCII native child-pointer probe.
 - [rust/tcl-vm/src/value/native_property_name.rs](../../../../rust/tcl-vm/src/value/native_property_name.rs), `tests::original_property_name_duplicate_reuses_and_releases_accessor_children` (linked): Compares identity-preserving duplicate retain/release deltas for actual original accessor children. Its raw-FF/zero input and missing string/provider refusal assertions are separate Rust contract controls, not observed in this ASCII native child-pointer probe.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The retained capture.py requires its fixed /workspace native paths and writes new outputs into the fixture directory. It is not run by this record. A fresh replay must independently select the release headers/library/source hashes, preserve the original observation order, and retain the new source/status/streams separately; no executed Rust parity follows from the captured native rows.
+- [rust/tcl-registry/tests/data/native_property_names/probe.c](../../../../rust/tcl-registry/tests/data/native_property_names/probe.c)
+- [rust/tcl-registry/tests/data/native_property_names/manifest.json](../../../../rust/tcl-registry/tests/data/native_property_names/manifest.json)
+- [rust/tcl-registry/tests/data/native_property_names/native.tsv](../../../../rust/tcl-registry/tests/data/native_property_names/native.tsv)
+- [rust/tcl-registry/tests/data/native_property_names/capture.py](../../../../rust/tcl-registry/tests/data/native_property_names/capture.py)

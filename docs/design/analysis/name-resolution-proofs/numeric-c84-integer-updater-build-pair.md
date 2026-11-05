@@ -28,99 +28,25 @@ This definition performs no native linking, ABI loading or getter/updater call; 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual original link/compile commands and all required archive/header/source/build/input pins verified; separately captured loaded image/probe bytes and digests retained. Original216 compiler version unrecorded; the separately measured GNU17 build records GCC 15.2.0-16ubuntu1. Channel: Original C API fresh Tcl_NewLongObj/Tcl_NewWideIntObj and reached Tcl_GetStringFromObj; direct archive versus original independently loaded image symbols. Dialect: Pinned original provider API/source purpose.
+Status: `observed`. Channel: Original C API fresh Tcl_NewLongObj/Tcl_NewWideIntObj and reached Tcl_GetStringFromObj; direct archive versus original independently loaded image symbols. Version: tcl8.4 8.4.20.
 
 Archive and independently loaded image each return the unchanged complete 812 observations with process exit0/empty stderr. All type/string flag/errno/hex fields are retained byte-for-byte; finite equality grants no other build or universal formatting claim.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No execution answers this exact formatter build-pair question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No execution answers this exact formatter build-pair question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No execution answers this exact formatter build-pair question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No execution answers this exact formatter build-pair question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
+Status: `not-tested`.
 
 No execution answers this exact formatter build-pair question.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
+Status: `not-tested`.
 
 No appliance execution answers this exact question.
-
-## Historical references
-
-- `native_integer_formatter216-archive.receipt.json` (provider): [rust/tcl-registry/tests/data/native_integer_formatter216/archive.receipt.json](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/archive.receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-archive.stderr` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/archive.stderr](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/archive.stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-archive.stdout` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/archive.stdout](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/archive.stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-compile.receipt.json` (provider): [rust/tcl-registry/tests/data/native_integer_formatter216/compile.receipt.json](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/compile.receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/compile.stderr](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/compile.stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/compile.stdout](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/compile.stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-libtcl8.4-observed.so` (provider): [rust/tcl-registry/tests/data/native_integer_formatter216/libtcl8.4-observed.so](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/libtcl8.4-observed.so). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-link.receipt.json` (provider): [rust/tcl-registry/tests/data/native_integer_formatter216/link.receipt.json](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/link.receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-link.stderr` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/link.stderr](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/link.stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-link.stdout` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/link.stdout](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/link.stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-loaded.receipt.json` (provider): [rust/tcl-registry/tests/data/native_integer_formatter216/loaded.receipt.json](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/loaded.receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-loaded.stderr` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/loaded.stderr](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/loaded.stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-loaded.stdout` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/loaded.stdout](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/loaded.stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-original-observations.tsv` (observation): [rust/tcl-registry/tests/data/native_integer_formatter216/original-observations.tsv](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/original-observations.tsv). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-probe` (provider): [rust/tcl-registry/tests/data/native_integer_formatter216/probe](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/probe). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-probe.c` (input): [rust/tcl-registry/tests/data/native_integer_formatter216/probe.c](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/probe.c). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_integer_formatter216-request.json` (input): [rust/tcl-registry/tests/data/native_integer_formatter216/request.json](../../../../rust/tcl-registry/tests/data/native_integer_formatter216/request.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-
-### GNU17 archive and loaded-image evidence
-
-The [complete original ZIP](https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12539375964/zip) from [run 40039950003](https://github.com/bitwisecook/tcl-lsp/actions/runs/40039950003), job `120708423833`, is 5,539,802 bytes. Its source is exactly `b52ff0b6c7ef223da6b920031be4d6b314346311`. This is one retained archive of all 62 original members; large maps are read in the ZIP without changing their bytes. The [unchanged original probe source](https://github.com/bitwisecook/tcl-lsp/blob/b52ff0b6c7ef223da6b920031be4d6b314346311/rust/tcl-host-c-abi/testdata/native_integer_formatter/probe.c) is linked for inspection.
-
-| Original ZIP member | Scope |
-| --- | --- |
-| `native/provider-libtcl8.4.a` | Actual archive, distinct from earlier builds |
-| `native/provider-tcl.h` | Exact public source header |
-| `native/provider-tclConfig.sh` | Actual provider configuration |
-| `native/provider-tclObj.c` | Original updater source |
-| `native/libtcl8.4-observed.so` | Independently linked and loaded image |
-| `native/probe` | Actual original probe executable |
-| `archive.stdout` and `loaded.stdout` | Each complete 812-row output, 50,944 bytes |
-| `link.process.json` | Actual image producer, argv and lifecycle |
-| `compile.process.json` | Actual probe producer, argv and lifecycle |
-| `archive.process.json` | Original archive observation command |
-| `loaded.process.json` | Original independently loaded observation command |
-| `provider-before.json` and `provider-after.json` | All 843 provider file identities unchanged |
-| `tools-before.json` and `tools-after.json` | Actual tool identities unchanged |
-| `tracked-source-before.json` | Complete 125,491-path source snapshot |
-| `source-after.stdout` | Strict complete source verification |
-
-All four original link, compile, archive-observation and loaded-image-observation commands exit zero with empty stderr; both native observations match the unchanged complete original fixture. Source membership joins the recorded Git tree, and all 14 owned processes close with empty process groups and complete streams. The provider bootstrap separately retains 36,414 bytes of compiler warnings in `bootstrap.stderr`; the empty-stderr statement applies only to the four original experiment commands. Archive object timestamps and ownership fields are zero in this build, but this does not establish why an older archive differs. No Rust loader/updater pass, other native build, universal integer conversion, compiler admission, full runtime gate or performance result follows from these finite original observations.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-test-support/src/native_integer_formatter.rs](../../../../rust/tcl-test-support/src/native_integer_formatter.rs), `native_integer_formatter::tests::loaded_c84_updater_matches_812_original_archive_and_image_windows` (linked): Strict admitted archive/header pair and independently loaded image compare all 812 unchanged original type/string-flag/errno/counted-byte rows. Linked test source supplies no executed pass or authority for another build/header alone.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-test-support/src/native_integer_formatter.rs](../../../../rust/tcl-test-support/src/native_integer_formatter.rs), `admitted_reference_build`: Match the complete recorded archive/header pair rather than admitting a formatter from a release or either digest alone.
 - [rust/tcl-test-support/src/native_integer_formatter.rs](../../../../rust/tcl-test-support/src/native_integer_formatter.rs), `load_pinned_c84_integer_formatter`: Independently verify complete build inputs, produce a linked image, recheck the inputs and supply that separate image digest to the actual ABI loader; table admission is only one prerequisite.
@@ -128,6 +54,6 @@ A named test is a coverage binding, not a claim that it executed.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-Whole original inputs, actual commands/receipts, counted public outputs, executable/build/source pins and environment overrides are retained. The earlier Original216 inherited environment/compiler version are unrecorded; the GNU17 ZIP separately records its compiler and tool identities. Absolute external paths are retained; portable replay is not promised. Re-execution yields new observations. Publication runs no native/compiler/Rust process.
+- [rust/tcl-registry/tests/data/native_integer_formatter216](../../../../rust/tcl-registry/tests/data/native_integer_formatter216)

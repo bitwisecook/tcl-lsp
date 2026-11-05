@@ -54,7 +54,7 @@ For independently selected Native C86, [`parse_script_with_original_text`](../..
 
 Other existing Native and Logical routes retain their checked text path. The VM has no C86 physical split override: the trait's default refuses an independently selected Native C86 worker instead of falling back to a reconstructed Unicode value. Original source materialisation here covers top-level `Esc` parts; nested array-index and `subst` provenance is not proved by this integration.
 
-The [original producer question](../../../experiments/name-handling/results/split-native-implementation-c86/source-boundary/README.md), [native split reference](../../../experiments/name-handling/results/split-native-reference/README.md) and [implementation validation](../../../experiments/name-handling/results/split-native-implementation-c86/README.md) retain exact inputs, channels, provider observations and source scopes. Their evidence covers the selected Runtime C86 integration; nested-source, VM, F5 TMM/MCPD and full-suite conformance require independent evidence.
+The original producer question, native split reference and implementation validation retain exact inputs, channels, provider observations and source scopes. Their evidence covers the selected Runtime C86 integration; nested-source, VM, F5 TMM/MCPD and full-suite conformance require independent evidence.
 
 ## Original Jim procedure namespaces
 

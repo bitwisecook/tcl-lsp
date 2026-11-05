@@ -22,70 +22,45 @@ Finite dispatch_proof contents/site capture, three production GVN callers and on
 
 ### tcl8.4
 
-Status: `not-tested`. Version: No external provider execution is attached to this original source-ledger contract.. Build: Current source producer/consumer joins and five fixed unexecuted software controls.. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry. Version: tcl8.4 No external provider execution is attached to this original source-ledger contract.
 
 External tcl8.4 behavior is not tested here. The authored spelling ledgers cannot supply Native command/namespace/policy contents or original token trace absence. Existing independently scoped provider observations and owning software outcomes remain unchanged.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: No external provider execution is attached to this original source-ledger contract.. Build: Current source producer/consumer joins and five fixed unexecuted software controls.. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry. Version: tcl8.5 No external provider execution is attached to this original source-ledger contract.
 
 External tcl8.5 behavior is not tested here. The authored spelling ledgers cannot supply Native command/namespace/policy contents or original token trace absence. Existing independently scoped provider observations and owning software outcomes remain unchanged.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: No external provider execution is attached to this original source-ledger contract.. Build: Current source producer/consumer joins and five fixed unexecuted software controls.. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry. Version: tcl8.6 No external provider execution is attached to this original source-ledger contract.
 
 External tcl8.6 behavior is not tested here. The authored spelling ledgers cannot supply Native command/namespace/policy contents or original token trace absence. Existing independently scoped provider observations and owning software outcomes remain unchanged.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: No external provider execution is attached to this original source-ledger contract.. Build: Current source producer/consumer joins and five fixed unexecuted software controls.. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry. Version: tcl9.0 No external provider execution is attached to this original source-ledger contract.
 
 External tcl9.0 behavior is not tested here. The authored spelling ledgers cannot supply Native command/namespace/policy contents or original token trace absence. Existing independently scoped provider observations and owning software outcomes remain unchanged.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: No external provider execution is attached to this original source-ledger contract.. Build: Current source producer/consumer joins and five fixed unexecuted software controls.. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry. Version: tcl9.1 No external provider execution is attached to this original source-ledger contract.
 
 External tcl9.1 behavior is not tested here. The authored spelling ledgers cannot supply Native command/namespace/policy contents or original token trace absence. Existing independently scoped provider observations and owning software outcomes remain unchanged.
 
 ### jim
 
-Status: `not-tested`. Version: No external provider execution is attached to this original source-ledger contract.. Build: Current source producer/consumer joins and five fixed unexecuted software controls.. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry.. Dialect: jim.
+Status: `not-tested`. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry. Version: jim No external provider execution is attached to this original source-ledger contract.
 
 External jim behavior is not tested here. The authored spelling ledgers cannot supply Native command/namespace/policy contents or original token trace absence. Existing independently scoped provider observations and owning software outcomes remain unchanged.
 
 ### bigip
 
-Status: `not-tested`. Version: No external provider execution is attached to this original source-ledger contract.. Build: Current source producer/consumer joins and five fixed unexecuted software controls.. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry.. Dialect: bigip.
+Status: `not-tested`. Channel: Original full invocation vectors, selected Registry facts, explicit Logical or authored source entries and a genuine held software Jim entry. Version: bigip No external provider execution is attached to this original source-ledger contract.
 
 External bigip behavior is not tested here. The authored spelling ledgers cannot supply Native command/namespace/policy contents or original token trace absence. Existing independently scoped provider observations and owning software outcomes remain unchanged.
-
-## Historical references
-
-- `original-dispatch-ledger-source-0` (implementation): [rust/tcl-compiler/src/dispatch_proof.rs](../../../../rust/tcl-compiler/src/dispatch_proof.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-1` (implementation): [rust/tcl-compiler/src/gvn.rs](../../../../rust/tcl-compiler/src/gvn.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-2` (implementation): [rust/tcl-compiler/src/native_lowering/lower.rs](../../../../rust/tcl-compiler/src/native_lowering/lower.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-3` (implementation): [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-4` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-5` (implementation): [rust/tcl-compiler/src/command_binding/command_reference.rs](../../../../rust/tcl-compiler/src/command_binding/command_reference.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-6` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-7` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-8` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-9` (implementation): [rust/tcl-compiler/src/semantic_analysis.rs](../../../../rust/tcl-compiler/src/semantic_analysis.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-10` (implementation): [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-11` (implementation): [rust/tcl-compiler/src/executable_ir.rs](../../../../rust/tcl-compiler/src/executable_ir.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-12` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-13` (implementation): [rust/tcl-registry/src/command_descriptor_key.rs](../../../../rust/tcl-registry/src/command_descriptor_key.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-14` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-15` (implementation): [rust/tcl-compiler/src/environment_ingress.rs](../../../../rust/tcl-compiler/src/environment_ingress.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-16` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-- `original-dispatch-ledger-source-17` (implementation): [rust/tcl-compiler/src/native_lowering/mod.rs](../../../../rust/tcl-compiler/src/native_lowering/mod.rs). Current shared original vector/purpose/selected facts/called-slot owner, unchanged contents fixpoint or actual guarded production source consumer. Five software control definitions only; no executed assertion or Native/provider outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -101,8 +76,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/dispatch_proof.rs](../../../../rust/tcl-compiler/src/dispatch_proof.rs), `dispatch_proof::original_ledger_tests::shared_written_ledger_geometry_preserves_trailing_separator_and_literal_colons` (linked): The shared authored written-key projection retains a trailing namespace separator, literal single colons and Unicode, while collapsing written separator runs under that explicit model. Selected descriptor labels remain byte-exact data; these cases provide no Native namespace/path identity.
 - [rust/tcl-compiler/src/dispatch_proof.rs](../../../../rust/tcl-compiler/src/dispatch_proof.rs), `dispatch_proof::original_ledger_tests::authored_simulation_entry_has_layout_purpose_without_pristine_dispatch_coverage` (linked): An actual explicit AuthoredSimulation source entry retains its authored policy and no Native entry. Its descriptive layout purpose is AuthoredSimulation, and the checked analysis publishes no pristine dispatch site proof. Layout classification supplies no invoked target or domain absence.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Five fixed genuine software control definitions support later owning-image reconfirmation. No current assertions, C/Jim/BIG-IP native observations, process chronology or copied prior results are supplied.
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler/src/native_lowering/lower.rs](../../../../rust/tcl-compiler/src/native_lowering/lower.rs)
+- [rust/tcl-compiler/src/command_binding](../../../../rust/tcl-compiler/src/command_binding)
+- [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs)
+- [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs)
+- [rust/tcl-registry/src/command_descriptor_key.rs](../../../../rust/tcl-registry/src/command_descriptor_key.rs)
+- [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs)
+- [rust/tcl-compiler/src/native_lowering/mod.rs](../../../../rust/tcl-compiler/src/native_lowering/mod.rs)

@@ -20,55 +20,11 @@ Five marked software/API assertion definitions cover the fused top-level parent,
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No original external provider process answers this positioned expression-service contract. The linked controls describe software source/configuration/coordinate transport and original ancestry; Native completion, frame and execution remain independent.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,9 +43,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/interprocedural/transfer/source_context.rs](../../../../rust/tcl-compiler/src/interprocedural/transfer/source_context.rs), `interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_cooked_and_foreign_producers` (linked): Software/API source-ancestry, complete lexer configuration and positioned expression service transport. No Native Normal/frame/compiler/execution/object proof. No Cargo/native assertions executed by this agent. Independently selected numeric policy, explicit compatibility input and actual original-source receipts remain separate; no matching executed assertion result is inferred.
 - [rust/tcl-compiler/src/interprocedural/transfer/source_context.rs](../../../../rust/tcl-compiler/src/interprocedural/transfer/source_context.rs), `interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_captured_and_shadowed_producers` (linked): Software/API source-ancestry, complete lexer configuration and positioned expression service transport. No Native Normal/frame/compiler/execution/object proof. No Cargo/native assertions executed by this agent. Independently selected numeric policy, explicit compatibility input and actual original-source receipts remain separate; no matching executed assertion result is inferred.
 - [rust/tcl-compiler/src/value_transfer.rs](../../../../rust/tcl-compiler/src/value_transfer.rs), `value_transfer::tests::expression_services_forward_full_config_and_inclusive_unicode_child_positions` (linked): Software/API source-ancestry, complete lexer configuration and positioned expression service transport. No Native Normal/frame/compiler/execution/object proof. No Cargo/native assertions executed by this agent. Independently selected numeric policy, explicit compatibility input and actual original-source receipts remain separate; no matching executed assertion result is inferred.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Source-defined controls and current concrete interfaces are linked. Assertion coverage requires an independently compiled, listed and executed image matching those definitions. No Native process/private header/frame or mutable implementation digest is supplied by this binding.

@@ -20,84 +20,40 @@ C86/C90/C91 agree on static missing target, no target call at definition, replac
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual executable SHA 500161ca9b98f212033b3aec3d5de61fb8d38804b19898effa08e34db8e0fb46; retained compile argv and SDK/header/library/build/source/stream joins. Compiler binary/version not retained.. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Dialect: Tcl.
-
-Availability is empty; no forward script case is run.
-
-### tcl8.5
-
-Status: `unsupported`. Version: 8.5.19. Build: Actual executable SHA e40696c7691e5f56c5e8747a3aae9c2cac0109fc056e6fe16892bfdec7a45e0e; retained compile argv and SDK/header/library/build/source/stream joins. Compiler binary/version not retained.. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Dialect: Tcl.
+Status: `unsupported`. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; jim 0.84-9-g5bac7c9.
 
 Availability is empty; no forward script case is run.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA a7557820ed77f1018379d62e06f23505d9290a5f3666f5baa581c3c0392aceb5; retained compile argv and SDK/header/library/build/source/stream joins. Compiler binary/version not retained.. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Dialect: Tcl.
+Status: `observed`. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Version: tcl8.6 8.6.18.
 
 Missing-target forward registration succeeds; invocation returns invalid-command error. Definition invokes no target; script/forward replacement and empty target registration succeed, missing prefix errors, superclass forward retains a::b. The complete PREFIX_CAPTURE script returns INITIAL EXTRA.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA 17783bdbc4ee348e3bb6f66cf39b06b4e09a0c51a735ff20e19dc62627055127; retained compile argv and SDK/header/library/build/source/stream joins. Compiler binary/version not retained.. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Dialect: Tcl.
-
-Missing-target forward registration succeeds; invocation returns invalid-command error. Definition invokes no target; script/forward replacement and empty target registration succeed, missing prefix errors, superclass forward retains a::b. The complete PREFIX_CAPTURE script errors reading value; this does not locate a registration or capture failure separately from definition-scope substitution.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA 006140dd0e751076b51dc1a91b326a6261df8b94ee94823fef3e285e23b0f35b; retained compile argv and SDK/header/library/build/source/stream joins. Compiler binary/version not retained.. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Dialect: Tcl.
+Status: `observed`. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Missing-target forward registration succeeds; invocation returns invalid-command error. Definition invokes no target; script/forward replacement and empty target registration succeed, missing prefix errors, superclass forward retains a::b. The complete PREFIX_CAPTURE script errors reading value; this does not locate a registration or capture failure separately from definition-scope substitution.
-
-### jim
-
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA 10fc320da024334c6f5aa546cb2838b3c22efbd2a5550d22f36068db8e5d9858; retained compile argv and SDK/header/library/build/source/stream joins. Compiler binary/version not retained.. Channel: separate actual ASCII info patchlevel/availability startup; each case uses a fresh interpreter and exact ASCII NUL-terminated Tcl_Eval or Jim_Eval source. Dialect: Jim Tcl.
-
-Availability is empty; no forward script case is run.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for the exact forward scripts.
-
-## Historical references
-
-- `forward-probe.c` (input): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/probe.c](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/probe.c). Retained exact input/channel/capture protocol or actual provider association; the compiler binary/version is not retained by this runner.
-- `forward-capture.py` (input): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/capture.py](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/capture.py). Retained exact input/channel/capture protocol or actual provider association; the compiler binary/version is not retained by this runner.
-- `forward-queue.json` (input): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/queue.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/queue.json). Retained exact input/channel/capture protocol or actual provider association; the compiler binary/version is not retained by this runner.
-- `forward-sdk-bindings.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/sdk-bindings.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/sdk-bindings.json). Retained exact input/channel/capture protocol or actual provider association; the compiler binary/version is not retained by this runner.
-- `forward-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/receipt.json). Retained exact input/channel/capture protocol or actual provider association; the compiler binary/version is not retained by this runner.
-- `forward-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20/receipt.json). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.4.20-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20/stdout.tsv). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20/stderr). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19/receipt.json). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.5.19-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19/stdout.tsv). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19/stderr). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18/receipt.json). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.6.18-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18/stdout.tsv). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18/stderr). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4/receipt.json). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-9.0.4-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4/stdout.tsv). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4/stderr). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0/receipt.json). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-9.1.0-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0/stdout.tsv). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0/stderr). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim/receipt.json). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-jim-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim/stdout.tsv). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-- `forward-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim/stderr](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim/stderr). Actual compile/process/version and exact raw stream association for these finite source scripts. All reported pointer bits are zero; no pointer observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `definer::original_forward_tests::original_forward_layout_matches_captured_registration_boundaries` (linked): Pure selected layout compares the exact availability, registration/error/deferred-invocation rows and preserves the dynamic-script scope contrast; no implementation execution result inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Retained capture.py protocol needs independently verified SDKs and fresh output paths. Six ELF files are omitted while their original digests/compile argv remain in receipts. Compiler binary/version not retained. The native question does not certify a source transfer or Native admission.
+- [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
+- [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.4.20)
+- [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.5.19)
+- [rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/8.6.18)
+- [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.0.4)
+- [rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/9.1.0)
+- [rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim](../../../../rust/tcl-registry/tests/data/native_tcloo_forward_registration/jim)

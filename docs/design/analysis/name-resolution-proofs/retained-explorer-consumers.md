@@ -20,65 +20,11 @@ Current inspected Rust and shipped JavaScript/TypeScript source plus eight genui
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: No external provider process for this source/render contract. Channel: Current inspected source and unexecuted software definitions. Dialect: tcl8.4.
-
-The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: No external provider process for this source/render contract. Channel: Current inspected source and unexecuted software definitions. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Current inspected source and unexecuted software definitions.
 
 The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: No external provider process for this source/render contract. Channel: Current inspected source and unexecuted software definitions. Dialect: tcl8.6.
-
-The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: No external provider process for this source/render contract. Channel: Current inspected source and unexecuted software definitions. Dialect: tcl9.0.
-
-The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: No external provider process for this source/render contract. Channel: Current inspected source and unexecuted software definitions. Dialect: tcl9.1.
-
-The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: No external provider process for this source/render contract. Channel: Current inspected source and unexecuted software definitions. Dialect: jim.
-
-The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: No external provider process for this source/render contract. Channel: Current inspected source and unexecuted software definitions. Dialect: bigip.
-
-The linked source/model/render definitions do not execute this external provider. Source advice supplies no handler, Native, body, frame, Normal, cache, effect or edit authority.
-
-## Historical references
-
-- `retained-explorer-source-0` (implementation): [editors/vscode/src/compilerExplorerHtml.ts](../../../../editors/vscode/src/compilerExplorerHtml.ts). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-1` (implementation): [rust/tcl-cli/gui/explorer-core.js](../../../../rust/tcl-cli/gui/explorer-core.js). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-2` (implementation): [rust/tcl-cli/gui/index.html](../../../../rust/tcl-cli/gui/index.html). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-3` (implementation): [rust/tcl-cli/tests/explorer_gui.rs](../../../../rust/tcl-cli/tests/explorer_gui.rs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-4` (implementation): [rust/tcl-cli/tests/gui/explorer-core-retained-views.mjs](../../../../rust/tcl-cli/tests/gui/explorer-core-retained-views.mjs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-5` (implementation): [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-6` (implementation): [rust/tcl-explorer/src/lib.rs](../../../../rust/tcl-explorer/src/lib.rs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-7` (implementation): [rust/tcl-explorer/src/serialise.rs](../../../../rust/tcl-explorer/src/serialise.rs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-8` (implementation): [rust/tcl-explorer/src/view_tree.rs](../../../../rust/tcl-explorer/src/view_tree.rs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-9` (implementation): [rust/tcl-registry/src/events.rs](../../../../rust/tcl-registry/src/events.rs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-- `retained-explorer-source-10` (implementation): [rust/tcl-registry/src/lib.rs](../../../../rust/tcl-registry/src/lib.rs). Current inspected shared source/render implementation, actual module registration or Node stand-in driver. Definition and ownership purpose only; no executed software, browser or external provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -104,8 +50,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-explorer/src/serialise.rs](../../../../rust/tcl-explorer/src/serialise.rs), `serialise::retained_explorer_source_tests::remaining_actual_cu_views_retain_profiles_and_ignore_display_labels` (linked): Finite source-defined control: remaining actual cu views retain profiles and ignore display labels. Source/model agreement, independently of provider execution results. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-explorer/src/view_tree.rs](../../../../rust/tcl-explorer/src/view_tree.rs), `view_tree::actual_cu_unavailable_view_tests::actual_cu_null_fields_do_not_render_as_empty_analysis` (linked): Finite source-defined control: actual cu null fields do not render as empty analysis. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Execute each target only through an independently successful matching own producer and exact inventory with its original prerequisites. The CLI Node control is an integration target with existing prerequisite strict-mode handling; a DOM stand-in is not a browser. Keep all execution receipts separate from source/model definitions and obtain complete actual measurements before any performance claim.
+- [editors/vscode/src](../../../../editors/vscode/src)
+- [rust/tcl-cli/gui](../../../../rust/tcl-cli/gui)
+- [rust/tcl-cli/tests](../../../../rust/tcl-cli/tests)
+- [rust/tcl-cli/tests/gui](../../../../rust/tcl-cli/tests/gui)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-explorer](../../../../rust/tcl-explorer)
+- [rust/tcl-registry/src](../../../../rust/tcl-registry/src)

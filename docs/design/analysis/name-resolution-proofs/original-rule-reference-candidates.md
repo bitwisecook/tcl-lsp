@@ -20,55 +20,11 @@ Current Diagram proc_call_refs and proc_call_refs_for_analysis, Registry source 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,9 +38,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/source_navigation.rs](../../../../rust/tcl-registry/src/source_navigation.rs), `source_navigation::tests::original_rule_operand_uses_actual_traits_options_and_cardinality` (linked): Actual selected schema preserves target ordinal across -debug and dynamic value arguments, while expansion, missing target and unrelated traits refuse.
 - [rust/tcl-registry/src/f5/rule_identity.rs](../../../../rust/tcl-registry/src/f5/rule_identity.rs), `f5::rule_identity::tests::original_rule_spelling_candidates_do_not_fabricate_ownership` (linked): Relative/absolute source spellings remain separate from actual owning RuleIdentity; local/malformed targets refuse and missing owner cannot become a resolved relative target.
 - [rust/tcl-compiler/src/analyser/name_producer_tests.rs](../../../../rust/tcl-compiler/src/analyser/name_producer_tests.rs), `analyser::name_producer_tests::original_rule_call_producer_uses_selected_option_grammar_and_complete_target_word` (linked): The selected f5 call option grammar retains complete braced/plain helper targets through -debug and plain forms, without rename authority. Unknown option selection supplies no helper target.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.

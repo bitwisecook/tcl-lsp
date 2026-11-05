@@ -1,1 +1,0 @@
-delete 0 {} observations {{0 0} {1 {can't create namespace "retiring": already exists}}} final 0

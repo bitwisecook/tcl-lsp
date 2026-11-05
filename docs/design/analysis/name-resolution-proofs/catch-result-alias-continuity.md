@@ -20,76 +20,17 @@ Three exact caught ASCII source controls supplied as native shell stdin on Tcl 8
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `observed`. Version: 8.4.20. Build: Actual selected shell; independent original header/Makefile/source-owner digests retained. Linked library digest and configure/compiler histories are unrecorded.. Channel: ASCII file bytes passed to shell stdin. Dialect: Tcl.
-
-LINKED caught completion0/result hex424f4f4d20424f4f4d (BOOM BOOM); PLAIN 0/424f4f4d (BOOM); SEPARATE_RESULT 0/4f4c4420424f4f4d204f4c44 (OLD BOOM OLD). Shell process0; stderr empty; actual info patchlevel reported before controls.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual selected shell; independent original header/Makefile/source-owner digests retained. Linked library digest and configure/compiler histories are unrecorded.. Channel: ASCII file bytes passed to shell stdin. Dialect: Tcl.
-
-LINKED caught completion0/result hex424f4f4d20424f4f4d (BOOM BOOM); PLAIN 0/424f4f4d (BOOM); SEPARATE_RESULT 0/4f4c4420424f4f4d204f4c44 (OLD BOOM OLD). Shell process0; stderr empty; actual info patchlevel reported before controls.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual selected shell; independent original header/Makefile/source-owner digests retained. Linked library digest and configure/compiler histories are unrecorded.. Channel: ASCII file bytes passed to shell stdin. Dialect: Tcl.
-
-LINKED caught completion0/result hex424f4f4d20424f4f4d (BOOM BOOM); PLAIN 0/424f4f4d (BOOM); SEPARATE_RESULT 0/4f4c4420424f4f4d204f4c44 (OLD BOOM OLD). Shell process0; stderr empty; actual info patchlevel reported before controls.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual selected shell; independent original header/Makefile/source-owner digests retained. Linked library digest and configure/compiler histories are unrecorded.. Channel: ASCII file bytes passed to shell stdin. Dialect: Tcl.
-
-LINKED caught completion0/result hex424f4f4d20424f4f4d (BOOM BOOM); PLAIN 0/424f4f4d (BOOM); SEPARATE_RESULT 0/4f4c4420424f4f4d204f4c44 (OLD BOOM OLD). Shell process0; stderr empty; actual info patchlevel reported before controls.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual selected shell; independent original header/Makefile/source-owner digests retained. Linked library digest and configure/compiler histories are unrecorded.. Channel: ASCII file bytes passed to shell stdin. Dialect: Tcl.
-
-LINKED caught completion0/result hex424f4f4d20424f4f4d (BOOM BOOM); PLAIN 0/424f4f4d (BOOM); SEPARATE_RESULT 0/4f4c4420424f4f4d204f4c44 (OLD BOOM OLD). Shell process0; stderr empty; actual info patchlevel reported before controls.
-
-### jim
-
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual selected shell; independent original header/Makefile/source-owner digests retained. Linked library digest and configure/compiler histories are unrecorded.. Channel: ASCII file bytes passed to shell stdin. Dialect: Jim Tcl.
+Status: `observed`. Channel: ASCII file bytes passed to shell stdin. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim 0.84-9-g5bac7c9.
 
 LINKED caught completion0/result hex424f4f4d20424f4f4d (BOOM BOOM); PLAIN 0/424f4f4d (BOOM); SEPARATE_RESULT 0/4f4c4420424f4f4d204f4c44 (OLD BOOM OLD). Shell process0; stderr empty; actual info patchlevel reported before controls.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `exact-source` (input): [rust/tcl-vm/tests/data/native_catch_formal_alias/cases.tcl](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/cases.tcl). Exact 733-byte ASCII source supplied to every original shell stdin; SHA is checked separately in each original provider receipt.
-- `aggregate` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/receipt.json](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/receipt.json). Exact original six-provider capture array including actual patchlevel, input/build associations, process exits and reached result rows.
-- `original-capture-helper` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/capture.py](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/capture.py). Exact original capture helper; recorded absolute provider roots are retained as metadata and are not portable replay defaults.
-- `maintained-replay` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/replay.py](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/replay.py). Portable root-parameterized required-input verifier and exact process/status/stdout/stderr comparator; verification alone does not launch native code.
-- `tcl8.4-receipt` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20/receipt.json). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.4-stdout` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20/stdout](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20/stdout). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20/stderr). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.5-receipt` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19/receipt.json). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.5-stdout` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19/stdout](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19/stdout). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19/stderr). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.6-receipt` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18/receipt.json). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.6-stdout` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18/stdout](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18/stdout). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18/stderr). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl9.0-receipt` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4/receipt.json). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl9.0-stdout` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4/stdout](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4/stdout). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4/stderr). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl9.1-receipt` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0/receipt.json). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl9.1-stdout` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0/stdout](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0/stdout). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0/stderr). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `jim-receipt` (provider): [rust/tcl-vm/tests/data/native_catch_formal_alias/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/jim/receipt.json). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `jim-stdout` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/jim/stdout](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/jim/stdout). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-- `jim-stderr` (observation): [rust/tcl-vm/tests/data/native_catch_formal_alias/jim/stderr](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/jim/stderr). Exact original provider receipt or stream; caught guest result codes are distinct from shell process status.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -98,23 +39,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/command/native_catch_formal_alias_tests.rs](../../../../rust/tcl-vm/src/command/native_catch_formal_alias_tests.rs), `command::native_catch_formal_alias_tests::caught_callback_result_follows_replaced_formal_alias_native_controls` (linked): Evaluate the exact retained ASCII source bytes under six independently selected VM core fixtures and compare all three caught result rows against matching original shell stdout. VM reported-version presentation is excluded from this semantic comparison.
 - [rust/tcl-compiler/src/analyser/scope.rs](../../../../rust/tcl-compiler/src/analyser/scope.rs), `analyser::scope::tests::caught_caller_rebinding_cannot_retain_the_original_formal_symbol` (linked): Withdraw source formal identity after exact caller unset/upvar rebinding and incomplete rename coverage, independently of the native caught result rows.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-vm/tests/data/native_catch_formal_alias/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "<exact-built-jim-root>",
-  "--output",
-  "<new-replay-output>"
-]
-```
-
-Run from repository root with the exact retained shell/header/Makefile/source-owner hashes and C library directories. Full replay launches six native shell processes and compares process status and both complete streams, including actual patchlevel. --verify-only checks required inputs without executing native or Rust code. Rust comparison selectors are separate and have no execution claim in this record.
+- [rust/tcl-vm/tests/data](../../../../rust/tcl-vm/tests/data)
+- [rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.4.20)
+- [rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.5.19)
+- [rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/8.6.18)
+- [rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.0.4)
+- [rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/9.1.0)
+- [rust/tcl-vm/tests/data/native_catch_formal_alias/jim](../../../../rust/tcl-vm/tests/data/native_catch_formal_alias/jim)

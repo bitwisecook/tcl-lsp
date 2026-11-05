@@ -20,61 +20,11 @@ Marked software controls define original Module/selected-invocation source owner
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No external provider execution answers this source/API contract. Selected lexical and Logical IR fixtures supply no Native frame, activation, installed header, executable admission or editing equivalence.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No external provider execution answers this source/API contract. Selected lexical and Logical IR fixtures supply no Native frame, activation, installed header, executable admission or editing equivalence.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No external provider execution answers this source/API contract. Selected lexical and Logical IR fixtures supply no Native frame, activation, installed header, executable admission or editing equivalence.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No external provider execution answers this source/API contract. Selected lexical and Logical IR fixtures supply no Native frame, activation, installed header, executable admission or editing equivalence.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No external provider execution answers this source/API contract. Selected lexical and Logical IR fixtures supply no Native frame, activation, installed header, executable admission or editing equivalence.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No external provider execution answers this source/API contract. Selected lexical and Logical IR fixtures supply no Native frame, activation, installed header, executable admission or editing equivalence.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: f5-bigip.
-
-No external provider execution answers this source/API contract. Selected lexical and Logical IR fixtures supply no Native frame, activation, installed header, executable admission or editing equivalence.
-
-## Historical references
-
-- `inlining-lexer-allocation-geometry-20261103` (observation): [Scoped lexer geometry receipt](rust-validation/lexer-geometry-20261103/receipt.json). One exact current-owned lexer borrowed-allocation geometry control, in a shared scoped receipt. No compiler inlining, Native provider or whole-proof result follows.
-
-- `naming-inlining-original-frame-source-context-rust-tcl-compiler-src-inlining-frame.rs` (implementation): [rust/tcl-compiler/src/inlining/frame.rs](../../../../rust/tcl-compiler/src/inlining/frame.rs). Current original source/geometry owner or authored software control; no executed assertion or external Native provider result.
-- `naming-inlining-original-frame-source-context-rust-tcl-compiler-src-inlining-mod.rs` (implementation): [rust/tcl-compiler/src/inlining/mod.rs](../../../../rust/tcl-compiler/src/inlining/mod.rs). Current original source/geometry owner or authored software control; no executed assertion or external Native provider result.
-- `naming-inlining-original-frame-source-context-rust-tcl-compiler-src-inlining-rename.rs` (implementation): [rust/tcl-compiler/src/inlining/rename.rs](../../../../rust/tcl-compiler/src/inlining/rename.rs). Current original source/geometry owner or authored software control; no executed assertion or external Native provider result.
-- `naming-inlining-original-frame-source-context-rust-tcl-compiler-src-inlining-tests.rs` (implementation): [rust/tcl-compiler/src/inlining/tests.rs](../../../../rust/tcl-compiler/src/inlining/tests.rs). Current original source/geometry owner or authored software control; no executed assertion or external Native provider result.
-- `naming-inlining-original-frame-source-context-rust-tcl-lexer-src-word_parts.rs` (implementation): [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs). Current original lexical source/geometry owner. This source entry supplies no execution or external Native result; the separate receipt reports only the named lexer allocation control.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -102,8 +52,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/inlining/heads.rs](../../../../rust/tcl-compiler/src/inlining/heads.rs), `inlining::heads::tests::original_head_namespace_scan_keeps_selected_word_and_index_grammar` (linked): Selected whole-word/index grammar distinguishes escaped brackets and literal combined indices from authentic nested substitutions, C8/C9 brace closure, Unicode scalars and Jim expression sugar; malformed or unavailable decomposition conservatively refuses head rewriting.
 - [rust/tcl-compiler/src/inlining/frame.rs](../../../../rust/tcl-compiler/src/inlining/frame.rs), `inlining::frame::tests::original_frame_context_declines_modified_procedure_headers_and_bodies` (linked): The shared Lowerer-retained procedure signature authenticates exact name/formals/body coordinates/source/direct statement inventory. Altering any header/body axis refuses bound-read eligibility; matching original source still supplies no Native frame or edit permission.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named lexer allocation-geometry control passed in the separately retained scoped software receipt; other named controls remain source/API coverage bindings without execution claims. Existing Native expression/formal observations and Rust build/test receipts retain their independent scopes.
+- [rust/tcl-compiler/src/inlining/frame.rs](../../../../rust/tcl-compiler/src/inlining/frame.rs)
+- [rust/tcl-compiler/src/inlining/mod.rs](../../../../rust/tcl-compiler/src/inlining/mod.rs)
+- [rust/tcl-compiler/src/inlining/rename.rs](../../../../rust/tcl-compiler/src/inlining/rename.rs)
+- [rust/tcl-compiler/src/inlining/tests.rs](../../../../rust/tcl-compiler/src/inlining/tests.rs)
+- [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs)

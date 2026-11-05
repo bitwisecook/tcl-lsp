@@ -20,56 +20,11 @@ One fixed Runtime source/API control uses an explicit authored host worker in a 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-interpreter-original-child-host-refusal-transport-native_children.rs` (implementation): [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-interpreter-original-child-host-refusal-transport-native_compilation.rs` (implementation): [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +42,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::completion_capture_tests::original_child_completion_capture_keeps_guest_handles_and_custom_code` (linked): The actual C8.6 child operation enters original List evaluation and checked capture through its retained child Scope. A custom Guest code7 keeps original result handles unrendered, performs no metadata getter and consumes the single added owning parent handle exactly once. Actual entered ledgers balance; the separately selected Jim String-copy path and external completion observations are not asserted.
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::completion_capture_tests::original_child_completion_capture_transports_reached_metadata_host_and_aba` (linked): Two genuine checked child captures reach an original extension metadata getter: first Host refusal and child package-context change then restore. Actual child Scope currency preserves reached String and private errorInfo ownership effects, the exact first Host cause in parent and child, the prior parent binary result and balanced ledgers. Temporary owning handles retire once; neither external provider chronology nor C/Jim capture equivalence is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs)
+- [runtime/rust/src/interp/native_compilation.rs](../../../../runtime/rust/src/interp/native_compilation.rs)

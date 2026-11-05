@@ -22,65 +22,45 @@ Both selected C9 helpers return the original subject for an unshared equal-size 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.. Channel: Fresh direct TclStringReplace call with literal parsed first/count. Subject/replacement have one genuine reference; case1 adds one subject reference. Flags come from selected tclInt.h. No EvalObjv, index parse or interpreter-result publication is performed.. Dialect: tcl9.0.
+Status: `observed`. Channel: Fresh direct TclStringReplace call with literal parsed first/count. Subject/replacement have one genuine reference; case1 adds one subject reference. Flags come from selected tclInt.h. No EvalObjv, index parse or interpreter-result publication is performed. Version: tcl9.0 9.0.4.
 
 With the actual in-place flag, the unshared equal-size splice returns the exact subject; an extra subject reference returns a fresh zero-reference result. Flags0 also returns a fresh result. Whole replacement returns the original replacement. Whole deletion returns a fresh empty ByteArray. Resident subject/replacement String bytes preserve ByteArray eligibility and the unshared in-place role. Partial deletion reaches a fresh ByteArray with unspecified leading payload: the recorded result String is c080c080415a, whose leading bytes are not a deterministic constructor guarantee.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.. Channel: Fresh direct TclStringReplace call with literal parsed first/count. Subject/replacement have one genuine reference; case1 adds one subject reference. Flags come from selected tclInt.h. No EvalObjv, index parse or interpreter-result publication is performed.. Dialect: tcl9.1.
+Status: `observed`. Channel: Fresh direct TclStringReplace call with literal parsed first/count. Subject/replacement have one genuine reference; case1 adds one subject reference. Flags come from selected tclInt.h. No EvalObjv, index parse or interpreter-result publication is performed. Version: tcl9.1 9.1.0.
 
 With the actual in-place flag, the unshared equal-size splice returns the exact subject; an extra subject reference returns a fresh zero-reference result. Flags0 also returns a fresh result. Whole replacement returns the original replacement. Whole deletion returns a fresh empty ByteArray. Resident subject/replacement String bytes preserve ByteArray eligibility and the unshared in-place role. Partial deletion reaches a fresh ByteArray with unspecified leading payload: the recorded result String is 40c289415a, whose leading bytes are not a deterministic constructor guarantee.
 
 ### jim
 
-Status: `not-tested`. Version: not tested. Build: No genuine native ByteArray producer is available in the selected Jim object model.. Channel: No substitution of an ordinary Jim String for a C ByteArray input.. Dialect: jim.
+Status: `not-tested`. Channel: No substitution of an ordinary Jim String for a C ByteArray input.
 
 The C ByteArray question does not establish a Jim binary-object protocol. Independent ordinary String replacement evidence has its own record.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No appliance original-header driver capture.. Channel: No BIG-IP ByteArray input process.. Dialect: F5 iRules.
+Status: `not-tested`. Channel: No BIG-IP ByteArray input process.
 
 Measured C object results do not establish an appliance/TMM protocol.
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested. Build: The direct parsed-range helper question is restricted to selected C9 libraries.. Channel: No direct helper process requested for 8.4.20.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: No direct helper process requested for 8.4.20.
 
 This direct C9 helper capture does not establish tcl8.4 behavior. Indexed original ByteArray command evidence has its own record.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested. Build: The direct parsed-range helper question is restricted to selected C9 libraries.. Channel: No direct helper process requested for 8.5.19.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: No direct helper process requested for 8.5.19.
 
 This direct C9 helper capture does not establish tcl8.5 behavior. Indexed original ByteArray command evidence has its own record.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested. Build: The direct parsed-range helper question is restricted to selected C9 libraries.. Channel: No direct helper process requested for 8.6.18.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: No direct helper process requested for 8.6.18.
 
 This direct C9 helper capture does not establish tcl8.6 behavior. Indexed original ByteArray command evidence has its own record.
-
-## Historical references
-
-- `original-counted-probe` (input): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/probe.c](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/probe.c). Actual direct parsed-index helper, original ByteArray constructors, one or two explicit subject references, header-issued flags and snapshots before result materialisation.
-- `original-request` (input): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/request.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/request.json). Question and input requirements; no expected output is supplied.
-- `actual-case-projection` (observation): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/interpretation.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/interpretation.json). All16 raw stream projections; process completion and command completion remain separate.
-- `exact-input-map` (provider): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/pinned-input-map.json). All original selected compiler/library/source/header/CLI/input pins and content-addressed archive join.
-- `exact-input-bytes` (provider): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/pinned-input-bytes.tar.gz). Whole retained original inputs, independently hash-verified after decompression; system toolchain/load closure remains outside the recorded scope.
-- `exact-source-windows` (source-anchor): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json). Actual selected command/helper/setter source explains C8 Unicode conversion, C9 result identity and unspecified partial-deletion prefix.
-- `all-original-retention` (provider): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/retention.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/retention.json). Original receipts, raw streams and executable images retained without truncation.
-- `tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/receipt.json). Actual original selected compile/link recipe, CLI version, input pins and fresh case processes.
-- `tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/receipt.json). Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged.
-- `tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stdout). Direct selected-library version query and patchlevel output.
-- `tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/receipt.json). Actual original selected compile/link recipe, CLI version, input pins and fresh case processes.
-- `tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/receipt.json). Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged.
-- `tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stdout). Direct selected-library version query and patchlevel output.
-- `exact-source-snippet-0` (source-anchor): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json). JSON pointer `/anchors/0/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-1` (source-anchor): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json). JSON pointer `/anchors/1/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-2` (source-anchor): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json). JSON pointer `/anchors/2/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-3` (source-anchor): [runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/source-windows.json). JSON pointer `/anchors/3/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
 
 ## Source inspection
 
@@ -394,7 +374,6 @@ Tcl_SetByteArrayObj(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_direct_c9_binary_replacement_matches_deterministic_native_roles` (linked): Software source definition checks direct c9 binary replacement matches deterministic native roles.
@@ -402,8 +381,8 @@ Tcl_SetByteArrayObj(
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_direct_c9_binary_replacement_matches_deterministic_native_roles` (linked): Software source definition checks direct c9 binary replacement matches deterministic native roles.
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `omitted_zero_count_without_in_place_uses_original_duplicate_constructor` (linked): Software source definition checks omitted zero count without in place uses original duplicate constructor.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Retain the exact direct helper source and eight cases. Headers supply the actual prototype and in-place flag. Each provider receipt records compile/link/launch/environment and selected input hashes; verify them or treat rebuilt artifacts as a new experiment. Keep partial-deletion leading bytes observational and distinguish these parsed-range/helper roles from indexed EvalObjv.
+- [runtime/rust/tests/data/native_original_direct_binary_replacement634a/probe.c](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/probe.c)
+- [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.0.4/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_direct_binary_replacement634a/9.1.0/same-library-version/execute.stdout)

@@ -20,57 +20,11 @@ Positioned Native declaration advice and independently selected Native/Logical a
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No native process receipt for this source-only document/workspace declaration implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No native process receipt for this source-only document/workspace declaration implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No native process receipt for this source-only document/workspace declaration implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No native process receipt for this source-only document/workspace declaration implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No native process receipt for this source-only document/workspace declaration implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native process receipt for this source-only document/workspace declaration implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native process receipt for this source-only document/workspace declaration implementation question.
-
-## Historical references
-
-- `original-compiler-purpose-2dbda1a4b26a` (implementation): [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs). Authored source name geometry retains valid Unicode components and candidate order and refuses unmodelled source units. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider.
-
-- `syntax-source-naming-fixed-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-source-naming-20261103/receipt.json). Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -144,20 +98,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs), `naming::authored_source::tests::original_authored_unicode_scope_keeps_raw_components_and_canonical_colons` (linked): Authored source accepts valid UTF8/no literal-zero components and retains exact bytes plus the shared colon-qualified geometry. It is a Logical naming projection, independently unavailable as Native or Normal execution authority.
 - [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs), `naming::authored_source::tests::original_authored_unicode_scope_refuses_invalid_written_and_retained_units` (linked): Invalid UTF8, raw zero and invalid retained namespace units refuse the authored source slot projection. Display spelling and valid neighbouring components cannot donate actual Native naming, entered scope or command authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-compiler",
-  "original_declared_words_"
-]
-```
-
-The separately retained Syntax receipt records four authored-name helper controls only; Compiler/Core consumer execution and all seven Native provider answers remain independent.
+- [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs)

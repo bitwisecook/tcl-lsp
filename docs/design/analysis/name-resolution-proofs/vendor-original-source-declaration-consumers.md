@@ -20,55 +20,11 @@ Rust direct hosted source declaration assistance under actual independently sele
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -93,9 +49,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs), `document_symbols::original::tests::original_vendor_outline_keeps_source_cards_after_reporting_maps_are_erased` (linked): Hosted procedure/event outline cards retain genuine source extents and readable unavailable spelling despite erased reports, while displaced complete source yields no semantic outline.
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::tests::original_vendor_token_roles_require_supported_header_units_and_current_source` (linked): Only supported genuine hosted procedure/event header units select syntax roles; unknown opaque units remain owned without invented roles, and stale complete source withdraws the role inventory.
 - [rust/tcl-lsp-core/src/workspace_symbols.rs](../../../../rust/tcl-lsp-core/src/workspace_symbols.rs), `workspace_symbols::tests::original_vendor_workspace_headers_retain_unknown_units_and_source_currency` (linked): Supported and unavailable hosted headers remain readable source cards after report removal; their retained owner validates actual source and selected context and refuses changed source or foreign hosted dialect.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors exercise source-header ownership, readable unavailable cards and current-source refusals. No Rust execution receipt or native appliance observation is attached. Call lookup, runtime storage, generated command availability and edits retain independent authorities.

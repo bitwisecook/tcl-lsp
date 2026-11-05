@@ -22,73 +22,45 @@ Finite IR ClassRelation carrier, the two enclosing Lowerer extraction ports and 
 
 ### tcl8.4
 
-Status: `not-tested`. Version: External execution is inapplicable to this source-only MAY carrier contract.. Build: Current source interfaces and five fixed unexecuted software controls.. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts. Version: tcl8.4 External execution is inapplicable to this source-only MAY carrier contract.
 
 No external tcl8.4 execution is attached. This is a bounded software source-contract question, not a Native namespace, superclass validity, object table or TMM result. Independently scoped provider and software observations are unchanged.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: External execution is inapplicable to this source-only MAY carrier contract.. Build: Current source interfaces and five fixed unexecuted software controls.. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts. Version: tcl8.5 External execution is inapplicable to this source-only MAY carrier contract.
 
 No external tcl8.5 execution is attached. This is a bounded software source-contract question, not a Native namespace, superclass validity, object table or TMM result. Independently scoped provider and software observations are unchanged.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: External execution is inapplicable to this source-only MAY carrier contract.. Build: Current source interfaces and five fixed unexecuted software controls.. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts. Version: tcl8.6 External execution is inapplicable to this source-only MAY carrier contract.
 
 No external tcl8.6 execution is attached. This is a bounded software source-contract question, not a Native namespace, superclass validity, object table or TMM result. Independently scoped provider and software observations are unchanged.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: External execution is inapplicable to this source-only MAY carrier contract.. Build: Current source interfaces and five fixed unexecuted software controls.. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts. Version: tcl9.0 External execution is inapplicable to this source-only MAY carrier contract.
 
 No external tcl9.0 execution is attached. This is a bounded software source-contract question, not a Native namespace, superclass validity, object table or TMM result. Independently scoped provider and software observations are unchanged.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: External execution is inapplicable to this source-only MAY carrier contract.. Build: Current source interfaces and five fixed unexecuted software controls.. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts. Version: tcl9.1 External execution is inapplicable to this source-only MAY carrier contract.
 
 No external tcl9.1 execution is attached. This is a bounded software source-contract question, not a Native namespace, superclass validity, object table or TMM result. Independently scoped provider and software observations are unchanged.
 
 ### jim
 
-Status: `not-tested`. Version: External execution is inapplicable to this source-only MAY carrier contract.. Build: Current source interfaces and five fixed unexecuted software controls.. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts.. Dialect: jim.
+Status: `not-tested`. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts. Version: jim External execution is inapplicable to this source-only MAY carrier contract.
 
 No external jim execution is attached. This is a bounded software source-contract question, not a Native namespace, superclass validity, object table or TMM result. Independently scoped provider and software observations are unchanged.
 
 ### bigip
 
-Status: `not-tested`. Version: External execution is inapplicable to this source-only MAY carrier contract.. Build: Current source interfaces and five fixed unexecuted software controls.. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts.. Dialect: bigip.
+Status: `not-tested`. Channel: Original complete source vectors, retained Module/context/Registry, selected definition grammar and current source class allocation/dependency receipts. Version: bigip External execution is inapplicable to this source-only MAY carrier contract.
 
 No external bigip execution is attached. This is a bounded software source-contract question, not a Native namespace, superclass validity, object table or TMM result. Independently scoped provider and software observations are unchanged.
-
-## Historical references
-
-- `original-class-relation-source-0` (implementation): [rust/tcl-compiler/src/ir.rs](../../../../rust/tcl-compiler/src/ir.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-1` (implementation): [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-2` (implementation): [rust/tcl-compiler/src/optimiser/method_barrier.rs](../../../../rust/tcl-compiler/src/optimiser/method_barrier.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-3` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-4` (implementation): [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-5` (implementation): [rust/tcl-compiler/src/command_binding/deferred_method.rs](../../../../rust/tcl-compiler/src/command_binding/deferred_method.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-6` (implementation): [rust/tcl-compiler/src/command_binding/command_reference.rs](../../../../rust/tcl-compiler/src/command_binding/command_reference.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-7` (implementation): [rust/tcl-compiler/src/command_binding/original_class_configuration.rs](../../../../rust/tcl-compiler/src/command_binding/original_class_configuration.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-8` (implementation): [rust/tcl-compiler/src/command_binding/declaration_layout.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_layout.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-9` (implementation): [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-10` (implementation): [rust/tcl-compiler/src/command_binding/origin_inventory.rs](../../../../rust/tcl-compiler/src/command_binding/origin_inventory.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-11` (implementation): [rust/tcl-compiler/src/command_binding/namespace_slots.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_slots.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-12` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-13` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-14` (implementation): [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-15` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-16` (implementation): [rust/tcl-lexer/src/native_word.rs](../../../../rust/tcl-lexer/src/native_word.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-17` (implementation): [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-18` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-19` (implementation): [rust/tcl-compiler/src/optimiser/mod.rs](../../../../rust/tcl-compiler/src/optimiser/mod.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-- `original-class-relation-source-20` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current shared original source/context/selected descriptor and retained class allocation/dependency owner or actual production MAY consumer. Five fixed control definitions have no attached assertion or external provider execution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -103,8 +75,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/optimiser/method_barrier.rs](../../../../rust/tcl-compiler/src/optimiser/method_barrier.rs), `optimiser::method_barrier::original_relation_tests::original_class_relation_keeps_protected_literal_punctuation_as_source_data` (linked): An original braced superclass operand retains its protected $literal bytes and braced token kind. Lowering records its producer without a dollar-substring dynamic flag; the unavailable class remains unknown and the production barrier widens. This establishes source retention only, not a target class or executed substitution.
 - [rust/tcl-compiler/src/optimiser/method_barrier.rs](../../../../rust/tcl-compiler/src/optimiser/method_barrier.rs), `optimiser::method_barrier::original_relation_tests::original_configure_relation_joins_existing_class_allocation_separate_from_configuration_site` (linked): An actual separate oo::define command retains its canonical configured class operand and existing Derived Class allocation at the original point. Configuration and allocation sites have distinct offsets under the same original owner. The shared Configure effect withdraws the completed class dependency closure, so the relation query is unavailable and the production barrier widens. The before-operation target supplies neither post-configuration ancestry nor an entered method/provider result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Five fixed genuine software control definitions only. Root must separately bind its actual current image, feature/cfg door, discovered literal selectors and assertion receipts. No test, Native CLI or provider execution is attached.
+- [rust/tcl-compiler](../../../../rust/tcl-compiler)
+- [rust/tcl-compiler/src/lowering](../../../../rust/tcl-compiler/src/lowering)
+- [rust/tcl-compiler/src/optimiser](../../../../rust/tcl-compiler/src/optimiser)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler/src/registry_invocation](../../../../rust/tcl-compiler/src/registry_invocation)
+- [rust/tcl-registry/src](../../../../rust/tcl-registry/src)
+- [rust/tcl-lexer/src](../../../../rust/tcl-lexer/src)

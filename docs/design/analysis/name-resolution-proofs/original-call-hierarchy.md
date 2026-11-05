@@ -20,56 +20,11 @@ The graph supplies readonly source candidates, including independently owned mem
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). Current implementation source and fixed assertion bindings; no execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). Current implementation source and fixed assertion bindings; no execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,18 +36,15 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs), `original_call_hierarchy::tests::original_call_edges_keep_opaque_declarations_and_independent_source_owners` (linked): Separate opaque incoming edges, independent URI owners and missing/stale original lookups after reporting maps are cleared.
 - [rust/tcl-lsp-core/src/call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/call_hierarchy.rs), `call_hierarchy::tests::original_hierarchy_preparation_keeps_variable_cursors_and_method_declarations_separate` (linked): A variable named like a method supplies no hierarchy item; a genuine original method declaration retains its exact identity after class report maps are cleared, and stale whole source refuses.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named fixed Rust selectors are source coverage bindings. Their execution results are recorded separately; no native provider execution is asserted for this source contract.
-
-
 ## Primary authored declaration product
 
 A genuine Registry-described classmethod retains its ClassObject declaration and Instance forward as separate typed products sharing one written name. The existing original member owner exposes which product selects that authored declaration cursor. Declaration-only enumeration and method cursor selection use the primary product; the secondary forward remains available to independently selected call/reference lookup. This projection does not establish installation, receiver identity, body entry, runtime equivalence or editing authority. CALL labels render the independently retained class spelling and member label after identity selection; internal kind keys remain identity bookkeeping, not visible names.
 
-
 Conditional source caller lineage is distinct from entered procedure/receiver frames. Actual retained member bodies join the complete original member argv and selected body ordinal against current class/member allocations; no surrounding span creates a receiver. Original Native procedure source calls retain the existing graph-selected declaration at their real call horizon, original argv, held lineage, unknown mutations and enclosing original procedure body. They supply possible readonly source relations only, never runtime target selection, observer absence, completed call census or edit equivalence. Unsupported body phases, self-selector targets and unavailable source issuers remain partial. Fixed source controls are unexecuted.
 
 Original Native procedure-body command suggestions reborrow the existing retained body-children owner, exact original vectors, full input and source-analysis allocation. Inert braced data is not traversed as script. The unresolved-head adapter retains literal source head data and genuine declaration membership without inventing a qualified target or Logical candidate. It remains a positive partial inventory, including non-local built-in heads as before; it cannot prove unknown-body absence or physical dispatch.
+
+## Evidence
+
+- [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs)
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs)

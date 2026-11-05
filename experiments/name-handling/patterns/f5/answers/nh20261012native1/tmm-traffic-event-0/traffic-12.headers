@@ -1,6 +1,0 @@
-HTTP/1.0 200 OK
-X-NH-TMM: 0:0
-Server: BigIP
-Connection: Keep-Alive
-Content-Length: 37
-

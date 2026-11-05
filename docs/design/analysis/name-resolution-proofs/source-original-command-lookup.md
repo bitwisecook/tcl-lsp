@@ -20,51 +20,17 @@ Readonly original source lookup/declaration joins and modeled root command-world
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No provider execution for this source contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-No provider execution for this source contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No provider execution for this source contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No provider execution for this source contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No provider execution for this source contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+Status: `not-tested`.
 
 No provider execution for this source contract.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No appliance execution for this source contract.
-
-## Historical references
-
-No provider evidence or executed software test receipt is attached.
 
 ## Owner-resolution map
 
@@ -72,7 +38,3 @@ No provider evidence or executed software test receipt is attached.
 | --- | --- | --- |
 | Source lookup and declaration join | `invocation_targets_declaration_in` and `reference_matches_declaration` | Current original source carriers are required; no runtime dispatch or edit authority follows. |
 | Modeled completed command world | `original_completed_command_world` | Requires a retained completed Normal source state and withholds unavailable or unknown states. |
-
-## Replay
-
-Inspected source and linked control bodies only; no executable replay, test execution or provider execution is attached.

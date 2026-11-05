@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: tcl8.4.20. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.4.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl8.4 tcl8.4.20.
 
 Original captured control:
 
@@ -41,21 +41,15 @@ Original captured control:
 
 The numeric prefix in stdout is the guest catch outcome, independent of the process status. The hex suffix is the original result encoding, not a physical header receipt.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.6.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
 
 ### tcl9.0
 
-Status: `observed`. Version: tcl9.0.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.0.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: tcl9.0 tcl9.0.4.
 
 Original captured control:
 
@@ -74,40 +68,10 @@ Original captured control:
 
 The numeric prefix in stdout is the guest catch outcome, independent of the process status. The hex suffix is the original result encoding, not a physical header receipt.
 
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.1.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: jim.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `exact-tcl8.4` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). JSON pointer `/7`. Exact original program and caught result/native process streams.
-- `exact-tcl9.0` (observation): [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json). JSON pointer `/25`. Exact original program and caught result/native process streams.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted. The original JSON retains the exact inner source string and caught output. The complete output wrapper is unavailable. This record answers only the retained inner-command/result question and cannot claim an exact whole-input replay.
+- [rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json](../../../../rust/tcl-vm/tests/data/authored_package_runtime/native-controls.json)

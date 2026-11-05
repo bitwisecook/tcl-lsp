@@ -20,55 +20,11 @@ Root source and positively retained Logical body parents under their actual immu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This original produced-prefix source receipt has no native interpreter observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This original produced-prefix source receipt has no native interpreter observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This original produced-prefix source receipt has no native interpreter observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This original produced-prefix source receipt has no native interpreter observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This original produced-prefix source receipt has no native interpreter observation.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This original produced-prefix source receipt has no native interpreter observation.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This original produced-prefix source receipt has no native interpreter observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -100,9 +56,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs), `command_binding::source_transition_advice::produced_prefix::tests::logical_produced_prefix_retains_consensus_roles_without_an_entered_frame` (linked): Positive Logical original produced prefix retains consensus selected argument roles without Native entered-frame/normal execution receipt.
 - [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `analyser::commands::original_nested_source_tests::pending_constructor_heads_preserve_real_variable_and_selector_geometry` (linked): Genuine pending constructor head advice follows exact original variable and selector geometry rather than decoded reporting labels.
 - [rust/tcl-compiler/src/script_arg.rs](../../../../rust/tcl-compiler/src/script_arg.rs), `script_arg::tests::original_list_builder_projection_preserves_selected_producers_and_refuses_shadows` (linked): Genuine moved/selected list builder preserves original producing spans; shadows, missing original ownership and unrelated dynamic source refuse. Syntax does not claim entered script or substituted argv.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Six marked Rust source-ownership selectors bind finite producer/geometry controls. Their executed outcomes require independently retained exact-source receipts. This contract supplies no native invocation, successful future body, prefix object/cache, frame or compilation authority.

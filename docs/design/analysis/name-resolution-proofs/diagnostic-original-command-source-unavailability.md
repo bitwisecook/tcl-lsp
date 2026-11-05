@@ -20,55 +20,11 @@ Excluded Registry metadata comes from the exact resolved context and actual stor
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original source-unavailability metadata and transport contract has no native provider execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original source-unavailability metadata and transport contract has no native provider execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original source-unavailability metadata and transport contract has no native provider execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original source-unavailability metadata and transport contract has no native provider execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original source-unavailability metadata and transport contract has no native provider execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original source-unavailability metadata and transport contract has no native provider execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original source-unavailability metadata and transport contract has no native provider execution receipt.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -92,9 +48,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/registry_invocation/source_availability.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_availability.rs), `registry_invocation::source_availability::tests::unavailable_hosted_literal_retains_source_policy_and_separate_loader_metadata` (linked): Actual hosted rename retains loader refusal and hosted source policy independently of runtime lookup; nested original event ancestry remains owned and another hosted context cannot borrow it.
 - [rust/tcl-compiler/src/registry_invocation/source_availability.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_availability.rs), `registry_invocation::source_availability::tests::unavailable_logical_source_requires_its_complete_positive_domain` (linked): A positively retained complete Logical input selects its actual older Registry context independently of report label; unknown source domains refuse.
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject::tests::unavailable_command_transport_retains_the_original_purpose_without_messages` (linked): Native W002 and hosted IRULE2004 transport original command/classification/domain/source channel after changing messages and report maps; incompatible purpose/code or malformed payload cannot recreate authority.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The six body-marked Rust selectors bind implementation coverage. Executed outcomes require independent exact-source receipts. This metadata question supplies no native provider observation, handler selection, runtime command absence, frame entry or edit authority.

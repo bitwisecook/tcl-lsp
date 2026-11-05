@@ -20,55 +20,11 @@ Four annotated Rust source test definitions across Registry grammar selection, t
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This implementation question has no external provider execution receipt. Rust fixture selection and test definitions establish software coverage obligations only.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-cmd-core/src/binary.rs](../../../../rust/tcl-cmd-core/src/binary.rs), `original_scan_refused_emission_stops_before_next_field` (linked): The first assignment refusal stops scanning after one emission without reaching the later bad-field callback.
 - [rust/tcl-registry/src/native_binary_value.rs](../../../../rust/tcl-registry/src/native_binary_value.rs), `original_binary_grammar_distinguishes_literal_and_modified_zero_units` (linked): Selected software release grammars truncate literal zero, retain modified-zero format bytes and preserve C/Jim diagnostic and error-code policy differences.
 - [rust/tcl-vm/src/cmd_binary.rs](../../../../rust/tcl-vm/src/cmd_binary.rs), `original_binary_counted_formats_keep_literal_zero_extent_and_reached_scan_assignment` (linked): Software VM format/scan controls retain counted input storage, reached A assignment before modified-zero field rejection, selected error-code policy and unchanged original reference count.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors require a coherent built workspace and independently captured execution receipt before any PASS claim. No native replay or external provider observation is attached to this implementation record.

@@ -26,59 +26,11 @@ A descriptor written after an unknown call can itself have only conditional sour
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-## Historical references
-
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.core.original-registry-source-hover`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `receiver-selected-source598-cb1b017a5778eb18` (implementation): [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-27ebccec767ad829` (implementation): [rust/tcl-lsp-core/src/hover/original_registry.rs](../../../../rust/tcl-lsp-core/src/hover/original_registry.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-- `receiver-selected-source598-fcc49de305f18e82` (implementation): [rust/tcl-registry/src/profiles.rs](../../../../rust/tcl-registry/src/profiles.rs). Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -118,8 +70,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs), `hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability` (linked): A genuine shared insertion selects the authored auto_path card over shipped documentation; withdrawal cannot be bypassed by an optional registry hint. Selected C84 versus C91 tcl_platform card independently controls pointerSize documentation, with no installed variable cell implied.
 - [rust/tcl-lsp-core/src/hover/original_registry.rs](../../../../rust/tcl-lsp-core/src/hover/original_registry.rs), `hover::original_registry::tests::original_registry_profile_hover_uses_selected_descriptor_and_complete_input` (linked): The actual public hover route uses retained complete F5 analysis input and the already-selected command descriptor to display namespace profile requirements. Changed input, foreign Tcl input and inert data refuse the source card; no event, handler or Native lookup authority is supplied. Source definition only; no matched owned assertion outcome or new external-provider observation is attached.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `logical_root_source_reference`: Private typed source-documentation factory joins the selected current occurrence's original root spans and actual root slot to the same Logical scope's root coordinate and selected Registry availability. Removed or conflicting occurrences, local/non-root/unknown coordinates, declarations, inert data and array-index cursors cannot supply this disposition. Its navigation projections are empty and its generic hover projection is absent.
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `variable_symbol::tests::logical_root_registry_documentation_supplies_no_navigation_identity` (linked): A selected current root special-variable source card supplies neither declaration targets nor a reference set or generic variable identity. This is an authored software control, not an executed result.
 
@@ -127,6 +77,8 @@ A named test is a coverage binding, not a claim that it executed.
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `variable_symbol::tests::native_root_registry_documentation_requires_the_original_read_context` (linked): Current global and explicitly rooted source references are separated from local/non-root/unknown-caller and removed-occurrence cases. This is an authored software control, not an execution result.
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `variable_symbol::tests::native_root_source_documentation_withholds_a_mixed_original_read_frame` (linked): The same original read evaluated from global and local frames cannot obtain unqualified root documentation through the joined compatibility context. This is an authored software control; it establishes no Native/provider execution result.
 
-## Replay
+## Evidence
 
-No Rust execution receipt is attached to this implementation contract. Tests are authored bindings only; physical interpreter observations remain separate.
+- [rust/tcl-lsp-core/src/hover.rs](../../../../rust/tcl-lsp-core/src/hover.rs)
+- [rust/tcl-lsp-core/src/hover/original_registry.rs](../../../../rust/tcl-lsp-core/src/hover/original_registry.rs)
+- [rust/tcl-registry/src/profiles.rs](../../../../rust/tcl-registry/src/profiles.rs)

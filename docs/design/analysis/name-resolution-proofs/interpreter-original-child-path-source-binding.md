@@ -20,55 +20,11 @@ Bounded root C source contexts with one genuine named child cell. Missing path p
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This conditional source binding contract supplies no native interpreter allocation, successful operation, body entry or normal completion observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This conditional source binding contract supplies no native interpreter allocation, successful operation, body entry or normal completion observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This conditional source binding contract supplies no native interpreter allocation, successful operation, body entry or normal completion observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This conditional source binding contract supplies no native interpreter allocation, successful operation, body entry or normal completion observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This conditional source binding contract supplies no native interpreter allocation, successful operation, body entry or normal completion observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This conditional source binding contract supplies no native interpreter allocation, successful operation, body entry or normal completion observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This conditional source binding contract supplies no native interpreter allocation, successful operation, body entry or normal completion observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,9 +33,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/realm/source_transition_advice.rs](../../../../rust/tcl-compiler/src/realm/source_transition_advice.rs), `CommandBindingRealm::original_source_interpreter_path_binding`: Expose the same sealed path binding only for the full original input and current operation vector.
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `Analyser::original_interp_state_key`: Join conditional source visibility by exact original creation rather than parent-command reporting spelling; tainted or ambiguous states refuse.
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_child_path_visibility_survives_parent_command_moves` (linked): C8.4–9.1 source controls retain hidden source targets through one move, two moves and a namespace-qualified parent move. Expose, delete and unknown-operation controls do not borrow hidden-source advice. These are conditional source edges, separate from the native move captures.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked source assertions require their own exact Rust source/executable receipts. Native parent movement remains the separate original-created-parent-command-move question; no observed allocation, successful transition, runtime entry or current-source parity is inferred.

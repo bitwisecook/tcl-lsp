@@ -22,7 +22,7 @@ One complete fixed ASCII script in a fresh native shell process, with recorded s
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Channel: Fixed ASCII script-file argument in a fresh native shell process. Version: tcl8.4 8.4.20.
 
 The observed stdout is:
 
@@ -35,7 +35,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Channel: Fixed ASCII script-file argument in a fresh native shell process. Version: tcl8.5 8.5.19.
 
 The observed stdout is:
 
@@ -48,7 +48,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Channel: Fixed ASCII script-file argument in a fresh native shell process. Version: tcl8.6 8.6.18.
 
 The observed stdout is:
 
@@ -61,7 +61,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Channel: Fixed ASCII script-file argument in a fresh native shell process. Version: tcl9.0 9.0.4.
 
 The observed stdout is:
 
@@ -74,7 +74,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: C Tcl.
+Status: `observed`. Channel: Fixed ASCII script-file argument in a fresh native shell process. Version: tcl9.1 9.1.0.
 
 The observed stdout is:
 
@@ -87,7 +87,7 @@ Process status 0 and empty stderr. RESULT records catch code 0, returned version
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Selected executable; compiler, linked library/header digests and configure flags are unrecorded.. Channel: Fixed ASCII script-file argument in a fresh native shell process. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: Fixed ASCII script-file argument in a fresh native shell process. Version: jim 0.84-9-g5bac7c9.
 
 The observed stdout is:
 
@@ -106,53 +106,21 @@ Traceback (most recent call last):
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No observation for this exact question.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_package_future_frame/probe.tcl](../../../../rust/tcl-registry/tests/data/native_package_future_frame/probe.tcl). Exact complete original ASCII source program.
-- `capture` (provider): [rust/tcl-registry/tests/data/native_package_future_frame/receipt.json](../../../../rust/tcl-registry/tests/data/native_package_future_frame/receipt.json). Original capture association, executable/source/stream digests and process statuses for all six selected processes.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_package_future_frame/84/receipt.json](../../../../rust/tcl-registry/tests/data/native_package_future_frame/84/receipt.json). Exact selected process argument vector, digests and process status.
-- `tcl8.4-stdout` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/84/stdout](../../../../rust/tcl-registry/tests/data/native_package_future_frame/84/stdout). Exact complete process stdout bytes.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/84/stderr](../../../../rust/tcl-registry/tests/data/native_package_future_frame/84/stderr). Exact complete process stderr bytes.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_package_future_frame/85/receipt.json](../../../../rust/tcl-registry/tests/data/native_package_future_frame/85/receipt.json). Exact selected process argument vector, digests and process status.
-- `tcl8.5-stdout` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/85/stdout](../../../../rust/tcl-registry/tests/data/native_package_future_frame/85/stdout). Exact complete process stdout bytes.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/85/stderr](../../../../rust/tcl-registry/tests/data/native_package_future_frame/85/stderr). Exact complete process stderr bytes.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_package_future_frame/86/receipt.json](../../../../rust/tcl-registry/tests/data/native_package_future_frame/86/receipt.json). Exact selected process argument vector, digests and process status.
-- `tcl8.6-stdout` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/86/stdout](../../../../rust/tcl-registry/tests/data/native_package_future_frame/86/stdout). Exact complete process stdout bytes.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/86/stderr](../../../../rust/tcl-registry/tests/data/native_package_future_frame/86/stderr). Exact complete process stderr bytes.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_package_future_frame/90/receipt.json](../../../../rust/tcl-registry/tests/data/native_package_future_frame/90/receipt.json). Exact selected process argument vector, digests and process status.
-- `tcl9.0-stdout` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/90/stdout](../../../../rust/tcl-registry/tests/data/native_package_future_frame/90/stdout). Exact complete process stdout bytes.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/90/stderr](../../../../rust/tcl-registry/tests/data/native_package_future_frame/90/stderr). Exact complete process stderr bytes.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_package_future_frame/91/receipt.json](../../../../rust/tcl-registry/tests/data/native_package_future_frame/91/receipt.json). Exact selected process argument vector, digests and process status.
-- `tcl9.1-stdout` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/91/stdout](../../../../rust/tcl-registry/tests/data/native_package_future_frame/91/stdout). Exact complete process stdout bytes.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/91/stderr](../../../../rust/tcl-registry/tests/data/native_package_future_frame/91/stderr). Exact complete process stderr bytes.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_package_future_frame/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_package_future_frame/jim/receipt.json). Exact selected process argument vector, digests and process status.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/jim/stdout](../../../../rust/tcl-registry/tests/data/native_package_future_frame/jim/stdout). Exact complete process stdout bytes.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_package_future_frame/jim/stderr](../../../../rust/tcl-registry/tests/data/native_package_future_frame/jim/stderr). Exact complete process stderr bytes.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/body_execution.rs](../../../../rust/tcl-registry/src/body_execution.rs), `body_execution::tests::deferred_global_entry_keeps_the_authored_native_family` (linked): Authored C-only deferred frame data covers C8.4–9.1 and refuses Jim and hosted profiles; it does not execute the retained native frame probe.
 - [rust/tcl-registry/src/commands/tcl/package_.rs](../../../../rust/tcl-registry/src/commands/tcl/package_.rs), `commands::tcl::package_::tests::jim_package_inventory_keeps_hidden_list_and_excludes_ifneeded` (linked): Genuine Jim-point catalogue contains no ifneeded row; no entered Jim callback frame or appliance behaviour is asserted.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "/workspace/.proofs/oracle-bin/tclsh8.4",
-  "/workspace/.proofs/captured-package-future-frame121/probe.tcl"
-]
-```
-
-The recorded original paths are capture-machine locations; the identical retained source is available in rust/tcl-registry/tests/data/native_package_future_frame/probe.tcl. Replay each separately verified provider executable in a fresh process and record its actual patchlevel and all streams. Executable digests are recorded, while linked library/header digests, compiler flags and build configuration are not. This CLI script observation supplies no counted object-vector, physical native header or compilation-admission receipt. No BIG-IP execution is attached.
+- [rust/tcl-registry/tests/data/native_package_future_frame](../../../../rust/tcl-registry/tests/data/native_package_future_frame)
+- [rust/tcl-registry/tests/data/native_package_future_frame/84](../../../../rust/tcl-registry/tests/data/native_package_future_frame/84)
+- [rust/tcl-registry/tests/data/native_package_future_frame/85](../../../../rust/tcl-registry/tests/data/native_package_future_frame/85)
+- [rust/tcl-registry/tests/data/native_package_future_frame/86](../../../../rust/tcl-registry/tests/data/native_package_future_frame/86)
+- [rust/tcl-registry/tests/data/native_package_future_frame/90](../../../../rust/tcl-registry/tests/data/native_package_future_frame/90)
+- [rust/tcl-registry/tests/data/native_package_future_frame/91](../../../../rust/tcl-registry/tests/data/native_package_future_frame/91)
+- [rust/tcl-registry/tests/data/native_package_future_frame/jim](../../../../rust/tcl-registry/tests/data/native_package_future_frame/jim)

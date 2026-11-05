@@ -20,56 +20,11 @@ Shared Core refactor region inventory for original commands, expressions, clause
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust consumer contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This Rust consumer contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/refactor/mod.rs](../../../../rust/tcl-lsp-core/src/refactor/mod.rs). Current shared owner, consumer and fixed validation assertions. No executed Rust or native result is implied.
-- `implementation-1` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +42,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/extract_proc.rs](../../../../rust/tcl-lsp-core/src/refactor/extract_proc.rs), `refactor::extract_proc::selected_source_variable_tests::original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners` (linked): The actual supplied analysis retains FirstClose versus Tcl9Nesting grammar and generates the corresponding scalar parameter while keeping the original selected body. Missing input, changed grammar/source, foreign store and changed older same-store availability refuse before extraction.
 - [rust/tcl-lsp-core/src/refactor/mod.rs](../../../../rust/tcl-lsp-core/src/refactor/mod.rs), `refactor::original_parse_purpose_tests::original_frame_segmentation_labels_document_and_nested_sources_explicitly` (linked): Finite source-defined control: original frame segmentation labels document and nested sources explicitly. Equality and offset zero cannot change the expressly nested purpose. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named fixed Rust selectors bind validation obligations. No Rust execution receipt is attached to this implementation contract. No native interpreter experiment or overall passing suite is claimed. Missing authority and unsupported source purposes remain explicit in the scope and conclusion.
+- [rust/tcl-lsp-core/src/refactor/mod.rs](../../../../rust/tcl-lsp-core/src/refactor/mod.rs)
+- [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs)

@@ -20,63 +20,23 @@ Five exact full tclNamesp.c source copies and byte-identical original line excer
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `inspected`. Version: 8.4.20. Build: Pinned full original release tclNamesp.c implementation; no execution claim.. Channel: Exact original source inspection, not guest Tcl evaluation.. Dialect: tcl8.4.
-
-TclTeardownNamespace restarts the first table entry after each deletion. Source text supplies no actual holder/token/callback or interpreter process result.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Pinned full original release tclNamesp.c implementation; no execution claim.. Channel: Exact original source inspection, not guest Tcl evaluation.. Dialect: tcl8.5.
+Status: `inspected`. Channel: Exact original source inspection, not guest Tcl evaluation. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 TclTeardownNamespace restarts the first table entry after each deletion. Source text supplies no actual holder/token/callback or interpreter process result.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Pinned full original release tclNamesp.c implementation; no execution claim.. Channel: Exact original source inspection, not guest Tcl evaluation.. Dialect: tcl8.6.
-
-TclTeardownNamespace retains a complete command-pointer pass and repeats until empty. Source text supplies no actual holder/token/callback or interpreter process result.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned full original release tclNamesp.c implementation; no execution claim.. Channel: Exact original source inspection, not guest Tcl evaluation.. Dialect: tcl9.0.
+Status: `inspected`. Channel: Exact original source inspection, not guest Tcl evaluation. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 TclTeardownNamespace retains a complete command-pointer pass and repeats until empty. Source text supplies no actual holder/token/callback or interpreter process result.
 
-### tcl9.1
+### jim, bigip
 
-Status: `inspected`. Version: 9.1.0. Build: Pinned full original release tclNamesp.c implementation; no execution claim.. Channel: Exact original source inspection, not guest Tcl evaluation.. Dialect: tcl9.1.
-
-TclTeardownNamespace retains a complete command-pointer pass and repeats until empty. Source text supplies no actual holder/token/callback or interpreter process result.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+Status: `not-tested`.
 
 No exact source inspection or interpreter execution is recorded for this C teardown question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No exact source inspection or interpreter execution is recorded for this C teardown question.
-
-## Historical references
-
-- `namespace-teardown227-question.json` (input): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.4.20-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.4.20-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.5.19-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.5.19-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.6.18-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-8.6.18-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.0.4-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.0.4-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.1.0-command-teardown.txt` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `namespace-teardown227-tcl-9.1.0-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-tclNamesp.c). Exact full original release source or source-inspection request/excerpt; no native execution result.
-- `naming-namespace-command-teardown-frontier-native.rs` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). Current selected source/API owner; no executed assertion or native provider observation.
-- `naming-namespace-command-teardown-frontier-native_namespace_name.rs` (implementation): [rust/tcl-syntax/src/native_namespace_name.rs](../../../../rust/tcl-syntax/src/native_namespace_name.rs). Current selected source/API owner; no executed assertion or native provider observation.
 
 ## Source inspection
 
@@ -225,15 +185,19 @@ tcl9.1 9.1.0, revision `Source-control revision unrecorded; exact release source
     Tcl_InitHashTable(&nsPtr->cmdTable, TCL_STRING_KEYS);
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/native_namespace_name.rs](../../../../rust/tcl-syntax/src/native_namespace_name.rs), `NativeNamespaceNameRecipe::command_teardown`: Select pure C release command-retirement order without holder/token authority.
 - [rust/tcl-syntax/src/native_namespace_name.rs](../../../../rust/tcl-syntax/src/native_namespace_name.rs), `NativeNamespaceCommandTeardown::frontier_len`: Select one current first entry or a complete available pass according to the pure order recipe.
 - [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs), `NativeNameProtocol::namespace_command_teardown`: Expose the selected C recipe and refuse Jim without manufacturing a namespace/command owner.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact independently pinned source copies and LF-counted excerpt lines retained. Source inspection is read-only; no provider/build/Rust command is launched. Original Native202 public receipts remain independent.
+- [rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/question.json)
+- [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.4.20-command-teardown.txt)
+- [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.5.19-command-teardown.txt)
+- [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-8.6.18-command-teardown.txt)
+- [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.0.4-command-teardown.txt)
+- [rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt](../../../../rust/tcl-registry/tests/data/native_namespace_command_teardown227/tcl-9.1.0-command-teardown.txt)
+- [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs)
+- [rust/tcl-syntax/src/native_namespace_name.rs](../../../../rust/tcl-syntax/src/native_namespace_name.rs)

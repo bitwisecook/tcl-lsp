@@ -24,7 +24,8 @@ Each evidence file has these level-two sections:
    limitation. Write `Not recorded` where the retained capture does not say;
    do not turn an unknown assumption into `None`.
 3. **Script** — exactly one `tcl-visible` fenced block containing the exact
-   executed script in the notation below.
+   executed script in the notation below, or a link to a shared fixture plus
+   the values this case supplies (see [Fixtures](#fixtures)).
 4. **Results** — one level-three subsection per recorded environment, naming
    the environment and its recorded version or `Not recorded`. Include the
    observed exit status, standard output and standard error. Distinguish empty
@@ -34,12 +35,40 @@ Each evidence file has these level-two sections:
    results through another channel, add a **Recorded result** `text-visible`
    block and explain precisely what it contains. A browser projection, for
    example, is not standard output; mark unrecorded process streams and exit
-   status as `Not recorded`.
+   status as `Not recorded`. When a stream or recorded result consists only of
+   encoded rows whose every field is decoded in the entries that follow, write
+   `decoded below` instead of repeating the raw rows.
 
 Observations establish only what that run measured. They do not by themselves
 establish that the LSP, compiler, VM, another Tcl version, or another execution
 channel behaves the same way. Describe that boundary in the question or
 assumptions when relevant.
+
+Keep results minimal. Record the output the question depends on, not whole
+configurations, complete logs or build receipts. Do not record content hashes:
+the bytes in git are the record. A hash belongs in evidence only when the hash
+itself is what the experiment measured.
+
+## Fixtures
+
+When many cases run inside the same harness, put the harness in one file under
+[`evidence/tcl/fixtures`](../../../evidence/tcl/fixtures/README.md) and keep each
+case file to what that case changes. A fixture has:
+
+- **Setup** — how to deploy and trigger the harness, and how its results are
+  collected.
+- **Template** — one `tcl-visible` block. `⟦HEX:name⟧` is replaced by the
+  lowercase hexadecimal form of the named value; `⟦PARAM:name⟧` by its exact
+  bytes.
+- **Constants** (optional) — `### name` headings, each with one `tcl-visible`
+  block, for values every case shares.
+
+The case's `## Script` section starts with `Fixture: name`
+and supplies every other slot, either as `- name: \`value\`` for a short plain
+value or as a `### name` heading with one `tcl-visible` block. Every slot must
+be filled exactly once and every value used. The composed bytes are the
+executed script; the checker and extractor compose them. Do not create a
+fixture that only one case uses.
 
 ## Visible byte notation
 
@@ -111,28 +140,11 @@ or whether a claimed execution actually occurred; authors and reviewers must
 check those facts against the retained run. It checks the files that exist, not
 whether every historical capture has already been converted.
 
-## Existing captures
+## Older records
 
-The older name-resolution records mix captured runs with development notes and
-other material. They are not automatically converted into execution evidence:
-some do not identify a Tcl script or a measured result unambiguously. Migrate a
-capture only when its full question, actual script, environments and recorded
-results can be recovered. Mark missing assumptions or details as not recorded.
-Keep the source capture until that conversion has been checked; do not fabricate
-a result merely to complete a migration.
-
-The current migration is incomplete. In particular, concatenated BIG-IP
-callback sources need to be split into the individual callbacks that ran,
-browser projections must be identified as such, and some records refer to
-several scripts or to a failed setup rather than a reached operation. The
-conservative importer can list records it cannot convert:
-
-```sh
-python3 scripts/dev/migrate-tcl-evidence.py --report /tmp/tcl-evidence-review.json
-```
-
-That report tracks records handled by this importer, not coverage of every
-capture in the repository. Some listed records may have been converted by a
-separate, more specific migration; others may be development material rather
-than executions. Review the original material before treating a listed record
-as an outstanding run.
+The [name-resolution proof pages](../analysis/name-resolution-proofs/README.md)
+predate this format. They keep each question's conclusion, provider answers and
+code bindings, and point at native captures retained as test data. The raw
+appliance and run archives they once cited have been removed; their BIG-IP
+executions were converted into files under `evidence/tcl`. Record new
+executions here, not as proof pages.

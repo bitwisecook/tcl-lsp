@@ -22,80 +22,45 @@ Current pure counted written span/tail API, its actual syntax/Core/Registry cons
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not applicable to the pure counted/source boundary projection. Build: No provider process or header/reference observation is attached to these software boundary controls.. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only. Version: tcl8.4 not applicable to the pure counted/source boundary projection.
 
 External tcl8.4 execution is not tested for this software boundary question. Fixed counted geometry does not select that provider or infer native namespace lookup, object-result roles, private getter order, reference counts or callback chronology. Independently selected C/Jim protocols retain their own input/result contracts and existing observations.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not applicable to the pure counted/source boundary projection. Build: No provider process or header/reference observation is attached to these software boundary controls.. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only. Version: tcl8.5 not applicable to the pure counted/source boundary projection.
 
 External tcl8.5 execution is not tested for this software boundary question. Fixed counted geometry does not select that provider or infer native namespace lookup, object-result roles, private getter order, reference counts or callback chronology. Independently selected C/Jim protocols retain their own input/result contracts and existing observations.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not applicable to the pure counted/source boundary projection. Build: No provider process or header/reference observation is attached to these software boundary controls.. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only. Version: tcl8.6 not applicable to the pure counted/source boundary projection.
 
 External tcl8.6 execution is not tested for this software boundary question. Fixed counted geometry does not select that provider or infer native namespace lookup, object-result roles, private getter order, reference counts or callback chronology. Independently selected C/Jim protocols retain their own input/result contracts and existing observations.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not applicable to the pure counted/source boundary projection. Build: No provider process or header/reference observation is attached to these software boundary controls.. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only. Version: tcl9.0 not applicable to the pure counted/source boundary projection.
 
 External tcl9.0 execution is not tested for this software boundary question. Fixed counted geometry does not select that provider or infer native namespace lookup, object-result roles, private getter order, reference counts or callback chronology. Independently selected C/Jim protocols retain their own input/result contracts and existing observations.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not applicable to the pure counted/source boundary projection. Build: No provider process or header/reference observation is attached to these software boundary controls.. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only. Version: tcl9.1 not applicable to the pure counted/source boundary projection.
 
 External tcl9.1 execution is not tested for this software boundary question. Fixed counted geometry does not select that provider or infer native namespace lookup, object-result roles, private getter order, reference counts or callback chronology. Independently selected C/Jim protocols retain their own input/result contracts and existing observations.
 
 ### jim
 
-Status: `not-tested`. Version: not applicable to the pure counted/source boundary projection. Build: No provider process or header/reference observation is attached to these software boundary controls.. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only.. Dialect: jim.
+Status: `not-tested`. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only. Version: jim not applicable to the pure counted/source boundary projection.
 
 External jim execution is not tested for this software boundary question. Fixed counted geometry does not select that provider or infer native namespace lookup, object-result roles, private getter order, reference counts or callback chronology. Independently selected C/Jim protocols retain their own input/result contracts and existing observations.
 
 ### bigip
 
-Status: `not-tested`. Version: not applicable to the pure counted/source boundary projection. Build: No provider process or header/reference observation is attached to these software boundary controls.. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only.. Dialect: f5-bigip.
+Status: `not-tested`. Channel: Fixed counted byte/source span API inputs and actual structural software scanner calls only. Version: bigip not applicable to the pure counted/source boundary projection.
 
 External bigip execution is not tested for this software boundary question. Fixed counted geometry does not select that provider or infer native namespace lookup, object-result roles, private getter order, reference counts or callback chronology. Independently selected C/Jim protocols retain their own input/result contracts and existing observations.
-
-## Historical references
-
-- `shared-name-boundary-current-syntax-20261103` (observation): [Scoped syntax boundary receipt](rust-validation/shared-boundary-20261103/receipt-syntax.json). Four exact current-owned syntax fixed software controls, with source/include inventories and binary-hash reruns. C qualifier embedded-NUL remains source-inspected only; no Native provider or whole-proof result follows.
-
-- `shared-name-boundary-lexer-dialect-source-review-20261103` (observation): [Scoped lexer and dialect source review](rust-validation/shared-boundary-20261103/source-review-lexer-dialect.json). Independent review of lexer scanner module/export and dialect style-axis source roles, referencing already retained fixed software controls. No new execution, profile selection, Native provider or whole-proof outcome follows.
-
-- `shared-name-boundary-current-lexer-styles-20261103` (observation): [Scoped lexer style receipt](rust-validation/shared-boundary-20261103/receipt-lexer-styles.json). Two exact same-binary fixed software controls for selected braced-variable style and array-index syntax, tied to the separately retained lexer input inventory. No Native provider, all-config or whole-proof result follows.
-
-- `shared-name-boundary-current-leaf-lexer-20261103` (observation): [Scoped current-owned scanner receipt](rust-validation/shared-boundary-20261103/receipt-v2.json). Two exact scoped current-owned software controls for the core-types name scanner and its lexer nested-array consumer, with source inventories and binary-hash reruns. No Native provider, other control or whole-proof result follows.
-
-- `shared-name-boundary-source-0` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed counted lexical naming source. The separate receipt reports four named fixed software controls; no Native/provider result follows.
-- `shared-name-boundary-source-1` (implementation): [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs). Reviewed C/Jim qualifier source adapter. C qualifier embedded-NUL handling is source-inspected only; the separate fixed software controls do not execute a Native provider.
-- `shared-name-boundary-source-2` (implementation): [rust/tcl-cmd-core/src/namespace.rs](../../../../rust/tcl-cmd-core/src/namespace.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-3` (implementation): [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-4` (implementation): [rust/tcl-registry/src/commands/tcl/namespace_.rs](../../../../rust/tcl-registry/src/commands/tcl/namespace_.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-5` (implementation): [rust/tcl-lexer/src/ranges.rs](../../../../rust/tcl-lexer/src/ranges.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-6` (implementation): [rust/tcl-vm/src/cmd_math.rs](../../../../rust/tcl-vm/src/cmd_math.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-7` (implementation): [rust/tcl-core-types/src/naming.rs](../../../../rust/tcl-core-types/src/naming.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-8` (implementation): [rust/tcl-core-types/src/lib.rs](../../../../rust/tcl-core-types/src/lib.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-9` (implementation): [rust/tcl-dialect/src/grammar.rs](../../../../rust/tcl-dialect/src/grammar.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-10` (implementation): [rust/tcl-registry/src/mathfunc.rs](../../../../rust/tcl-registry/src/mathfunc.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-11` (implementation): [rust/tcl-lexer/src/lib.rs](../../../../rust/tcl-lexer/src/lib.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-12` (implementation): [rust/tcl-syntax/src/lib.rs](../../../../rust/tcl-syntax/src/lib.rs). Reviewed naming module export source. The separate receipt reports fixed software controls; module registration supplies no execution or Native result.
-- `shared-name-boundary-source-13` (implementation): [rust/tcl-cmd-core/src/lib.rs](../../../../rust/tcl-cmd-core/src/lib.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-14` (implementation): [rust/tcl-registry/src/commands/tcl/mod.rs](../../../../rust/tcl-registry/src/commands/tcl/mod.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `shared-name-boundary-source-15` (implementation): [rust/tcl-vm/src/lib.rs](../../../../rust/tcl-vm/src/lib.rs). Current counted boundary worker, checked selected C/Jim input branch, actual neutral/scanner/stock descriptor consumer or independent API dependency. Source definition only; no software assertion or provider execution outcome.
-- `original-operand-source-bc8dad4b97a528fc` (implementation): [rust/tcl-diagram/src/data.rs](../../../../rust/tcl-diagram/src/data.rs). Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result.
-- `original-operand-source-81049755e21df1e9` (implementation): [rust/tcl-spec-studio/src/infer.rs](../../../../rust/tcl-spec-studio/src/infer.rs). Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result.
-- `original-operand-source-fbe95d95bd569e34` (implementation): [rust/tcl-spec-studio/src/infer/extension.rs](../../../../rust/tcl-spec-studio/src/infer/extension.rs). Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result.
-- `original-operand-source-62228af4a8eacb85` (implementation): [rust/tcl-spectcl/src/loader/semantics.rs](../../../../rust/tcl-spectcl/src/loader/semantics.rs). Current original operation/String or written-versus-constructed consumer purpose and genuine linked software definitions. Whole source correspondence supplies no Native/provider/frozen or owned-image result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -120,8 +85,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-spec-studio/src/infer.rs](../../../../rust/tcl-spec-studio/src/infer.rs), `infer::tests::imported_procedure_descriptor_keeps_colon_named_namespace_holder` (linked): Actual imported procedure descriptor retains the one-root constructed namespace holder and literal colon component; it supplies no Native written lookup.
 - [rust/tcl-spec-studio/src/infer/extension.rs](../../../../rust/tcl-spec-studio/src/infer/extension.rs), `infer::extension::tests::probe_descriptor_projection_keeps_colon_components_separate` (linked): The authored probe supplies :::::p, ::p and :p reports and requires all three exact distinct rows after sorting, without optional-root normalization or interpreted registration context. Definition only; no Native observation or assertion execution is claimed.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Three fixed software control definitions and current producer/consumer/API bindings support later reconfirmation. The separately retained receipts record only the named current-owned leaf, nested-array scanner, braced-style, array-index-syntax and four named syntax-control passes; no other assertion execution or C/Jim/BIG-IP observation is attached. Native input, object-result roles and actual implementation ownership must be reconfirmed through their independently selected contracts.
+- [rust](../../../../rust)
+- [rust/tcl-syntax/src](../../../../rust/tcl-syntax/src)
+- [rust/tcl-registry/src/commands](../../../../rust/tcl-registry/src/commands)
+- [rust/tcl-spec-studio/src](../../../../rust/tcl-spec-studio/src)
+- [rust/tcl-spectcl/src](../../../../rust/tcl-spectcl/src)

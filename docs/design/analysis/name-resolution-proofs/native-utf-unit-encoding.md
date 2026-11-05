@@ -30,21 +30,6 @@ Pinned canonical C8.4.20–9.1.0 public Unicode encoder/constructor calls; no in
 
 All tested C unit encoders use C080 for zero and retain admitted surrogate units. C8 Unicode objects have16-bit units and refuse the supplementary-unit constructor control; the integer-character API substitutes U+FFFD for that point. C9 admits the scalar and encodes four bytes. Adjacent surrogate units remain six bytes. This is a unit/constructor observation, not a character-channel ingress or resident-byte normalization rule.
 
-## Historical references
-
-- `probe`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/probe.c`. Public Unicode encoder and constructor inputs.
-- `manifest`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/manifest.json`. 107 actual rows, provider library/executable/log hashes and constructor width refusals.
-- `native-8.4.20`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.4.20.jsonl`. Actual encoder/constructor byte and pre-getter storage rows.
-- `fixture-8.4.20`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.4.20.tsv`. Selected semantic byte outputs for Rust tests.
-- `native-8.5.19`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.5.19.jsonl`. Actual encoder/constructor byte and pre-getter storage rows.
-- `fixture-8.5.19`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.5.19.tsv`. Selected semantic byte outputs for Rust tests.
-- `native-8.6.18`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.6.18.jsonl`. Actual encoder/constructor byte and pre-getter storage rows.
-- `fixture-8.6.18`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.6.18.tsv`. Selected semantic byte outputs for Rust tests.
-- `native-9.0.4`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/9.0.4.jsonl`. Actual encoder/constructor byte and pre-getter storage rows.
-- `fixture-9.0.4`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/9.0.4.tsv`. Selected semantic byte outputs for Rust tests.
-- `native-9.1.0`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/9.1.0.jsonl`. Actual encoder/constructor byte and pre-getter storage rows.
-- `fixture-9.1.0`: `rust/tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/9.1.0.tsv`. Selected semantic byte outputs for Rust tests.
-
 ## Source anchors
 
 No interpreter-source anchor is asserted for this question; the retained probe and outcomes establish the narrow observation.

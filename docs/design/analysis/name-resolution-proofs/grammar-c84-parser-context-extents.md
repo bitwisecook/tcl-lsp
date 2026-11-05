@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4; manifest purpose; full linked version not queried. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_EvalObjv, Tcl_ParseCommand. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.4.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_EvalObjv, Tcl_ParseCommand. Exact lengths, flags and input constructors remain in the source. Version: tcl8.4 8.4; manifest purpose.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -46,58 +46,18 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 }
 ```
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.6.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.0.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.1.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: jim.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-registry/tests/data/native_c84_parse_context/manifest.json](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (input): [rust/tcl-registry/tests/data/native_c84_parse_context/probe.c](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/probe.c). Exact retained input/program bytes; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-lexer/src/parse_cut.rs](../../../../rust/tcl-lexer/src/parse_cut.rs), `parse_cut::tests::original_nested_parse_error_terms_keep_the_failed_delimiter` (linked): The checked scanner retains inner quote and brace error terms matching preserved C84 context rows 6 and 9 while keeping the outer reporting anchor. This Rust assertion is separate from the native compilation capture.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv)
+- [rust/tcl-registry/tests/data/native_c84_parse_context/manifest.json](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/manifest.json)
+- [rust/tcl-registry/tests/data/native_c84_parse_context/probe.c](../../../../rust/tcl-registry/tests/data/native_c84_parse_context/probe.c)

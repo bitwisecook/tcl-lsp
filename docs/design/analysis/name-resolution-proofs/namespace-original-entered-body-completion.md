@@ -24,56 +24,11 @@ The selected Direct Document analysis launches no native body, proc installer or
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native execution of this Rust implementation question is claimed.
-
-## Historical references
-
-- `tcl8.4-NamespaceEvalCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceEvalCmd.c). tcl8.4 retained NamespaceEvalCmd source; this is independent of Rust test or native invocation authority.
-- `tcl8.5-NamespaceEvalCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceEvalCmd.c). tcl8.5 retained NamespaceEvalCmd source; this is independent of Rust test or native invocation authority.
-- `tcl8.6-NamespaceEvalCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceEvalCmd.c). tcl8.6 retained NamespaceEvalCmd source; this is independent of Rust test or native invocation authority.
-- `tcl9.0-NamespaceEvalCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceEvalCmd.c). tcl9.0 retained NamespaceEvalCmd source; this is independent of Rust test or native invocation authority.
-- `tcl9.1-NamespaceEvalCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceEvalCmd.c). tcl9.1 retained NamespaceEvalCmd source; this is independent of Rust test or native invocation authority.
-- `jim-JimNamespaceCmd-source` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c). jim retained JimNamespaceCmd source; this is independent of Rust test or native invocation authority.
 
 ## Source inspection
 
@@ -466,7 +421,6 @@ static int JimNamespaceCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `OriginalNamespaceBodyDelegation::capture`: Exact selected handler and single original script/Ensure correspondence without completion.
@@ -476,13 +430,16 @@ static int JimNamespaceCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 - [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `command_binding::original_namespace_body::tests::original_namespace_body_keeps_completed_child_and_restores_parent` (linked): A genuine completed nested procedure declaration survives in the root world and the parent global frame is restored.
 - [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `command_binding::original_namespace_body::tests::original_namespace_body_refuses_unrepresented_and_abrupt_children` (linked): Unknown, abrupt and dynamically unrepresented children provide no enclosing completion; an independently complete shadowing procedure creates no namespace.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `OriginalNamespaceBody`: Retain exact selected delegation/body/source and conditional namespace activation/parent restoration; completion requires independent quiet child/handler correspondence.
 - [rust/tcl-compiler/src/command_binding/original_namespace_body.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_body.rs), `command_binding::original_namespace_body::tests::original_namespace_activation_retains_selected_source_identity_before_child_words` (linked): Five selected C source-model fixtures retain an authored ::A namespace identity and NamespaceActivation layout at the original child proc occurrence, then distinguish the enclosing parent checkpoint namespace. The assertion is conditional source frame/layout correspondence rather than physical entered-native execution.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-The exact named Rust selectors are implementation coverage obligations without an attached execution receipt. The independently retained source controls and source excerpts do not grant Rust handler selection, completion or physical native authority.
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.4/NamespaceEvalCmd.c)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.5/NamespaceEvalCmd.c)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl8.6/NamespaceEvalCmd.c)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.0/NamespaceEvalCmd.c)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceEvalCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/tcl9.1/NamespaceEvalCmd.c)
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/source-anchors/jim/JimNamespaceCmd.c)

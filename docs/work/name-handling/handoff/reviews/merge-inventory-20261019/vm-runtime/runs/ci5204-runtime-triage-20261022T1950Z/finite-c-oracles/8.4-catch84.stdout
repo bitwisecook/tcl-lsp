@@ -1,2 +1,0 @@
-catch_error {1 {wrong # args: should be "catch command ?varName?"} NONE}
-catch_success {0 1}

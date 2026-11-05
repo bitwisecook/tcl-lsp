@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 The C programs report n existence 1 and VALUE; Jim reports n existence 0 while the explicitly rooted read returns VALUE.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=global-rooted-local.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for global-rooted-local; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-rooted-local.tcl`. Exact 8.4.20 input for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-rooted-local.stdout`. Exact 8.4.20 stdout for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/global-rooted-local.stderr`. Exact 8.4.20 stderr for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 global-rooted-local. JSON pointer `/rows/23`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-rooted-local.tcl`. Exact 8.5.19 input for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-rooted-local.stdout`. Exact 8.5.19 stdout for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/global-rooted-local.stderr`. Exact 8.5.19 stderr for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 global-rooted-local. JSON pointer `/rows/63`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-rooted-local.tcl`. Exact 8.6.18 input for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-rooted-local.stdout`. Exact 8.6.18 stdout for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/global-rooted-local.stderr`. Exact 8.6.18 stderr for global-rooted-local; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 global-rooted-local. JSON pointer `/rows/103`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-rooted-local.tcl`. Exact 9.0.4 input for global-rooted-local; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-rooted-local.stdout`. Exact 9.0.4 stdout for global-rooted-local; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/global-rooted-local.stderr`. Exact 9.0.4 stderr for global-rooted-local; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 global-rooted-local. JSON pointer `/rows/143`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-rooted-local.tcl`. Exact 9.1.0 input for global-rooted-local; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-rooted-local.stdout`. Exact 9.1.0 stdout for global-rooted-local; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/global-rooted-local.stderr`. Exact 9.1.0 stderr for global-rooted-local; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 global-rooted-local. JSON pointer `/rows/183`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-rooted-local.tcl`. Exact Jim input for global-rooted-local; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-rooted-local.stdout`. Exact Jim stdout for global-rooted-local; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/global-rooted-local.stderr`. Exact Jim stderr for global-rooted-local; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim global-rooted-local. JSON pointer `/rows/223`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case global-rooted-local --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-global-rooted-local.md). A replay is a separate execution and must record its own results.

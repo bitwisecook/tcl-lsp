@@ -129,7 +129,6 @@ local source/settings immediately inside the write action, but does not claim
 to hold Server provider state across that gap. Worker equivalence and edit
 safety remain independent, and no stronger distributed atomicity is promised.
 
-
 ## Current index binding
 
 Stable proof ID: `naming.lsp.original-document-transform-currency`.

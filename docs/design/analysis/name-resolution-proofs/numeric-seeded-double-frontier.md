@@ -26,7 +26,7 @@ These added source definitions have no execution outcome attached. This question
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl8.4 8.4.20 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -109,7 +109,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl8.5 8.5.19 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -192,7 +192,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl8.6 8.6.18 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -273,92 +273,9 @@ getter=1 storage=3 case=17 code=0 cache=double message= errorCode=4e4f4e45 input
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-getter=1 storage=0 case=0 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822 errorCode=54434c2056414c5545204e554d424552 input=78 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822
-getter=1 storage=0 case=1 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374 errorCode=54434c2056414c5545204e554d424552 input=6b2031 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374
-getter=1 storage=0 case=2 code=0 cache=int message= errorCode=4e4f4e45 input=310058 primitive=
-getter=1 storage=0 case=3 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022ff22 errorCode=54434c2056414c5545204e554d424552 input=ff006166746572 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022ff22
-getter=1 storage=0 case=4 code=1 cache=double message=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572 errorCode=54434c2056414c554520444f55424c45204e414e input=4e614e primitive=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572
-getter=1 storage=0 case=5 code=0 cache=double message= errorCode=4e4f4e45 input=3165343030 primitive=
-getter=1 storage=0 case=6 code=0 cache=double message= errorCode=4e4f4e45 input=31652d343030 primitive=
-getter=1 storage=0 case=7 code=0 cache=bignum message= errorCode=4e4f4e45 input=3138343436373434303733373039353531363136 primitive=
-getter=1 storage=0 case=8 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522 errorCode=54434c2056414c5545204e554d424552 input=74727565 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522
-getter=1 storage=0 case=9 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222 errorCode=54434c2056414c5545204e554d424552 input= primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222
-getter=1 storage=0 case=10 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122 errorCode=54434c2056414c5545204e554d424552 input=616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122
-getter=1 storage=0 case=11 code=0 cache=int message= errorCode=4e4f4e45 input=3038 primitive=
-getter=1 storage=0 case=12 code=0 cache=int message= errorCode=4e4f4e45 input=2d3039 primitive=
-getter=1 storage=0 case=13 code=0 cache=double message= errorCode=4e4f4e45 input=30382e30 primitive=
-getter=1 storage=0 case=14 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722 errorCode=54434c2056414c5545204e554d424552 input=307847 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722
-getter=1 storage=0 case=15 code=0 cache=double message= errorCode=4e4f4e45 input=312e35 primitive=
-getter=1 storage=0 case=16 code=0 cache=double message= errorCode=4e4f4e45 input=312e350058 primitive=
-getter=1 storage=0 case=17 code=0 cache=double message= errorCode=4e4f4e45 input=312e3520202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020 primitive=
-getter=1 storage=1 case=0 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822 errorCode=54434c2056414c5545204e554d424552 input=78 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822
-getter=1 storage=1 case=1 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374 errorCode=54434c2056414c5545204e554d424552 input=6b2031 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374
-getter=1 storage=1 case=2 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202231c0805822 errorCode=54434c2056414c5545204e554d424552 input=31c08058 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202231c0805822
-getter=1 storage=1 case=3 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022c3bfc080616674657222 errorCode=54434c2056414c5545204e554d424552 input=c3bfc0806166746572 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022c3bfc080616674657222
-getter=1 storage=1 case=4 code=1 cache=double message=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572 errorCode=54434c2056414c554520444f55424c45204e414e input=4e614e primitive=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572
-getter=1 storage=1 case=5 code=0 cache=double message= errorCode=4e4f4e45 input=3165343030 primitive=
-getter=1 storage=1 case=6 code=0 cache=double message= errorCode=4e4f4e45 input=31652d343030 primitive=
-getter=1 storage=1 case=7 code=0 cache=bignum message= errorCode=4e4f4e45 input=3138343436373434303733373039353531363136 primitive=
-getter=1 storage=1 case=8 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522 errorCode=54434c2056414c5545204e554d424552 input=74727565 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522
-getter=1 storage=1 case=9 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222 errorCode=54434c2056414c5545204e554d424552 input= primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222
-getter=1 storage=1 case=10 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122 errorCode=54434c2056414c5545204e554d424552 input=616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122
-getter=1 storage=1 case=11 code=0 cache=int message= errorCode=4e4f4e45 input=3038 primitive=
-getter=1 storage=1 case=12 code=0 cache=int message= errorCode=4e4f4e45 input=2d3039 primitive=
-getter=1 storage=1 case=13 code=0 cache=double message= errorCode=4e4f4e45 input=30382e30 primitive=
-getter=1 storage=1 case=14 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722 errorCode=54434c2056414c5545204e554d424552 input=307847 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722
-getter=1 storage=1 case=15 code=0 cache=double message= errorCode=4e4f4e45 input=312e35 primitive=
-getter=1 storage=1 case=16 code=1 cache=bytearray message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022312e35c0805822 errorCode=54434c2056414c5545204e554d424552 input=312e35c08058 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022312e35c0805822
-getter=1 storage=1 case=17 code=0 cache=double message= errorCode=4e4f4e45 input=312e3520202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020 primitive=
-getter=1 storage=2 case=0 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822 errorCode=54434c2056414c5545204e554d424552 input=78 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822
-getter=1 storage=2 case=1 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374 errorCode=54434c2056414c5545204e554d424552 input=6b2031 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374
-getter=1 storage=2 case=2 code=0 cache=int message= errorCode=4e4f4e45 input=310058 primitive=
-getter=1 storage=2 case=3 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022ff22 errorCode=54434c2056414c5545204e554d424552 input=ff006166746572 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022ff22
-getter=1 storage=2 case=4 code=1 cache=double message=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572 errorCode=54434c2056414c554520444f55424c45204e414e input=4e614e primitive=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572
-getter=1 storage=2 case=5 code=0 cache=double message= errorCode=4e4f4e45 input=3165343030 primitive=
-getter=1 storage=2 case=6 code=0 cache=double message= errorCode=4e4f4e45 input=31652d343030 primitive=
-getter=1 storage=2 case=7 code=0 cache=bignum message= errorCode=4e4f4e45 input=3138343436373434303733373039353531363136 primitive=
-getter=1 storage=2 case=8 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522 errorCode=54434c2056414c5545204e554d424552 input=74727565 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522
-getter=1 storage=2 case=9 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222 errorCode=54434c2056414c5545204e554d424552 input= primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222
-getter=1 storage=2 case=10 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122 errorCode=54434c2056414c5545204e554d424552 input=616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122
-getter=1 storage=2 case=11 code=0 cache=int message= errorCode=4e4f4e45 input=3038 primitive=
-getter=1 storage=2 case=12 code=0 cache=int message= errorCode=4e4f4e45 input=2d3039 primitive=
-getter=1 storage=2 case=13 code=0 cache=double message= errorCode=4e4f4e45 input=30382e30 primitive=
-getter=1 storage=2 case=14 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722 errorCode=54434c2056414c5545204e554d424552 input=307847 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722
-getter=1 storage=2 case=15 code=0 cache=double message= errorCode=4e4f4e45 input=312e35 primitive=
-getter=1 storage=2 case=16 code=0 cache=double message= errorCode=4e4f4e45 input=312e350058 primitive=
-getter=1 storage=2 case=17 code=0 cache=double message= errorCode=4e4f4e45 input=312e3520202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020 primitive=
-getter=1 storage=3 case=0 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822 errorCode=54434c2056414c5545204e554d424552 input=78 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227822
-getter=1 storage=3 case=1 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374 errorCode=54434c2056414c5545204e554d424552 input=6b2031 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742061206c697374
-getter=1 storage=3 case=2 code=0 cache=int message= errorCode=4e4f4e45 input=310058 primitive=
-getter=1 storage=3 case=3 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022ff22 errorCode=54434c2056414c5545204e554d424552 input=ff006166746572 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022ff22
-getter=1 storage=3 case=4 code=1 cache=double message=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572 errorCode=54434c2056414c554520444f55424c45204e414e input=4e614e primitive=666c6f6174696e6720706f696e742076616c7565206973204e6f742061204e756d626572
-getter=1 storage=3 case=5 code=0 cache=double message= errorCode=4e4f4e45 input=3165343030 primitive=
-getter=1 storage=3 case=6 code=0 cache=double message= errorCode=4e4f4e45 input=31652d343030 primitive=
-getter=1 storage=3 case=7 code=0 cache=bignum message= errorCode=4e4f4e45 input=3138343436373434303733373039353531363136 primitive=
-getter=1 storage=3 case=8 code=1 cache=boolean message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522 errorCode=54434c2056414c5545204e554d424552 input=74727565 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f7420227472756522
-getter=1 storage=3 case=9 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222 errorCode=54434c2056414c5545204e554d424552 input= primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202222
-getter=1 storage=3 case=10 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122 errorCode=54434c2056414c5545204e554d424552 input=616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f742022616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616122
-getter=1 storage=3 case=11 code=0 cache=int message= errorCode=4e4f4e45 input=3038 primitive=
-getter=1 storage=3 case=12 code=0 cache=int message= errorCode=4e4f4e45 input=2d3039 primitive=
-getter=1 storage=3 case=13 code=0 cache=double message= errorCode=4e4f4e45 input=30382e30 primitive=
-getter=1 storage=3 case=14 code=1 cache=string message=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722 errorCode=54434c2056414c5545204e554d424552 input=307847 primitive=657870656374656420666c6f6174696e672d706f696e74206e756d6265722062757420676f74202230784722
-getter=1 storage=3 case=15 code=0 cache=double message= errorCode=4e4f4e45 input=312e35 primitive=
-getter=1 storage=3 case=16 code=0 cache=double message= errorCode=4e4f4e45 input=312e350058 primitive=
-getter=1 storage=3 case=17 code=0 cache=double message= errorCode=4e4f4e45 input=312e3520202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020 primitive=
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe.. Dialect: C Tcl.
+Status: `observed`. Channel: Public C original-object numeric getter reached from a native callback and ASCII Tcl_Eval; exact constructor and observer order in retained probe. Version: tcl9.0 9.0.4 (capture association; launched patchlevel/revision unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -441,7 +358,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### jim
 
-Status: `observed`. Version: Jim 0.84 (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original Jim String getter in custom native callback followed by Jim_Eval; explicit errorCode variable seed, no C primitive snapshot.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original Jim String getter in custom native callback followed by Jim_Eval; explicit errorCode variable seed, no C primitive snapshot. Version: jim Jim 0.84 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -463,39 +380,20 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/c-error-code-state-probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/c-error-code-state-probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.4.20.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.5.19.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-8.6.18.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-9.0.4.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/error-state-9.1.0.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `probe-7` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state-probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state-probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-7` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state-manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state-manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-jim` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/jim-error-state.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/scalar_getter/errors.rs](../../../../rust/tcl-syntax/src/scalar_getter/errors.rs), `NativeScalarGetterProtocol::failure_presentation`: Retains primitive versus evaluated diagnostic and selected error-code update independently from representation conversion.
 - [rust/tcl-syntax/src/scalar_getter/tests/error_tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/tests/error_tests.rs), `scalar_getter::tests::error_tests::primitive_failures_keep_cache_origin_and_existing_error_state` (linked): Compares only the exact selected primitive/propgated/error-code fields across retained rows; no native callback dispatch authority is supplied.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-syntax/src/scalar_getter/errors.rs](../../../../rust/tcl-syntax/src/scalar_getter/errors.rs), `NativeScalarGetterError::eval_error_code_update`: Keep the additional selected C84 invalid-input script-propagation code separately from the direct primitive update. Receipt presentation alone cannot establish that logging/evaluation was reached.
 - [rust/tcl-syntax/src/scalar_getter/target_tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/target_tests.rs), `scalar_getter::target_tests::original_c84_primitive_code_and_callback_eval_code_are_separate_observations` (linked): The shared control compares only the independently captured original C84 Double callback-Eval storage0/case9/getter1 final message/errorCode window for this question, alongside separate original456 direct primitive fields. Later NONE is an explicit propagation update, not the direct primitive update; Int/Long Eval stages are not new provider observations.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors)

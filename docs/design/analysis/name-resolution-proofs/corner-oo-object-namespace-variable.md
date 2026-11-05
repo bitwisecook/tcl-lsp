@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 C8.6–9.1 return VALUE; stock C8.4, C8.5 and Jim retain the unavailable oo::class command errors.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=oo-object-namespace-variable.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for oo-object-namespace-variable; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-object-namespace-variable.tcl`. Exact 8.4.20 input for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-object-namespace-variable.stdout`. Exact 8.4.20 stdout for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/oo-object-namespace-variable.stderr`. Exact 8.4.20 stderr for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 oo-object-namespace-variable. JSON pointer `/rows/37`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-object-namespace-variable.tcl`. Exact 8.5.19 input for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-object-namespace-variable.stdout`. Exact 8.5.19 stdout for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/oo-object-namespace-variable.stderr`. Exact 8.5.19 stderr for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 oo-object-namespace-variable. JSON pointer `/rows/77`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-object-namespace-variable.tcl`. Exact 8.6.18 input for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-object-namespace-variable.stdout`. Exact 8.6.18 stdout for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/oo-object-namespace-variable.stderr`. Exact 8.6.18 stderr for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 oo-object-namespace-variable. JSON pointer `/rows/117`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-object-namespace-variable.tcl`. Exact 9.0.4 input for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-object-namespace-variable.stdout`. Exact 9.0.4 stdout for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/oo-object-namespace-variable.stderr`. Exact 9.0.4 stderr for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 oo-object-namespace-variable. JSON pointer `/rows/157`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-object-namespace-variable.tcl`. Exact 9.1.0 input for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-object-namespace-variable.stdout`. Exact 9.1.0 stdout for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/oo-object-namespace-variable.stderr`. Exact 9.1.0 stderr for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 oo-object-namespace-variable. JSON pointer `/rows/197`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-object-namespace-variable.tcl`. Exact Jim input for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-object-namespace-variable.stdout`. Exact Jim stdout for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/oo-object-namespace-variable.stderr`. Exact Jim stderr for oo-object-namespace-variable; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim oo-object-namespace-variable. JSON pointer `/rows/237`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case oo-object-namespace-variable --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-oo-object-namespace-variable.md). A replay is a separate execution and must record its own results.

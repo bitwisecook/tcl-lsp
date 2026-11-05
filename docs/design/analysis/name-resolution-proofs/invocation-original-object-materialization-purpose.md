@@ -26,55 +26,11 @@ These are constructed software carrier/cache assertions, not new original C-prod
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this software materialization-purpose contract. Dialect: tcl8.4.
-
-The software tests select retained engine or authored/standalone purpose tags and original software members. No original C, Jim or BIG-IP process answers this API ownership contract; Native object/cache/frame behaviour remains independently measured where its own proof permits.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this software materialization-purpose contract. Dialect: tcl8.5.
+Status: `not-tested`. Channel: No original external process for this software materialization-purpose contract.
 
 The software tests select retained engine or authored/standalone purpose tags and original software members. No original C, Jim or BIG-IP process answers this API ownership contract; Native object/cache/frame behaviour remains independently measured where its own proof permits.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this software materialization-purpose contract. Dialect: tcl8.6.
-
-The software tests select retained engine or authored/standalone purpose tags and original software members. No original C, Jim or BIG-IP process answers this API ownership contract; Native object/cache/frame behaviour remains independently measured where its own proof permits.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this software materialization-purpose contract. Dialect: tcl9.0.
-
-The software tests select retained engine or authored/standalone purpose tags and original software members. No original C, Jim or BIG-IP process answers this API ownership contract; Native object/cache/frame behaviour remains independently measured where its own proof permits.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this software materialization-purpose contract. Dialect: tcl9.1.
-
-The software tests select retained engine or authored/standalone purpose tags and original software members. No original C, Jim or BIG-IP process answers this API ownership contract; Native object/cache/frame behaviour remains independently measured where its own proof permits.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this software materialization-purpose contract. Dialect: jim.
-
-The software tests select retained engine or authored/standalone purpose tags and original software members. No original C, Jim or BIG-IP process answers this API ownership contract; Native object/cache/frame behaviour remains independently measured where its own proof permits.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No original external process for this software materialization-purpose contract. Dialect: bigip.
-
-The software tests select retained engine or authored/standalone purpose tags and original software members. No original C, Jim or BIG-IP process answers this API ownership contract; Native object/cache/frame behaviour remains independently measured where its own proof permits.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -92,13 +48,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/interp/object_materialization.rs](../../../../rust/tcl-vm/src/interp/object_materialization.rs), `interp::object_materialization::tests::standalone_compatibility_is_separate_and_unknown_source_cannot_select_a_recipe` (linked): Distribution C/Jim object compatibility is separately tagged with no actual engine; current Jim opaque list data is retained, unknown Jim source refuses length/getters/checked construction, and unchecked portable List data grants no selected protocol.
 - [rust/tcl-vm/src/interp/object_materialization.rs](../../../../rust/tcl-vm/src/interp/object_materialization.rs), `interp::object_materialization::tests::actual_object_materialization_preserves_foreign_compound_refusal` (linked): Actual C86 getters and length reject sealed foreign C90 list/dictionary backing without rendering original members or replacing the genuine foreign protocol.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `Value::native_object_dict_pairs`: Check original header access and the independently sealed compound string recipe before any cached dictionary/list members; cached storage or resident text cannot repair a foreign recipe.
 - [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs), `value::tests::native_dictionary_getter_checks_foreign_compound_recipe_before_cached_members` (linked): Cached List and Dict software carriers, with and without resident text, refuse a foreign sealed compound string recipe before returning members; original primary/residency/member references stay unchanged and the authentic recipe retains original key/member identity.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Current source/API definitions only. No Rust assertion or original provider operation is attached; existing original compound object/list-length/cache proofs and separately pinned failed or passed software commands retain their own source, image and purpose. The Info186 opt-in diagnostic is instrumentation, not a new observation or success.

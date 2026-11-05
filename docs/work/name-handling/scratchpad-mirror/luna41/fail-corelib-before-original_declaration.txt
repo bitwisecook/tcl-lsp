@@ -1,1 +1,0 @@
-FAILED original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census

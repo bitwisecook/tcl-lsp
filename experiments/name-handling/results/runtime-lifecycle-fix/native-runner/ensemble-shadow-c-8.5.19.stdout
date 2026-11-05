@@ -1,2 +1,0 @@
-TARGETS {ADD ::M x} {ADD ::M y} {GLOBAL z}
-MISSING 1 {invalid command name "::M::remove"}

@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-plain.tcl`: Exact original catch_output-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-plain.stdout`: tcl8.4 catch_output-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-plain.stderr`: tcl8.4 catch_output-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-qualified.tcl`: Exact original catch_output-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-qualified.stdout`: tcl8.4 catch_output-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-qualified.stderr`: tcl8.4 catch_output-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-index.tcl`: Exact original catch_output-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-index.stdout`: tcl8.4 catch_output-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-index.stderr`: tcl8.4 catch_output-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-binary_nul.tcl`: Exact original catch_output-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-binary_nul.stdout`: tcl8.4 catch_output-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-binary_nul.stderr`: tcl8.4 catch_output-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-decomposed.tcl`: Exact original catch_output-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-decomposed.stdout`: tcl8.4 catch_output-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-catch_output-decomposed.stderr`: tcl8.4 catch_output-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-plain.tcl`: Exact original catch_output-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-plain.stdout`: tcl8.5 catch_output-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-plain.stderr`: tcl8.5 catch_output-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-qualified.tcl`: Exact original catch_output-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-qualified.stdout`: tcl8.5 catch_output-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-qualified.stderr`: tcl8.5 catch_output-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-index.tcl`: Exact original catch_output-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-index.stdout`: tcl8.5 catch_output-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-index.stderr`: tcl8.5 catch_output-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-binary_nul.tcl`: Exact original catch_output-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-binary_nul.stdout`: tcl8.5 catch_output-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-binary_nul.stderr`: tcl8.5 catch_output-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-decomposed.tcl`: Exact original catch_output-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-decomposed.stdout`: tcl8.5 catch_output-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-catch_output-decomposed.stderr`: tcl8.5 catch_output-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-plain.tcl`: Exact original catch_output-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-plain.stdout`: tcl8.6 catch_output-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-plain.stderr`: tcl8.6 catch_output-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-qualified.tcl`: Exact original catch_output-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-qualified.stdout`: tcl8.6 catch_output-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-qualified.stderr`: tcl8.6 catch_output-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-index.tcl`: Exact original catch_output-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-index.stdout`: tcl8.6 catch_output-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-index.stderr`: tcl8.6 catch_output-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-binary_nul.tcl`: Exact original catch_output-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-binary_nul.stdout`: tcl8.6 catch_output-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-binary_nul.stderr`: tcl8.6 catch_output-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-decomposed.tcl`: Exact original catch_output-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-decomposed.stdout`: tcl8.6 catch_output-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-catch_output-decomposed.stderr`: tcl8.6 catch_output-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-plain.tcl`: Exact original catch_output-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-plain.stdout`: tcl9.0 catch_output-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-plain.stderr`: tcl9.0 catch_output-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-qualified.tcl`: Exact original catch_output-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-qualified.stdout`: tcl9.0 catch_output-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-qualified.stderr`: tcl9.0 catch_output-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-index.tcl`: Exact original catch_output-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-index.stdout`: tcl9.0 catch_output-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-index.stderr`: tcl9.0 catch_output-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-binary_nul.tcl`: Exact original catch_output-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-binary_nul.stdout`: tcl9.0 catch_output-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-binary_nul.stderr`: tcl9.0 catch_output-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-decomposed.tcl`: Exact original catch_output-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-decomposed.stdout`: tcl9.0 catch_output-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-catch_output-decomposed.stderr`: tcl9.0 catch_output-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-plain.tcl`: Exact original catch_output-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-plain.stdout`: tcl9.1 catch_output-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-plain.stderr`: tcl9.1 catch_output-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-qualified.tcl`: Exact original catch_output-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-qualified.stdout`: tcl9.1 catch_output-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-qualified.stderr`: tcl9.1 catch_output-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-index.tcl`: Exact original catch_output-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-index.stdout`: tcl9.1 catch_output-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-index.stderr`: tcl9.1 catch_output-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-binary_nul.tcl`: Exact original catch_output-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-binary_nul.stdout`: tcl9.1 catch_output-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-binary_nul.stderr`: tcl9.1 catch_output-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-decomposed.tcl`: Exact original catch_output-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-decomposed.stdout`: tcl9.1 catch_output-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-catch_output-decomposed.stderr`: tcl9.1 catch_output-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-plain.tcl`: Exact original catch_output-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-plain.stdout`: jim catch_output-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-plain.stderr`: jim catch_output-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-qualified.tcl`: Exact original catch_output-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-qualified.stdout`: jim catch_output-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-qualified.stderr`: jim catch_output-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-index.tcl`: Exact original catch_output-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-index.stdout`: jim catch_output-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-index.stderr`: jim catch_output-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-binary_nul.tcl`: Exact original catch_output-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-binary_nul.stdout`: jim catch_output-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-binary_nul.stderr`: jim catch_output-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-decomposed.tcl`: Exact original catch_output-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-decomposed.stdout`: jim catch_output-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-catch_output-decomposed.stderr`: jim catch_output-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/catch_output-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

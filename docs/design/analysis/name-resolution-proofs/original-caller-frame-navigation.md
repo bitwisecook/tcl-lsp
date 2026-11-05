@@ -20,55 +20,11 @@ Rust readonly navigation advice only. No successful upvar store, actual frame en
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust source-selection invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation establishes this Rust source-selection invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust source-selection invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust source-selection invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust source-selection invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation establishes this Rust source-selection invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation establishes this Rust source-selection invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +36,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/caller_frame.rs](../../../../rust/tcl-lsp-core/src/caller_frame.rs), `caller_frame::tests::original_caller_reference_geometry_does_not_cross_a_nested_frame` (linked): One C9 conditional source retains its genuine call and two same-frame variable-root extents while an unrelated nested procedure root is excluded.
 - [rust/tcl-lsp-core/src/variable_symbol.rs](../../../../rust/tcl-lsp-core/src/variable_symbol.rs), `variable_symbol::tests::original_navigation_keeps_caller_templates_separate_from_unbound_symbols` (linked): A C9 map-erased caller template retains one declaration/two references and one independent readonly card without a declaration; changed whole source and upvar 0/#0/2 controls refuse this template.
 - [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs), `references::tests::caller_frame_reference_component_keeps_retained_registry_and_input` (linked): Genuine current custom Registry and original caller read/call words retain two source references; foreign Registry, missing input and changed image refuse. No executed variable link or current cell is inferred.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors are linked coverage. No native interpreter observation establishes this implementation ownership contract.

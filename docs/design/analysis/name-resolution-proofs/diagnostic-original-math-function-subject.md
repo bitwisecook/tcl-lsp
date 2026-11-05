@@ -20,57 +20,11 @@ Rust implementation contract for admitted ASCII identifiers in the checked origi
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust diagnostic-source/readonly reporting contract. No native provider execution or test-pass outcome is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust diagnostic-source/readonly reporting contract. No native provider execution or test-pass outcome is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust diagnostic-source/readonly reporting contract. No native provider execution or test-pass outcome is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust diagnostic-source/readonly reporting contract. No native provider execution or test-pass outcome is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust diagnostic-source/readonly reporting contract. No native provider execution or test-pass outcome is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust diagnostic-source/readonly reporting contract. No native provider execution or test-pass outcome is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust diagnostic-source/readonly reporting contract. No native provider execution or test-pass outcome is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -90,13 +44,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs), `realm::tests::resolved_input_preserves_math_policy_without_catalogue_default` (linked): C5/Jim source occurrence recipe and foreign channel/full configuration rejection; no native execution or handler/Normal grant.
 - [rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs), `analyser::diagnostics::unresolved::original_parent_subject_tests::original_unresolved_subjects_keep_default_and_supplied_file_configuration` (linked): Finite source-defined control: original unresolved subjects keep default and supplied file configuration. Original diagnostic operands; no runtime absence/dispatch authority. The unchanged original unknown command can replace later function lookup. It cannot donate the following expression's occurrence. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked Rust selectors bind source/provenance/reporting obligations. Root must attach an exact frozen Rust validation receipt before any test-pass claim. Existing native math dispatch observations remain separate; no new provider launch or expression/function equivalence result is implied.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -105,8 +52,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 2 | 0 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -116,4 +62,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 2 | 0 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

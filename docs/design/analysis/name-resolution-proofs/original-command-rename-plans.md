@@ -22,55 +22,11 @@ Current Rust procedure/class source command edit planner, Core primary rename en
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; retained source advice supplies no runtime or physical native authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,9 +44,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/rename.rs](../../../../rust/tcl-lsp-core/src/rename.rs), `rename::tests::original_primary_member_rename_does_not_enter_string_override_families` (linked): A genuine Native method declaration without separately closed typed override edit ownership refuses rather than using compatibility String families.
 - [rust/tcl-syntax/src/naming/command_geometry.rs](../../../../rust/tcl-syntax/src/naming/command_geometry.rs), `naming::command_geometry::tests::original_command_tail_replacement_preserves_qualifiers_and_selected_extent` (linked): The selected C/Jim pure value projection retains exact qualification and ignored CString suffixes, with empty/qualified or purpose-changing replacement components refused; source edit authority remains separate.
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::original_workspace_command_rename_uses_atomic_current_owners` (linked): Server keeps independent current URI owners, ignores reporting maps, emits only target declaration/call edits, refuses an independently occupied peer destination and withdraws stale-source prepare/rename.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors bind fixed edit-plan and refusal assertions. No Rust execution receipt or native transformed-program result is attached. Complete source/Registry currency, exact owner allocation, Normal world, canonical occupancy, lookup alternatives, traversal coverage and independently editable source containers remain required.

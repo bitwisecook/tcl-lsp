@@ -20,65 +20,17 @@ Pinned C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 source inspection, selected trace type 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.4.20. Build: Source inspection only; no executed build association.. Channel: Inspected native trace dispatcher and usage presenter; no guest input.. Dialect: Tcl.
-
-Successful trace type selection precedes delegated arity validation; the index-backed usage presenter emits the selected table member rather than the original string.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Source inspection only; no executed build association.. Channel: Inspected native trace dispatcher and usage presenter; no guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected native trace dispatcher and usage presenter; no guest input. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Successful trace type selection precedes delegated arity validation; the index-backed usage presenter emits the selected table member rather than the original string.
 
-### tcl8.6
+### jim, bigip
 
-Status: `inspected`. Version: 8.6.18. Build: Source inspection only; no executed build association.. Channel: Inspected native trace dispatcher and usage presenter; no guest input.. Dialect: Tcl.
-
-Successful trace type selection precedes delegated arity validation; the index-backed usage presenter emits the selected table member rather than the original string.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Source inspection only; no executed build association.. Channel: Inspected native trace dispatcher and usage presenter; no guest input.. Dialect: Tcl.
-
-Successful trace type selection precedes delegated arity validation; the index-backed usage presenter emits the selected table member rather than the original string.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Source inspection only; no executed build association.. Channel: Inspected native trace dispatcher and usage presenter; no guest input.. Dialect: Tcl.
-
-Successful trace type selection precedes delegated arity validation; the index-backed usage presenter emits the selected table member rather than the original string.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No source/input inspected for this question.. Dialect: Jim Tcl.
+Status: `not-tested`. Channel: No source/input inspected for this question.
 
 No matching provider source or native observation; no C trace law is borrowed.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No source/input inspected for this question.. Dialect: F5 iRules.
-
-No matching provider source or native observation; no C trace law is borrowed.
-
-## Historical references
-
-- `tcl8.4-selected-type` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json). JSON pointer `/windows/0/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.4-arity-header` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json). JSON pointer `/windows/1/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.4-indexed-presentation` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json). JSON pointer `/windows/2/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.5-selected-type` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json). JSON pointer `/windows/0/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.5-arity-header` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json). JSON pointer `/windows/1/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.5-indexed-presentation` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json). JSON pointer `/windows/2/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.6-selected-type` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.6-arity-header` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl8.6-indexed-presentation` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json). JSON pointer `/windows/2/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl9.0-selected-type` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl9.0-arity-header` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl9.0-indexed-presentation` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json). JSON pointer `/windows/2/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl9.1-selected-type` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl9.1-arity-header` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
-- `tcl9.1-indexed-presentation` (source-anchor): [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json). JSON pointer `/windows/2/snippet`. Exact selected trace type, delegated arity prefix, and native index-backed usage presentation excerpts; no guest or Rust launch.
 
 ## Source inspection
 
@@ -205,7 +157,6 @@ tcl8.6 8.6.18, revision `8.6.18`, `/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclI
 	     * Quote the argument if it contains spaces (Bug 942757).
 	     */
 
-
 ```
 
 tcl9.0 9.0.4, revision `9.0.4`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclTrace.c`, function `Tcl_TraceObjCmd`, lines 225–230. Retained reference `tcl9.0-selected-type`.
@@ -292,7 +243,6 @@ tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInde
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/trace.rs](../../../../rust/tcl-cmd-core/src/trace.rs), `TraceKind::canonical_name`: Report only the member of the already selected native type table.
@@ -302,8 +252,10 @@ tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInde
 - [runtime/rust/src/cmd_trace.rs](../../../../runtime/rust/src/cmd_trace.rs), `cmd_trace_info`: Use the same selected type table reporting owner independently of actual trace registration and callback effects.
 - [rust/tcl-vm/src/cmd_trace/native_original_tests.rs](../../../../rust/tcl-vm/src/cmd_trace/native_original_tests.rs), `cmd_trace::native_original_tests::trace_type_wrong_arity_uses_selected_member_without_decoding_original_operand` (linked): The linked VM regression compares thirty retained direct raw-zero C code/result controls for canonical selected-type wrong-arity reporting. Source inspection explains the selected member; it supplies no execution, option, callback or registration conclusion.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Verify exact retained source/full-file/snippet hashes and LF coordinates. This is source inspection; no executable replay or native/Rust result is asserted.
+- [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.4-source.json)
+- [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.5-source.json)
+- [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl8.6-source.json)
+- [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.0-source.json)
+- [rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_trace_selected_type_source/tcl9.1-source.json)

@@ -20,55 +20,11 @@ Three marked fixed source/API controls compare conflicting scalar roots versus u
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-expression-scalar-reference-constant-source-projection-expr_simplify.rs` (implementation): [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +35,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs), `optimiser::helpers::expr_simplify::tests::scalar_constant_reference_selection_uses_actual_brace_close_grammar` (linked): Actual selected C8/Jim first-close and C9 nested-close grammar determine the scalar source name, with malformed/compound or array reference refusal.
 - [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs), `optimiser::helpers::expr_simplify::tests::scalar_constant_context_uses_jim_variable_grammar_without_catalogue_profile` (linked): Actual Jim ExprParseContext selects bare Unicode scalar syntax without a catalogue profile; C9 ASCII variable grammar keeps the same Unicode text unprojected. Source constant selection grants no Native read/value or native341 Unicode result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs](../../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs)

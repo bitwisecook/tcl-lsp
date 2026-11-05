@@ -20,61 +20,29 @@ Two native empty list results, first explicitly converted to List. Pointer equal
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.4.20. Build: Original source/output hashes and native static library d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011 retained; executable SHA, startup version and compiler argv are not recorded in this manifest.. Channel: Native API factory objects retained while ASCII Tcl_Eval/Jim_Eval executes the actual selected route.. Dialect: Tcl.
-
-route=0 first=string primed=list same=0 second=string; route=1 first=string primed=list same=0 second=string
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Original source/output hashes and native static library 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df retained; executable SHA, startup version and compiler argv are not recorded in this manifest.. Channel: Native API factory objects retained while ASCII Tcl_Eval/Jim_Eval executes the actual selected route.. Dialect: Tcl.
+Status: `observed`. Channel: Native API factory objects retained while ASCII Tcl_Eval/Jim_Eval executes the actual selected route. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 route=0 first=string primed=list same=0 second=string; route=1 first=string primed=list same=0 second=string
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Original source/output hashes and native static library a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6 retained; executable SHA, startup version and compiler argv are not recorded in this manifest.. Channel: Native API factory objects retained while ASCII Tcl_Eval/Jim_Eval executes the actual selected route.. Dialect: Tcl.
-
-route=0 first=string primed=list same=0 second=string; route=1 first=string primed=list same=0 second=string
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Original source/output hashes and native static library 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04 retained; executable SHA, startup version and compiler argv are not recorded in this manifest.. Channel: Native API factory objects retained while ASCII Tcl_Eval/Jim_Eval executes the actual selected route.. Dialect: Tcl.
-
-route=0 first=string primed=list same=0 second=string; route=1 first=string primed=list same=1 second=list
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Original source/output hashes and native static library 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33 retained; executable SHA, startup version and compiler argv are not recorded in this manifest.. Channel: Native API factory objects retained while ASCII Tcl_Eval/Jim_Eval executes the actual selected route.. Dialect: Tcl.
+Status: `observed`. Channel: Native API factory objects retained while ASCII Tcl_Eval/Jim_Eval executes the actual selected route. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 route=0 first=string primed=list same=0 second=string; route=1 first=string primed=list same=1 second=list
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/manifest.json](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/manifest.json). Each input/source/library/output hash and exact row count; original executed binary/version startup not retained here.
-- `e1` (input): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c). Exact original factory classes, native invocation routes and getter order.
-- `e2` (observation): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.4.20.txt). Exact original 2 rows with native primary/residency/result fields.
-- `e3` (input): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c). Exact original factory classes, native invocation routes and getter order.
-- `e4` (observation): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.5.19.txt). Exact original 2 rows with native primary/residency/result fields.
-- `e5` (input): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c). Exact original factory classes, native invocation routes and getter order.
-- `e6` (observation): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.6.18.txt). Exact original 2 rows with native primary/residency/result fields.
-- `e7` (input): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c). Exact original factory classes, native invocation routes and getter order.
-- `e8` (observation): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.0.4.txt). Exact original 2 rows with native primary/residency/result fields.
-- `e9` (input): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c). Exact original factory classes, native invocation routes and getter order.
-- `e10` (observation): [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.1.0.txt). Exact original 2 rows with native primary/residency/result fields.
 
 ## Source inspection
 
@@ -113,31 +81,17 @@ int main(int argc,char**argv){int route;(void)argc;Tcl_FindExecutable(argv[0]);f
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_stock_list.rs](../../../../rust/tcl-registry/src/native_stock_list.rs), `NativeStockListLengthProtocol::normal_cache_disposition`: Storage-class/normal-result cache selection independent of arbitrary object effects.
 - [rust/tcl-registry/src/native_stock_list/tests.rs](../../../../rust/tcl-registry/src/native_stock_list/tests.rs), `native_stock_list::tests::empty_list_root_provider_requires_generic_normal_result` (linked): Generic empty-provider class closure is independently selected; no compiled pooled object or source freshness grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "scripts/dev/replay-native-list-object-probes.py",
-  "--corpus",
-  "stock-length",
-  "--tcl-source-root",
-  "${TCL_SOURCE_ROOT}",
-  "--jim-source-root",
-  "${JIM_SOURCE_ROOT}",
-  "--output",
-  "${NEW_OUTPUT}"
-]
-```
-
-Requires exact original probe and library hashes; independently provision the matching C release or Jim static build. The runner records its fresh compiler arguments, executable hash, process status and streams and compares stdout byte for byte. Original stderr is absent from these manifests; the current replay separately requires empty stderr and does not claim retained stderr equality. Private C instruction probes require matching tclInt.h/tclCompile.h ABI. Missing originals and mismatched libraries are adapter refusals, not native guest answers. C library callbacks require the matching Tcl library directory. Every process has a60-second budget; run serially or obey a global maximum of two native processes. Reconfirmation of the oracle does not establish Rust parity or a native capability.
+- [rust/tcl-syntax/tests/data/native_list_methods/stock_length/manifest.json](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/manifest.json)
+- [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-result-probe.c)
+- [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.4.20.txt)
+- [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.5.19.txt)
+- [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-8.6.18.txt)
+- [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.0.4.txt)
+- [rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_list_methods/stock_length/empty-9.1.0.txt)

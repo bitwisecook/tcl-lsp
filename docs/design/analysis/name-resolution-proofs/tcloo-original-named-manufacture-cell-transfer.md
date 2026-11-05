@@ -20,55 +20,11 @@ Rust source-only named TclOO instance construction under C8.6, C9.0 and C9.1 wit
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,9 +40,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/named_manufacture.rs](../../../../rust/tcl-compiler/src/command_binding/named_manufacture.rs), `command_binding::named_manufacture::tests::original_named_manufacture_declines_occupied_unknown_and_failed_construction` (linked): Occupied or unknown destination names, constructor errors and unresolved filters supply neither complete-world continuation nor a later named receiver proof.
 - [rust/tcl-compiler/src/command_binding/named_manufacture.rs](../../../../rust/tcl-compiler/src/command_binding/named_manufacture.rs), `command_binding::named_manufacture::tests::original_named_manufacture_result_survives_a_genuine_called_scalar_frame` (linked): A source class precedes an actual called procedure under explicit Direct or ScriptCode source mode and a fresh scalar frame; exact result lineage remains independently current.
 - [rust/tcl-compiler/src/command_binding/named_manufacture.rs](../../../../rust/tcl-compiler/src/command_binding/named_manufacture.rs), `command_binding::named_manufacture::tests::original_named_manufacture_result_does_not_close_an_unknown_setter_mode` (linked): An Unknown source setter mode cannot issue held original result input, current receiver or completed-world authority while explicit Direct and ScriptCode controls retain their independent premises.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors are coverage obligations without an attached execution receipt. Source-world Normal completion, receiver liveness and retained value currency are independent premises; all native provider statuses remain not-tested for this implementation question.

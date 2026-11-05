@@ -22,65 +22,45 @@ Finite inlining/reference original candidate/definition producers, reached by bo
 
 ### tcl8.4
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-selection contract.. Build: Current Compiler/Registry source producer and two fixed software control definitions only.. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row. Version: tcl8.4 No external provider execution is attached to this source-selection contract.
 
 External tcl8.4 behavior is not tested here. Exact descriptor labels and original source-selection software controls grant no Native command/namespace identity, successful body creation, splice, pack or runtime admission. Existing separately scoped native naming/TMM observations remain unchanged.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-selection contract.. Build: Current Compiler/Registry source producer and two fixed software control definitions only.. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row. Version: tcl8.5 No external provider execution is attached to this source-selection contract.
 
 External tcl8.5 behavior is not tested here. Exact descriptor labels and original source-selection software controls grant no Native command/namespace identity, successful body creation, splice, pack or runtime admission. Existing separately scoped native naming/TMM observations remain unchanged.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-selection contract.. Build: Current Compiler/Registry source producer and two fixed software control definitions only.. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row. Version: tcl8.6 No external provider execution is attached to this source-selection contract.
 
 External tcl8.6 behavior is not tested here. Exact descriptor labels and original source-selection software controls grant no Native command/namespace identity, successful body creation, splice, pack or runtime admission. Existing separately scoped native naming/TMM observations remain unchanged.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-selection contract.. Build: Current Compiler/Registry source producer and two fixed software control definitions only.. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row. Version: tcl9.0 No external provider execution is attached to this source-selection contract.
 
 External tcl9.0 behavior is not tested here. Exact descriptor labels and original source-selection software controls grant no Native command/namespace identity, successful body creation, splice, pack or runtime admission. Existing separately scoped native naming/TMM observations remain unchanged.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-selection contract.. Build: Current Compiler/Registry source producer and two fixed software control definitions only.. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row. Version: tcl9.1 No external provider execution is attached to this source-selection contract.
 
 External tcl9.1 behavior is not tested here. Exact descriptor labels and original source-selection software controls grant no Native command/namespace identity, successful body creation, splice, pack or runtime admission. Existing separately scoped native naming/TMM observations remain unchanged.
 
 ### jim
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-selection contract.. Build: Current Compiler/Registry source producer and two fixed software control definitions only.. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row.. Dialect: jim.
+Status: `not-tested`. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row. Version: jim No external provider execution is attached to this source-selection contract.
 
 External jim behavior is not tested here. Exact descriptor labels and original source-selection software controls grant no Native command/namespace identity, successful body creation, splice, pack or runtime admission. Existing separately scoped native naming/TMM observations remain unchanged.
 
 ### bigip
 
-Status: `not-tested`. Version: No external provider execution is attached to this source-selection contract.. Build: Current Compiler/Registry source producer and two fixed software control definitions only.. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row.. Dialect: bigip.
+Status: `not-tested`. Channel: Original Logical source metadata and actual lowered backing declaration/Registry row. Version: bigip No external provider execution is attached to this source-selection contract.
 
 External bigip behavior is not tested here. Exact descriptor labels and original source-selection software controls grant no Native command/namespace identity, successful body creation, splice, pack or runtime admission. Existing separately scoped native naming/TMM observations remain unchanged.
-
-## Historical references
-
-- `reference-descriptor-source-0` (implementation): [rust/tcl-compiler/src/inlining/reference.rs](../../../../rust/tcl-compiler/src/inlining/reference.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-1` (implementation): [rust/tcl-compiler/src/inlining/mod.rs](../../../../rust/tcl-compiler/src/inlining/mod.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-2` (implementation): [rust/tcl-compiler/src/compile_service.rs](../../../../rust/tcl-compiler/src/compile_service.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-3` (implementation): [rust/tcl-compiler/src/site_claims.rs](../../../../rust/tcl-compiler/src/site_claims.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-4` (implementation): [rust/tcl-compiler/src/ir.rs](../../../../rust/tcl-compiler/src/ir.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-5` (implementation): [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-6` (implementation): [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs). Actual token or retained materialized-world ownership supplies the common source-purpose tag before procedure roles, realm or body ownership. Complete input/source/configuration and Native allocation/caller/provider guards remain independent.
-- `reference-descriptor-source-7` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
-- `reference-descriptor-source-8` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-9` (implementation): [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-10` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-11` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-- `reference-descriptor-source-12` (implementation): [rust/tcl-spectcl/tests/codegen_stamps.rs](../../../../rust/tcl-spectcl/tests/codegen_stamps.rs). Current original Module/argument-source/Registry selection owner, actual import/compile/admission consumer or fixed software control definition. Source-only; no assertion or external provider execution outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -92,8 +72,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/inlining/reference.rs](../../../../rust/tcl-compiler/src/inlining/reference.rs), `inlining::reference::tests::original_reference_candidates_use_selected_labels_instead_of_source_tails` (linked): Original Logical alias source selects the exact string descriptor label and never the alias reporting name; an unrelated qualified name or source-defined same tail does not select that label. Missing metadata, changed whole source or a Registry with a genuinely replaced same-named row withdraws candidates. This is conditional import-candidate advice, not pack or Native admission.
 - [rust/tcl-compiler/src/inlining/reference.rs](../../../../rust/tcl-compiler/src/inlining/reference.rs), `inlining::reference::tests::reference_definition_uses_its_produced_key_and_exact_registry_row` (linked): The actual lowered authored single-procedure declaration supplies its produced qualified key and must select the exact expected Registry row. An unrelated qualified tail, two declarations, or an equal-name fresh row from a different Registry is refused. No body is imported or executed by this control, and no Native name or procedure identity is granted.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Two fixed source-defined software controls permit later owned-executable reconfirmation. Existing tcl-spectcl runtime reference tests remain unchanged and have no new outcome attached here. No external C/Jim/BIG-IP execution or Native chronology is claimed.
+- [rust/tcl-compiler/src/inlining](../../../../rust/tcl-compiler/src/inlining)
+- [rust/tcl-compiler](../../../../rust/tcl-compiler)
+- [rust/tcl-compiler/src/command_binding](../../../../rust/tcl-compiler/src/command_binding)
+- [rust/tcl-compiler/src/registry_invocation](../../../../rust/tcl-compiler/src/registry_invocation)
+- [rust/tcl-registry/src](../../../../rust/tcl-registry/src)
+- [rust/tcl-spectcl/tests](../../../../rust/tcl-spectcl/tests)

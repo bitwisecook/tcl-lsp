@@ -20,79 +20,23 @@ Seven exact counted ASCII source values reconstructed with binary format H* insi
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Exact original VERSION line in this process stdout.. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads.. Dialect: tcl8.4.
-
-Version is printed by this original process. The four terminal nested cases report complete=1 and before=1, but inner/sink/after remain absent and evaluation errors. The two missing-brace cases report complete=0 and before=1, then error with sink/after absent. Bare x{ reports complete=1 and succeeds with before=1, after=2 and sink string bytes 785c7b. This answer covers only the seven original case values.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Exact original VERSION line in this process stdout.. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads.. Dialect: tcl8.5.
-
-Version is printed by this original process. The four terminal nested cases report complete=1 and before=1, but inner/sink/after remain absent and evaluation errors. The two missing-brace cases report complete=0 and before=1, then error with sink/after absent. Bare x{ reports complete=1 and succeeds with before=1, after=2 and sink string bytes 785c7b. This answer covers only the seven original case values.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Exact original VERSION line in this process stdout.. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads.. Dialect: tcl8.6.
-
-Version is printed by this original process. The four terminal nested cases report complete=1 and before=1, but inner/sink/after remain absent and evaluation errors. The two missing-brace cases report complete=0 and before=1, then error with sink/after absent. Bare x{ reports complete=1 and succeeds with before=1, after=2 and sink string bytes 785c7b. This answer covers only the seven original case values.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Exact original VERSION line in this process stdout.. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads.. Dialect: tcl9.0.
-
-Version is printed by this original process. The four terminal nested cases report complete=1 and before=1, but inner/sink/after remain absent and evaluation errors. The two missing-brace cases report complete=0 and before=1, then error with sink/after absent. Bare x{ reports complete=1 and succeeds with before=1, after=2 and sink string bytes 785c7b. This answer covers only the seven original case values.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Exact original VERSION line in this process stdout.. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads.. Dialect: tcl9.1.
+Status: `observed`. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Version is printed by this original process. The four terminal nested cases report complete=1 and before=1, but inner/sink/after remain absent and evaluation errors. The two missing-brace cases report complete=0 and before=1, then error with sink/after absent. Bare x{ reports complete=1 and succeeds with before=1, after=2 and sink string bytes 785c7b. This answer covers only the seven original case values.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: The exact invoked ELF and captured Tcl library inputs retain before/after pins and full canonical payload joins. Configure/compiler/link and loaded shared-library identity are unrecorded. Exact original VERSION line in this process stdout.. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads.. Dialect: jim.
+Status: `observed`. Channel: CLI probe.tcl reconstructs exact hexadecimal script bytes; public info complete and uplevel #0 are followed by separate effect reads. Version: jim 0.84-9-g5bac7c9.
 
 Version is printed by this original process. The four terminal nested cases report complete=1 and before=1, but inner/sink/after remain absent and evaluation errors. The two missing-brace cases and the bare x{ case report complete=0, return unmatched "[" and leave all four effects absent. This answer covers only the seven original case values.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No actual BIG-IP process for these exact operands. Channel: No appliance capture for this question. Dialect: F5 iRules.
+Status: `not-tested`. Channel: No appliance capture for this question.
 
 No actual BIG-IP response to these exact inputs is retained. Local C Tcl/Jim outcomes establish no BIG-IP or TMM behaviour.
-
-## Historical references
-
-- `original-probe` (input): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/probe.tcl](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/probe.tcl). Exact original public command and post-command observation script; preserved physical source bytes.
-- `original-cases` (input): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/cases.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/cases.json). Exact original input declarations. The request-only status in the 628 declaration describes that retained request and supplies no outcome.
-- `original-run` (provider): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/run.py](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/run.py). Exact original invocation, environment, per-provider isolated file and before/after byte pin capture protocol. Its retained bytes do not supply build or loaded-library closure.
-- `original-results` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/results.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/results.json). Exact six independently closed original subprocess/result associations. Script catch codes remain distinct from the process exit.
-- `tcl8.4-receipt-json` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/receipt.json). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.4-stdout` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/stdout](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/stdout). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.4-stderr` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/stderr](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20/stderr). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.5-receipt-json` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/receipt.json). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.5-stdout` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/stdout](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/stdout). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.5-stderr` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/stderr](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19/stderr). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.6-receipt-json` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/receipt.json). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.6-stdout` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/stdout](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/stdout). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl8.6-stderr` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/stderr](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18/stderr). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl9.0-receipt-json` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/receipt.json). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl9.0-stdout` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/stdout](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/stdout). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl9.0-stderr` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/stderr](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4/stderr). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl9.1-receipt-json` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/receipt.json). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl9.1-stdout` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/stdout](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/stdout). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `tcl9.1-stderr` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/stderr](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0/stderr). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `jim-receipt-json` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/receipt.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/receipt.json). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `jim-stdout` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stdout](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stdout). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `jim-stderr` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stderr](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim/stderr). Original closed subprocess receipt or stream for this provider and these exact inputs; no independent worker/header/lifetime inference.
-- `exact-provider-input-retention` (provider): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/provider-retention.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/provider-retention.json). Each original before/after executable/probe/library pin joins exact existing full payload bytes. Version-source provenance remains explicit; no C/Jim source or loaded-library closure is implied.
-- `independent-projection` (observation): [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/interpretation.json](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/interpretation.json). Exact counted raw-line byte joins and separate public result/effect fields, reviewed without executing a provider.
-- `authored-compiler-registry633-bf406c6acc0e` (implementation): [rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs). Current actual authored source/API control and genuine module owner, inspected for the attached assertion scope only. This evidence supplies no executable admission, passed assertion, Native callback/worker chronology or provider outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -102,17 +46,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs), `command_binding::original_script_parse_entry_tests::original_jim_command_child_parse_keeps_root_prefix_but_refuses_child_prefix` (linked): The held Jim command-child source model keeps the prior root declaration while excluding invalid child-prefix and later-root declarations. Native Direct probe outcomes and public completeness evidence remain independently scoped.
 - [rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_script_parse_entry_tests.rs), `command_binding::original_script_parse_entry_tests::original_jim_direct_delimiter_scan_does_not_borrow_c_bare_brace_syntax` (linked): The held Jim delimiter owner refuses malformed child shapes before any root publication; corresponding selected C source examples retain their prior/later declarations. This finite source-model comparison does not reuse C grammar as a Jim execution owner.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/run.py"
-]
-```
-
-The exact original runner refuses to replace results.json and expects its original absolute provider/library paths. Restore and verify the declared payload bytes, use a separate fresh output root, and retain any new process evidence separately. For 628 supply a distinct owned disposable R2286_IO_PROBE_FILE for each provider; it is deleted by the unchanged probe. Version attribution must retain its explicit capture source. Full provider build and loaded-library replay are unrecorded. The preserved runner has no implementation-source build closure or original Native object authority.
+- [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original)
+- [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.4.20)
+- [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.5.19)
+- [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/8.6.18)
+- [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.0.4)
+- [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/9.1.0)
+- [runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim](../../../../runtime/rust/tests/data/native_jim_nested_direct_entry_prefix_effects_original/627/Jim)
+- [rust/tcl-compiler/src/command_binding](../../../../rust/tcl-compiler/src/command_binding)

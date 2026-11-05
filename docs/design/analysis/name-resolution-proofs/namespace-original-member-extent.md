@@ -20,55 +20,17 @@ Original immutable byte operands and independently retained C namespace componen
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,22 +43,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/naming/namespace_spans.rs](../../../../rust/tcl-syntax/src/naming/namespace_spans.rs), `naming::namespace_spans::original_namespace_rename_tests::original_namespace_rename_preserves_colon_runs_and_omitted_components` (linked): Preserve written root markers/separator runs, including Jim literal parent colon; leave omitted inherited components unchanged and refuse multi-component/raw-zero replacement.
 - [rust/tcl-syntax/src/naming/namespace_spans.rs](../../../../rust/tcl-syntax/src/naming/namespace_spans.rs), `naming::namespace_spans::operand_namespace_purpose_tests::namespace_membership_excludes_command_and_variable_simple_tails` (linked): Use C namespace slots and Jim flat command lookup candidates independently; retain C-purpose refusal on Jim and refuse donating command namespace partitions to Jim variable roots. Retain the current Jim object for its selected candidate, the root object for genuine global fallback, and reject a mismatching flat slot.
 - [rust/tcl-syntax/src/naming/namespace_spans.rs](../../../../rust/tcl-syntax/src/naming/namespace_spans.rs), `naming::namespace_spans::namespace_rename_target_tests::namespace_rename_targets_replace_one_opaque_component_and_reject_multiple_components` (linked): Roundtrip replacement of exact opaque C components or retained Jim namespace objects and reject empty/multiple/raw-zero tails.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-syntax",
-  "--lib",
-  "namespace_spans"
-]
-```
-
-Run from rust/. These meaningful fixed-input geometry tests are Rust implementation contracts. Test bindings do not claim execution here and supply no native engine outcome or edit authority.

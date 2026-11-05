@@ -24,55 +24,11 @@ Current direct test attributes and real module parents attach these source/API c
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-source` (implementation): [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs). Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,16 +37,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs), `linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source` (linked): The consumer selects the retained original procedure and independently matches direct self-call allocations. Native command component extents map through the shared literal source geometry. Each accepted range contains exactly the same plain source text; qualified heads retain their prefixes. Computed heads, linked aliases, escape-dependent components, unrelated arguments, stale source and missing scanner configuration cannot borrow a writable declaration range. ASCII and Unicode components use explicit validating patterns.
 - [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs), `linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words` (linked): The consumer selects the retained original procedure and independently matches direct self-call allocations. Native command component extents map through the shared literal source geometry. Each accepted range contains exactly the same plain source text; qualified heads retain their prefixes. Computed heads, linked aliases, escape-dependent components, unrelated arguments, stale source and missing scanner configuration cannot borrow a writable declaration range. ASCII and Unicode components use explicit validating patterns.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs), `linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner` (linked): Logical linked-edit geometry requires the current complete original source owner and withdraws replaced or unavailable input; source correspondence is separate from executable identity or actual edit permission.
 
 Current source linkage supplies no execution or assertion credit.
-
-## Replay
-
-The named fixed Rust selectors are reproducible source contract checks. Their execution is not asserted by this record. Native experiments are independently scoped.
-
 
 ## Intentional current-source spelling authoring
 
@@ -129,8 +78,11 @@ Native authoring may now withhold ranges when the existing full preparation
 owner cannot close current source obligations. No runtime/provider acceptance,
 complete future-name policy or verified-completion claim follows.
 
-
 The current source position and range output both use the shared LSP line
 index. A lone CR advances the LSP line in both directions; source byte spans
 remain unchanged. The added fixed lone-CR control checks actual linked source
 ranges without replacing any original LF/Unicode assertion.
+
+## Evidence
+
+- [rust/tcl-lsp-core/src/linked_editing_range.rs](../../../../rust/tcl-lsp-core/src/linked_editing_range.rs)

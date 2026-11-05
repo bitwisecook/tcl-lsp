@@ -20,55 +20,11 @@ Rust source-analysis contract for explicit Tcl 8.4–9.1 and current Jim authori
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,9 +38,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `analyser::commands::original_conditional_variable_read_tests::original_conditional_variable_reads_keep_distinct_absolute_opaque_operands` (linked): All six authored policies retain distinct D800 and D801 absolute info-exists receiver operands and corresponding declarations after earlier namespace commands, independently of erased reporting maps; edited complete source currency withdraws selection.
 - [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `analyser::commands::original_conditional_variable_read_tests::original_conditional_variable_reads_preserve_shadow_and_unknown_scope_barriers` (linked): A selected custom info command cannot supply stock variable receiver roles; an unavailable ordinary bare namespace scope cannot supply variable storage geometry.
 - [rust/tcl-compiler/src/registry_invocation/conditional_metadata.rs](../../../../rust/tcl-compiler/src/registry_invocation/conditional_metadata.rs), `registry_invocation::conditional_metadata::source_inventory_tests::original_conditional_source_controls_select_subcommands_without_reencoding_payloads` (linked): Six explicit authored policies select the literal info-exists source member and Combined receiver while the opaque D800 original payload stays counted and exact; raw-zero/opaque controls do not become literal selectors, dynamic/expanded shapes stay distinct and changed full source withdraws metadata.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named fixed Rust selectors bind conditional source geometry and negative context premises. No Rust execution receipt or native observation is attached; existing measured variable lookup and physical lifecycle questions remain independent.

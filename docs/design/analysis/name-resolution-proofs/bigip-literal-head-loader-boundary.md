@@ -20,52 +20,21 @@ Canonical load channels and exact rejection logs; no runtime answer is granted t
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Canonical load channels and exact rejection logs; no runtime answer is granted to a source that did not load.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Channel: Canonical load channels and exact rejection logs; no runtime answer is granted to a source that did not load. Version: bigip 21.1.0.1.
 
 The canonical53-source set has40acceptances and13rejections, with no warnings/indeterminate loads. Literal namespace/interp/package/rename and ordinary procedure-call doors have explicit loader errors; their dynamic controls are different inputs. Isolated later LF/CRLF and NUL controls do not retroactively repair rejected canonical sources.
 
 The measured report rows and their limits are:
 
-
-The canonical set produced 40 `ACCEPT`, 13 `REJECT`, no warnings, and no indeterminate loads. Complete status and per-rule logs are [load-driver-summary.tsv](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/load-driver-summary.tsv) and [journals](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/journals).
+The canonical set produced 40 `ACCEPT`, 13 `REJECT`, no warnings, and no indeterminate loads. Complete status and per-rule logs are `load-driver-summary.tsv` and journals.
 
 | Cases | Verdict | Exact diagnostic class |
 | --- | --- | --- |
@@ -95,29 +64,12 @@ The isolated edge controls remove confounding source features:
 | Dynamic embedded NUL `7fd169e9…c3ca` | ACCEPT; decoded result `3 410042 0 VALUE 0 VALUE 1` on all four TMMs |
 | Literal embedded NUL `59294325…126d` | REJECT; `Syntax Error … can't parse TCL script beginning with`; the diagnostic output stopped after the source bytes `set x "A` at the NUL boundary |
 
-The raw edge-control evidence, including exact `.conf.hex` files and the literal-NUL loader bytes, is under [r2286_20261006de](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006de).
-
-
-## Historical references
-
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md). Lines 168–201. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md). Lines 3–3. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/load-driver-summary.tsv](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/load-driver-summary.tsv). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `source-closure-3` (provider): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/inventory.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/inventory.txt). Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `source-closure-4` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/manifest-verification.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/manifest-verification.txt). Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct.
-- `source-closure-5` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/manifest.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/manifest.json). Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct.
-- `aggregate-6` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json). Inspected measured canonical case aggregate and its explicit unmeasured limits; actual case rows remain in this exact file. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+The raw edge-control evidence, including exact `.conf.hex` files and the literal-NUL loader bytes, is under r2286_20261006de.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+- [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md)

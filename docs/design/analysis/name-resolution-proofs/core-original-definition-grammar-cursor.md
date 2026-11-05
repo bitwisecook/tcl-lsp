@@ -45,7 +45,6 @@ UTF16 position geometry; and actual completion/quick-fix adopters. Original
 fixtures and assertions remain unchanged. Source review is independent of later
 Root-owned compilation and test execution.
 
-
 ## Current index binding
 
 Stable proof ID: `naming.core.original-definition-grammar-cursor`.

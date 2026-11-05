@@ -20,55 +20,11 @@ Authored Rust assertions in C8.4, C8.5, C8.6, C9.0 and C9.1 source contexts. No 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs), `source_script_bodies_for_mutation_coverage`: Separate partial readonly body inventory from complete expected executable-body geometry for mutation coverage.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice.rs), `command_binding::source_transition_advice::tests::authored_immediate_bodies_keep_mutation_and_callback_obligations_separate` (linked): Five C source contexts retain later alias grammar with original puts-child uncertainty, false lookup preservation and no completed world; seven fixed rename/delete/rebind/nested-bracket/checked-expression mutations refuse stale grammar. Supported C8.4 trace-variable/read registration and C8.5–9.1 modern trace-add/read registration plus later read either refuse source advice or retain the exact registration producer with UnknownEarlierMutation and false lookup preservation. Typed Trace transitions and observer widenings remain unresolved even when transition coverage leaves only residual reads.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice.rs), `command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier` (linked): Five C source contexts retain dynamic switch-subject source argv as Dynamic with exact current original vector, UnknownEarlierMutation, readonly body geometry and false lookup preservation; later alias advice is withdrawn. A known command-substitution rename of the alias refuses its current schema.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors are linked implementation coverage. No native capture or Rust execution receipt establishes this source-advice question; source inspection remains independent of actual runtime entry and mutation.

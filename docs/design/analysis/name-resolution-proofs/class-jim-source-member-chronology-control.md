@@ -22,81 +22,57 @@ Original fixed ASCII LF CLI program with no raw/counting NUL, non-ASCII, continu
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability. Version: tcl8.4 8.4.20.
 
 This exact stock 8.4.20 CLI process catches package require oo rejection (can't find package oo), reports no class command and prints jim_class_controls not_applicable no_class_command. All eight class branches are unexecuted, so no Jim-class chronology or inheritance answer follows for this installation. This observation does not assert TclOO absence or inability to load other packages. Exit is zero and stderr empty.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability. Version: tcl8.5 8.5.19.
 
 This exact stock 8.5.19 CLI process catches package require oo rejection (can't find package oo), reports no class command and prints jim_class_controls not_applicable no_class_command. All eight class branches are unexecuted, so no Jim-class chronology or inheritance answer follows for this installation. This observation does not assert TclOO absence or inability to load other packages. Exit is zero and stderr empty.
 
 ### tcl8.6
 
-Status: `unsupported`. Version: 8.6.18. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability. Version: tcl8.6 8.6.18.
 
 This exact stock 8.6.18 CLI process catches package require oo rejection (can't find package oo), reports no class command and prints jim_class_controls not_applicable no_class_command. All eight class branches are unexecuted, so no Jim-class chronology or inheritance answer follows for this installation. This observation does not assert TclOO absence or inability to load other packages. Exit is zero and stderr empty.
 
 ### tcl9.0
 
-Status: `unsupported`. Version: 9.0.4. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability. Version: tcl9.0 9.0.4.
 
 This exact stock 9.0.4 CLI process catches package require oo rejection (can't find package oo), reports no class command and prints jim_class_controls not_applicable no_class_command. All eight class branches are unexecuted, so no Jim-class chronology or inheritance answer follows for this installation. This observation does not assert TclOO absence or inability to load other packages. Exit is zero and stderr empty.
 
 ### tcl9.1
 
-Status: `unsupported`. Version: 9.1.0. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability. Version: tcl9.1 9.1.0.
 
 This exact stock 9.1.0 CLI process catches package require oo rejection (can't find package oo), reports no class command and prints jim_class_controls not_applicable no_class_command. All eight class branches are unexecuted, so no Jim-class chronology or inheritance answer follows for this installation. This observation does not assert TclOO absence or inability to load other packages. Exit is zero and stderr empty.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability.. Dialect: Jim oo package.
+Status: `observed`. Channel: Original fixed ASCII LF CLI file; package require oo availability, caught public class/object results. Source contains no raw or counted NUL, non-ASCII, line continuations or control escapes. No internal object/header/native argv/cache/frame/currentness claim. C stock class-command absence is not applicable, separate from TclOO availability. Version: jim 0.84-9-g5bac7c9.
 
 Actual version 0.84-9-g5bac7c9 has oo package 1.0 and class/alias commands. The exact eight sequential caught public rows are: sequential_members 0 {FIRST SECOND 1}; two_word_before_after 0 {BEFORE AFTER}; moved_earlier_two_word 1 {MovedProc, unknown method "before": should be classname, classvars, constructor, defaultconstructor, destroy, eval, finalize, get, method, methods, new, vars}; bases_current 0 {BASE 11 22}; bases_moved_factory 1 {invalid command name "HeldBase inherited"}; bases_command_alias 1 {invalid command name "AliasName inherited"}; bases_known_deleted 1 {invalid command name "DeletedBase"}; bases_known_nonclass 1 {missing value to go with key}. Process exit is zero and stderr empty. The moved/alias BASES errors concern their exact authored two-word target names; no Native class-object, frame, header or storage identity follows.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: BIG-IP.
+Status: `not-tested`.
 
 No appliance execution answers this Jim class-package chronology question. Stock C package rejection and Jim public outcomes supply no BIG-IP result.
-
-## Historical references
-
-- `class269-probe.tcl` (input): [rust/tcl-registry/tests/data/native_jim_class_source269/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/probe.tcl). Exact original fixed ASCII LF source executed by all six providers.
-- `class269-request.json` (input): [rust/tcl-registry/tests/data/native_jim_class_source269/request.json](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/request.json). Exact authored eight-control question list, original source SHA, provider list, explicit BIG-IP limit and required Jim package/build associations.
-- `class269-capture.py` (input): [rust/tcl-registry/tests/data/native_jim_class_source269/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/capture.py). Exact Root-executed launcher with explicit provider/executable/artifact checks, external prior alias255 receipts, recorded CLI source-file commands and whole streams; no new launch is claimed.
-- `class269-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `class269-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `class269-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20/stderr). Whole exact empty process stderr.
-- `class269-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `class269-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `class269-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19/stderr). Whole exact empty process stderr.
-- `class269-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `class269-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `class269-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18/stderr). Whole exact empty process stderr.
-- `class269-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `class269-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `class269-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4/stderr). Whole exact empty process stderr.
-- `class269-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `class269-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `class269-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0/stderr). Whole exact empty process stderr.
-- `class269-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/jim/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `class269-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/jim/stdout](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/jim/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `class269-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_class_source269/jim/stderr](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/jim/stderr). Whole exact empty process stderr.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/analyser/original_definer.rs](../../../../rust/tcl-compiler/src/analyser/original_definer.rs), `analyser::original_definer::tests::original_jim_members_accumulate_in_canonical_source_metadata_without_reporting_maps` (linked): Motivated by the separately retained public Jim chronology, this Rust source control checks conditional canonical member accumulation/source horizons and report-map independence; it does not execute a provider or establish successful allocation/activation.
 - [rust/tcl-compiler/src/analyser/original_definer.rs](../../../../rust/tcl-compiler/src/analyser/original_definer.rs), `analyser::original_definer::tests::original_jim_two_word_members_keep_earlier_and_later_procedure_producers` (linked): This Rust source control retains exact earlier/later canonical procedure producers independently of the actual public Jim BEFORE AFTER row; it is a coverage binding, not a native process or pass claim.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Original exact process commands, recorded environment overrides, complete required SDK/source/executable associations and whole stdout/stderr remain in the receipts. Other inherited environment variables are unrecorded. Their source paths are the original scratch paths; this publication copies every input/request/stream/receipt unchanged and also retains the actual launcher. The launcher depends on the independently retained alias255 receipts and original external SDK paths and refuses existing output directories; it is not a portable replay promise. Re-running would create new observations. No native or Rust process is launched by publication or the proof gate.
+- [rust/tcl-registry/tests/data/native_jim_class_source269](../../../../rust/tcl-registry/tests/data/native_jim_class_source269)
+- [rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.4.20)
+- [rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.5.19)
+- [rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/8.6.18)
+- [rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.0.4)
+- [rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/9.1.0)
+- [rust/tcl-registry/tests/data/native_jim_class_source269/jim](../../../../rust/tcl-registry/tests/data/native_jim_class_source269/jim)

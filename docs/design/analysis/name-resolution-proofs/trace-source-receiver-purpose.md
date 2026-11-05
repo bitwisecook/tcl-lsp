@@ -20,55 +20,11 @@ Rust Registry, Syntax, Compiler, SpecTcl and Studio source naming contract. Fixe
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -90,9 +46,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/variable_bindings.rs](../../../../rust/tcl-compiler/src/variable_bindings.rs), `variable_bindings::tests::original_trace_subject_roles_do_not_read_or_overwrite_value_contents` (linked): With a traced subject, modern and legacy query/install/remove naming roles project no value read or contents write, including an invalid operation list; an ordinary selected Set read remains observed under both exact original and compatibility operand projections.
 - [rust/tcl-spec-studio/src/render_spectcl.rs](../../../../rust/tcl-spec-studio/src/render_spectcl.rs), `render_spectcl::tests::trace_subject_receiver_drafts_reject_invalid_forms_and_positions_without_defaulting` (linked): Malformed, missing, duplicated or out-of-range draft positions/forms produce explicit invalid output through both renderers instead of selecting Combined or argument zero.
 - [rust/tcl-registry/src/commands/tcl/trace.rs](../../../../rust/tcl-registry/src/commands/tcl/trace.rs), `commands::tcl::trace::tests::original_trace_type_roles_use_selected_native_index_extent_without_cache_authority` (linked): C native byte selectors use the independently selected index extent: a raw-zero suffix may be ignored while an encoded-zero suffix is rejected. Command/execution subjects remain command roles; missing byte policy, Jim trace and unknown expansion count remain unavailable.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named fixed Rust selectors are linked implementation bindings; no execution receipt is attached to this contract. The existing native trace-subject-counted-zero-address record remains a separate measured address/result law, not a successful source handler or observer lifetime proof.

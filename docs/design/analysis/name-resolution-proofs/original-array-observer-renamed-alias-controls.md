@@ -20,99 +20,27 @@ Six fresh CLI processes retain six actual version rows and 23 observable control
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Actual CLI executable SHA f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status.. Dialect: Tcl.
-
-Builtin and renamed original array get each return k OLD. Interpreter alias setup succeeds with result array_alias, and the caught alias read succeeds with k OLD.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual CLI executable SHA e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status.. Dialect: Tcl.
-
-Builtin and renamed original array get each return k OLD. Interpreter alias setup succeeds with result array_alias, and the caught alias read succeeds with k OLD.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual CLI executable SHA 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status.. Dialect: Tcl.
-
-Builtin and renamed original array get each return k OLD. Interpreter alias setup succeeds with result array_alias, and the caught alias read succeeds with k OLD.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual CLI executable SHA f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1 with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status.. Dialect: Tcl.
-
-Builtin and renamed original array get each return k OLD. Interpreter alias setup succeeds with result array_alias, and the caught alias read succeeds with k OLD.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual CLI executable SHA 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status.. Dialect: Tcl.
+Status: `observed`. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Builtin and renamed original array get each return k OLD. Interpreter alias setup succeeds with result array_alias, and the caught alias read succeeds with k OLD.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual CLI executable SHA e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806 with retained SDK/header/library/build/source, environment and runner joins. This source-file runner records no compilation command or compiler binary version.. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Fixed ASCII LF source-file CLI, one fresh process per provider. An independently hashed version prefix precedes the original sequential builtin/rename/conditional alias controls; Tcl list output retains exact values and caught setup status. Version: jim 0.84-9-g5bac7c9.
 
 Builtin and renamed original array get each return k OLD. Interpreter alias setup fails with the actual interp arity message; the source skips alias evaluation, so no successful alias read is observed.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation of these exact original array rename/alias controls.
-
-## Historical references
-
-- `array-original-question.tcl` (input): [rust/tcl-registry/tests/data/native_original_array_observer/original-question.tcl](../../../../rust/tcl-registry/tests/data/native_original_array_observer/original-question.tcl). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-probe.tcl` (input): [rust/tcl-registry/tests/data/native_original_array_observer/probe.tcl](../../../../rust/tcl-registry/tests/data/native_original_array_observer/probe.tcl). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-request.json` (input): [rust/tcl-registry/tests/data/native_original_array_observer/request.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/request.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-capture.py` (input): [rust/tcl-registry/tests/data/native_original_array_observer/capture.py](../../../../rust/tcl-registry/tests/data/native_original_array_observer/capture.py). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.6.18/receipt.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.6.18/stderr). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.6.18/stdout). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.1.0/receipt.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.1.0/stderr). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.1.0/stdout). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.4.20/receipt.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.4.20/stderr). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.4.20/stdout). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.0.4/receipt.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.0.4/stderr). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.0.4/stdout). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.5.19/receipt.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.5.19/stderr). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.5.19/stdout). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/jim/receipt.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/jim/stderr](../../../../rust/tcl-registry/tests/data/native_original_array_observer/jim/stderr). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_original_array_observer/jim/stdout](../../../../rust/tcl-registry/tests/data/native_original_array_observer/jim/stdout). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-- `array-sdk-queue.json` (provider): [rust/tcl-registry/tests/data/native_original_array_observer/sdk-queue.json](../../../../rust/tcl-registry/tests/data/native_original_array_observer/sdk-queue.json). Exact original or independently version-prefixed source, request/runner, actual provider association or raw process stream. Sequential values and supported alias setup are measured; no compiler read inventory or physical allocation is inferred.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/place_bridge.rs](../../../../rust/tcl-compiler/src/place_bridge.rs), `place_bridge::tests::element_observers_follow_original_renamed_and_aliased_array_reads` (linked): Fifteen source controls in five C authoring contexts independently require authentic Native registration ownership, actual selected original array child target, concrete whole-array read inventory and a real element store before point-aware observation. This is a compiler-source assertion, not native transcript replay.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_original_array_observer/capture.py"
-]
-```
-
-The retained runner uses its original absolute SDK queue and creates provider output directories. Exact SDK/executable/environment associations and a fresh output directory are required. The builtin and renamed reads are direct source actions; only alias setup and supported alias evaluation are caught. Compiler source assertions and later Rust execution remain independent.
-
 
 ## Exact original-source Compiler software outcomes
 
@@ -122,8 +50,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -133,4 +60,14 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 0 | 1 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
+- [rust/tcl-registry/tests/data/native_original_array_observer/8.6.18](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.6.18)
+- [rust/tcl-registry/tests/data/native_original_array_observer/9.1.0](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.1.0)
+- [rust/tcl-registry/tests/data/native_original_array_observer/8.4.20](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.4.20)
+- [rust/tcl-registry/tests/data/native_original_array_observer/9.0.4](../../../../rust/tcl-registry/tests/data/native_original_array_observer/9.0.4)
+- [rust/tcl-registry/tests/data/native_original_array_observer/8.5.19](../../../../rust/tcl-registry/tests/data/native_original_array_observer/8.5.19)
+- [rust/tcl-registry/tests/data/native_original_array_observer/jim](../../../../rust/tcl-registry/tests/data/native_original_array_observer/jim)

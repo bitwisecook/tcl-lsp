@@ -20,51 +20,17 @@ This is a read-only projection for a typed configured-class source transition. I
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No provider execution for this source contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-No provider execution for this source contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No provider execution for this source contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No provider execution for this source contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No provider execution for this source contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+Status: `not-tested`.
 
 No provider execution for this source contract.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No appliance execution for this source contract.
-
-## Historical references
-
-No provider evidence or test execution is attached.
 
 ## Owner-resolution map
 
@@ -73,7 +39,3 @@ No provider evidence or test execution is attached.
 | Original configured-class command and lineage | `OriginalSourceConfiguredClassReference` in `rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs` | `source_configured_class_at` in `rust/tcl-compiler/src/registry_invocation/source_structure.rs` | The owner must match the same source image, lexer configuration, resolved context, and full input. |
 | Exact original argv and selected source schema | The reference’s retained transition consumer and existing `source_transition_words_from_advice` projection | `source_configured_class_words_at` in `rust/tcl-compiler/src/registry_invocation/source_structure.rs` | No reconstruction from reported command/class strings; unavailable roles remain unknown inside an otherwise retained words wrapper. |
 | LSP member hazard use | Existing member metadata consumer in `rust/tcl-lsp-core/src/references/member_metadata.rs` | Existing source-role path | This role projection does not itself complete member reference coverage or grant rename authority. |
-
-## Replay
-
-This record indexes inspected source ownership only. No executable replay, test execution or provider execution is attached; source inspection does not establish runtime behavior.

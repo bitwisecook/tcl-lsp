@@ -20,55 +20,11 @@ Explicitly selected Logical compatibility minification. Source metadata shape su
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust editing-context invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust editing-context invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust editing-context invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust editing-context invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust editing-context invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native interpreter observation establishes this Rust editing-context invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native interpreter observation establishes this Rust editing-context invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,9 +37,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::lexical_custom_configuration_refuses_every_tier_without_fallback` (linked): A current full-source analysis with an independently changed quoting configuration returns exact source with a configuration refusal for all tiers.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::lexical_intermediate_source_retains_actual_input_generation` (linked): Changed source is reanalysed with the same immutable full input and context generation; current image checks distinguish the original and rewritten text.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::lexical_case_shape_retains_dynamic_subject_and_expansion_uncertainty` (linked): The selected case descriptor accepts an unknown subject value at a known ordinal; unknown expansion cardinality remains absent.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Fixed Rust selectors exercise the retained Logical/Native/hosted lexical context and independent minifier premises. Separate exact-source validation receipts establish their outcomes; this implementation record supplies no native observation.

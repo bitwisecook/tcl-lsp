@@ -72,22 +72,7 @@ when HTTP_REQUEST {
 
 The retained log contains this same incomplete result prefix 32 times for this unit. No result is inferred for the truncated remainder.
 
-### TMM unit 1, HTTP_REQUEST
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: iRule HTTP_REQUEST event.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{{short name_hex 78 write_plain 0 write_counted 0 read 0 result_hex 504c41494e} {short name_hex 7800420043 write_plain 0 write_counted 0 read 0 result_hex 434f554e544544} {short after_counted_unset 0 result_hex 504c41494e} {long name_hex 5f5f7265736f6c7574696f6e323238365f636f6e746578745f696e76617269616e63655f6c6f6e675f61736369695f7072656669785f30313233343536373839 write_plain 0 write_counted 0 read 0 result_hex 504c41494e} {long name_hex 5f5f7265736f6c7574696f6e323238365f636f6e746578745f696e76617269616e63655f6c6f6e675f61736369695f7072656669785f3031323334353637383900420043 write_plain 0 write_counted 0 read 0 result_hex 434f554e544544} {long after_counted_unset 0 result_hex 504c41494e} {different name_hex 72656c6f63617465645f323238365f6b6579 write_plain 0 write_counted 0 read 0 result_hex 504c41494e} {different name_hex 72656c⟦EOF⟧
-```
-
-The retained log contains this same incomplete result prefix 32 times for this unit. No result is inferred for the truncated remainder.
-
-### TMM unit 2, HTTP_REQUEST
+### TMM unit 1, HTTP_REQUEST; TMM unit 2, HTTP_REQUEST
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
 - Recorded input channel: iRule HTTP_REQUEST event.

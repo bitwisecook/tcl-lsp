@@ -20,55 +20,11 @@ One authored Rust selector checks counted scalar cells against their prefix valu
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,9 +32,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::fire_read_trace`: Delegate the positively selected observed substitution to its original measured receiver without permitting original trace registration.
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::read_var`: Read original complete observed substitution bytes through the same actual current-frame owner.
 - [runtime/rust/src/interp/execution_name_policy.rs](../../../../runtime/rust/src/interp/execution_name_policy.rs), `interp::execution_name_policy::tests::original_observed_substitutions_keep_counted_cells_and_input_forms_separate` (linked): A genuine authored Rust event frame keeps counted S-NUL-T separate from S through object-passthrough and interpolated-byte source substitutions. Complete-name trace-frontier/read queries retain the existing receiver; split root/index and retired-frame queries refuse. No native C protocol or observer registration is selected.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named selector binds internal Rust substitution receiver/purpose coverage. Actual prior failed Runtime receipts remain independent; this contract supplies no native execution observation or successful assertion claim.

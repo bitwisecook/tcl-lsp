@@ -6,7 +6,7 @@ Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 T
 
 Current shared owners retain selected dialect/profile, exact original operand roles/layouts, availability, formal/body schemas and distinct Native/conditional purposes. Registry26512/12 and Source26542/42 are selected unit scopes; normal owner CLI250 remains197 diagnostics. Later actual237/238 Native parent/text pure branches retain data-only semantics; no roster, object or namespace capability follows from a pure branch.
 
-Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; `handoff/README.md` contains explicitly unadopted continuation work.
 
 ## Retained bounded audit
 
@@ -123,4 +123,4 @@ Broader receipt: `experiments/name-handling/results/registry-descriptor-root-cac
 
 The Registry scope is not complete until A/B/C/D are resolved or conservatively delimited with actual consumer controls, all required original Native/provider conformance is measured, and final durable documentation/comment cleanup is completed by the parent. No blanket proof/census digest renewal is justified by this audit.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

@@ -19,7 +19,7 @@ Work on branch `work`. Write the peer `CONTEXT_NAMING_RESULTS.md` beside this do
 
 ## Exact naming payloads
 
-Generate fresh sources with [generate-followup-controls.py](generate-followup-controls.py). Its required arguments are `--run`, `--out`, `--vip`, `--backend`, `--backend-port`, `--vip-port`; record `--source-commit` explicitly. Choose unused addresses/ports appropriate to the lab. The existing [v6 sources](evidence/r2286_20261006m/fixtures/v6/) show the complete payloads and wrappers, and retain the exact script bytes.
+Generate fresh sources with [generate-followup-controls.py](generate-followup-controls.py). Its required arguments are `--run`, `--out`, `--vip`, `--backend`, `--backend-port`, `--vip-port`; record `--source-commit` explicitly. Choose unused addresses/ports appropriate to the lab. The existing v6 sources show the complete payloads and wrappers, and retain the exact script bytes.
 
 Run these complete generated `.tcl` payloads in each supported context:
 

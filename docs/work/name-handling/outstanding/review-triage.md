@@ -9,7 +9,7 @@ Paused 4 November 2026, 22:57 UTC, at the user's request after the autoload repa
 
 ## Resume — coordinator pause 2026-10-27T20:38:21.853504+00:00
 
-USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read [the current handoff](../pause-handoff-20261027.md) first.
+USER PAUSED: no implementation, test execution, dispatch or timer restart until the user resumes. Read the current handoff first.
 
 External owner reports COMPLETE. No duplicate triage restart. Section F release obligations remain mandatory; review implementation/validation statuses against exact source on resume.
 

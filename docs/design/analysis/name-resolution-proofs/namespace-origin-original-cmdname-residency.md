@@ -22,54 +22,27 @@ Only these nine C process snapshots are observed; C8.4 stringless, Jim and BIG-I
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.. Dialect: Tcl.
+Status: `observed`. Channel: Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant. Version: tcl8.4 8.4.20.
 
 Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless mode not recorded.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.. Dialect: Tcl.
-
-Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.. Dialect: Tcl.
-
-Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.. Dialect: Tcl.
-
-Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant.. Dialect: Tcl.
+Status: `observed`. Channel: Direct counted original Tcl_Obj passed to Tcl_EvalObjv; ASCII Tcl_Eval setup and explicit Tcl_InvalidateStringRep in the stringless variant. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Resident: cmdName remains, bytes present, results ::src::p / ::src::q / ::dest::p. Stringless: cmdName remains, original bytes absent after invalidation, result ::src::p.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (observation): [runtime/rust/tests/data/native_namespace_origin/original_provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/original_provenance.json). Nine exact resident/stringless process receipts, inline stdout/stderr and source/archive/executable hashes.
-- `e1` (input): [runtime/rust/tests/data/native_namespace_origin/original_probe.c](../../../../runtime/rust/tests/data/native_namespace_origin/original_probe.c). Original ::dest::p object reused across public Tcl_EvalObjv namespace origin, rename/replacement and explicit string invalidation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,28 +51,7 @@ No implementation binding is claimed by this observation record.
 - [runtime/rust/src/cmd_oo/original_object_resolution_tests.rs](../../../../runtime/rust/src/cmd_oo/original_object_resolution_tests.rs), `cmd_oo::original_object_resolution_tests::original_oo_lookup_keeps_stringless_command_and_import_token_roles` (linked): Oo lookup keeps stringless command and import token roles. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [runtime/rust/src/cmd_oo/original_object_resolution_tests.rs](../../../../runtime/rust/src/cmd_oo/original_object_resolution_tests.rs), `cmd_oo::original_object_resolution_tests::original_import_projection_never_substitutes_a_recreated_source_spelling` (linked): Import projection never substitutes a recreated source spelling. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I${TCL_SOURCE}/generic",
-  "-I${TCL_SOURCE}/unix",
-  "runtime/rust/tests/data/native_namespace_origin/original_probe.c",
-  "${TCL_BUILD}/libtcl${TCL_ABI}.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "${PROBE_EXE}"
-]
-```
-
-Run the probe once without arguments for the resident sequence and with argument stringless for the recorded C8.5–C9.1 variant. Compare the matching inline receipt stdout/stderr and exit0 exactly. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted.
+- [runtime/rust/tests/data/native_namespace_origin/original_provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/original_provenance.json)
+- [runtime/rust/tests/data/native_namespace_origin/original_probe.c](../../../../runtime/rust/tests/data/native_namespace_origin/original_probe.c)

@@ -20,55 +20,11 @@ Three marked Rust controls compare required-after-default grammar across five C 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This body-free source formal count/origin/parameter-grammar and database metadata contract supplies no native procedure call, binding, header or frame observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This body-free source formal count/origin/parameter-grammar and database metadata contract supplies no native procedure call, binding, header or frame observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This body-free source formal count/origin/parameter-grammar and database metadata contract supplies no native procedure call, binding, header or frame observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This body-free source formal count/origin/parameter-grammar and database metadata contract supplies no native procedure call, binding, header or frame observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This body-free source formal count/origin/parameter-grammar and database metadata contract supplies no native procedure call, binding, header or frame observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This body-free source formal count/origin/parameter-grammar and database metadata contract supplies no native procedure call, binding, header or frame observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This body-free source formal count/origin/parameter-grammar and database metadata contract supplies no native procedure call, binding, header or frame observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,9 +40,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/item_tree.rs](../../../../rust/tcl-compiler/src/analyser/item_tree.rs), `analyser::item_tree::tests::formal_count_headers_retain_c_and_jim_grammar_without_body_bytes` (linked): Five C source profiles and Jim retain their distinct original required-after-default minimum3/minimum2 grammar with maximum3; changing body bytes preserves item signatures/file declarations and original count projection.
 - [rust/tcl-compiler/src/analyser/item_tree.rs](../../../../rust/tcl-compiler/src/analyser/item_tree.rs), `analyser::item_tree::tests::original_formal_count_header_ignores_reported_parameter_labels` (linked): Cleared reporting params and all_procs cannot replace the original {a args} count header; Unknown projection stays open with no parameter grammar.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::formal_count_project_headers_keep_the_selected_c_and_jim_contract` (linked): Five C source profiles and Jim retain selected grammar/origin and minimum3/minimum2 count in both original-key and reporting arity maps; body-only edits preserve header and project arity equality.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Marked selectors bind body-free metadata and current source grammar coverage. Exact Rust outcomes remain independently retained; no native provider result or original whole-source receipt is attached to this header contract.

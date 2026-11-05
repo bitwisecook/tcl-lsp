@@ -20,84 +20,30 @@ Six exact move controls per engine; C8.4.20–9.1.0 and the hashed Jim library a
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.. Dialect: Tcl.
-
-Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.. Dialect: Tcl.
-
-Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.. Dialect: Tcl.
-
-Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.. Dialect: Tcl.
-
-Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.. Dialect: Tcl.
+Status: `observed`. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Six moves retain original command and Proc identity; active frames and future namespace move are recorded separately; root moves future namespace ::.
 
 ### jim
 
-Status: `observed`. Version: Jim; patchlevel/revision not retained. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter.. Dialect: Jim Tcl.
+Status: `observed`. Channel: ASCII source via Tcl_Eval/Jim_Eval plus retained original command/private procedure and namespace objects, within one native interpreter. Version: jim Jim; patchlevel/revision not retained.
 
 Six moves retain command identity; root rename controls preserve original namespace holder and future ::A; active/future and qualification rows remain separately recorded.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (observation): [runtime/rust/tests/data/native_procedure_relocation/manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/manifest.json). Six original source/header/library-hashed compile/run receipts with exact inline streams; executable hashes and a Jim patchlevel/revision are not retained.
-- `e1` (input): [runtime/rust/tests/data/native_procedure_relocation/probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/probe.c). Six move/source-call controls, private command/procedure comparison and pinned Jim namespace-object observer.
-- `e2` (observation): [runtime/rust/tests/data/native_procedure_relocation/observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/observations.tsv). Projected active/first/future namespace and command/procedure identity fields for all36 controls.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_procedure_relocation_tests.rs](../../../../runtime/rust/src/interp/native_procedure_relocation_tests.rs), `relocation_retains_native_binding_and_declaration_with_separate_active_namespace` (linked): Compare each actual command/declaration identity and original active/future namespace independently.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I${TCL_SOURCE}/generic",
-  "-I${TCL_SOURCE}/unix",
-  "runtime/rust/tests/data/native_procedure_relocation/probe.c",
-  "${TCL_BUILD}/libtcl${TCL_ABI}.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "${PROBE_EXE}"
-]
-```
-
-Jim requires the matching captured jim.h/libjim.a, -DJIM_PROBE=1 and its recorded SSL/crypto links; do not borrow the current Jim executable version for this capture. Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted.
+- [runtime/rust/tests/data/native_procedure_relocation/manifest.json](../../../../runtime/rust/tests/data/native_procedure_relocation/manifest.json)
+- [runtime/rust/tests/data/native_procedure_relocation/probe.c](../../../../runtime/rust/tests/data/native_procedure_relocation/probe.c)
+- [runtime/rust/tests/data/native_procedure_relocation/observations.tsv](../../../../runtime/rust/tests/data/native_procedure_relocation/observations.tsv)

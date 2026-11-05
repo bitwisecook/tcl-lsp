@@ -22,7 +22,7 @@ Exact retained probe.c/jim-probe.c object constructors and two procedure activat
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Original archive SHA d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011. Channel: Original native objects through Tcl_EvalObjv. Dialect: Tcl.
+Status: `observed`. Channel: Original native objects through Tcl_EvalObjv. Version: tcl8.4 8.4.20.
 
 Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.
 
@@ -47,7 +47,7 @@ Exactly 16 completed observations. Fields case/before/after/code/result retain t
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original archive SHA 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df. Channel: Original native objects through Tcl_EvalObjv. Dialect: Tcl.
+Status: `observed`. Channel: Original native objects through Tcl_EvalObjv. Version: tcl8.5 8.5.19.
 
 Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.
 
@@ -72,7 +72,7 @@ Exactly 16 completed observations. Fields case/before/after/code/result retain t
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original archive SHA a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6. Channel: Original native objects through Tcl_EvalObjv. Dialect: Tcl.
+Status: `observed`. Channel: Original native objects through Tcl_EvalObjv. Version: tcl8.6 8.6.18.
 
 Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.
 
@@ -95,34 +95,9 @@ Exactly 16 completed observations. Fields case/before/after/code/result retain t
 {"case":15,"before":"double","after":"double","code":1,"result":"696e76616c696420636f6d6d616e64206e616d6520224e614e22"}
 ```
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Original archive SHA 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04. Channel: Original native objects through Tcl_EvalObjv. Dialect: Tcl.
-
-Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.
-
-```jsonl
-{"case":0,"before":"string","after":"int","code":0,"result":"31"}
-{"case":1,"before":"string","after":"int","code":0,"result":"31"}
-{"case":2,"before":"string","after":"levelReference","code":0,"result":"31"}
-{"case":3,"before":"string","after":"levelReference","code":0,"result":"31"}
-{"case":4,"before":"string","after":"int","code":1,"result":"626164206c6576656c20222d3122"}
-{"case":5,"before":"string","after":"int","code":0,"result":"31"}
-{"case":6,"before":"string","after":"int","code":0,"result":"31"}
-{"case":7,"before":"string","after":"string","code":1,"result":"696e76616c696420636f6d6d616e64206e616d652022312e3022"}
-{"case":8,"before":"string","after":"string","code":1,"result":"696e76616c696420636f6d6d616e64206e616d6520224e614e22"}
-{"case":9,"before":"string","after":"int","code":1,"result":"626164206c6576656c20223231343734383336343822"}
-{"case":10,"before":"string","after":"int","code":1,"result":"626164206c6576656c20223432393439363732393522"}
-{"case":11,"before":"string","after":"int","code":0,"result":"32"}
-{"case":12,"before":"string","after":"string","code":1,"result":"696e76616c696420636f6d6d616e64206e616d65202262616422"}
-{"case":13,"before":"int","after":"int","code":0,"result":"31"}
-{"case":14,"before":"double","after":"double","code":1,"result":"696e76616c696420636f6d6d616e64206e616d652022312e3022"}
-{"case":15,"before":"double","after":"double","code":1,"result":"696e76616c696420636f6d6d616e64206e616d6520224e614e22"}
-```
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Original archive SHA 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33. Channel: Original native objects through Tcl_EvalObjv. Dialect: Tcl.
+Status: `observed`. Channel: Original native objects through Tcl_EvalObjv. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Exactly 16 completed observations. Fields case/before/after/code/result retain the original object and native result bytes.
 
@@ -147,7 +122,7 @@ Exactly 16 completed observations. Fields case/before/after/code/result retain t
 
 ### jim
 
-Status: `observed`. Version: 0.84 label; exact revision not recorded in this manifest. Build: Original library SHA 75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff; probe SHA d5eaecb0fb20b6e26d3e1469e26cb51fafdf47cbee9615e97ddaada9bec03651. Channel: Original native Jim objects through retained public argv/evaluation API. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original native Jim objects through retained public argv/evaluation API. Version: jim 0.84 label.
 
 Exactly 21 observations; process exit 0. The Jim roster differs explicitly from the C roster.
 
@@ -177,27 +152,9 @@ Exactly 21 observations; process exit 0. The Jim roster differs explicitly from 
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_frame_levels/manifest.json](../../../../rust/tcl-syntax/tests/data/native_frame_levels/manifest.json). Five original C library and complete output hashes; 16 windows per engine.
-- `e1` (provider): [rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim-manifest.json). Original Jim library/binary/output hashes, 21 windows and process exit.
-- `e2` (input): [rust/tcl-syntax/tests/data/native_frame_levels/probe.c](../../../../rust/tcl-syntax/tests/data/native_frame_levels/probe.c). Exact original C object constructors/argv/procedure activation probe.
-- `e3` (input): [rust/tcl-syntax/tests/data/native_frame_levels/jim-probe.c](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim-probe.c). Exact independent Jim object constructors and activation probe.
-- `e4` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.4.20.jsonl). All 16 original before/after cache, completion and result-hex windows.
-- `e5` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.5.19.jsonl). All 16 original before/after cache, completion and result-hex windows.
-- `e6` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/8.6.18.jsonl). All 16 original before/after cache, completion and result-hex windows.
-- `e7` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/9.0.4.jsonl). All 16 original before/after cache, completion and result-hex windows.
-- `e8` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/9.1.0.jsonl). All 16 original before/after cache, completion and result-hex windows.
-- `e9` (observation): [rust/tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl](../../../../rust/tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl). All 21 independent original Jim cache/completion/result windows.
-- `e10` (input): [rust/tcl-syntax/tests/data/native_frame_levels/README.md](../../../../rust/tcl-syntax/tests/data/native_frame_levels/README.md). Separate C and Jim compile/replay protocols and bounded measurement explanation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -205,28 +162,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::original_frame_selectors_match_native_cache_and_failure_order` (linked): Compares original level-object cache and failure order to the retained release-specific rows.
 - [runtime/rust/src/cmd_eval/native_frame_reference_tests.rs](../../../../runtime/rust/src/cmd_eval/native_frame_reference_tests.rs), `cmd_eval::native_frame_reference_tests::original_frame_level_uses_entered_environment_and_preserves_native_counts` (linked): Finite source-defined control: original frame level uses entered environment and preserves native counts. Software operation-owner control; existing provider recordings remain independent. An independently bound C-API scalar issuer does not bind a portable levelReference to that issuer's interpreter or lifetime. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I/path/to/recorded/generic",
-  "-I/path/to/recorded/unix",
-  "rust/tcl-syntax/tests/data/native_frame_levels/probe.c",
-  "/path/to/recorded/libtcl.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "/tmp/native-variable-proof"
-]
-```
-
-Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses public object/evaluation entry points; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred. For Jim separately compile jim-probe.c against the recorded configured Jim library and its actual dependencies, then compare every jim0.84.jsonl row as documented in the retained README.
+- [rust/tcl-syntax/tests/data/native_frame_levels](../../../../rust/tcl-syntax/tests/data/native_frame_levels)

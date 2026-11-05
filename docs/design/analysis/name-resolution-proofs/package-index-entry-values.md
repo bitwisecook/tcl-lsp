@@ -20,64 +20,14 @@ Original handler advice at actual source points, lexical substitution policy and
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/source_name_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/source_name_lookup.rs), `SourceInvocationBinding::original_registry_target_for_name`: Retain genuine current Registry target advice at the actual original point without completion donation.
 - [rust/tcl-compiler/src/command_binding/source_name_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/source_name_lookup.rs), `command_binding::source_name_lookup::tests::original_package_index_handlers_retain_each_genuine_registration_point` (linked): Every independent registration point under the explicit authored Direct/ScriptCode entry retains its genuine original handler after a dir entry setter for computed auto_index values.
 - [rust/tcl-compiler/src/command_binding/source_name_lookup.rs](../../../../rust/tcl-compiler/src/command_binding/source_name_lookup.rs), `command_binding::source_name_lookup::tests::original_package_index_unknown_entry_value_cannot_close_registration_argv` (linked): An unknown dir cannot close argv or completed-world transfer, and a braced array index retains the ASCII escape spelling.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors exercise exact authored entry values, selected registration points and missing-value refusals. No Rust execution receipt or native provider observation is attached.

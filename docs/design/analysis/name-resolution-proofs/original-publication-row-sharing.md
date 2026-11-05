@@ -20,57 +20,11 @@ Current Rust source owner and two genuine software control definitions. Their ac
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust storage contract. Channel: Current Rust source/API definitions. Dialect: tcl8.4.
-
-Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust storage contract. Channel: Current Rust source/API definitions. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust storage contract. Channel: Current Rust source/API definitions. Dialect: tcl8.6.
-
-Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust storage contract. Channel: Current Rust source/API definitions. Dialect: tcl9.0.
-
-Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust storage contract. Channel: Current Rust source/API definitions. Dialect: tcl9.1.
-
-Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust storage contract. Channel: Current Rust source/API definitions. Dialect: jim.
-
-Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust storage contract. Channel: Current Rust source/API definitions. Dialect: bigip.
-
-Storage sharing is a Rust implementation contract; no external interpreter ran in this packet.
-
-## Historical references
-
-- `publication-rows-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations.
-- `publication-rows-source-command-world` (implementation): [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs). Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
-- `publication-rows-lib` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current inspected full-row owner or actual module registration; source software purpose only, without executable listing or assertion credit.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +34,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs), `command_binding::source_command_world::tests::publication_snapshots_share_original_rows_and_detach_actual_moves_and_replacements` (linked): Actual source-ledger snapshots under five C software profiles share unchanged producer rows. Move/replacement and private definition mutation detach the affected row while original name input, declaration site, definition and earlier ordered snapshots remain unchanged. No external provider or completed performance comparison is inferred.
 - [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs), `command_binding::source_command_world::tests::publication_row_sharing_preserves_complete_semantic_equality_hash_and_order` (linked): Independently constructed five-profile source snapshots expose complete equal publication values and hashes with unchanged ordered readonly iteration. Storage sharing supplies no current lookup, Native currency, entered body or edit authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Matching independently successful own producer, exact executable inventory and independently closed assertion receipt are required for executed software results. Source model profiles are not external provider comparisons. Complete original/current measurements are required for performance conclusions; process termination cause remains separately evidenced.
+- [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs)
+- [rust/tcl-compiler/src/command_binding/source_command_world.rs](../../../../rust/tcl-compiler/src/command_binding/source_command_world.rs)
+- [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs)

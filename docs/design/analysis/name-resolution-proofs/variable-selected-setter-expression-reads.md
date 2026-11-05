@@ -20,64 +20,14 @@ One linked selector retains a genuine native entry owner across three fixed sour
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No native provider execution is attached to this source classification contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No native provider execution is attached to this source classification contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No native provider execution is attached to this source classification contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No native provider execution is attached to this source classification contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No native provider execution is attached to this source classification contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native provider execution is attached to this source classification contract.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native provider execution is attached to this source classification contract.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `set_value_reads`: Keep queried child selection terminal before the unqueried compatibility expression parser; preserve ordinary source substitutions.
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `uses_in_call`: Consume the genuine setter definition and shared selected child expression read inventory independently.
 - [rust/tcl-compiler/src/ssa.rs](../../../../rust/tcl-compiler/src/ssa.rs), `ssa::tests::setter_source_reads_use_selected_child_expression_owners` (linked): Five C context labels retain actual native entry ownership and the genuine original Script statement carrier, accepting valid AssignExpr specialization. Direct/aliased expressions retain input reads, while a same-spelled user procedure does not invent a missing-variable expression read. Independent output definitions and expected uses remain required.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Named body-marked Rust selectors are authored coverage bindings. Executed outcomes require independent exact-source receipts; no native observation or Rust success is attached here.

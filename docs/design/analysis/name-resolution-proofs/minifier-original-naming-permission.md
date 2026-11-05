@@ -20,58 +20,11 @@ Current Core naming eligibility and Tcl/F5 CLI result transport, including parti
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust consumer contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This Rust consumer contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This Rust consumer contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-2` (implementation): [rust/tcl-cli/src/commands/transform.rs](../../../../rust/tcl-cli/src/commands/transform.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
-- `implementation-3` (implementation): [rust/f5-cli/src/commands/irule.rs](../../../../rust/f5-cli/src/commands/irule.rs). Current source owner and fixed authored assertions; no native or Rust execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -86,8 +39,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::original_hosted_minifier_keeps_source_syntax_without_native_alpha_permission` (linked): A genuine hosted source minification context permits source formatting while MissingAlphaRenameContract preserves every name and an empty rename map; hosted syntax does not supply Native alpha permission.
 - [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs), `minify::constructed_compatibility_tests::constructed_minifier_call_sites_keep_original_indirect_and_naming_guards` (linked): The actual minifier on genuine Native source without the independent public alpha-renaming contract retains MissingAlphaRenameContract, an empty symbol map and unchanged public procedure spelling. Descriptive compatibility call-site labels still exclude indirect heads and deduplicate spans; they cannot grant that missing naming purpose. Source definition only; no matched owned assertion outcome or new external-provider observation is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors exercise the scoped implementation premises. No Rust execution receipt or native provider observation is attached to this contract. Missing permissions and the bounded complete-source subset remain explicit.
+- [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs)
+- [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs)
+- [rust/tcl-cli/src/commands/transform.rs](../../../../rust/tcl-cli/src/commands/transform.rs)
+- [rust/f5-cli/src/commands/irule.rs](../../../../rust/f5-cli/src/commands/irule.rs)

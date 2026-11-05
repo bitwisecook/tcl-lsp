@@ -20,93 +20,35 @@ Both retained probe variants: public Tcl_NewStringObj(pointer,count)/Tcl_EvalObj
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `unsupported`. Version: 8.4.20. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
-
-The startup query reports this version and the actual OO command query is empty; no OO argv or private body is executed.
-
-### tcl8.5
-
-Status: `unsupported`. Version: 8.5.19. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `unsupported`. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 The startup query reports this version and the actual OO command query is empty; no OO argv or private body is executed.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts. Version: tcl8.6 8.6.18.
 
 Every four-operand method form rejects with wrong-argument usage; option-free dashed formal/name controls succeed and external same-object Hidden rejects. The private worker controls reject as unavailable.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
-
-Original -private/-p/raw-zero option forms succeed, remain absent from the -private roster, reject external calls and return OK via the declaring method. Encoded C080 and -- reject; -export calls externally, -unexport only internally. The option-free data controls succeed.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted Tcl objects passed to Tcl_EvalObjv plus ASCII NUL-terminated Tcl_Eval scripts. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Original -private/-p/raw-zero option forms succeed, remain absent from the -private roster, reject external calls and return OK via the declaring method. Encoded C080 and -- reject; -export calls externally, -unexport only internally. The option-free data controls succeed.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; public header, static library, Makefile, source owner, compile command and process/stream hashes retained independently for each variant.. Channel: ASCII NUL-terminated startup and OO-availability source passed to Jim_Eval; no Jim OO operand vector executes.. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: ASCII NUL-terminated startup and OO-availability source passed to Jim_Eval; no Jim OO operand vector executes. Version: jim 0.84-9-g5bac7c9.
 
 The startup query reports this version and the actual OO command query is empty; no OO argv or private body is executed.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this exact method argv or private caller question.
-
-## Historical references
-
-- `v1-input` (input): [rust/tcl-vm/tests/data/native_method_visibility/v1/probe.c](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/probe.c). Exact original probe or complete six-provider receipt; earlier variant is preserved independently.
-- `v1-aggregate` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v1/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/receipt.json). Exact original probe or complete six-provider receipt; earlier variant is preserved independently.
-- `v2-input` (input): [rust/tcl-vm/tests/data/native_method_visibility/v2/probe.c](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/probe.c). Exact original probe or complete six-provider receipt; earlier variant is preserved independently.
-- `v2-aggregate` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v2/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/receipt.json). Exact original probe or complete six-provider receipt; earlier variant is preserved independently.
-- `v1-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.4.20/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.4.20/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.4.20/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.4.20/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.4.20/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.4.20/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.5.19/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.5.19/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.5.19/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.5.19/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.5.19/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.5.19/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.6.18/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.6.18/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/8.6.18/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.6.18/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.6.18/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/8.6.18/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v1/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/9.0.4/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/9.0.4/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/9.0.4/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v2/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.0.4/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.0.4/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.0.4/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v1/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/9.1.0/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/9.1.0/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/9.1.0/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v2/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.1.0/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.1.0/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/9.1.0/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v1/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/jim/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/jim/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v1-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v1/jim/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1/jim/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_method_visibility/v2/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/jim/receipt.json). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/jim/stdout.tsv). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `v2-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_method_visibility/v2/jim/stderr](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2/jim/stderr). Exact actual provider/process/output correspondence. Guest errors are recorded rows; all harness processes exited zero.
-- `tcl8.6-method-source` (source-anchor): [rust/tcl-vm/tests/data/native_method_visibility/source-anchors/8.6.18-method-definition.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/source-anchors/8.6.18-method-definition.json). JSON pointer `/snippet`. Actual pinned C source excerpt, full source digest and exact line coordinates; independent of native result observations.
-- `tcl9.0-method-source` (source-anchor): [rust/tcl-vm/tests/data/native_method_visibility/source-anchors/9.0.4-method-definition.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/source-anchors/9.0.4-method-definition.json). JSON pointer `/snippet`. Actual pinned C source excerpt, full source digest and exact line coordinates; independent of native result observations.
-- `tcl9.1-method-source` (source-anchor): [rust/tcl-vm/tests/data/native_method_visibility/source-anchors/9.1.0-method-definition.json](../../../../rust/tcl-vm/tests/data/native_method_visibility/source-anchors/9.1.0-method-definition.json). JSON pointer `/snippet`. Actual pinned C source excerpt, full source digest and exact line coordinates; independent of native result observations.
 
 ## Source inspection
 
@@ -340,7 +282,6 @@ TclOODefineMethodObjCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `NativeTclooMethodDefinitionProtocol::layout`: Selected pure method argv/visibility semantics, independent of body or native table capability.
@@ -350,23 +291,8 @@ TclOODefineMethodObjCmd(
 - [runtime/rust/src/cmd_oo/native_private_tests.rs](../../../../runtime/rust/src/cmd_oo/native_private_tests.rs), `cmd_oo::native_private_tests::method_option_layout_and_private_scope_match_original_native_controls` (linked): Same finite original option/caller comparisons on independently selected runtime cores; no fresh native or Rust execution is implied.
 - [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `native_tcloo_method_definition::tests::method_argc_and_visibility_keep_private_separate_from_unexported` (linked): Selected release-dependent argc, option ordinal and distinct visibility recipe; a pure recipe test grants no native registration or physical method table.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-vm/tests/data/native_method_visibility/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-method-visibility-reconfirmation"
-]
-```
-
-Requires exact retained probe/public-header/static-library/Makefile/source-owner hashes and configured matching providers. Recompile both variants and compare full process exit/stdout/stderr; guest errors are expected rows. --verify-only checks inputs/streams without a native launch. No cache/header/refcount, arbitrary observer or Rust execution result is asserted.
+- [rust/tcl-vm/tests/data/native_method_visibility/v1](../../../../rust/tcl-vm/tests/data/native_method_visibility/v1)
+- [rust/tcl-vm/tests/data/native_method_visibility/v2](../../../../rust/tcl-vm/tests/data/native_method_visibility/v2)
+- [rust/tcl-vm/tests/data/native_method_visibility](../../../../rust/tcl-vm/tests/data/native_method_visibility)

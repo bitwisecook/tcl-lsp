@@ -20,53 +20,23 @@ Inspected Tcl9.1.0 generic/tclBasic.c GetCoroutineFromObj, TclNRCoroInjectObjCmd
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### tcl9.1
 
-Status: `inspected`. Version: 9.1.0. Build: Pinned source inspection only; no executed build association.. Channel: Inspected original object callback source windows; no native input supplied.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected original object callback source windows; no native input supplied. Version: tcl9.1 9.1.0.
 
 The original name Tcl_Obj is resolved, argv pointers are retained by Tcl_NewListObj, and the current result object is appended to the injection before direct object-vector evaluation.
 
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
-
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `tcl9.1-coroutine-object-transport-0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). JSON pointer `/0/snippet`. GetCoroutineFromObj pinned original-object source window; no native execution.
-- `tcl9.1-coroutine-object-transport-1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). JSON pointer `/1/snippet`. TclNRCoroInjectObjCmd and TclNRCoroProbeObjCmd pinned original-object source window; no native execution.
-- `tcl9.1-coroutine-object-transport-2` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_object_transport_source/source-windows.json). JSON pointer `/2/snippet`. InjectHandler pinned original-object source window; no native execution.
 
 ## Source inspection
 
@@ -91,7 +61,6 @@ tcl9.1 9.1.0, revision `Pinned Tcl9.1.0 source tree; source inspection only`, `g
     }
     return (CoroutineData *)cmdPtr->objClientData2;
 }
-
 
 ```
 
@@ -274,16 +243,9 @@ InjectHandler(
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_command_names.rs](../../../../runtime/rust/src/interp/native_command_names.rs), `Interp::resolve_original_command_generation`: Resolve the original native operand to its actual selected command generation; missing selection and unavailable generation remain distinct typed outcomes.
 - [runtime/rust/src/cmd_coro.rs](../../../../runtime/rust/src/cmd_coro.rs), `original_prefix`: Constructs the native owning List directly from unchanged original prefix objects for the serialised worker handoff.
 - [runtime/rust/src/cmd_coro.rs](../../../../runtime/rust/src/cmd_coro.rs), `imp::eval_words`: Dispatches the retained original element vector and pins its result object before releasing the prefix owner.
 - [runtime/rust/src/cmd_coro.rs](../../../../runtime/rust/src/cmd_coro.rs), `cmd_coro::original_operand_tests::coroutine_probe_and_injection_keep_opaque_names_and_original_objects` (linked): Implementation object transport: opaque original coroutine name/helper head and raw-zero/FF original argument preserve identity across probe, single injection and resumed result; no native execution or header/frame/order equivalence claim.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Reproduce exact full-source/snippet hashes and LF coordinates. No executable/native/Rust launch is attached; callback order/kind/error propagation and foreign object callbacks have independent obligations.

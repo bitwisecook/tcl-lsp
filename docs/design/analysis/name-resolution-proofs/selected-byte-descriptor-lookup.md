@@ -30,9 +30,6 @@ Rust shared owner and consumers; no native experiment establishes this Rust cont
 
 KeywordTable::resolve_bytes and CommandSpec byte facades share the descriptor prefix/availability owners with String callers, while preserving selected bytes. Neither facade clips NUL, repairs Unicode, authorizes object access, or issues a native handler. VM/runtime selectors use their independent name/materialization entry before this lookup.
 
-## Historical references
-
-
 ## Source anchors
 
 No interpreter-source anchor is asserted for this question; the retained probe and outcomes establish the narrow observation.

@@ -20,56 +20,11 @@ Current Runtime implementation API contract. Three fixed controls exercise actua
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-runtime-compiled-procedure-fallback-and-source-log-codegen_abi.rs` (implementation): [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs). Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
-- `naming-runtime-compiled-procedure-fallback-and-source-log-interp.rs` (implementation): [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs). Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +35,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs), `codegen_abi::tests::a_logged_statement_site_preserves_the_source_trace_without_instruction_identity` (linked): Manual ABI source log keeps source error trace separately from actual native inner instruction context; equality of public source text does not grant bytecode identity.
 - [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs), `codegen_abi::tests::compiled_activation_leave_retains_native_errors_for_public_read` (linked): Genuine selected NativeCore source-log control preserves original guest error variables through public read; no source body or header donor grants another compiled frame.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [runtime/rust/src/codegen_abi.rs](../../../../runtime/rust/src/codegen_abi.rs)
+- [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs)

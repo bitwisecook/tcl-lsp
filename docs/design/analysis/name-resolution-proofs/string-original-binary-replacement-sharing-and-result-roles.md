@@ -20,81 +20,29 @@ C8 converts these original ByteArrays through its Unicode path. C9 preserves Byt
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.4.20. Build: Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.. Channel: Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.. Dialect: tcl8.4.
-
-The subject reaches String primary through Unicode conversion. Partial deletion produces 415a; replacement bytes fe become c3be and NUL becomes c080. Whole replacement is a fresh String result, including cases with an actual extra subject reference. Inverted and empty cases return the original subject. Exact public header fields are case-specific.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.. Channel: Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.. Dialect: tcl8.5.
+Status: `observed`. Channel: Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 The subject reaches String primary through Unicode conversion. Partial deletion produces 415a; replacement bytes fe become c3be and NUL becomes c080. Whole replacement is a fresh String result, including cases with an actual extra subject reference. Inverted and empty cases return the original subject. Exact public header fields are case-specific.
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.. Channel: Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.. Dialect: tcl8.6.
-
-The subject reaches String primary through Unicode conversion. Partial deletion produces 415a; replacement bytes fe become c3be and NUL becomes c080. Whole replacement is a fresh String result, including cases with an actual extra subject reference. Inverted and empty cases return the original subject. Exact public header fields are case-specific.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.. Channel: Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.. Dialect: tcl9.0.
-
-The subject remains ByteArray primary. Whole replacement returns the exact original replacement; inverted and empty cases return the original subject. Equal splices return fresh ByteArray results under this actual EvalObjv caller schedule, both with one and with two caller references. Resident original Strings do not turn these observed splices into a Unicode path. Ordinary String replacement does reach Unicode. Partial deletion records c080c080415a, but the leading native storage is not initialised by its source producer, so these zeros are not a reusable expected-value guarantee.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Exact compiler invocation/output, selected actual static library/source/header/configuration/CLI bytes, and independent same-library version process. Complete system toolchain/load closure is not recorded.. Channel: Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init.. Dialect: tcl9.1.
+Status: `observed`. Channel: Fresh Tcl_EvalObjv with native ByteArray inputs. Unique argv objects have one caller reference; case4 adds one genuine subject reference. Tcl_CreateInterp is used without Tcl_Init. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 The subject remains ByteArray primary. Whole replacement returns the exact original replacement; inverted and empty cases return the original subject. Equal splices return fresh ByteArray results under this actual EvalObjv caller schedule, both with one and with two caller references. Resident original Strings do not turn these observed splices into a Unicode path. Ordinary String replacement does reach Unicode. Partial deletion records c080c080415a, but the leading native storage is not initialised by its source producer, so these zeros are not a reusable expected-value guarantee.
 
 ### jim
 
-Status: `not-tested`. Version: not tested. Build: No genuine native ByteArray producer is available in the selected Jim object model.. Channel: No substitution of an ordinary Jim String for a C ByteArray input.. Dialect: jim.
+Status: `not-tested`. Channel: No substitution of an ordinary Jim String for a C ByteArray input.
 
 The C ByteArray question does not establish a Jim binary-object protocol. Independent ordinary String replacement evidence has its own record.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No appliance original-header driver capture.. Channel: No BIG-IP ByteArray input process.. Dialect: F5 iRules.
+Status: `not-tested`. Channel: No BIG-IP ByteArray input process.
 
 Measured C object results do not establish an appliance/TMM protocol.
-
-## Historical references
-
-- `original-counted-probe` (input): [runtime/rust/tests/data/native_original_binary_replacement633/probe.c](../../../../runtime/rust/tests/data/native_original_binary_replacement633/probe.c). Actual ByteArray constructors, seven owner entries for six unique objects plus one explicit subject reference, and original public snapshots before the result getter.
-- `original-request` (input): [runtime/rust/tests/data/native_original_binary_replacement633/request.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/request.json). Question and input requirements; no expected output is supplied.
-- `actual-case-projection` (observation): [runtime/rust/tests/data/native_original_binary_replacement633/interpretation.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/interpretation.json). All55 raw stream projections; process completion and command completion remain separate.
-- `exact-input-map` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/pinned-input-map.json). All original selected compiler/library/source/header/CLI/input pins and content-addressed archive join.
-- `exact-input-bytes` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_binary_replacement633/pinned-input-bytes.tar.gz). Whole retained original inputs, independently hash-verified after decompression; system toolchain/load closure remains outside the recorded scope.
-- `exact-source-windows` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). Actual selected command/helper/setter source explains C8 Unicode conversion, C9 result identity and unspecified partial-deletion prefix.
-- `all-original-retention` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/retention.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/retention.json). Original receipts, raw streams and executable images retained without truncation.
-- `tcl8.4-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/receipt.json). Actual original selected compile/link recipe, CLI version, input pins and fresh case processes.
-- `tcl8.4-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/receipt.json). Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged.
-- `tcl8.4-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/execute.stdout). Direct selected-library version query and patchlevel output.
-- `tcl8.5-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/receipt.json). Actual original selected compile/link recipe, CLI version, input pins and fresh case processes.
-- `tcl8.5-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/receipt.json). Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged.
-- `tcl8.5-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/execute.stdout). Direct selected-library version query and patchlevel output.
-- `tcl8.6-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/receipt.json). Actual original selected compile/link recipe, CLI version, input pins and fresh case processes.
-- `tcl8.6-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/receipt.json). Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged.
-- `tcl8.6-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/execute.stdout). Direct selected-library version query and patchlevel output.
-- `tcl9.0-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/receipt.json). Actual original selected compile/link recipe, CLI version, input pins and fresh case processes.
-- `tcl9.0-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/receipt.json). Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged.
-- `tcl9.0-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/execute.stdout). Direct selected-library version query and patchlevel output.
-- `tcl9.1-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/receipt.json). Actual original selected compile/link recipe, CLI version, input pins and fresh case processes.
-- `tcl9.1-same-library-version-receipt-json` (provider): [runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/receipt.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/receipt.json). Independent later diagnostic using the identical actual static library and headers; original case streams are unchanged.
-- `tcl9.1-same-library-version-execute-stdout` (observation): [runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/execute.stdout). Direct selected-library version query and patchlevel output.
-- `exact-source-snippet-0` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/0/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-1` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/1/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-2` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/2/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-3` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/3/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-4` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/4/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-5` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/5/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-6` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/6/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-7` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/7/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
-- `exact-source-snippet-8` (source-anchor): [runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json](../../../../runtime/rust/tests/data/native_original_binary_replacement633/source-windows.json). JSON pointer `/anchors/8/snippet`. Original physical-LF snippet selected as decoded JSON text and joined to the retained whole source hash.
 
 ## Source inspection
 
@@ -699,14 +647,16 @@ Tcl_SetByteArrayObj(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_indexed_binary_inputs_match_supported_native_public_projections` (linked): Software source definition checks indexed binary inputs match supported native public projections.
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_indexed_binary_inputs_match_supported_native_public_projections` (linked): Software source definition checks indexed binary inputs match supported native public projections.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Use the unchanged counted-object probe and all11 inputs. Each provider receipt records its exact compile/link/launch vector and environment; each input runs in a fresh process. Verify the original selected library/header bytes or treat rebuilt bytes as an independent experiment. Do not copy the partial-deletion leading byte observation into a deterministic software expectation. Direct helper sharing is a distinct execution purpose.
+- [runtime/rust/tests/data/native_original_binary_replacement633/probe.c](../../../../runtime/rust/tests/data/native_original_binary_replacement633/probe.c)
+- [runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.4.20/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.5.19/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/8.6.18/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.0.4/same-library-version/execute.stdout)
+- [runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/execute.stdout](../../../../runtime/rust/tests/data/native_original_binary_replacement633/9.1.0/same-library-version/execute.stdout)

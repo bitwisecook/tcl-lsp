@@ -20,56 +20,11 @@ Three marked software controls cover quoted, braced, escaped and Unicode static 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-compiler-src-taint_interproc.rs` (implementation): [rust/tcl-compiler/src/taint_interproc.rs](../../../../rust/tcl-compiler/src/taint_interproc.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-compiler-original-summary-dependency-source-heads-rust-tcl-lsp-db-src-lib.rs` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,8 +36,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/taint_interproc.rs](../../../../rust/tcl-compiler/src/taint_interproc.rs), `taint_interproc::tests::summary_dependencies_keep_unresolved_and_dialect_residuals` (linked): Dynamic, unresolved or incomplete candidates conservatively retain all known summary dependencies. Actual C8.4 versus C8.6 source escape grammar distinguishes an original static head from an unresolved residual without a runtime alias/command conclusion.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads` (linked): An actual SourceFile and tracked proc_summary_cascade query retain quoted/braced callee dependencies. Unchanged requests execute zero new memo queries; a callee-only edit changes dependencies and recomputes both callers, matching a fresh database with caller source unchanged. This software definition supplies no runtime invocation or observed native result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Current source/API owners and exact marked software control definitions only. No command is run by this publication; actual executable receipts and native provider observations retain independent scopes.
+- [rust/tcl-compiler/src/taint_interproc.rs](../../../../rust/tcl-compiler/src/taint_interproc.rs)
+- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs)

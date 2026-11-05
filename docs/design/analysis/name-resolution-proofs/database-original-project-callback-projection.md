@@ -28,55 +28,11 @@ Two additional DB/Server source controls are linked without an executed assertio
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This supplied/tracked project callback implementation contract supplies no native callback registration, entry, installed binding, actual argv/arity, frame, network invocation or edit observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This supplied/tracked project callback implementation contract supplies no native callback registration, entry, installed binding, actual argv/arity, frame, network invocation or edit observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This supplied/tracked project callback implementation contract supplies no native callback registration, entry, installed binding, actual argv/arity, frame, network invocation or edit observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This supplied/tracked project callback implementation contract supplies no native callback registration, entry, installed binding, actual argv/arity, frame, network invocation or edit observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This supplied/tracked project callback implementation contract supplies no native callback registration, entry, installed binding, actual argv/arity, frame, network invocation or edit observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This supplied/tracked project callback implementation contract supplies no native callback registration, entry, installed binding, actual argv/arity, frame, network invocation or edit observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This supplied/tracked project callback implementation contract supplies no native callback registration, entry, installed binding, actual argv/arity, frame, network invocation or edit observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -101,8 +57,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::callback_arity_struct_tree_walkproc_checked` (linked): Required struct::tree authentic source method retains complete rooted positional callback prefix and Finite(3) source count; reporting labels cannot replace constructor or registration ownership.
 - [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs), `tests::callback_arity_foreign_library_source_contexts_do_not_select_local_headers` (linked): A foreign retained source input withdraws callback arity advice across Tk/calculus/SMTP/halfpipe/mime/graph/tree source examples despite available library descriptors and genuine local headers. Exact source-producer correspondence remains required; authentic original-input positives retain source arity diagnostics, while missing or foreign input refuses.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs), `AnalysisResult::matches_original_source_image`: Reject typed unavailable generation before validating original realm/input/config/source geometry; copied complete input and populated original callback cards cannot reopen current source correspondence.
 - [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs), `AnalysisResult::allows_retained_logical_declaration_advice`: Retain positive complete Logical input and no typed unavailable status for compatibility source headers. Missing/Native/hosted input remains refused despite copied display dialect or flags.
 - [rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs](../../../../rust/tcl-compiler/src/analyser/diagnostic_subject/callback.rs), `SourceCallbackSignatureLookup::from_original_lookup`: Join a genuine original callback prefix and immutable registration/target lookup to the current complete source analysis; typed withdrawn generation refuses even when original receipts remain populated.
@@ -117,7 +71,3 @@ These source/API bindings carry no executed assertion or Native provider result.
 - [rust/tcl-lsp-server/src/original_document_metadata_tests.rs](../../../../rust/tcl-lsp-server/src/original_document_metadata_tests.rs), `original_document_metadata_tests::callback_project_worker_uses_each_librarys_published_configuration` (linked): Server callback workers consume each library’s published checked configuration and retain typed original caller/header subjects.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
-
-## Replay
-
-Named Rust controls bind implementation source premises and refusals only. Actual compilation and assertions require separately retained validation receipts. No provider-labelled source profile supplies native execution, current allocation, entered frame or edit authority.

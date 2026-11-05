@@ -20,20 +20,9 @@ One exact original ASCII script with four namespace origin queries per C release
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
-
-Original presenter stdout:
-
-```text
-0	3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70
-```
-Decoded result: ::p ::src::p ::src::p ::src::p.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
+Status: `observed`. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded. Version: tcl8.4 8.4.20 (capture association; launched patchlevel unqueried); tcl8.5 8.5.19 (capture association; launched patchlevel unqueried); tcl8.6 8.6.18 (capture association; launched patchlevel unqueried); tcl9.0 9.0.4 (capture association; launched patchlevel unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel unqueried).
 
 Original presenter stdout:
 
@@ -42,72 +31,17 @@ Original presenter stdout:
 ```
 Decoded result: ::p ::src::p ::src::p ::src::p.
 
-### tcl8.6
+### jim, bigip
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
-
-Original presenter stdout:
-
-```text
-0	3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70
-```
-Decoded result: ::p ::src::p ::src::p ::src::p.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
-
-Original presenter stdout:
-
-```text
-0	3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70
-```
-Decoded result: ::p ::src::p ::src::p ::src::p.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel unqueried). Build: Original shell; process0. Compiler/configure/source-build and separate stderr unrecorded.. Channel: Original ASCII script; catch/count-result hex presenter described, exact wrapper and stdin/file channel unrecorded.. Dialect: C Tcl.
-
-Original presenter stdout:
-
-```text
-0	3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70
-```
-Decoded result: ::p ::src::p ::src::p ::src::p.
-
-### jim
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No original import-chain namespace-origin script capture for this provider is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: F5 iRules.
-
-No original import-chain namespace-origin script capture for this provider is attached.
-
-## Historical references
-
-- `payload` (input): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/source`. Exact original source payload and described presenter.
-- `windows` (observation): [runtime/rust/tests/data/native_namespace_origin/windows.tsv](../../../../runtime/rust/tests/data/native_namespace_origin/windows.tsv). Original payload hex, guest completion and counted result hex.
-- `receipt` (provider): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). Independent original shell/source/result associations.
-- `provider-tcl8.4` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/0`. Exact original caught script result and launched shell association.
-- `provider-tcl8.5` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/1`. Exact original caught script result and launched shell association.
-- `provider-tcl8.6` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/2`. Exact original caught script result and launched shell association.
-- `provider-tcl9.0` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/3`. Exact original caught script result and launched shell association.
-- `provider-tcl9.1` (observation): [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json). JSON pointer `/runs/4`. Exact original caught script result and launched shell association.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_namespace.rs](../../../../runtime/rust/src/cmd_namespace.rs), `cmd_namespace::tests::original_namespace_origin_matches_five_native_import_chains` (linked): Compares the exact original payload guest code/result bytes for the five retained import chains; no physical command cache/header observation is claimed.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Original payload bytes are recoverable and hashed against every window/receipt. The catch+binary-scan presenter is described but not retained verbatim; strict whole-stdin replay cannot be claimed from that description. A fresh reconfirmation must identify its new wrapper explicitly and preserve the original payload, selected shell build, guest completion and separate streams.
+- [runtime/rust/tests/data/native_namespace_origin/provenance.json](../../../../runtime/rust/tests/data/native_namespace_origin/provenance.json)
+- [runtime/rust/tests/data/native_namespace_origin/windows.tsv](../../../../runtime/rust/tests/data/native_namespace_origin/windows.tsv)

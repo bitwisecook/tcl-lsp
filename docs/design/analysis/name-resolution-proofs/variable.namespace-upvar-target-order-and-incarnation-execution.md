@@ -20,15 +20,15 @@ Eight original ASCII C8.5.19 procedure body executions described in provenance.j
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Shell SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935. Channel: ASCII original procedures through native caught-result presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII original procedures through native caught-result presenter. Version: tcl8.5 8.5.19.
 
 All eight presenter processes exit0; guest completion codes remain individually caught.
 
@@ -93,52 +93,18 @@ All eight presenter processes exit0; guest completion codes remain individually 
 ]
 ```
 
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
-
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json). Original C8.5 caught execution body/result/visited and wrapper-source hashes.
-- `e1` (input): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs). Exact current eight body/code/result/visited tuples copied from the original execution capture.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_body_artifact/namespace_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/namespace_tests.rs), `original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes`: Independent current Rust comparison at the stated semantic boundary.
 - [runtime/rust/src/interp/native_body_artifact/namespace_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/namespace_tests.rs), `interp::native_body_artifact::namespace_tests::original_c85_namespace_upvar_artifact_matches_original_namespace_lifetimes` (linked): Checks alias/error/order against original C8.5 execution tuples without borrowing compiler presence as a success certificate.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The original setup/catch/presenter wrappers are not retained; execution_cases.rs contains exact procedure body/result tuples, not an executable Tcl script. Fresh replay must recreate the explicitly documented namespace N with x X/y Y, retain the complete source wrapper and original p invocation, and independently catch/result-hex/visited each body. Compare all eight native tuples and record actual build/channel/status.
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json)
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/execution_cases.rs)

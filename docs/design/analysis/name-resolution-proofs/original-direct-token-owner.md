@@ -22,63 +22,45 @@ Current Rust source owner, seven actual production call sites in six declared co
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 The current Rust carrier/source-owner contract and model controls are inspected definitions only. No original tcl8.4 process or provider outcome is attached.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 The current Rust carrier/source-owner contract and model controls are inspected definitions only. No original tcl8.5 process or provider outcome is attached.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 The current Rust carrier/source-owner contract and model controls are inspected definitions only. No original tcl8.6 process or provider outcome is attached.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 The current Rust carrier/source-owner contract and model controls are inspected definitions only. No original tcl9.0 process or provider outcome is attached.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 The current Rust carrier/source-owner contract and model controls are inspected definitions only. No original tcl9.1 process or provider outcome is attached.
 
 ### jim
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions. Dialect: jim.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 The current Rust carrier/source-owner contract and model controls are inspected definitions only. No original jim process or provider outcome is attached.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source-owner contract. Channel: Current Rust source/API definitions. Dialect: bigip.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 The current Rust carrier/source-owner contract and model controls are inspected definitions only. No original bigip process or provider outcome is attached.
-
-## Historical references
-
-- `direct-token-analyser-diagnostics-var_command-rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs). Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit.
-- `direct-token-command_binding-rs` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations.
-- `direct-token-command_binding-retained_source-rs` (implementation): [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs). Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit.
-- `direct-token-increment_rewrite-rs` (implementation): [rust/tcl-compiler/src/increment_rewrite.rs](../../../../rust/tcl-compiler/src/increment_rewrite.rs). Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit.
-- `direct-token-lib-rs` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit.
-- `direct-token-regex_source-rs` (implementation): [rust/tcl-compiler/src/regex_source.rs](../../../../rust/tcl-compiler/src/regex_source.rs). Original statement/Module input owns Logical value and regexp argument projections. Retained Native/standalone paths keep their independent original value/target and source geometry guards.
-- `direct-token-table_value_provenance-rs` (implementation): [rust/tcl-compiler/src/table_value_provenance.rs](../../../../rust/tcl-compiler/src/table_value_provenance.rs). Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit.
-- `direct-token-taint-rs` (implementation): [rust/tcl-compiler/src/taint.rs](../../../../rust/tcl-compiler/src/taint.rs). Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit.
-- `direct-token-taint-instance_classes-rs` (implementation): [rust/tcl-compiler/src/taint/instance_classes.rs](../../../../rust/tcl-compiler/src/taint/instance_classes.rs). Current exact source owner, one of the seven actual consumer call sites, or authentic parent registration. Complete source metadata purpose only; no executable/assertion or Native execution credit.
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.original-direct-token-owner`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -96,8 +78,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/ir.rs](../../../../rust/tcl-compiler/src/ir.rs), `ir::tests::original_word_carrier_refuses_same_count_text_and_word_changes` (linked): Word carrier refuses same count text and word changes. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [rust/tcl-compiler/src/command_binding/original_name_value.rs](../../../../rust/tcl-compiler/src/command_binding/original_name_value.rs), `command_binding::original_name_value::graph_tests::original_word_issuers_require_the_complete_current_compatibility_vector` (linked): Word issuers require the complete current compatibility vector. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Matching independently successful own source producer, actual executable inventory and separately closed assertion receipts are required for executed software results. Each of the seven consumer sites keeps its existing supplied Module/metadata/availability/selection/read/store/edit admissions. The six model environments and point-projected Jim do not grant original binary or performance outcomes.
+- [rust/tcl-compiler/src/analyser/diagnostics/var_command.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/var_command.rs)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs)
+- [rust/tcl-compiler/src/taint/instance_classes.rs](../../../../rust/tcl-compiler/src/taint/instance_classes.rs)

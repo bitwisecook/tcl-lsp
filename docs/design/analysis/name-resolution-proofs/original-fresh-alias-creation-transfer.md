@@ -20,55 +20,11 @@ Implementation contract for source-only C Tcl 8.4 through 9.1 analysis and genui
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
+Status: `not-tested`. Channel: Rust implementation contract. Version: tcl8.4 not applicable; tcl8.5 not applicable; tcl8.6 not applicable; tcl9.0 not applicable; tcl9.1 not applicable; jim not applicable; bigip not applicable.
 
 No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### jim
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: Jim Tcl.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-### bigip
-
-Status: `not-tested`. Version: not applicable. Build: not applicable. Channel: Rust implementation contract. Dialect: F5 iRules.
-
-No native observation is asserted; the Rust contract has independent exact test selectors.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_alias_creation.rs](../../../../rust/tcl-compiler/src/command_binding/original_alias_creation.rs), `command_binding::original_alias_creation::tests::original_alias_creation_closes_only_fresh_quiet_actual_transfers` (linked): Fresh missing-target, builtin-prefix, source-procedure-prefix and opaque-name aliases retain a complete normal world; loops, occupied slots, nonempty interpreter paths and replacement do not borrow this envelope.
 - [rust/tcl-syntax/src/naming/alias_chain.rs](../../../../rust/tcl-syntax/src/naming/alias_chain.rs), `naming::alias_chain::tests::original_alias_chain_keeps_missing_unknown_and_cycles_separate` (linked): A finite chain terminates, a repeated start or intermediate node is a loop, and unknown lookup remains an error.
 - [rust/tcl-registry/src/commands/tcl/interp.rs](../../../../rust/tcl-registry/src/commands/tcl/interp.rs), `commands::tcl::interp::tests::original_alias_effects_separate_policy_reads_from_binding_lifecycle` (linked): Selected C Registry alias query/create/delete metadata retains interpreter-policy reads independently of binding lifecycle mutations and trace callbacks; unrelated interpreter creation retains its own write transition.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors listed above exercise the implementation premises. No execution receipt or native provider observation is attached to this implementation contract.

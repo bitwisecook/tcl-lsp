@@ -28,7 +28,7 @@ def main() -> int:
         document = args.evidence.read_bytes().decode("utf-8")
         if "\r" in document:
             raise ValueError("evidence Markdown must use LF line endings")
-        script = script_from_markdown(document)
+        script = script_from_markdown(document, args.evidence)
         if args.output == "-":
             sys.stdout.buffer.write(script)
         else:

@@ -276,75 +276,60 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-procedure, unit 0:0, invocation once
+### tmm-procedure, unit 0:0, invocation once; tmm-procedure, unit 0:1, invocation once; tmm-procedure, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-procedure.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:0|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:0|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:0|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:0|once|errorinfo|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e67220a202020207768696c6520657865637574696e670a22656e636f64696e6720636f6e76657274746f207574662d38205b666f726d6174202563203934355d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|3a3a5f5f6e685f6e683230323631303132636170325f6e616d6573706163655f6576616c
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- version, setup, completion 0, result, chunk 0 of 1:
+- version, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- version, lookup, completion 0, result, chunk 0 of 1:
+- version, lookup, completion 0, result:
 
 ```text-visible
 8.4.6 8.4 ::⟦EOF⟧
 ```
 
-- version, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- version, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- encoding, setup, completion 0, result, chunk 0 of 1:
+- encoding, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, result, chunk 0 of 1:
+- encoding, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "encoding"⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, metadata, chunk 0 of 1:
+- encoding, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, errorcode, chunk 0 of 1:
+- encoding, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, errorinfo, chunk 0 of 1:
+- encoding, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "encoding"
@@ -355,243 +340,25 @@ invalid command name "encoding"
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- encoding, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- encoding, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- namespace.eval, setup, completion 0, result, chunk 0 of 1:
+- namespace.eval, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- namespace.eval, lookup, completion 0, result, chunk 0 of 1:
+- namespace.eval, lookup, completion 0, result:
 
 ```text-visible
 ::__nh_nh20261012cap2_namespace_eval⟦EOF⟧
 ```
 
-- namespace.eval, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- encoding: intended operation reached.
-
-- namespace.eval: intended operation reached.
-
-- version: intended operation reached.
-
-### tmm-procedure, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:1|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:1|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:1|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:1|once|errorinfo|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e67220a202020207768696c6520657865637574696e670a22656e636f64696e6720636f6e76657274746f207574662d38205b666f726d6174202563203934355d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|3a3a5f5f6e685f6e683230323631303132636170325f6e616d6573706163655f6576616c
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- version, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- version, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-8.4.6 8.4 ::⟦EOF⟧
-```
-
-- version, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- encoding, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-invalid command name "encoding"⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, errorinfo, chunk 0 of 1:
-
-```text-visible
-invalid command name "encoding"
-    while executing
-"encoding convertto utf-8 [format %c 945]"
-    ("eval" body line 1)
-    invoked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- encoding, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- namespace.eval, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- namespace.eval, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-::__nh_nh20261012cap2_namespace_eval⟦EOF⟧
-```
-
-- namespace.eval, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- encoding: intended operation reached.
-
-- namespace.eval: intended operation reached.
-
-- version: intended operation reached.
-
-### tmm-procedure, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:2|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:2|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:2|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:2|once|errorinfo|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e67220a202020207768696c6520657865637574696e670a22656e636f64696e6720636f6e76657274746f207574662d38205b666f726d6174202563203934355d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|3a3a5f5f6e685f6e683230323631303132636170325f6e616d6573706163655f6576616c
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- version, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- version, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-8.4.6 8.4 ::⟦EOF⟧
-```
-
-- version, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- encoding, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-invalid command name "encoding"⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- encoding, lookup, completion 1, errorinfo, chunk 0 of 1:
-
-```text-visible
-invalid command name "encoding"
-    while executing
-"encoding convertto utf-8 [format %c 945]"
-    ("eval" body line 1)
-    invoked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- encoding, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-0 {}⟦EOF⟧
-```
-
-- namespace.eval, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- namespace.eval, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-::__nh_nh20261012cap2_namespace_eval⟦EOF⟧
-```
-
-- namespace.eval, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- namespace.eval, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
@@ -610,68 +377,53 @@ invalid command name "encoding"
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|382e342e3620382e34203a3a
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|version|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:3|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e6722
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:3|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:3|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|lookup|1|0:3|once|errorinfo|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d652022656e636f64696e67220a202020207768696c6520657865637574696e670a22656e636f64696e6720636f6e76657274746f207574662d38205b666f726d6174202563203934355d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|encoding|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|30207b7d
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|3a3a5f5f6e685f6e683230323631303132636170325f6e616d6573706163655f6576616c
-Oct 12 07:57:08 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012cap2_tmm_procedure_0 <RULE_INIT>: NHO|nh20261012cap2|namespace.eval|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|30207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- version, setup, completion 0, result, chunk 0 of 1:
+- version, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- version, lookup, completion 0, result, chunk 0 of 1:
+- version, lookup, completion 0, result:
 
 ```text-visible
 8.4.6 8.4 ::⟦EOF⟧
 ```
 
-- version, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- version, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- encoding, setup, completion 0, result, chunk 0 of 1:
+- encoding, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, result, chunk 0 of 1:
+- encoding, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "encoding"⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, metadata, chunk 0 of 1:
+- encoding, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, errorcode, chunk 0 of 1:
+- encoding, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- encoding, lookup, completion 1, errorinfo, chunk 0 of 1:
+- encoding, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "encoding"
@@ -682,25 +434,25 @@ invalid command name "encoding"
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- encoding, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- encoding, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧
 ```
 
-- namespace.eval, setup, completion 0, result, chunk 0 of 1:
+- namespace.eval, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- namespace.eval, lookup, completion 0, result, chunk 0 of 1:
+- namespace.eval, lookup, completion 0, result:
 
 ```text-visible
 ::__nh_nh20261012cap2_namespace_eval⟦EOF⟧
 ```
 
-- namespace.eval, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- namespace.eval, runtime-cleanup, completion 0, result:
 
 ```text-visible
 0 {}⟦EOF⟧

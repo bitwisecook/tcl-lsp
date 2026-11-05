@@ -1,1 +1,0 @@
-cargo test --locked -p tcl-compiler --lib command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::complete_program_purpose_refuses_a_genuine_conditional_region -- --exact --nocapture --test-threads=1

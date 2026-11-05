@@ -16,10 +16,10 @@ list {a}#b⟦EOF⟧
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case c_if_hash_arg
+### TMM log tag tmm, RULE_INIT, case c_if_hash_arg; TMM log tag tmm1, RULE_INIT, case c_if_hash_arg; TMM log tag tmm2, RULE_INIT, case c_if_hash_arg; TMM log tag tmm3, RULE_INIT, case c_if_hash_arg; iApp implementation, case c_if_hash_arg; iCall script, case c_if_hash_arg; tmsh CLI script, case c_if_hash_arg; TMM log tag tmm, RULE_INIT, case w_hash_after_brace; TMM log tag tmm1, RULE_INIT, case w_hash_after_brace; TMM log tag tmm2, RULE_INIT, case w_hash_after_brace; TMM log tag tmm3, RULE_INIT, case w_hash_after_brace; iApp implementation, case w_hash_after_brace; iCall script, case w_hash_after_brace
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT; iApp implementation; iCall script; tmsh CLI script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -31,52 +31,7 @@ a #b⟦EOF⟧
 
 The wrapper recorded Tcl completion code 0.
 
-### TMM log tag tmm1, RULE_INIT, case c_if_hash_arg
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm2, RULE_INIT, case c_if_hash_arg
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm3, RULE_INIT, case c_if_hash_arg
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### appliance tclsh8.4, case c_if_hash_arg
+### appliance tclsh8.4, case c_if_hash_arg; appliance tclsh8.4, case w_hash_after_brace
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.13.
 - Recorded input channel: appliance tclsh8.4.
@@ -91,7 +46,7 @@ extra characters after close-brace⟦EOF⟧
 
 The wrapper recorded Tcl completion code 1.
 
-### appliance tclsh8.5, case c_if_hash_arg
+### appliance tclsh8.5, case c_if_hash_arg; appliance tclsh8.5, case w_hash_after_brace
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.5.13.
 - Recorded input channel: appliance tclsh8.5.
@@ -105,171 +60,6 @@ extra characters after close-brace⟦EOF⟧
 ```
 
 The wrapper recorded Tcl completion code 1.
-
-### iApp implementation, case c_if_hash_arg
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iCall script, case c_if_hash_arg
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### tmsh CLI script, case c_if_hash_arg
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: tmsh CLI script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm, RULE_INIT, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm1, RULE_INIT, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm2, RULE_INIT, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm3, RULE_INIT, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### appliance tclsh8.4, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.13.
-- Recorded input channel: appliance tclsh8.4.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-extra characters after close-brace⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### appliance tclsh8.5, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.5.13.
-- Recorded input channel: appliance tclsh8.5.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-extra characters after close-brace⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 1.
-
-### iApp implementation, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iCall script, case w_hash_after_brace
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-a #b⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
 
 ### tmsh CLI script, case w_hash_after_brace
 

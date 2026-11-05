@@ -63,9 +63,7 @@ Source-mode branch geometry comes from the same selected descriptor's accepted c
 
 Definite stop cardinality is separate from uncertain continuation conditions. Only a branch returning no continuation contributes to an all-branches-stop join. A branch that continues with new unknown debt leaves a possible outside path and cannot erase following source advertisements. The fixed source control for an unknown if/else with two opaque branches preserves a following Conditional advertisement; it has not been executed.
 
-
 The standalone consumer now exclusively uses the existing original-source Walker. Its superseded local ScriptWalker, nominal control/body heuristics and unused child reconstruction have been removed. No lexical parser probe for script or requirement geometry remains, in production or tests. The production constant-guard acceptor still delegates to shared release-unanimous Boolean semantics; genuine target predicates remain issued by the retained source-model owner. Original assertions, external fixtures, limits and budgets are unchanged.
-
 
 ## Survey-scoped conditional source control
 

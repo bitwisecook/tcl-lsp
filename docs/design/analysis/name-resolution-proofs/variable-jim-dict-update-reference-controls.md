@@ -22,84 +22,49 @@ Original fixed ASCII LF CLI file reports PATCHLEVEL, then iterates five exact sc
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Exact CLI executable; every retained required artifact association independently rechecked. No fresh SDK build or compiler-binary version is recorded.. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim.. Dialect: C Tcl stock CLI.
+Status: `observed`. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim. Version: tcl8.4 8.4.20.
 
 Actual stock 8.4.20 lacks dict here: scalar and array controls catch that absence before entering their bodies; alias/reference controls still execute, and the multiword worker is absent. Exact five rows: RESULT update_scalar 0 {1 {invalid command name "dict"} BEFORE 0 {first NEW}}; RESULT update_array_second 0 {1 {invalid command name "dict"} BEFORE 0 1 {can't read "blocked": variable is array} {first NEW second OTHER}}; RESULT alias_array_replacement 0 {1 {can't set "original": variable is array} 1 1 {can't read "aliasSource": variable is array}}; RESULT reference_formal 0 {1 {can't read "original": no such variable} {first NEW}}; RESULT update_direct_multiword 0 {1 {invalid command name "dict update"} BEFORE 0 {first DIRECT}}. Every outer catch code is zero, while each nested operation retains its own code/result/value tuple. Process exit is zero with empty stderr. These foreach/catch variable-source outputs do not replace the distinct older eval-wrapped fixture or establish a bytecode/object/frame/storage causal mechanism.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Exact CLI executable; every retained required artifact association independently rechecked. No fresh SDK build or compiler-binary version is recorded.. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim.. Dialect: C Tcl stock CLI.
+Status: `observed`. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim. Version: tcl8.5 8.5.19.
 
 Actual stock 8.5.19completes the scalar update; the array-second control catches assignment failure after ok becomes NEW. The alias array write and reference-formal read fail, and the multiword worker is absent. Exact five rows: RESULT update_scalar 0 {0 1 NEW 1 {first NEW}}; RESULT update_array_second 0 {1 {can't set "blocked": variable is array} NEW 0 1 {can't read "blocked": variable is array} {first NEW second OTHER}}; RESULT alias_array_replacement 0 {1 {can't set "original": variable is array} 1 1 {can't read "aliasSource": variable is array}}; RESULT reference_formal 0 {1 {can't read "original": no such variable} {first NEW}}; RESULT update_direct_multiword 0 {1 {invalid command name "dict update"} BEFORE 0 {first DIRECT}}. Every outer catch code is zero, while each nested operation retains its own code/result/value tuple. Process exit is zero with empty stderr. These foreach/catch variable-source outputs do not replace the distinct older eval-wrapped fixture or establish a bytecode/object/frame/storage causal mechanism.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Exact CLI executable; every retained required artifact association independently rechecked. No fresh SDK build or compiler-binary version is recorded.. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim.. Dialect: C Tcl stock CLI.
+Status: `observed`. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim. Version: tcl8.6 8.6.18.
 
 Actual stock 8.6.18completes the scalar update; the array-second control catches assignment failure after ok becomes NEW. The alias array write and reference-formal read fail, and the multiword worker is absent. Exact five rows: RESULT update_scalar 0 {0 1 NEW 1 {first NEW}}; RESULT update_array_second 0 {1 {can't set "blocked": variable is array} NEW 0 1 {can't read "blocked": variable is array} {first NEW second OTHER}}; RESULT alias_array_replacement 0 {1 {can't set "original": variable is array} 1 1 {can't read "aliasSource": variable is array}}; RESULT reference_formal 0 {1 {can't read "original": no such variable} {first NEW}}; RESULT update_direct_multiword 0 {1 {invalid command name "dict update"} BEFORE 0 {first DIRECT}}. Every outer catch code is zero, while each nested operation retains its own code/result/value tuple. Process exit is zero with empty stderr. These foreach/catch variable-source outputs do not replace the distinct older eval-wrapped fixture or establish a bytecode/object/frame/storage causal mechanism.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Exact CLI executable; every retained required artifact association independently rechecked. No fresh SDK build or compiler-binary version is recorded.. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim.. Dialect: C Tcl stock CLI.
+Status: `observed`. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim. Version: tcl9.0 9.0.4.
 
 Actual stock 9.0.4completes the scalar update; the array-second control catches assignment failure after ok becomes NEW. The alias array write and reference-formal read fail, and the multiword worker is absent. Exact five rows: RESULT update_scalar 0 {0 1 NEW 1 {first NEW}}; RESULT update_array_second 0 {1 {can't set "blocked": variable is array} NEW 0 1 {can't read "blocked": variable is array} {first NEW second OTHER}}; RESULT alias_array_replacement 0 {1 {can't set "original": variable is array} 1 1 {can't read "aliasSource": variable is array}}; RESULT reference_formal 0 {1 {can't read "original": no such variable} {first NEW}}; RESULT update_direct_multiword 0 {1 {invalid command name "dict update"} BEFORE 0 {first DIRECT}}. Every outer catch code is zero, while each nested operation retains its own code/result/value tuple. Process exit is zero with empty stderr. These foreach/catch variable-source outputs do not replace the distinct older eval-wrapped fixture or establish a bytecode/object/frame/storage causal mechanism.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Exact CLI executable; every retained required artifact association independently rechecked. No fresh SDK build or compiler-binary version is recorded.. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim.. Dialect: C Tcl stock CLI.
+Status: `observed`. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim. Version: tcl9.1 9.1.0.
 
 Actual stock 9.1.0completes the scalar update; the array-second control catches assignment failure after ok becomes NEW. The alias array write and reference-formal read fail, and the multiword worker is absent. Exact five rows: RESULT update_scalar 0 {0 1 NEW 1 {first NEW}}; RESULT update_array_second 0 {1 {can't set "blocked": variable is array} NEW 0 1 {can't read "blocked": variable is array} {first NEW second OTHER}}; RESULT alias_array_replacement 0 {1 {can't set "original": variable is array} 1 1 {can't read "aliasSource": variable is array}}; RESULT reference_formal 0 {1 {can't read "original": no such variable} {first NEW}}; RESULT update_direct_multiword 0 {1 {invalid command name "dict update"} BEFORE 0 {first DIRECT}}. Every outer catch code is zero, while each nested operation retains its own code/result/value tuple. Process exit is zero with empty stderr. These foreach/catch variable-source outputs do not replace the distinct older eval-wrapped fixture or establish a bytecode/object/frame/storage causal mechanism.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable; every retained required artifact association independently rechecked. No fresh SDK build or compiler-binary version is recorded.. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF CLI source with five caught public controls; no internal object/header/argv/cache or frame-memory claim. Version: jim 0.84-9-g5bac7c9.
 
 Actual Jim 0.84-9-g5bac7c9 completes scalar/array dictionary controls, explicit alias replacement, reference-formal and multiword worker with the exact public tuples below. Exact five rows: RESULT update_scalar 0 {0 1 NEW 1 {first NEW}}; RESULT update_array_second 0 {0 1 NEW 1 0 OTHER {first NEW second OTHER}}; RESULT alias_array_replacement 0 {0 OTHER 0 0 OTHER}; RESULT reference_formal 0 {0 {{first NEW}} {first NEW}}; RESULT update_direct_multiword 0 {0 1 DIRECT 1 {first DIRECT}}. Every outer catch code is zero, while each nested operation retains its own code/result/value tuple. Process exit is zero with empty stderr. These foreach/catch variable-source outputs do not replace the distinct older eval-wrapped fixture or establish a bytecode/object/frame/storage causal mechanism.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: BIG-IP.
+Status: `not-tested`.
 
 No appliance execution answers this exact source question; C and Jim captures supply no BIG-IP result.
-
-## Historical references
-
-- `dict187-source.tcl` (input): [rust/tcl-registry/tests/data/native_variable_container_runtime187/source.tcl](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/source.tcl). Exact original fixed ASCII LF source executed by all six providers.
-- `dict187-request.json` (input): [rust/tcl-registry/tests/data/native_variable_container_runtime187/request.json](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/request.json). Exact authored question/provider/source request and explicit BIG-IP and authority boundaries; no field is rewritten.
-- `dict187-capture.py` (input): [rust/tcl-registry/tests/data/native_variable_container_runtime187/capture.py](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/capture.py). Exact Root-executed launcher, prior alias255 receipts, explicit executable/artifact/source checks and whole recorded streams; publication does not execute it.
-- `dict187-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20/receipt.json). Unchanged actual process command, reported version, environment overrides and complete executable/library/header/build/source SHA associations.
-- `dict187-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20/stdout). Whole original stdout; exact caught outcomes, value spellings and rows are not normalised.
-- `dict187-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20/stderr). Whole original empty process stderr.
-- `dict187-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19/receipt.json). Unchanged actual process command, reported version, environment overrides and complete executable/library/header/build/source SHA associations.
-- `dict187-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19/stdout). Whole original stdout; exact caught outcomes, value spellings and rows are not normalised.
-- `dict187-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19/stderr). Whole original empty process stderr.
-- `dict187-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18/receipt.json). Unchanged actual process command, reported version, environment overrides and complete executable/library/header/build/source SHA associations.
-- `dict187-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18/stdout). Whole original stdout; exact caught outcomes, value spellings and rows are not normalised.
-- `dict187-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18/stderr). Whole original empty process stderr.
-- `dict187-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4/receipt.json). Unchanged actual process command, reported version, environment overrides and complete executable/library/header/build/source SHA associations.
-- `dict187-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4/stdout). Whole original stdout; exact caught outcomes, value spellings and rows are not normalised.
-- `dict187-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4/stderr). Whole original empty process stderr.
-- `dict187-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0/receipt.json). Unchanged actual process command, reported version, environment overrides and complete executable/library/header/build/source SHA associations.
-- `dict187-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0/stdout). Whole original stdout; exact caught outcomes, value spellings and rows are not normalised.
-- `dict187-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0/stderr). Whole original empty process stderr.
-- `dict187-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_variable_container_runtime187/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/jim/receipt.json). Unchanged actual process command, reported version, environment overrides and complete executable/library/header/build/source SHA associations.
-- `dict187-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/jim/stdout](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/jim/stdout). Whole original stdout; exact caught outcomes, value spellings and rows are not normalised.
-- `dict187-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_variable_container_runtime187/jim/stderr](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/jim/stderr). Whole original empty process stderr.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_array.rs](../../../../runtime/rust/src/cmd_array.rs), `cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage` (linked): Port distribution test ingress checks the original first-mapping caller-value projection under C8.5+ and Jim; no absent core worker, internal bytecode cause or unmeasured native input is inferred.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Original exact process commands, recorded environment overrides and complete required executable/SDK/source associations remain in unchanged receipts. Other inherited environment variables are unrecorded. The actual original launcher depends on retained alias255 receipts and the original external SDK paths and refuses existing provider output directories; copying it does not promise portable replay. Re-running creates new observations. Publication and the proof gate launch no native or Rust process.
-
 
 ## Exact original-source349 software outcomes
 
@@ -110,4 +75,14 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_variable_container_runtime187](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187)
+- [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.4.20)
+- [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.5.19)
+- [rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/8.6.18)
+- [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.0.4)
+- [rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/9.1.0)
+- [rust/tcl-registry/tests/data/native_variable_container_runtime187/jim](../../../../rust/tcl-registry/tests/data/native_variable_container_runtime187/jim)

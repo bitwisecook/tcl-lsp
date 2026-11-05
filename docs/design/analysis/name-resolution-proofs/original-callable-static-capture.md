@@ -20,53 +20,11 @@ Rust source-cell model for the selected Jim084 callable static grammar and actua
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance execution for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance execution for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance execution for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance execution for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance execution for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance execution for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance execution for this question is attached.
-
-## Historical references
-
-- `jim-static-lookup-source-0` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). JSON pointer `/source_anchors/0/snippet`. Exact pinned JimCreateProcedureStatics snippet; source inspection only.
-- `jim-static-lookup-source-1` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). JSON pointer `/source_anchors/1/snippet`. Exact pinned SetVariableFromAny snippet; source inspection only.
-- `jim-static-lookup-source-2` (source-anchor): [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json). JSON pointer `/source_anchors/2/snippet`. Exact pinned Jim_GetVariable snippet; source inspection only.
 
 ## Source inspection
 
@@ -298,9 +256,7 @@ Jim_Obj *Jim_GetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
     return NULL;
 }
 
-
 ```
-
 
 ## Consumer bindings
 
@@ -316,8 +272,6 @@ Jim_Obj *Jim_GetVariable(Jim_Interp *interp, Jim_Obj *nameObjPtr, int flags)
 - [rust/tcl-compiler/src/raw_binding.rs](../../../../rust/tcl-compiler/src/raw_binding.rs), `raw_binding::original_callable_static_tests::original_static_capture_withdraws_atomically_for_unowned_or_observed_inputs` (linked): Malformed later declarations, unknown read observers, stale evaluated input and conflicting policies leave the entire prior state intact.
 - [rust/tcl-compiler/src/raw_binding.rs](../../../../rust/tcl-compiler/src/raw_binding.rs), `raw_binding::original_callable_static_tests::original_static_unset_preserves_fallback_and_detaches_only_the_named_wrapper` (linked): An original counted Jim unset detaches only the pinned named entry, preserves the held OLD value after NEW recreation, and leaves direct callable-static fallback KEEP intact under both write projection and source transfer.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust selectors exercise model inputs and lifetime distinctions; no Rust execution receipt is attached. Source windows can be checked against the retained pinned full-file digest. Native reference/copy admission is explained by inspected code, not asserted as a newly measured subprocess result.
+- [rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json](../../../../rust/tcl-compiler/tests/data/native_callable_static_source/jim-statics.json)

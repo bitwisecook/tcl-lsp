@@ -20,56 +20,11 @@ Current inspected Rust source and two genuine software control definitions using
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source join contract. Channel: Current Rust source/API definitions. Dialect: tcl8.4.
-
-This is a Rust immutable-storage join contract; no external interpreter ran in this packet.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source join contract. Channel: Current Rust source/API definitions. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Current Rust source/API definitions.
 
 This is a Rust immutable-storage join contract; no external interpreter ran in this packet.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source join contract. Channel: Current Rust source/API definitions. Dialect: tcl8.6.
-
-This is a Rust immutable-storage join contract; no external interpreter ran in this packet.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source join contract. Channel: Current Rust source/API definitions. Dialect: tcl9.0.
-
-This is a Rust immutable-storage join contract; no external interpreter ran in this packet.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source join contract. Channel: Current Rust source/API definitions. Dialect: tcl9.1.
-
-This is a Rust immutable-storage join contract; no external interpreter ran in this packet.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source join contract. Channel: Current Rust source/API definitions. Dialect: jim.
-
-This is a Rust immutable-storage join contract; no external interpreter ran in this packet.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: No original external provider process for this Rust source join contract. Channel: Current Rust source/API definitions. Dialect: bigip.
-
-This is a Rust immutable-storage join contract; no external interpreter ran in this packet.
-
-## Historical references
-
-- `shared-noop-command-binding` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations.
-- `shared-noop-lib` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current inspected source join owner or actual compiler module registration; software definition purpose only, without executable or assertion credit.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,8 +33,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `command_binding::shared_noop_source_join_tests::actual_same_owner_join_keeps_shared_storage_and_complete_semantics` (linked): The actual C8.6 source-model self-join retains the same original baseline and current source owner, returns no semantic change, and preserves complete equality plus thirteen exact immutable collection Arcs. This definition grants no external interpreter or current Native authority.
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `command_binding::shared_noop_source_join_tests::genuine_different_observer_and_namespace_owners_still_join_without_mutating_snapshots` (linked): Genuine before/after observer and namespace snapshots with distinct collection owners retain complete original semantic joins. A repeated observer join is idempotent; the independently retained snapshots remain unchanged. This is a source-model control definition, without an attached assertion result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-A matching independently successful own producer, exact inventory and independently closed assertion receipt are required for software execution credit. The C8.6 source-model constructions are not an original provider process. Complete actual measurement receipts are required for performance claims; no process-termination cause is established by allocation-path inspection.
+- [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs)
+- [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs)

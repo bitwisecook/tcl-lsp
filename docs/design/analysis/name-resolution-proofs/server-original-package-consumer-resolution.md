@@ -20,55 +20,11 @@ Current Server implementation contract. The concrete regression exercises origin
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a Rust package-consumer integration contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-## Historical references
-
-- `server-package-consumers` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Inspected shared original inheritance/refinement consumer and constraint/dependency-preference regression.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,8 +39,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-server/src/provider_source/tests.rs](../../../../rust/tcl-lsp-server/src/provider_source/tests.rs), `provider_source::tests::configured_package_refinement_keeps_version_preference_and_unknown_providers` (linked): Registry package path inventory supplies no resolution/loading grant. Actual push/pull W120/W123 scan independently configured provider source owners, using checked indexed complete input or configured fresh disk input. Each provider owns full grammar/availability/store/resources; caller Native entry is never copied. Resolver version pin remains independent and provider source/folder/document dialect selection takes precedence. Missing mapping/source/overlay or changed resolver revision is typed unavailable; dependency closure remains incomplete, W120/W123 abstain without inventing publications. Explicit standalone test readers remain separated; actual missing input cannot fall through to them. Configuration settings shared by handle; no DB/config locks or Salsa snapshots retained during source walk. Resolver read guard protects selected immutable version rows. Source/software definition only; no executed assertion or Native process result is attached by this binding.
 - [rust/tcl-lsp-server/src/recovery_source/tests.rs](../../../../rust/tcl-lsp-server/src/recovery_source/tests.rs), `recovery_source::tests::malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers` (linked): The actual malformed-document branch prepares/retains the checked tracked document or independently configured fresh full input before any source walk, and forwards it plus file path and reporting factory/subclass inputs into both source preview and final worker. Typed overlay miss remains terminal. Recovery reads package requirements from that current actual analysis, retains exact/version/preference facts, and uses Provider360 independent configured provider source inputs. No DB/config/Salsa handle or await occurs inside resolver callbacks. Package recovery cache retains complete caller input, typed roots, visited provider source/input or typed unavailable status, exact projected source names and workspace/resolver/base currency. No-package malformed edits reuse the unchanged source-independent workspace name allocation. Missing, overlay, dynamic or unenumerable providers preserve has_dynamic_providers uncertainty in the final AnalysisResult. Registry-provided requirements, including Tcl, are exempt from missing-file enumeration. Known labels are conditional parser recognition only; source declarations remain shared source-inventory projections. No Native entry, executed loader, variable frame or source-name authority is issued by these names. The old sole caller-profile package scanner is removed; existing workspace shared memo/index invalidation assertions remain nonvacuous. This is a current source/software definition only; no executed assertion outcome is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked assertion must be executed under the coherent Rust workspace before claiming a passing result. Source hashes bind the inspected implementation and test; a source edit or formatter requires review/reissue. Package graph advice and provider selection do not establish that a Tcl loader or source file executed.
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)

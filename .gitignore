@@ -135,3 +135,24 @@ editors/vscode/testFixture/.vscode/
 /editors/zed/grammars/
 editors/vscode/testFixture/specPackTortureScratch/
 editors/vscode/testFixture/packExtensionScratch/
+
+# Raw oracle and appliance captures stay local. Commit the minimised result as
+# evidence/tcl Markdown (see docs/design/contracts/tcl-execution-evidence.md).
+/experiments/name-handling/results/
+/experiments/name-handling/f5/answers/
+/experiments/name-handling/patterns/f5/answers/
+/scripts/dev/bigip-probes/resolution-2286/evidence/
+/docs/work/name-handling/handoff/
+/docs/work/name-handling/scratchpad-mirror/
+/docs/work/name-handling/progress-report-*.json
+/docs/design/analysis/name-resolution-proofs/rust-validation/
+
+# Native probe build outputs and capture receipts are reproducible; keep only
+# the inputs and text outputs that tests read.
+**/tests/data/**/*.elf
+**/tests/data/**/*.gz
+**/tests/data/**/*.a
+**/tests/data/**/*.map
+**/tests/data/**/*.rlib
+**/tests/data/**/*.rmeta
+**/tests/data/**/*receipt.json

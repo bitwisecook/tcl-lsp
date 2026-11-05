@@ -20,53 +20,11 @@ One actual interpreter storage pool, exact original link target and selected liv
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native execution receipt for this separate storage-owner implementation contract; finite guest controls are the independent native question.
-
-## Historical references
-
-- `eff22ac40e9a48ac6eeb4` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). JSON pointer `/source_anchors/0/snippet`. Exact pinned Jim_Obj *Jim_GetVariable LF function bytes; recursive getter/storage/free-order only.
-- `ed7cf30ba937eadca0e2a` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). JSON pointer `/source_anchors/1/snippet`. Exact pinned static Jim_CallFrame *JimCreateCallFrame LF function bytes; recursive getter/storage/free-order only.
-- `ee128a2f09a96f35b50dc` (source-anchor): [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json). JSON pointer `/source_anchors/2/snippet`. Exact pinned static void JimFreeCallFrame LF function bytes; recursive getter/storage/free-order only.
 
 ## Source inspection
 
@@ -173,7 +131,6 @@ static void JimFreeCallFrame(Jim_Interp *interp, Jim_CallFrame *cf, int action)
 }
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-runtime-api/src/jim_call_frame.rs](../../../../rust/tcl-runtime-api/src/jim_call_frame.rs), `JimCallFrameStoragePool::acquire`: Shared concrete storage selection; no activation/cache or native receipt donor.
@@ -182,8 +139,6 @@ static void JimFreeCallFrame(Jim_Interp *interp, Jim_CallFrame *cf, int action)
 - [rust/tcl-vm/src/command/native_static_original_tests.rs](../../../../rust/tcl-vm/src/command/native_static_original_tests.rs), `command::native_static_original_tests::original_jim_static_links_match_native_frame_storage_reuse_boundaries` (linked): Original six source/code/result rows per provider, with actual native backend installed; no host refusal is substituted for Jim guest error.
 - [rust/tcl-runtime-api/src/jim_call_frame.rs](../../../../rust/tcl-runtime-api/src/jim_call_frame.rs), `jim_call_frame::tests::original_jim_storage_reuse_keeps_live_and_foreign_slots_separate` (linked): Distinct active slots and foreign pools do not match; only retired LIFO storage can be reused, expired storage cannot match.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Linked tests are assertions, not executed receipts. Native finite source answers belong to naming.procedure-static.jim-native-link-frame-reuse-boundaries. The exact original runner and inputs remain archived; replay requires independently verified SDK/executable/source pins and fresh output paths.
+- [rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_jim_link_frame_storage/source-anchors.json)

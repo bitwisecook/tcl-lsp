@@ -20,51 +20,23 @@ Offline inspection of the exact complete jim-package.c source bytes at the recor
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### jim
 
-Status: `inspected`. Version: not recorded. Build: Exact retained source snapshot; source release, revision, configuration and source-to-binary mapping unrecorded. Channel: Offline full-source bytes with LF-counted table excerpt. Dialect: Jim Tcl.
+Status: `inspected`. Channel: Offline full-source bytes with LF-counted table excerpt.
 
 The complete selected package_command_table declares forget (1..unbounded), provide (1..2), require (1..2), list (0) and names (0). list and names both use package_cmd_names; only list carries JIM_MODFLAG_HIDDEN. The table ends with its NULL sentinel and contains no ifneeded operation. This source inspection supplies no process outcome or source-to-binary proof.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `source-table` (source-anchor): [rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c). Lines 231–276. Exact retained complete vendor source; selected LF lines contain the entire table and sentinel.
 
 ## Source inspection
 
@@ -120,14 +92,11 @@ static const jim_subcmd_type package_command_table[] = {
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/commands/tcl/package_.rs](../../../../rust/tcl-registry/src/commands/tcl/package_.rs), `jim_spec`: Authored nearest-family Jim package catalogue retains list and names and excludes C ifneeded; this binding supplies no guest execution claim.
 - [rust/tcl-registry/src/commands/tcl/package_.rs](../../../../rust/tcl-registry/src/commands/tcl/package_.rs), `commands::tcl::package_::tests::jim_package_inventory_keeps_hidden_list_and_excludes_ifneeded` (linked): The authored genuine Jim-point catalogue preserves the five declared operations, zero-argument list/names List metadata, and no inherited ifneeded body descriptor; no native process is executed by this test.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Reinspect the retained full vendor source and its exact LF-counted table after verifying both digests. Source version and revision are unknown, and no reproducible build mapping this snapshot to the native binary is supplied. Read naming.package.jim-hidden-list for actual list/names/miss process outcomes and naming.package.ifneeded-native-entry-frame for the actual Jim registration rejection. This source question supplies no C or BIG-IP source or execution answer.
+- [rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c](../../../../rust/tcl-registry/tests/data/native_jim_package_hidden_list/source/jim-package.c)

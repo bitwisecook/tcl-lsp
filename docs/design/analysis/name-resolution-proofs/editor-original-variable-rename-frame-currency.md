@@ -24,55 +24,11 @@ The added CLI controls classify source geometry/currency and independent softwar
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested for this Rust edit contract. Build: not tested. Channel: not tested. Dialect: C Tcl.
-
-No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested for this Rust edit contract. Build: not tested. Channel: not tested. Dialect: C Tcl.
+Status: `not-tested`. Version: tcl8.4 not tested for this Rust edit contract; tcl8.5 not tested for this Rust edit contract; tcl8.6 not tested for this Rust edit contract; tcl9.0 not tested for this Rust edit contract; tcl9.1 not tested for this Rust edit contract; jim not tested for this Rust edit contract; bigip not tested for this Rust edit contract.
 
 No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested for this Rust edit contract. Build: not tested. Channel: not tested. Dialect: C Tcl.
-
-No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested for this Rust edit contract. Build: not tested. Channel: not tested. Dialect: C Tcl.
-
-No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested for this Rust edit contract. Build: not tested. Channel: not tested. Dialect: C Tcl.
-
-No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
-
-### jim
-
-Status: `not-tested`. Version: not tested for this Rust edit contract. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
-
-### bigip
-
-Status: `not-tested`. Version: not tested for this Rust edit contract. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native provider run establishes this Rust source-edit invariant. Native name/cell/alias observations and actual Rust test execution are separate evidence.
-
-## Historical references
-
-- `plan` (implementation): [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs). Actual source plan and dedicated fixed-input regression; source digest is reissued only after owner formatting is stable.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -84,26 +40,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/original_name_edit.rs](../../../../rust/tcl-lsp-core/src/original_name_edit.rs), `original_input_matches_source`: Checks original input/source-span correspondence under the consumer complete source and grammar; shared by namespace and variable editors.
 - [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs), `variable_symbol::rename::tests::original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources` (linked): The edit contract requires complete current source/grammar and the selected typed frame symbol before planning geometry. The regression applies edits to p only while q retains local, then requires changed-source and occupied changed-name cases to refuse. The frame correspondence is source ownership, not an entered runtime frame or current cell.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `collect_rename_edits`: Consume AnalysisResult original_variable_symbols and shared Core original_variable_rename_edits under complete current input/image/configuration; convert checked whole component plans to original offsets and reject partial overlapping-container edits.
 - [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `commands::minimize::tests::minimise_variable_roles_follow_selected_renames_and_aliases` (linked): Genuine moved setters and source aliases determine original written variable roles; captured receiver names retain their separate containers and cannot be rewritten through a written value operand.
 - [rust/tcl-cli/src/commands/minimize.rs](../../../../rust/tcl-cli/src/commands/minimize.rs), `commands::minimize::tests::minimise_variable_edits_refuse_missing_stale_and_colliding_inputs` (linked): Guarded CLI symbol plans require current whole source/input and retain collision refusal; missing or stale analysis withdraws edits instead of reselecting nominal names.
 
 These source/API bindings carry no executed assertion or Native provider result.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-lsp-core",
-  "variable_symbol::rename::tests::original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources"
-]
-```
-
-The exact current source selector identifies the implementation assertion; naming it or matching its comment is not an execution claim. All native providers remain not-tested for this Rust edit question.
+- [rust/tcl-lsp-core/src/variable_symbol/rename.rs](../../../../rust/tcl-lsp-core/src/variable_symbol/rename.rs)

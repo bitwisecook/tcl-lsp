@@ -20,55 +20,11 @@ Readonly source grammar and original operand correspondence. This supplies no ha
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this readonly source-role projection invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation is attached to this readonly source-role projection invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this readonly source-role projection invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this readonly source-role projection invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this readonly source-role projection invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation is attached to this readonly source-role projection invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation is attached to this readonly source-role projection invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -86,9 +42,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::logical_binding_result_tests::structured_conditional_and_output_roles_keep_unknown_payloads` (linked): The selected source role vocabulary uses one conditional keyword grammar for literal shape and structured role queries. Unknown payload expression/body bytes retain their positions only where actual optional keyword controls determine layout; unknown controls or expanded cardinality decline. The selected output command and ensemble member share an available-flag/channel layout, with a single unknown operand retaining no channel role and larger unknown leading selectors declining.
 - [rust/tcl-compiler/src/analyser/name_producer_tests.rs](../../../../rust/tcl-compiler/src/analyser/name_producer_tests.rs), `analyser::name_producer_tests::original_dynamic_variable_producer_preserves_alias_written_origins_and_known_shadowing` (linked): A setter alias retains the actual written dynamic VarWrite site and compatibility resolved presentation. A known set procedure replacement yields no stock dynamic-variable site; current Native value and rename authority are separate.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::tests::original_standalone_selected_alias_roles_keep_source_purpose` (linked): Explicit standalone selected alias roles preserve actual original static source/body purpose and configuration; operands do not preserve runtime lookup, and known deleted/replaced aliases withdraw the source selection.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors are linked, with no execution receipt. Native source observations and runtime behavior cannot establish this readonly projection invariant.

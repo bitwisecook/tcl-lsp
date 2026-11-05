@@ -20,55 +20,11 @@ C Tcl86/C90/C91 source-only instance member/constructor declaration contexts wit
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No native process receipt for this declaration-only implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No native process receipt for this declaration-only implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No native process receipt for this declaration-only implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No native process receipt for this declaration-only implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No native process receipt for this declaration-only implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native process receipt for this declaration-only implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native process receipt for this declaration-only implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,21 +33,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_declared_method_template.rs](../../../../rust/tcl-compiler/src/command_binding/source_declared_method_template.rs), `command_binding::source_declared_method_template::tests::original_declared_self_template_uses_source_mixin_without_entering_a_receiver` (linked): Source mixin member and literal argv mapping survive UI class inventory removal while genuine actual receiver selection remains unavailable.
 - [rust/tcl-compiler/src/command_binding/source_declared_method_template.rs](../../../../rust/tcl-compiler/src/command_binding/source_declared_method_template.rs), `command_binding::source_declared_method_template::tests::original_declared_self_template_declines_unknown_relations_shadow_and_foreign_source` (linked): Missing source provider, unrelated nested proc frame, known head shadow and foreign complete image decline.
 - [rust/tcl-lsp-core/src/caller_frame.rs](../../../../rust/tcl-lsp-core/src/caller_frame.rs), `caller_frame::tests::a_mixin_method_reached_by_my_dispatch_binds_its_literal_target` (linked): An unentered constructor joins a source mixin literal upvar target for conditional navigation; adjacent controls decline unrelated names and methods without an upvar.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "-p",
-  "tcl-compiler",
-  "original_declared_self_template_"
-]
-```
-
-Linked selectors are coverage bindings; no command execution, actual allocated receiver or completed caller write is claimed.

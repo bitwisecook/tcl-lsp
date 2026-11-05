@@ -26,55 +26,11 @@ A candidate is conditional source provenance only. No actual package load/file e
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -100,21 +56,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `ResolvedInvocation::authored_source_file_argument`: Existing shared SourceFile descriptor, literal-prefix availability and exact-cardinality owner supplies a possible filename ordinal without requiring its value or granting a reached handler.
 - [rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs), `package_resolver::original_names::index_loader::selected_source_form_tests::index_filename_uses_selected_source_form_before_computed_path_value` (linked): A genuine encoding form retains its dynamic join filename ordinal and exact dash/space data; unknown selectors, abbreviations, expansion, foreign descriptors and unsupported standalone no-package grammar and incompatible declared command arity refuse.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::new`: Capture genuine original source/analysis input for selected package body and operand candidate scans.
 - [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `FileCandidateScanner::collect`: Require Potential loader evaluation purpose before recording the original source operand as a file candidate; ReferenceOnly roles do not donate it.
 - [rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs](../../../../rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs), `package_resolver::original_names::file_candidates::tests::original_package_file_candidates_require_potential_loader_evaluation` (linked): Authentic custom package body roles yield a SourceOperand file candidate only for Potential loader evaluation; ReferenceOnly body syntax retains its independent non-evaluation purpose.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-No Rust execution receipt is attached to this implementation contract. Tests are authored bindings only; physical interpreter observations remain separate.
-
-
-Checked substitution child plans retain the complete original image/channel and word configuration. Only a real Command part of a privately sealed complete positive-prefix word may inherit its parent recursive syntax validation, including Command parts inside variable indices. Public plan command/fatal-tail mutations supply no proof. Child grouping still uses the existing lexer and explicit NestedScript purpose, and retains original global coordinates. Arbitrary spans, braced/data bodies, foreign channels/configurations, and words excluded by the authentic parse cut cannot inherit validation. IndexLoader reuses this owner only for those actual substitution children; independent data scripts retain full parsing, all executable parts remain traversed, and the original depth bound is unchanged. This is a syntax-work reuse obligation, not an execution, Native admission, source-load, availability, or measured performance grant. The unchanged deeply nested fixture and budget still require actual execution.
-
 
 ## Autoload registration analysis purpose
 

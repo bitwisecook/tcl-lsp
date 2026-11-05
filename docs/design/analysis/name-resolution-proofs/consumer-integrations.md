@@ -218,7 +218,6 @@ Server applies the same plan separately to each readable URI and checks typed
 workspace occupancy. These source edits grant no entered alias, current frame,
 runtime cell or successful variable operation.
 
-
 | Consumer purpose | Shared owner | Permission and refusal |
 | --- | --- | --- |
 | Enclosing selection-body ranges | Original declaration identities and typed procedure/class/member/special source inventories | Complete current source/configuration, independent declaration sites and nested geometry; stale or foreign authority omits semantic links. No runtime entry or name edit is granted. |

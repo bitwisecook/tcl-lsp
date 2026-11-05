@@ -24,55 +24,11 @@ The added HTTP::path software control grants no external BIG-IP result, loader/e
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -89,12 +45,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/vendor_catalogue_advice.rs](../../../../rust/tcl-compiler/src/command_binding/vendor_catalogue_advice.rs), `command_binding::vendor_catalogue_advice::tests::original_conditional_vendor_catalogue_keeps_policy_and_cell_barriers_separate` (linked): The shared metadata dependency retains authored coordinates and unknown applicability, while known custom or missing current cells prevent nominal schema donation.
 - [rust/tcl-compiler/src/registry_invocation/source_taint.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_taint.rs), `registry_invocation::source_taint::tests::hosted_taint_lowering_keeps_the_invocations_whole_original_image` (linked): A genuine lowered hosted event-body sink retains the complete original source, conditional applicability and no native handler claim; an equal-offset padded body image cannot borrow that owner.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/taint/source_warnings.rs](../../../../rust/tcl-compiler/src/taint/source_warnings.rs), `taint::source_warnings::tests::original_setter_warnings_use_the_independent_hosted_source_schema` (linked): A genuine F5 source issuer selects the independent setter schema for conditional HTTP::path warnings. Literal/unknown arguments and missing Module input retain their own source-only outcomes; no Native handler, sanitisation, effect or BIG-IP result is issued.
 
 These actual source registrations require their own successful executable producer, inventory and assertion command before execution claims. Original provider observations and independent software commands retain their recorded purposes.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.

@@ -20,56 +20,11 @@ Conditional C Tcl source-model NamespaceEval transfer under selected Tcl 8.4, 8.
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native execution of this Rust implementation question is claimed.
-
-## Historical references
-
-- `namespace-registration-source-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. tcl8.4 exact builtInCmds namespace registration source window; no native or Rust execution result inferred.
-- `namespace-registration-source-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/1/snippet`. tcl8.5 exact builtInCmds namespace registration source window; no native or Rust execution result inferred.
-- `namespace-registration-source-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/2/snippet`. tcl8.5 exact TclCompileNamespaceCmd initial decline source window; no native or Rust execution result inferred.
-- `namespace-registration-source-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/3/snippet`. tcl8.6 exact namespace implementation map source window; no native or Rust execution result inferred.
-- `namespace-registration-source-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/4/snippet`. tcl9.0 exact namespace implementation map source window; no native or Rust execution result inferred.
-- `namespace-registration-source-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json). JSON pointer `/source_anchors/5/snippet`. tcl9.1 exact namespace implementation map source window; no native or Rust execution result inferred.
 
 ## Source inspection
 
@@ -216,7 +171,6 @@ const EnsembleImplMap tclNamespaceImplMap[] = {
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/namespace_slots.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_slots.rs), `ModuleCommandBindings::ensure_original_namespace_key_at`: Canonical NamespaceName address purpose and same-site conditional namespace prefix allocation.
@@ -237,8 +191,6 @@ const EnsembleImplMap tclNamespaceImplMap[] = {
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `native_compilation::tests::original_namespace_no_hook_members_select_monolithic_and_private_registration_epochs` (linked): All five selected C points preserve absent-hook admission from authentic complete source words; older releases have no private worker, modern releases require their single exact path, and unknown/Jim descriptor queries decline.
 - [rust/tcl-registry/src/native_compilation.rs](../../../../rust/tcl-registry/src/native_compilation.rs), `native_compilation::tests::no_hook_implementation_paths_keep_direct_body_and_reject_inconsistent_descriptors` (linked): A descriptor without the explicit earlier monolithic premise still refuses the older path; a present-hook terminal cannot opt into the absent-hook premise; mismatched body and Jim remain unavailable.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The exact Rust selectors are implementation coverage obligations without an attached execution receipt. The conditional allocation transfer grants neither native namespace existence nor handler or body completion.
+- [rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_source_controls/namespace-compilation-source-anchors.json)

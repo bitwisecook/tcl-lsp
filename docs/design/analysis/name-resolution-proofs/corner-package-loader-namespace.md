@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 The five C programs return 1.0 LOADED INSTALLED; Jim retains its unavailable ifneeded subcommand result.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=package-loader-namespace.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for package-loader-namespace; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-loader-namespace.tcl`. Exact 8.4.20 input for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-loader-namespace.stdout`. Exact 8.4.20 stdout for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/package-loader-namespace.stderr`. Exact 8.4.20 stderr for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 package-loader-namespace. JSON pointer `/rows/35`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-loader-namespace.tcl`. Exact 8.5.19 input for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-loader-namespace.stdout`. Exact 8.5.19 stdout for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/package-loader-namespace.stderr`. Exact 8.5.19 stderr for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 package-loader-namespace. JSON pointer `/rows/75`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-loader-namespace.tcl`. Exact 8.6.18 input for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-loader-namespace.stdout`. Exact 8.6.18 stdout for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/package-loader-namespace.stderr`. Exact 8.6.18 stderr for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 package-loader-namespace. JSON pointer `/rows/115`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-loader-namespace.tcl`. Exact 9.0.4 input for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-loader-namespace.stdout`. Exact 9.0.4 stdout for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/package-loader-namespace.stderr`. Exact 9.0.4 stderr for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 package-loader-namespace. JSON pointer `/rows/155`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-loader-namespace.tcl`. Exact 9.1.0 input for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-loader-namespace.stdout`. Exact 9.1.0 stdout for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/package-loader-namespace.stderr`. Exact 9.1.0 stderr for package-loader-namespace; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 package-loader-namespace. JSON pointer `/rows/195`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-loader-namespace.tcl`. Exact Jim input for package-loader-namespace; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-loader-namespace.stdout`. Exact Jim stdout for package-loader-namespace; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/package-loader-namespace.stderr`. Exact Jim stderr for package-loader-namespace; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim package-loader-namespace. JSON pointer `/rows/235`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case package-loader-namespace --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-package-loader-namespace.md). A replay is a separate execution and must record its own results.

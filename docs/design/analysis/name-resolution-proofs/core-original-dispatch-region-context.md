@@ -22,60 +22,11 @@ Current Core source-region implementation contract. Two fixed controls check ret
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-core-original-dispatch-region-context-references.rs` (implementation): [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs). Current original source/API owner and fixed assertion bodies; these bytes are not native provider observations or an executed Rust result.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `own-source350-core-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen350/question-body-outcomes.json). JSON pointer `/by_question/naming.core.original-dispatch-region-context`. Exact original source350 body/question/document joins to the owned Core image, actual inventory/admission and 14 passing selections. Other source images and external-provider answers receive no outcome.
-- `naming-core-original-dispatch-region-context-definition.rs` (implementation): [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs). Current contextual family selection from complete matching retained input/store, positioned CurrentSourceContext guard, explicit standalone projection helper and linked family source controls. Source definition only; no executed Rust assertion or new native-provider observation is attached.
-- `naming-core-original-dispatch-region-context-workspace_index.rs` (implementation): [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs). Current optional indexed family capture, matching retained Registry borrow and actual-store import-settlement dependencies with linked source controls. Source definition only; no executed Rust assertion or new native-provider observation is attached.
-- `naming-core-original-dispatch-region-context-server-lib.rs` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current Server known-non-Itcl receiver-name selection and linked source control; this metadata selection supplies no local call-site or native dispatch result. Source definition only; no executed Rust assertion or new native-provider observation is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -150,13 +101,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `original_context::variable_end_affinity_tests::original_variable_word_end_refuses_surrogate_interiors_and_invalid_positions`: Surrogate interiors, clamped positions and changed whole source remain unavailable.
 - [rust/tcl-lsp-core/src/original_context.rs](../../../../rust/tcl-lsp-core/src/original_context.rs), `original_context::variable_end_affinity_tests::original_variable_word_end_keeps_unknown_names_and_incomplete_words_unavailable`: Authentic root geometry cannot supply a declaration for an unknown variable, expansion, braced data or an incomplete word.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
-
-
 ## Exact readonly definition position and scan geometry supplement
 
 The existing Current editor source inventory owner additionally issues
@@ -210,3 +154,10 @@ New unexecuted fixed-input coverage bindings in
 All pre-existing test modules/assertions remain byte-identical. Static source,
 hash, formatting and zero-fuzz TMP apply checks are not executed provider or
 ordinary validation evidence; Root owns builds, replay, gates and counts.
+
+## Evidence
+
+- [rust/tcl-lsp-core/src/references.rs](../../../../rust/tcl-lsp-core/src/references.rs)
+- [rust/tcl-lsp-core/src/definition.rs](../../../../rust/tcl-lsp-core/src/definition.rs)
+- [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs)
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)

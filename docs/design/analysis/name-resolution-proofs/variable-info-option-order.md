@@ -20,56 +20,23 @@ Pinned C8.6.18/9.0.4/9.1.0 InfoObjectVariablesCmd and InfoClassVariablesCmd sour
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Pinned source inspection only; no executed build association.. Channel: Inspected native declared-variable introspection handler; no guest input.. Dialect: Tcl.
-
-argc before target; C8.6 has no option, C9 accepts only exact CString -private before target lookup.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned source inspection only; no executed build association.. Channel: Inspected native declared-variable introspection handler; no guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected native declared-variable introspection handler; no guest input. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 argc before target; C8.6 has no option, C9 accepts only exact CString -private before target lookup.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned source inspection only; no executed build association.. Channel: Inspected native declared-variable introspection handler; no guest input.. Dialect: Tcl.
-
-argc before target; C8.6 has no option, C9 accepts only exact CString -private before target lookup.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `tcl8.6-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl8.6-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.0-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.0-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.1-InfoObjectVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
-- `tcl9.1-InfoClassVariablesCmd` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Pinned whole handler with argc/strcmp validation before target lookup and original declaration result operands.
 
 ## Source inspection
 
@@ -349,7 +316,6 @@ InfoClassVariablesCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_tcloo_info.rs](../../../../rust/tcl-registry/src/native_tcloo_info.rs), `NativeTclooVariableInfoProtocol::accepts_count`: release-selected pre-target argc
@@ -360,8 +326,8 @@ InfoClassVariablesCmd(
 - [rust/tcl-vm/src/cmd_oo/native_info_option_tests.rs](../../../../rust/tcl-vm/src/cmd_oo/native_info_option_tests.rs), `cmd_oo::native_info_option_tests::variable_info_validates_original_options_before_target_lookup` (linked): Actual selected VM C contexts validate bad flag/count before missing target; raw-zero option selects original private declaration objects on C9.
 - [runtime/rust/src/cmd_oo/native_info_option_tests.rs](../../../../runtime/rust/src/cmd_oo/native_info_option_tests.rs), `cmd_oo::native_info_option_tests::variable_info_validates_original_options_before_target_lookup` (linked): Actual selected Runtime C contexts validate bad flag/count before missing target; raw-zero option selects original private declaration objects on C9.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Source-only LF window reproduction against the full files with exact recorded SHA; implementation selectors are independent and not claimed executed.
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl8.6-source.json)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.0-source.json)
+- [rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json](../../../../rust/tcl-registry/tests/data/native_tcloo_variable_info_source/tcl9.1-source.json)

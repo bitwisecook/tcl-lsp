@@ -20,57 +20,11 @@ These Rust header/reference-count and typed-error controls use authentic softwar
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
+Status: `not-tested`.
 
 No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Source/API software contract only.
-
-No external provider is executed for this software question. Rust fixture protocol/storage choices are not provider-behaviour observations.
-
-## Historical references
-
-- `naming.error.original-invocation-context-capture.definition.0` (implementation): [rust/tcl-vm/src/interp/native_error_stack.rs](../../../../rust/tcl-vm/src/interp/native_error_stack.rs). Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-- `naming.error.original-invocation-context-capture.definition.1` (implementation): [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs). The original error-context capture and owned return-options shape query preserve live-header, selected protocol and member ownership checks without reaching child String getters. This implementation digest carries no assertion result, provider observation or execution admission.
-- `naming.error.original-invocation-context-capture.definition.2` (implementation): [rust/tcl-vm/src/native_list_backing.rs](../../../../rust/tcl-vm/src/native_list_backing.rs). Current source definition of the named software owner/control; this digest is not an executed assertion or Native provider/build identity.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -90,8 +44,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `exec::tests::procedure_activation_retains_original_invocation_references_until_exit` (linked): The actual software procedure frame retains the same original invocation head/argument references throughout its lifetime, then releases them at frame exit; lifetime-lease views carry no owning reference.
 - [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `exec::tests::original_trace_procedure_heads_remain_live_during_their_actual_activation` (linked): Software C86/C90/C91 trace callbacks inspect the actual activation argv while the original procedure head remains live with positive owning references. This is a software lifetime control and has no original Native process comparison.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Current source definitions and canonical named controls describe this software interface. No native process, Rust build or assertion is run by publication. Actual artifact/source/receipt coverage belongs to its separately retained validation record; selected fixture protocols do not execute the external provider or supply Native entry/Normal/frame/private header authority.
+- [rust/tcl-vm/src/interp/native_error_stack.rs](../../../../rust/tcl-vm/src/interp/native_error_stack.rs)
+- [rust/tcl-vm/src/value.rs](../../../../rust/tcl-vm/src/value.rs)
+- [rust/tcl-vm/src/native_list_backing.rs](../../../../rust/tcl-vm/src/native_list_backing.rs)

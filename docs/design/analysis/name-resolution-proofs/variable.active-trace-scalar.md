@@ -54,7 +54,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 These five original C transcripts establish the measured callback order, later value and registration state only for scalar destruction and unset delivery during an active read trace. An active selected variable wrapper, destruction and a recreated same-named variable are not interchangeable identities. Jim and BIG-IP were not tested for this question.
@@ -62,38 +61,6 @@ These five original C transcripts establish the measured callback order, later v
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/manifest.json`: Original sources, launcher/executable hashes, actual versions, process results and stdout/stderr hashes.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-scalar.stdout`: tcl8.4 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.4-scalar.stderr`: tcl8.4 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-scalar.stdout`: tcl8.5 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.5-scalar.stderr`: tcl8.5 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-scalar.stdout`: tcl8.6 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl8.6-scalar.stderr`: tcl8.6 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-scalar.stdout`: tcl9.0 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.0-scalar.stderr`: tcl9.0 scalar original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl`: Exact original scalar script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-scalar.stdout`: tcl9.1 scalar original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/tcl9.1-scalar.stderr`: tcl9.1 scalar original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/active-unset/scalar.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

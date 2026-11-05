@@ -22,55 +22,11 @@ Implementation contract for explicitly authored TMM, tmsh, iApp implementation a
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -109,9 +65,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `analyser::commands::original_script_body_inventory_tests::original_script_inventory_keeps_inert_cooked_and_blocked_bodies_opaque` (linked): Six fixed inert, cooked, custom, moved and concatenated source controls cannot supply a body-role receipt or a source schema at the alleged child command site. Independently retained diagnostic lexical vectors for custom/moved controls remain readonly syntax without source-schema authority; inert/cooked/concatenated controls retain no child vector. Enclosing source-schema presentation is separate from child-site issuance. No appliance execution claim follows. The moved-handler control independently selects f5-tmsh and checks rename availability there; the other five controls select f5-irules. An unavailable TMM source head is not treated as a known command move. In the same actual TMSH context, a genuine if/puts parent-child baseline independently retains its body origin and puts source schema before the available rename control withdraws those child facets. Concatenated eval fragments cannot borrow the first fragment’s Body annotation.
 - [rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs](../../../../rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs), `registry_invocation::conditional_vendor_metadata::script_body_metadata_tests::original_script_child_without_lookup_keeps_its_sealed_source_premises` (linked): Removing only the modeled child lookup keeps its issued original body ancestry and explicit authored-coordinate, unknown-current-lookup and unknown-source-namespace obligations; raw unstamped vectors, foreign context and absent source binding cannot fill those premises.
 - [rust/tcl-compiler/src/analyser/types/original_source_context_tests.rs](../../../../rust/tcl-compiler/src/analyser/types/original_source_context_tests.rs), `analyser::types::original_source_context_tests::original_hosted_source_input_keeps_catalogue_naming_and_storage_separate` (linked): Three genuine iRules/iApps/TMSH inputs retain parent and child source schemas while storage and C execution naming remain absent. Actual explicit iCall policy stays separate; stale whole source, changed LeadingBom and foreign full context refuse. A separate bare C builder keeps its own C policy.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors exercise the scoped source-context and correspondence premises. No Rust execution receipt or native provider observation is attached. Exact appliance observations remain independent, build-qualified questions.

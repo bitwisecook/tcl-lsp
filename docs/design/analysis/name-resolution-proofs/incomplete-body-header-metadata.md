@@ -20,55 +20,11 @@ Only a first malformed command with a final missing-quote cut and an original, u
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -83,9 +39,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/signature_help.rs](../../../../rust/tcl-lsp-core/src/signature_help.rs), `signature_help::tests::substitution_free_quoted_proc_body_is_a_nested_script_region` (linked): Closed and original unterminated quoted procedure bodies select the nested puts signature without the outer procedure synopsis.
 - [rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs](../../../../rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs), `incomplete_original_body_prefix_has_grammar_without_a_complete_body` (linked): The original puts prefix selects stock metadata while complete declaration, conditional body and Normal receipts remain absent; foreign syntax and unknown entry decline.
 - [rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs](../../../../rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs), `incomplete_body_prefix_declines_outer_substitutions_and_successor_tables` (linked): Variable/command substitutions, decoded escapes and a preceding body command cannot lend literal geometry or a successor table.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-No executable replay protocol is attached.

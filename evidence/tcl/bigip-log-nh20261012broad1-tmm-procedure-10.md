@@ -276,244 +276,66 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-procedure, unit 0:0, invocation once
+### tmm-procedure, unit 0:0, invocation once; tmm-procedure, unit 0:1, invocation once; tmm-procedure, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-procedure.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|696e7465727030
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|474c4f42414c5f494d504f5254203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f696d706f72745f666f726765745f676c6f62616c5f6f726967696e5f736f75726365207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f616c6961735f7461726765745f676c6f62616c5f616e63686f723a3a616c696173
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|474c4f42414c
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- import-forget-global-origin, setup, completion 0, result, chunk 0 of 1:
+- import-forget-global-origin, setup, completion 0, result:
 
 ```text-visible
 interp0⟦EOF⟧
 ```
 
-- import-forget-global-origin, lookup, completion 0, result, chunk 0 of 1:
+- import-forget-global-origin, lookup, completion 0, result:
 
 ```text-visible
 GLOBAL_IMPORT ::__tcl_lsp_probe_nh20261012broad16_import_forget_global_origin_source {}⟦EOF⟧
 ```
 
-- import-forget-global-origin, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- import-forget-global-origin, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- alias-rebound-target, setup, completion 0, result, chunk 0 of 1:
+- alias-rebound-target, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- alias-rebound-target, lookup, completion 0, result, chunk 0 of 1:
+- alias-rebound-target, lookup, completion 0, result:
 
 ```text-visible
 OLD NEW⟦EOF⟧
 ```
 
-- alias-rebound-target, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- alias-rebound-target, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- alias-target-global-anchor, setup, completion 0, result, chunk 0 of 1:
+- alias-target-global-anchor, setup, completion 0, result:
 
 ```text-visible
 ::__tcl_lsp_probe_nh20261012broad16_alias_target_global_anchor::alias⟦EOF⟧
 ```
 
-- alias-target-global-anchor, lookup, completion 0, result, chunk 0 of 1:
+- alias-target-global-anchor, lookup, completion 0, result:
 
 ```text-visible
 GLOBAL⟦EOF⟧
 ```
 
-- alias-target-global-anchor, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- alias-rebound-target: intended operation reached.
-
-- alias-target-global-anchor: intended operation reached.
-
-- import-forget-global-origin: intended operation reached.
-
-### tmm-procedure, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|696e7465727030
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|474c4f42414c5f494d504f5254203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f696d706f72745f666f726765745f676c6f62616c5f6f726967696e5f736f75726365207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f616c6961735f7461726765745f676c6f62616c5f616e63686f723a3a616c696173
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|474c4f42414c
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- import-forget-global-origin, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-interp0⟦EOF⟧
-```
-
-- import-forget-global-origin, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-GLOBAL_IMPORT ::__tcl_lsp_probe_nh20261012broad16_import_forget_global_origin_source {}⟦EOF⟧
-```
-
-- import-forget-global-origin, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- alias-rebound-target, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- alias-rebound-target, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-OLD NEW⟦EOF⟧
-```
-
-- alias-rebound-target, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- alias-target-global-anchor, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-::__tcl_lsp_probe_nh20261012broad16_alias_target_global_anchor::alias⟦EOF⟧
-```
-
-- alias-target-global-anchor, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-GLOBAL⟦EOF⟧
-```
-
-- alias-target-global-anchor, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- alias-rebound-target: intended operation reached.
-
-- alias-target-global-anchor: intended operation reached.
-
-- import-forget-global-origin: intended operation reached.
-
-### tmm-procedure, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|696e7465727030
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|474c4f42414c5f494d504f5254203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f696d706f72745f666f726765745f676c6f62616c5f6f726967696e5f736f75726365207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f616c6961735f7461726765745f676c6f62616c5f616e63686f723a3a616c696173
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|474c4f42414c
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- import-forget-global-origin, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-interp0⟦EOF⟧
-```
-
-- import-forget-global-origin, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-GLOBAL_IMPORT ::__tcl_lsp_probe_nh20261012broad16_import_forget_global_origin_source {}⟦EOF⟧
-```
-
-- import-forget-global-origin, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- alias-rebound-target, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- alias-rebound-target, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-OLD NEW⟦EOF⟧
-```
-
-- alias-rebound-target, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- alias-target-global-anchor, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-::__tcl_lsp_probe_nh20261012broad16_alias_target_global_anchor::alias⟦EOF⟧
-```
-
-- alias-target-global-anchor, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-GLOBAL⟦EOF⟧
-```
-
-- alias-target-global-anchor, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- alias-target-global-anchor, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
@@ -532,71 +354,59 @@ GLOBAL⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|696e7465727030
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|474c4f42414c5f494d504f5254203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f696d706f72745f666f726765745f676c6f62616c5f6f726967696e5f736f75726365207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|import-forget-global-origin|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|4f4c44204e4557
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-rebound-target|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431365f616c6961735f7461726765745f676c6f62616c5f616e63686f723a3a616c696173
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|474c4f42414c
-Oct 12 08:09:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_6_10 <RULE_INIT>: NHO|nh20261012broad1|alias-target-global-anchor|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- import-forget-global-origin, setup, completion 0, result, chunk 0 of 1:
+- import-forget-global-origin, setup, completion 0, result:
 
 ```text-visible
 interp0⟦EOF⟧
 ```
 
-- import-forget-global-origin, lookup, completion 0, result, chunk 0 of 1:
+- import-forget-global-origin, lookup, completion 0, result:
 
 ```text-visible
 GLOBAL_IMPORT ::__tcl_lsp_probe_nh20261012broad16_import_forget_global_origin_source {}⟦EOF⟧
 ```
 
-- import-forget-global-origin, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- import-forget-global-origin, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- alias-rebound-target, setup, completion 0, result, chunk 0 of 1:
+- alias-rebound-target, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- alias-rebound-target, lookup, completion 0, result, chunk 0 of 1:
+- alias-rebound-target, lookup, completion 0, result:
 
 ```text-visible
 OLD NEW⟦EOF⟧
 ```
 
-- alias-rebound-target, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- alias-rebound-target, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- alias-target-global-anchor, setup, completion 0, result, chunk 0 of 1:
+- alias-target-global-anchor, setup, completion 0, result:
 
 ```text-visible
 ::__tcl_lsp_probe_nh20261012broad16_alias_target_global_anchor::alias⟦EOF⟧
 ```
 
-- alias-target-global-anchor, lookup, completion 0, result, chunk 0 of 1:
+- alias-target-global-anchor, lookup, completion 0, result:
 
 ```text-visible
 GLOBAL⟦EOF⟧
 ```
 
-- alias-target-global-anchor, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- alias-target-global-anchor, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧

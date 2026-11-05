@@ -20,57 +20,11 @@ Six marked source/API controls comprise four original call/child/body/owner-barr
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No original external provider process answers this conditional Logical source-summary contract. Selected Tcl/Jim grammar controls retain authored source ownership and binder premises only; Native frame/completion/effects remain independent.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No original external provider process answers this conditional Logical source-summary contract. Selected Tcl/Jim grammar controls retain authored source ownership and binder premises only; Native frame/completion/effects remain independent.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No original external provider process answers this conditional Logical source-summary contract. Selected Tcl/Jim grammar controls retain authored source ownership and binder premises only; Native frame/completion/effects remain independent.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No original external provider process answers this conditional Logical source-summary contract. Selected Tcl/Jim grammar controls retain authored source ownership and binder premises only; Native frame/completion/effects remain independent.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No original external provider process answers this conditional Logical source-summary contract. Selected Tcl/Jim grammar controls retain authored source ownership and binder premises only; Native frame/completion/effects remain independent.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No original external provider process answers this conditional Logical source-summary contract. Selected Tcl/Jim grammar controls retain authored source ownership and binder premises only; Native frame/completion/effects remain independent.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No original external provider process answers this conditional Logical source-summary contract. Selected Tcl/Jim grammar controls retain authored source ownership and binder premises only; Native frame/completion/effects remain independent.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -89,13 +43,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/interprocedural/transfer.rs](../../../../rust/tcl-compiler/src/interprocedural/transfer.rs), `interprocedural::transfer::tests::transfer_unused_formals_use_actual_variable_roots_and_metadata` (linked): Shares complete retained Logical Module/source-point/header/child issuers for transfer call graphs, aliases, destruction, outer arguments and effects. Selected effective argv including captured prefix values and Tcl/Jim formal binding remain one original owner. The lattice direct procedure, original operation, substitution and selected literal-body consumers carry that same owner; detached text has no original receipt. Conditional summary facts establish no Native Normal completion, entered frame, observer, physical effect or edit permission. Independent original scalar-binder and trace/mutation guards remain. Formal unused-use inventory comes from existing actual metadata/config SSA, not text matching.
 - [rust/tcl-compiler/src/value_transfer.rs](../../../../rust/tcl-compiler/src/value_transfer.rs), `value_transfer::original_child_script_purpose_tests::original_summary_child_keeps_bom_alias_and_complete_parent_correspondence` (linked): Finite source-defined control: original summary child keeps bom alias and complete parent correspondence. Genuine retained Logical Module original catch-body and bracket-child receipts with BOM-prefixed alias to list, full Skip/FirstClose/strict parent input. Run/protected source/value modelling retains selected head and canonical binding; altered text, missing child, and missing Module input refuse. No Native Normal/store/observer grant. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact marked source definitions and current owner interfaces are linked. They must be compiled, listed and executed under their own independent software receipt before any assertion result is claimed. No Native process, original private frame/object/header, external provider semantics or erasure permission is supplied by these source bindings; mutable implementation pins remain held.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -104,8 +51,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 0 | 1 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -115,4 +61,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 0 | 1 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

@@ -20,15 +20,15 @@ Fifteen ASCII source bodies from cases.rs, recorded native procedure compilation
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Native shell SHA 7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935; full build/header recipe not recorded. Channel: ASCII procedure source under the recorded original compiler presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII procedure source under the recorded original compiler presenter. Version: tcl8.5 8.5.19.
 
 15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.
 
@@ -51,34 +51,9 @@ case	nsupvar	locals_hex	literals_hex
 14	0	7061697273,6c6f63616c	6e616d657370616365,7570766172,3a3a4e
 ```
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Native shell SHA b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c; full build/header recipe not recorded. Channel: ASCII procedure source under the recorded original compiler presenter. Dialect: Tcl.
-
-15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.
-
-```tsv
-case	nsupvar
-0	1
-1	1
-2	1
-3	2
-4	1
-5	1
-6	0
-7	1
-8	0
-9	0
-10	0
-11	0
-12	1
-13	1
-14	0
-```
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Native shell SHA 647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553; full build/header recipe not recorded. Channel: ASCII procedure source under the recorded original compiler presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII procedure source under the recorded original compiler presenter. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.
 
@@ -100,57 +75,12 @@ case	nsupvar
 13	1
 14	0
 ```
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Native shell SHA baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee; full build/header recipe not recorded. Channel: ASCII procedure source under the recorded original compiler presenter. Dialect: Tcl.
-
-15 original compiler observations, each presenter exit0. Fields case, nsupvar count, locals_hex and literals_hex retain independent preparation order.
-
-```tsv
-case	nsupvar
-0	1
-1	1
-2	1
-3	2
-4	1
-5	1
-6	0
-7	1
-8	0
-9	0
-10	0
-11	0
-12	1
-13	1
-14	0
-```
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json). C8.5 original source body/log hashes, binary hash and compiler frontier answers; execution subset is separately documented.
-- `e1` (provider): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json). 45 modern individual script/status/nsupvar-count/source/binary provenance records.
-- `e2` (input): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs). Exact fifteen original bodies, with escaped/quoted/braced/empty/expanded/partial locals.
-- `e3` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
-- `e4` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
-- `e5` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv). Fifteen original opcode/local/literal frontiers, plus field header.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -159,8 +89,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/native_namespace_upvar_compilation.rs](../../../../rust/tcl-registry/src/native_namespace_upvar_compilation.rs), `native_namespace_upvar_compilation::tests::original_c85_namespace_upvar_matches_15_native_compiler_frontiers` (linked): Checks C8.5 complete original compiler acceptance/decline frontiers.
 - [rust/tcl-registry/src/native_namespace_upvar_compilation.rs](../../../../rust/tcl-registry/src/native_namespace_upvar_compilation.rs), `native_namespace_upvar_compilation::tests::original_modern_namespace_upvar_matches_45_native_compiler_frontiers` (linked): Checks modern independently selected workers and original word vectors.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The manifest refers to per-case compiler presenter source/log files outside the repository; those wrappers are not retained. cases.rs preserves exact body bytes, but running a body alone cannot produce the private opcode/local/literal vectors. A fresh replay must retain a matching-version procedure/disassembler presenter, full source/build/artifact hashes and every one of the15 original body/vector windows; compare each native table without treating opcode presence as alias execution success.
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/provenance.json)
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/modern-provenance.json)
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/cases.rs)
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.5.19.tsv)
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/8.6.18.tsv)
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.0.4.tsv)
+- [rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_upvar_compilation/9.1.0.tsv)

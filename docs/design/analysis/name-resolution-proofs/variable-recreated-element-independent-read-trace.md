@@ -22,73 +22,27 @@ One fixed ASCII source-file CLI script in each of five actual C releases and cur
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
+Status: `observed`. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process. Version: tcl8.4 8.4.20.
 
 Exact decoded OBSERVATION result: 1 {can't read "::a(k)": no such element in array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
-
-Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
-
-Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
-
-Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Tcl.
+Status: `observed`. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Exact decoded OBSERVATION result: 1 {can't set "::a(k)": upvar refers to element in deleted array} 100 READ 100. SETUP succeeds; the separately captured new read sees 100 and logs READ before the old callback returns. The old increment reports catch code 1; outer process status is 0 and stderr is empty.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact selected header, library, Makefile and source pins, environment and original process argv are retained in the provider receipt.. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process.. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: One fixed complete ASCII LF source-file CLI argument in a fresh native shell process. Version: jim 0.84-9-g5bac7c9.
 
 Trace SETUP catch code 1 returns invalid command name "trace". No OBSERVATION row exists, so member recreation, new read execution and old increment completion are unanswered.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_recreated_element_read_original/probe.tcl](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/probe.tcl). Exact original complete ASCII LF source-file input; no object-vector or native compilation admission is recorded.
-- `capture-runner` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/capture.py](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/capture.py). Exact retained Root capture runner; its original absolute queue path is preserved. No replay is launched by this review.
-- `provider-queue` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/queue.json](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/queue.json). Exact provider queue consumed by the retained runner. Only provider process receipts actually present in this fixture establish a run.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20/receipt.json). Original process argv, exit, actual queried patchlevel, executable/source/runner/raw-stream digests and selected SDK/build pins.
-- `tcl8.4-stdout` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20/stdout). Exact complete raw stdout bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20/stderr). Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19/receipt.json). Original process argv, exit, actual queried patchlevel, executable/source/runner/raw-stream digests and selected SDK/build pins.
-- `tcl8.5-stdout` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19/stdout). Exact complete raw stdout bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19/stderr). Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18/receipt.json). Original process argv, exit, actual queried patchlevel, executable/source/runner/raw-stream digests and selected SDK/build pins.
-- `tcl8.6-stdout` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18/stdout). Exact complete raw stdout bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18/stderr). Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4/receipt.json). Original process argv, exit, actual queried patchlevel, executable/source/runner/raw-stream digests and selected SDK/build pins.
-- `tcl9.0-stdout` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4/stdout). Exact complete raw stdout bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4/stderr). Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0/receipt.json). Original process argv, exit, actual queried patchlevel, executable/source/runner/raw-stream digests and selected SDK/build pins.
-- `tcl9.1-stdout` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0/stdout). Exact complete raw stdout bytes for the original process; catch/setup observations are distinct from outer process status.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0/stderr). Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_recreated_element_read_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/jim/receipt.json). Original process argv, exit, actual queried patchlevel, executable/source/runner/raw-stream digests and selected SDK/build pins.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/jim/stdout](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/jim/stdout). Exact complete raw stdout bytes for the original process; catch/setup observations are distinct from outer process status.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_recreated_element_read_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/jim/stderr). Exact complete raw stderr bytes for the original process; catch/setup observations are distinct from outer process status.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -106,17 +60,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/frame.rs](../../../../runtime/rust/src/frame.rs), `frame::native_inventory_tests::trace_member_identity_selects_original_duplicate_root_allocations` (linked): Rust allocator/API coverage only: two duplicate declaration display names mint distinct actual root/member VarIds, and each exact root ID selects its own current member while an absent key remains absent. The independent original source142 capture supplies no private native duplicate-slot layout proof.
 - [rust/tcl-syntax/src/naming/native.rs](../../../../rust/tcl-syntax/src/naming/native.rs), `naming::native::tests::c_value_report_name_keeps_original_compound_parts` (linked): The separate captured recreated-element source supplies the exact ::a(k) error-name obligation. Authored Rust controls retain original whole versus separate compound parts and supplementary-character extents across five C recipe selections; those additional extent controls measure no native opaque name or private receiver layout.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "/workspace/.proofs/native-recreated-element142/capture.py"
-]
-```
-
-The original capture runner and process argument vectors retain capture-machine absolute paths. The archived source, runner and provider queue are byte-identical. Replay requires independently verified matching SDK/environment/executable pins and fresh output locations. This review verifies immutable bytes without launching a process. ASCII source-file completion/results do not establish counted object-vector admission, internal object identity, header/cache state, compiler recipes, arbitrary callback scheduling or appliance behavior.
+- [rust/tcl-registry/tests/data/native_recreated_element_read_original](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original)
+- [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.4.20)
+- [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.5.19)
+- [rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/8.6.18)
+- [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.0.4)
+- [rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_recreated_element_read_original/jim](../../../../rust/tcl-registry/tests/data/native_recreated_element_read_original/jim)

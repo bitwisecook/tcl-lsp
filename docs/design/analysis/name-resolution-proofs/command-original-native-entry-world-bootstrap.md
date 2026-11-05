@@ -24,55 +24,11 @@ This entry is explicitly constructed software data, not a fresh interpreter/tabl
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,13 +36,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/runtime_entry.rs](../../../../rust/tcl-compiler/src/command_binding/runtime_entry.rs), `ModuleCommandBindings::install_runtime_entry`: Install actual native rows before initialising their immutable source geometry; no Registry missing-row fallback.
 - [rust/tcl-compiler/src/command_binding/runtime_entry.rs](../../../../rust/tcl-compiler/src/command_binding/runtime_entry.rs), `command_binding::runtime_entry::tests::original_native_world_selects_policy_before_any_branch_and_never_reseeds_withdrawal` (linked): Unchanged and selected branches retain identical policy/geometry; missing native rows stay missing, and withdrawn/incomplete entries cannot reseed.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/command_binding/runtime_entry.rs](../../../../rust/tcl-compiler/src/command_binding/runtime_entry.rs), `ModuleCommandBindings::install_runtime_entry`: Install supplied actual entry components without borrowing absent unrelated namespace geometry; whole entry/world admission and source lookup remain independently checked.
 - [rust/tcl-compiler/src/command_binding/runtime_entry.rs](../../../../rust/tcl-compiler/src/command_binding/runtime_entry.rs), `command_binding::runtime_entry::tests::original_jim_native_world_keeps_root_lookup_without_unrelated_holder_geometry` (linked): A deterministic constructed entry fixture selects explicit Jim execution/name/String/lexer/resolver axes, retains root geometry and its modeled set binding while an unrelated namespace lacks object geometry, and refuses root projection after world withdrawal or missing current/root namespace objects. It does not capture a real native entry.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-No passing Rust or guest execution result is attached to this implementation contract. Existing branch and namespace-path guard tests remain independent obligations.

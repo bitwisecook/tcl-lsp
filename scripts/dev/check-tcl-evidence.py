@@ -10,7 +10,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from tcl_evidence_format import validate_document
+from tcl_evidence_format import validate_document, validate_fixture
 
 
 def main() -> int:
@@ -32,10 +32,14 @@ def main() -> int:
     for path in files:
         try:
             document = path.read_bytes().decode("utf-8")
-            errors.extend(
-                f"{path.relative_to(root)}: {error}"
-                for error in validate_document(document)
+            if path.name == "README.md":
+                continue
+            found = (
+                validate_fixture(document)
+                if "fixtures" in path.relative_to(directory).parts
+                else validate_document(document, path)
             )
+            errors.extend(f"{path.relative_to(root)}: {error}" for error in found)
         except (OSError, UnicodeError) as error:
             errors.append(f"{path.relative_to(root)}: {error}")
     if errors:

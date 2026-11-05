@@ -20,51 +20,11 @@ Rust source-analysis contract for C Tcl 8.6/9.0/9.1 stock ordinary factories and
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json). JSON pointer `/source_anchors`. Complete release-specific stock create/constructor/post-constructor function excerpts with full original file digests. This is source inspection, not guest execution.
 
 ## Source inspection
 
@@ -507,7 +467,6 @@ PostClassConstructor(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/original_class_factory_transfer.rs](../../../../rust/tcl-compiler/src/command_binding/original_class_factory_transfer.rs), `OriginalClassFactoryTransfer::capture`: Independent intrinsic creation premises: exact original argv, selected stock constructor and current workers, fresh valid slot, complete stored declarations.
@@ -516,8 +475,6 @@ PostClassConstructor(
 - [rust/tcl-compiler/src/command_binding/deferred_method.rs](../../../../rust/tcl-compiler/src/command_binding/deferred_method.rs), `closed_definition_member`: Existing shared selected-worker, native formal, property and inheritance declaration closure.
 - [rust/tcl-compiler/src/command_binding/original_class_factory_transfer.rs](../../../../rust/tcl-compiler/src/command_binding/original_class_factory_transfer.rs), `command_binding::original_class_factory_transfer::tests::original_stock_class_factory_normal_requires_fresh_valid_intrinsic_definition` (linked): Fresh static ordinary and configurable declaration scripts require complete Normal; occupied/missing destinations, invalid native formals/variables and arbitrary immediate scripts cannot issue that receipt.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No passing Rust or guest execution receipt is attached. Full command-vector/source ownership, current factory/support allocations, observer closure, native declaration validity and exact post-transfer allocation remain independent required checks.
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/factory-transfer-source-anchors.json)

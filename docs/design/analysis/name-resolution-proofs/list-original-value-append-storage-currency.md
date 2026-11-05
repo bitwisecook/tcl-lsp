@@ -20,58 +20,11 @@ Two fixed Runtime implementation controls use authored selected C9.0/C9.1 list p
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-list-original-value-append-storage-currency-list.rs` (implementation): [runtime/rust/src/list.rs](../../../../runtime/rust/src/list.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-list-original-value-append-storage-currency-value_ops.rs` (implementation): [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-list-original-value-append-storage-currency-var.rs` (implementation): [rust/tcl-cmd-core/src/var.rs](../../../../rust/tcl-cmd-core/src/var.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-list-original-value-append-storage-currency-value.rs` (implementation): [rust/tcl-syntax/src/value.rs](../../../../rust/tcl-syntax/src/value.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,8 +35,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs), `value_ops::tests::original_value_append_preserves_storage_for_the_next_native_mutation` (linked): The authored selected C9 list producer remains compatible with a subsequent shared original mutation and retains the same Runtime receiver/member handles; no native allocator observation.
 - [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs), `value_ops::tests::original_value_append_does_not_rebuild_after_unavailable_storage` (linked): Deliberate allocation-receipt loss yields the typed native allocation-extent refusal with the original Runtime receiver/member vector unchanged; equal values cannot recover storage authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [runtime/rust/src/list.rs](../../../../runtime/rust/src/list.rs)
+- [runtime/rust/src/value_ops.rs](../../../../runtime/rust/src/value_ops.rs)
+- [rust/tcl-cmd-core/src/var.rs](../../../../rust/tcl-cmd-core/src/var.rs)
+- [rust/tcl-syntax/src/value.rs](../../../../rust/tcl-syntax/src/value.rs)

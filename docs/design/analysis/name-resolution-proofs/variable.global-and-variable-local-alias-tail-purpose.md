@@ -96,7 +96,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 All five captured C providers present v for all four declarations. Jim presents no local name for rooted global, v for rooted variable, R:::v for relative global and v for relative variable. These four exact ASCII presentation controls support distinct alias-local projection purposes; they prove no physical cell, compiler-local slot, alias lifetime, opaque-byte behaviour or arbitrary namespace existence.
@@ -104,19 +103,6 @@ All five captured C providers present v for all four declarations. Jim presents 
 ## Scope
 
 Four exact ASCII script cases, native shell evaluation, five C release labels plus current-label Jim and original executable SHA. Exact patches/Jim revision were not queried in this manifest. BIG-IP not queried. No bytezero or character-channel translation claim is made.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_alias_names/provenance.json`: Original six executable hashes/status/stdout/stderr and declared source hash.
-- `rust/tcl-syntax/tests/data/native_alias_names/probe.tcl`: Exact namespace setup and four caught declaration/info-vars scripts.
-
-## Replay
-
-```sh
-/path/to/recorded/native/shell rust/tcl-syntax/tests/data/native_alias_names/probe.tcl
-```
-
-Run the exact retained ASCII script in a fresh recorded provider build; it owns its catch/result presenter. Require all four stdout rows, empty stderr and exit 0. Original executable hashes are retained but exact build recipes/patch queries are missing; a rerun is a new observation. No Rust execution is recorded.
 
 ## Rust comparisons
 

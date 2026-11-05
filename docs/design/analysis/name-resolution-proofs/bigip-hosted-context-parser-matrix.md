@@ -20,50 +20,19 @@ Five recorded appliance contexts and exact92-case source; this question excludes
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: Five recorded appliance contexts and exact92-case source; this question excludes an untested APL context and general context equivalence.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Channel: Five recorded appliance contexts and exact92-case source; this question excludes an untested APL context and general context equivalence. Version: bigip 21.1.0.1.
 
 The report retains grammar/newline/comment/numeral rows and separately recorded command environments. iApp implementation/iCall agree for these92cases, but neither supplies an APL/presentation answer. The initial matches equality/non-substring pair is insufficient to prove equality; the separate nine-row expression discriminator record establishes whole-string glob behaviour.
 
 The measured report rows and their limits are:
-
 
 Run `r2286l` evaluated the canonical 34 cases from `suites/10-context-parity.cases` plus 58 separately identified additions from [deep-context.cases](../../../../scripts/dev/bigip-probes/resolution-2286/deep-context.cases): 92 unique case IDs. The generator materialised each source from hex so LF, CRLF, physical backslash-newline, braces, comment placement and literal escapes were byte-controlled. In every wrapper the hex was converted to a bytearray and evaluated dynamically; these rows measure runtime parsing and remain separate from the literal rule-load results above. TMM cases were split across ten iRules; every chunk emitted exactly once on each actual TMM unit (`0:0` through `0:3`). tmsh, iApp, iCall, `tclsh8.4` and `tclsh8.5` each emitted all 92 results plus one environment row.
 
@@ -96,34 +65,15 @@ Selected discriminators:
 
 The current codebase comparison exposes two concrete modelling corrections. First, `BigIpExecutionContext` has no iCall variant even though the measured iCall surface is real and separately invokable; it must not be silently treated as iApp merely because this build produced identical rows. Second, current documentation/runtime comments mark bare `matches` semantics and `not` precedence as unmeasured; this run measures both discriminators above. The APL presentation DSL and Tcl callbacks embedded in APL remain unmeasured and must not inherit the implementation/iCall results.
 
-The execution mechanisms follow F5's primary documentation for [iRule `call`](https://clouddocs.f5.com/api/irules/call.html), [tmsh CLI scripts](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/cli/cli_script.html), [iApp templates](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_application_template.html), [iCall scripts](https://clouddocs.f5.com/cli/tmsh-reference/v15/modules/sys/sys_icall_script.html), [iCall events](https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_icall_event.html), and [triggered handlers](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_icall_handler_triggered.html). Raw results are [TMM LTM](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/ltm-raw.log), [tmsh](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt), [iApp and iCall](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt), [tclsh8.4](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/host-tclsh8.4.txt), and [tclsh8.5](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/host-tclsh8.5.txt).
-
-
-## Historical references
-
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md). Lines 202–236. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md). Lines 3–3. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/deep-context.cases](../../../../scripts/dev/bigip-probes/resolution-2286/deep-context.cases). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-1` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-2` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/host-tclsh8.4.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/host-tclsh8.4.txt). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-3` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/host-tclsh8.5.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/host-tclsh8.5.txt). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-4` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/ltm-raw.log](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/ltm-raw.log). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-5` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `source-closure-8` (provider): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/inventory.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/inventory.txt). Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `source-closure-9` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/manifest-verification.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/manifest-verification.txt). Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct.
-- `source-closure-10` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/manifest.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006hi/appliance/manifest.json). Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct.
-- `aggregate-11` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/result.json). Inspected measured canonical case aggregate and its explicit unmeasured limits; actual case rows remain in this exact file. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
+The execution mechanisms follow F5's primary documentation for [iRule `call`](https://clouddocs.f5.com/api/irules/call.html), [tmsh CLI scripts](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/cli/cli_script.html), [iApp templates](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_application_template.html), [iCall scripts](https://clouddocs.f5.com/cli/tmsh-reference/v15/modules/sys/sys_icall_script.html), [iCall events](https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_icall_event.html), and [triggered handlers](https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/sys/sys_icall_handler_triggered.html). Raw results are TMM LTM, [tmsh](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt), [iApp and iCall](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt), `tclsh8.4`, and `tclsh8.5`.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+- [scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md)
+- [scripts/dev/bigip-probes/resolution-2286/deep-context.cases](../../../../scripts/dev/bigip-probes/resolution-2286/deep-context.cases)
+- [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt)
+- [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt)

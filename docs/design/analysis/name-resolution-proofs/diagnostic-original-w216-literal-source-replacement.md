@@ -20,59 +20,11 @@ Two marked fixed source/API controls cover actual retained C/Jim grammar, litera
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-diagnostics-original-w216-literal-source-replacement-tests.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-w216-literal-source-replacement-usage.rs` (implementation): [rust/tcl-compiler/src/analyser/diagnostics/usage.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/usage.rs). Current source/API owner and fixed marked assertion body; no executed Rust or native provider observation.
-- `naming-diagnostics-original-w216-literal-source-replacement-backslash.rs` (implementation): [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs). Quoted literal and substituting fragments preserve selected grammar and retained source components. Source entry only; separately retained Syntax software controls cover fixed examples and do not establish consumer/editor or native execution.
-
-- `syntax-backslash-fixed-software-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-backslash-20261103/receipt.json). Separate current-owned Syntax receipt for two named backslash controls; only the relevant helper case applies to this proof. No consumer/editor, native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -82,8 +34,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs), `backslash::tests::quoted_fragments_preserve_literal_characters_and_original_substitutions` (linked): Actual selected grammar round-trips literal root characters and preserves original substituting variable/command/expression components; malformed/incompletely retained components refuse.
 - [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::w216_literal_root_replacement_preserves_bytes_and_index_source` (linked): Genuine fullsource diagnostics propose exact literal root/index spellings and retain explicit RequiresReview for unwritten ::set; selected bytes/components are source controls, not actual Native lookup/current cell or safe editor edit.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained Syntax receipt records the named helper control. The compiler diagnostic control remains a source binding here; Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs)
+- [rust/tcl-compiler/src/analyser/diagnostics/usage.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/usage.rs)
+- [rust/tcl-syntax/src/backslash.rs](../../../../rust/tcl-syntax/src/backslash.rs)

@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. C84 lacks lassign. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-plain.tcl`: Exact original lassign-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-plain.stdout`: tcl8.4 lassign-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-plain.stderr`: tcl8.4 lassign-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-qualified.tcl`: Exact original lassign-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-qualified.stdout`: tcl8.4 lassign-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-qualified.stderr`: tcl8.4 lassign-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-index.tcl`: Exact original lassign-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-index.stdout`: tcl8.4 lassign-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-index.stderr`: tcl8.4 lassign-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-binary_nul.tcl`: Exact original lassign-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-binary_nul.stdout`: tcl8.4 lassign-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-binary_nul.stderr`: tcl8.4 lassign-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-decomposed.tcl`: Exact original lassign-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-decomposed.stdout`: tcl8.4 lassign-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-lassign-decomposed.stderr`: tcl8.4 lassign-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-plain.tcl`: Exact original lassign-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-plain.stdout`: tcl8.5 lassign-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-plain.stderr`: tcl8.5 lassign-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-qualified.tcl`: Exact original lassign-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-qualified.stdout`: tcl8.5 lassign-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-qualified.stderr`: tcl8.5 lassign-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-index.tcl`: Exact original lassign-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-index.stdout`: tcl8.5 lassign-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-index.stderr`: tcl8.5 lassign-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-binary_nul.tcl`: Exact original lassign-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-binary_nul.stdout`: tcl8.5 lassign-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-binary_nul.stderr`: tcl8.5 lassign-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-decomposed.tcl`: Exact original lassign-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-decomposed.stdout`: tcl8.5 lassign-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-lassign-decomposed.stderr`: tcl8.5 lassign-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-plain.tcl`: Exact original lassign-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-plain.stdout`: tcl8.6 lassign-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-plain.stderr`: tcl8.6 lassign-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-qualified.tcl`: Exact original lassign-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-qualified.stdout`: tcl8.6 lassign-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-qualified.stderr`: tcl8.6 lassign-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-index.tcl`: Exact original lassign-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-index.stdout`: tcl8.6 lassign-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-index.stderr`: tcl8.6 lassign-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-binary_nul.tcl`: Exact original lassign-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-binary_nul.stdout`: tcl8.6 lassign-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-binary_nul.stderr`: tcl8.6 lassign-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-decomposed.tcl`: Exact original lassign-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-decomposed.stdout`: tcl8.6 lassign-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-lassign-decomposed.stderr`: tcl8.6 lassign-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-plain.tcl`: Exact original lassign-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-plain.stdout`: tcl9.0 lassign-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-plain.stderr`: tcl9.0 lassign-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-qualified.tcl`: Exact original lassign-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-qualified.stdout`: tcl9.0 lassign-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-qualified.stderr`: tcl9.0 lassign-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-index.tcl`: Exact original lassign-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-index.stdout`: tcl9.0 lassign-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-index.stderr`: tcl9.0 lassign-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-binary_nul.tcl`: Exact original lassign-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-binary_nul.stdout`: tcl9.0 lassign-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-binary_nul.stderr`: tcl9.0 lassign-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-decomposed.tcl`: Exact original lassign-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-decomposed.stdout`: tcl9.0 lassign-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-lassign-decomposed.stderr`: tcl9.0 lassign-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-plain.tcl`: Exact original lassign-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-plain.stdout`: tcl9.1 lassign-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-plain.stderr`: tcl9.1 lassign-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-qualified.tcl`: Exact original lassign-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-qualified.stdout`: tcl9.1 lassign-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-qualified.stderr`: tcl9.1 lassign-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-index.tcl`: Exact original lassign-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-index.stdout`: tcl9.1 lassign-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-index.stderr`: tcl9.1 lassign-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-binary_nul.tcl`: Exact original lassign-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-binary_nul.stdout`: tcl9.1 lassign-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-binary_nul.stderr`: tcl9.1 lassign-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-decomposed.tcl`: Exact original lassign-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-decomposed.stdout`: tcl9.1 lassign-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-lassign-decomposed.stderr`: tcl9.1 lassign-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-plain.tcl`: Exact original lassign-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-plain.stdout`: jim lassign-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-plain.stderr`: jim lassign-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-qualified.tcl`: Exact original lassign-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-qualified.stdout`: jim lassign-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-qualified.stderr`: jim lassign-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-index.tcl`: Exact original lassign-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-index.stdout`: jim lassign-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-index.stderr`: jim lassign-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-binary_nul.tcl`: Exact original lassign-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-binary_nul.stdout`: jim lassign-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-binary_nul.stderr`: jim lassign-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-decomposed.tcl`: Exact original lassign-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-decomposed.stdout`: jim lassign-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-lassign-decomposed.stderr`: jim lassign-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/lassign-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

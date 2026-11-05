@@ -1,8 +1,0 @@
-sys icall handler triggered __tcl_lsp_probe_nh20261012literal1_2_3_handler {
-    script __tcl_lsp_probe_nh20261012literal1_2_3
-    subscriptions {
-        run {
-            event-name __tcl_lsp_probe_nh20261012literal1_2_3_event
-        }
-    }
-}

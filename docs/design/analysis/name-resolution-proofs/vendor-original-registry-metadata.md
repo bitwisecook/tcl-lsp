@@ -20,55 +20,11 @@ Authored Registry metadata shape only. The complete retained ResolvedContext and
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,9 +44,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::authored_receiver_form_does_not_require_native_procedure_acceptance` (linked): Single dynamic source words retain authored receiver metadata without native-definition acceptance; unavailable word shape, expansion, rejected arity and role-only descriptors decline.
 - [rust/tcl-compiler/src/registry_invocation/vendor_advice.rs](../../../../rust/tcl-compiler/src/registry_invocation/vendor_advice.rs), `registry_invocation::vendor_advice::tests::vendor_authored_receivers_retain_opaque_source_operands_and_reject_expansion` (linked): Genuine hosted Set source vectors retain possible receiver shape for opaque or computed names; expansion, absent arity and scope aliases decline.
 - [rust/tcl-compiler/src/registry_invocation/vendor_advice.rs](../../../../rust/tcl-compiler/src/registry_invocation/vendor_advice.rs), `registry_invocation::vendor_advice::tests::vendor_authored_head_coordinates_keep_written_roots_and_source_purpose` (linked): Four fixed plain/rooted/repeated-root/braced-rooted matchclass forms retain the genuine original words and canonical source coordinate. Dynamic head and escaped whitespace refuse; no TMM runtime dispatch is asserted.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-No native observation or executable replay protocol is attached.

@@ -20,39 +20,15 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.4.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl8.6.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.0.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
 
 ### jim
 
-Status: `observed`. Version: pinned Jim 0.84. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector. Exact lengths, flags and input constructors remain in the source.. Dialect: jim.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector. Exact lengths, flags and input constructors remain in the source. Version: jim pinned Jim 0.84.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -76,30 +52,13 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 }
 ```
 
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-syntax/tests/data/native_jim_local/behaviour.tsv](../../../../rust/tcl-syntax/tests/data/native_jim_local/behaviour.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-syntax/tests/data/native_jim_local/manifest.json](../../../../rust/tcl-syntax/tests/data/native_jim_local/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1-row-2` (provider): [rust/tcl-syntax/tests/data/native_jim_local/manifest.json](../../../../rust/tcl-syntax/tests/data/native_jim_local/manifest.json). JSON pointer ``. Original provider/capture association at its exact selected row.
-- `file-3` (observation): [rust/tcl-syntax/tests/data/native_jim_local/observations.tsv](../../../../rust/tcl-syntax/tests/data/native_jim_local/observations.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (input): [rust/tcl-syntax/tests/data/native_jim_local/probe.c](../../../../rust/tcl-syntax/tests/data/native_jim_local/probe.c). Exact retained input/program bytes; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-syntax/tests/data/native_jim_local/behaviour.tsv](../../../../rust/tcl-syntax/tests/data/native_jim_local/behaviour.tsv)
+- [rust/tcl-syntax/tests/data/native_jim_local/manifest.json](../../../../rust/tcl-syntax/tests/data/native_jim_local/manifest.json)
+- [rust/tcl-syntax/tests/data/native_jim_local/observations.tsv](../../../../rust/tcl-syntax/tests/data/native_jim_local/observations.tsv)
+- [rust/tcl-syntax/tests/data/native_jim_local/probe.c](../../../../rust/tcl-syntax/tests/data/native_jim_local/probe.c)

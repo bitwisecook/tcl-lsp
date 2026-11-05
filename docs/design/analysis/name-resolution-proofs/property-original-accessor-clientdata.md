@@ -20,59 +20,23 @@ Only the recorded C Tcl9.1.0 process linked to the hashed private-header build i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Exact compiler command, library/header/source hashes and available executable hashes are retained in the selected receipt. A recorded source/build release is not a newly executed startup check.. Channel: ASCII Tcl_Eval setup plus directly constructed counted Tcl_Obj names used by Tcl_EvalObjv flags0.. Dialect: Tcl.
+Status: `observed`. Channel: ASCII Tcl_Eval setup plus directly constructed counted Tcl_Obj names used by Tcl_EvalObjv flags0. Version: tcl9.1 9.1.0.
 
 Three declaration/write/read windows: accessor clientData pointer equality 1/1, declaration refcount3/type none, empty write1, original read-value identity1 and caller primary none.
 
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
-
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (observation): [runtime/rust/tests/data/native_property_clientdata/manifest.json](../../../../runtime/rust/tests/data/native_property_clientdata/manifest.json). Compile/run receipt, exact source/header/library/executable hashes and all nine output rows.
-- `e1` (input): [runtime/rust/tests/data/native_property_clientdata/probe.c](../../../../runtime/rust/tests/data/native_property_clientdata/probe.c). Direct counted Tcl_NewStringObj name operands and Tcl_EvalObjv calls; private accessor client-data inspection precedes subsequent management operations.
-- `e2` (observation): [runtime/rust/tests/data/native_property_clientdata/native.tsv](../../../../runtime/rust/tests/data/native_property_clientdata/native.tsv). Exact nine-row stdout, independently equal to the receipt stream.
-- `receiver-current642-3130fecefbdfb6d3` (implementation): [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs). Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
-- `receiver-current642-8ce69af7c7160e4b` (implementation): [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs). Current authored OO/property/method/lifecycle source or genuine control declaration, inspected only for the linked software scope. No matching current own-image/assertion, provider, physical callback/reference or lookup authority is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,28 +45,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs), `cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary` (linked): Default property methods retain original clientdata and leave its primary. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose.
 - [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs), `cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary` (linked): Default property methods retain original clientdata and leave its primary. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I${TCL_SOURCE}/generic",
-  "-I${TCL_SOURCE}/unix",
-  "runtime/rust/tests/data/native_property_clientdata/probe.c",
-  "${TCL_BUILD}/libtcl${TCL_ABI}.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "${PROBE_EXE}"
-]
-```
-
- Replay requires the matching recorded headers/library and original source bytes; compare process exit, stdout and stderr exactly before comparing projected rows. Private header/pointer observations are valid only within each original process and cannot authenticate a different interpreter. No Rust execution or fresh native reconfirmation is asserted.
+- [runtime/rust/tests/data/native_property_clientdata/manifest.json](../../../../runtime/rust/tests/data/native_property_clientdata/manifest.json)
+- [runtime/rust/tests/data/native_property_clientdata/probe.c](../../../../runtime/rust/tests/data/native_property_clientdata/probe.c)
+- [runtime/rust/tests/data/native_property_clientdata/native.tsv](../../../../runtime/rust/tests/data/native_property_clientdata/native.tsv)
+- [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs)
+- [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs)

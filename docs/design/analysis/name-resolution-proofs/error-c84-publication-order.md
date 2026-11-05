@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.4.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source. Version: tcl8.4 8.4.20.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -62,7 +62,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.5.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source. Version: tcl8.5 8.5.19.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -102,7 +102,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.6.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source. Version: tcl8.6 8.6.18.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -142,7 +142,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.0.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source. Version: tcl9.0 9.0.4.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -182,7 +182,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.1.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Tcl_Eval. Exact lengths, flags and input constructors remain in the source. Version: tcl9.1 9.1.0.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -220,45 +220,11 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 }
 ```
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: jim.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [runtime/rust/tests/data/native_c84_error_code/8.4.20.txt](../../../../runtime/rust/tests/data/native_c84_error_code/8.4.20.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [runtime/rust/tests/data/native_c84_error_code/8.5.19.txt](../../../../runtime/rust/tests/data/native_c84_error_code/8.5.19.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (observation): [runtime/rust/tests/data/native_c84_error_code/8.6.18.txt](../../../../runtime/rust/tests/data/native_c84_error_code/8.6.18.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-3` (observation): [runtime/rust/tests/data/native_c84_error_code/9.0.4.txt](../../../../runtime/rust/tests/data/native_c84_error_code/9.0.4.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (observation): [runtime/rust/tests/data/native_c84_error_code/9.1.0.txt](../../../../runtime/rust/tests/data/native_c84_error_code/9.1.0.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5` (observation): [runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5-row-6` (provider): [runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-5-row-7` (provider): [runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-5-row-8` (provider): [runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-5-row-9` (provider): [runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-5-row-10` (provider): [runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/attempt1-manifest.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-11` (input): [runtime/rust/tests/data/native_c84_error_code/attempt1-probe.c](../../../../runtime/rust/tests/data/native_c84_error_code/attempt1-probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-12` (observation): [runtime/rust/tests/data/native_c84_error_code/controls.tsv](../../../../runtime/rust/tests/data/native_c84_error_code/controls.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-13` (observation): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-13-row-14` (provider): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-13-row-15` (provider): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-13-row-16` (provider): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-13-row-17` (provider): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-13-row-18` (provider): [runtime/rust/tests/data/native_c84_error_code/manifest.json](../../../../runtime/rust/tests/data/native_c84_error_code/manifest.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-19` (input): [runtime/rust/tests/data/native_c84_error_code/probe.c](../../../../runtime/rust/tests/data/native_c84_error_code/probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `authored-consumer645d-1bfa2199f14a` (implementation): [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs). Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -267,8 +233,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs), `interp::native_append::original_c84_pending_scalar_tests::original_c84_cow_publishes_pending_allocation_and_settles_only_the_same_live_role` (linked): Actual C84 COW publishes a pending allocation with no cell Native hold, and settles the true cell role only for the same live ticket/allocation after old release. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 - [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs), `interp::native_append::original_c84_pending_scalar_tests::original_c84_missing_cell_adopts_counted_message_before_write_without_working_hold` (linked): The selected missing-cell C84 counted message is adopted before the write callback with no artificial working hold. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [runtime/rust/tests/data/native_c84_error_code](../../../../runtime/rust/tests/data/native_c84_error_code)
+- [runtime/rust/src/interp/native_append.rs](../../../../runtime/rust/src/interp/native_append.rs)

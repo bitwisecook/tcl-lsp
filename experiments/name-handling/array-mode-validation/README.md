@@ -14,7 +14,7 @@ input/binary/source hashes in [captures](captures/). These are source-built
 C 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0. The latest upstream Jim available
 in this session is revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`.
 Its independent grammar admits only `arrayName ?pattern?`.
-The [original Jim provenance](../results/jim-0.84-9-g5bac7c9/provenance.json)
+The original Jim provenance
 and [configured extension snapshot](../patterns/jim-results-5bac7c9/jimautoconf.h.txt)
 retain the build configuration; the oracle binary hash in each capture selects
 the actual executable. That earlier provenance records upstream HEAD discovery
@@ -41,7 +41,7 @@ is a source observation, not an executed custom-object experiment.
 The frozen native runner has SHA-256
 `571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473`.
 Its captures use `--quiet --tcl-version` with **no init**. Build evidence is
-in [native-c84-declared-cell](../results/native-c84-declared-cell/), and these
+in native-c84-declared-cell, and these
 measurements do not attest to the subsequently editable tree. All five native
 profiles return empty for missing/scalar bad modes, disagreeing with C 8.6+.
 They explicitly refuse the regex worker even for empty arrays; the actual C

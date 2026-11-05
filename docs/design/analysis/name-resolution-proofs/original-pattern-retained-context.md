@@ -24,55 +24,11 @@ This readonly pattern-role/span control is separate from reached Native regex ev
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native observation or executed Rust result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -95,13 +51,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_actual_context_over_a_profiled_store` (linked): Actual full Logical context controls available pattern options despite a newer profiled store; stale source or replaced context refuses.
 - [rust/tcl-lsp-core/src/semantic_tokens/original.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens/original.rs), `semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_nested_and_alias_original_operand_anchors` (linked): Nested and current written aliased patterns keep their original tokens; captured values, uncertain option selectors and shadows refuse.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/regex_source.rs](../../../../rust/tcl-compiler/src/regex_source.rs), `regex_pattern_word`: Use authentic selected source pattern role and effective-to-written origin under actual whole-Module metadata; captured data and conditional roles cannot supply physical Native reads.
 - [rust/tcl-compiler/src/regex_source.rs](../../../../rust/tcl-compiler/src/regex_source.rs), `regex_source::tests::original_regex_roles_keep_alias_origins_and_do_not_supply_native_reads` (linked): A genuine Logical regexp alias with captured -- selects the original written Unicode pattern span, while Normal representation and physical SSA literal-read projection remain absent; captured pattern data, expansion, replacement and missing owner refuse written pattern advice.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Ten exact body-marked Rust selectors are authored coverage bindings. Their executed outcomes require independently retained validation receipts. The readonly source-pattern contract supplies no native provider observation or execution permission.

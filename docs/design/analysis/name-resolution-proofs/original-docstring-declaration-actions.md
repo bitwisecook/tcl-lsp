@@ -20,55 +20,11 @@ Original source procedure cards, including repeated and opaque declarations, and
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-## Historical references
-
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs). Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,8 +33,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::original_docstring_tests::original_docstrings_keep_opaque_redefinitions_without_reporting_maps` (linked): Require all original redefinitions with their own formals after UI map removal; reject stale source and missing configuration.
 - [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs), `code_actions::original_docstring_tests::original_body_docstring_requires_its_braced_word_and_rejects_computed_body` (linked): Require a literal body insertion, keep computed-body preceding advice, and reject interior computed-body edits.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact fixed Rust selectors are listed separately. No test execution, native interpreter result, appliance result or new handler reach is certified by this implementation record.
+- [rust/tcl-lsp-core/src/code_actions.rs](../../../../rust/tcl-lsp-core/src/code_actions.rs)

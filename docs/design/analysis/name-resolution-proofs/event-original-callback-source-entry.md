@@ -20,56 +20,17 @@ Exact pinned full-file and LF function-window inspection only, with source/heade
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `inspected`. Version: 8.4.20. Build: Pinned complete source translation unit inspection; matching capture source associations retained, no inspection launch claim.. Channel: Exact retained LF function windows in the full pinned translation units.. Dialect: tcl8.4.
-
-Pinned C84 AfterProc obtains the counted script bytes and calls Tcl_EvalEx with TCL_EVAL_GLOBAL. C85 through C91 call Tcl_EvalObjEx with TCL_EVAL_GLOBAL on the retained script object. Jim_EvalObjBackground selects the top global frame for Jim_EvalObj and restores the caller frame before reporting an error. These source windows select a recipe; they do not grant native preparation, current handler or normal completion.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Pinned complete source translation unit inspection; matching capture source associations retained, no inspection launch claim.. Channel: Exact retained LF function windows in the full pinned translation units.. Dialect: tcl8.5.
-
-Pinned C84 AfterProc obtains the counted script bytes and calls Tcl_EvalEx with TCL_EVAL_GLOBAL. C85 through C91 call Tcl_EvalObjEx with TCL_EVAL_GLOBAL on the retained script object. Jim_EvalObjBackground selects the top global frame for Jim_EvalObj and restores the caller frame before reporting an error. These source windows select a recipe; they do not grant native preparation, current handler or normal completion.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Pinned complete source translation unit inspection; matching capture source associations retained, no inspection launch claim.. Channel: Exact retained LF function windows in the full pinned translation units.. Dialect: tcl8.6.
-
-Pinned C84 AfterProc obtains the counted script bytes and calls Tcl_EvalEx with TCL_EVAL_GLOBAL. C85 through C91 call Tcl_EvalObjEx with TCL_EVAL_GLOBAL on the retained script object. Jim_EvalObjBackground selects the top global frame for Jim_EvalObj and restores the caller frame before reporting an error. These source windows select a recipe; they do not grant native preparation, current handler or normal completion.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned complete source translation unit inspection; matching capture source associations retained, no inspection launch claim.. Channel: Exact retained LF function windows in the full pinned translation units.. Dialect: tcl9.0.
-
-Pinned C84 AfterProc obtains the counted script bytes and calls Tcl_EvalEx with TCL_EVAL_GLOBAL. C85 through C91 call Tcl_EvalObjEx with TCL_EVAL_GLOBAL on the retained script object. Jim_EvalObjBackground selects the top global frame for Jim_EvalObj and restores the caller frame before reporting an error. These source windows select a recipe; they do not grant native preparation, current handler or normal completion.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned complete source translation unit inspection; matching capture source associations retained, no inspection launch claim.. Channel: Exact retained LF function windows in the full pinned translation units.. Dialect: tcl9.1.
-
-Pinned C84 AfterProc obtains the counted script bytes and calls Tcl_EvalEx with TCL_EVAL_GLOBAL. C85 through C91 call Tcl_EvalObjEx with TCL_EVAL_GLOBAL on the retained script object. Jim_EvalObjBackground selects the top global frame for Jim_EvalObj and restores the caller frame before reporting an error. These source windows select a recipe; they do not grant native preparation, current handler or normal completion.
-
-### jim
-
-Status: `inspected`. Version: 0.84-9-g5bac7c9. Build: Pinned complete source translation unit inspection; matching capture source associations retained, no inspection launch claim.. Channel: Exact retained LF function windows in the full pinned translation units.. Dialect: jim.
+Status: `inspected`. Channel: Exact retained LF function windows in the full pinned translation units. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim 0.84-9-g5bac7c9.
 
 Pinned C84 AfterProc obtains the counted script bytes and calls Tcl_EvalEx with TCL_EVAL_GLOBAL. C85 through C91 call Tcl_EvalObjEx with TCL_EVAL_GLOBAL on the retained script object. Jim_EvalObjBackground selects the top global frame for Jim_EvalObj and restores the caller frame before reporting an error. These source windows select a recipe; they do not grant native preparation, current handler or normal completion.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No appliance build attached.. Channel: not exercised. Dialect: bigip.
+Status: `not-tested`. Channel: not exercised.
 
 No BIG-IP provider was executed or inspected for this Event question.
-
-## Historical references
-
-- `e7ca34f2d6fd9344d4610` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.4.20/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `eb83569215d92fa37da10` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.5.19/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e5cad7b4101332ff96f7c` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/8.6.18/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e4d5b46a62af04d177edb` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.0.4/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `eaf331dbfda81fff6c4db` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/9.1.0/tclTimer.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
-- `e4521e47b782c5165c471` (source-anchor): [rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c](../../../../rust/tcl-registry/tests/data/native_event_original/source/jim/jim-eventloop.c). Complete retained pinned translation unit; the exact LF function window is separately recorded.
 
 ## Source inspection
 
@@ -368,15 +329,8 @@ int Jim_EvalObjBackground(Jim_Interp *interp, Jim_Obj *scriptObjPtr)
 }
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::compiles_source`: Selected callback evaluation entry, independently of native artifact admission.
 - [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::permits_direct_source_operands`: Actual matching C84/trace direct-source entry only; foreign axes refuse.
 - [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `native_eval_object::after_source_tests::original_after_callback_keeps_counted_c84_entry_separate_from_object_dispatch` (linked): Version-selected C84 counted source versus modern object entry, foreign string recipe negatives and Jim direct-source refusal; pure recipe admission does not mint compiler preparation. No execution claim.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-This record replays no interpreter. Original compile/run commands, input lengths, deadline status and source/header/library/executable hashes are retained in immutable receipts. Captured output directories and original absolute provisioning paths must not be overwritten. Source inspection can be reproduced from the attached full-file and exact LF/snippet hashes. No Rust execution claim.

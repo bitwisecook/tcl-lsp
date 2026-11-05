@@ -66,7 +66,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 C8.4 rejects the unavailable subcommand. C8.5 requires at least one complete pair. C8.6/9.0/9.1 accept zero pairs and reject the odd vector. The measured Jim helper errors on zero operands but accepts the one-operand padded and complete-pair vectors. This is original argument grammar, not compiled opcode admission or proof of a linked cell.
@@ -79,14 +78,6 @@ Exact ASCII namespace creation and three catch-presented original argument vecto
 
 - `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/manifest.json`: Exact original native provenance/captured observations.
 - `rust/tcl-registry/tests/data/native_namespace_upvar_arguments/source.tcl`: Retained exact script/case bytes for the stated question.
-
-## Replay
-
-```sh
-/path/to/recorded/native/tclsh rust/tcl-registry/tests/data/native_namespace_upvar_arguments/source.tcl
-```
-
-Run this retained ASCII script with the recorded native shell in a fresh process. The script supplies its own catch/result presenter. Require every original stdout row, empty stderr and recorded process completion. Exact provider builds are not retained and no fresh rerun is claimed.
 
 ## Rust comparison
 

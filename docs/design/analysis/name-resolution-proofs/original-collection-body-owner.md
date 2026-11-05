@@ -22,63 +22,45 @@ Current Rust source/API contract in tcl-compiler and actual tcl-lsp-db source-ow
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust conditional-source contract. Channel: Current Rust source/API definitions and unexecuted software controls. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Current Rust source/API definitions and unexecuted software controls.
 
 The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl8.4 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust conditional-source contract. Channel: Current Rust source/API definitions and unexecuted software controls. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Current Rust source/API definitions and unexecuted software controls.
 
 The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl8.5 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust conditional-source contract. Channel: Current Rust source/API definitions and unexecuted software controls. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Current Rust source/API definitions and unexecuted software controls.
 
 The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl8.6 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust conditional-source contract. Channel: Current Rust source/API definitions and unexecuted software controls. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Current Rust source/API definitions and unexecuted software controls.
 
 The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl9.0 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust conditional-source contract. Channel: Current Rust source/API definitions and unexecuted software controls. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Current Rust source/API definitions and unexecuted software controls.
 
 The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original tcl9.1 execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.
 
 ### jim
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust conditional-source contract. Channel: Current Rust source/API definitions and unexecuted software controls. Dialect: jim.
+Status: `not-tested`. Channel: Current Rust source/API definitions and unexecuted software controls.
 
 The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original jim execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: No original external process for this Rust conditional-source contract. Channel: Current Rust source/API definitions and unexecuted software controls. Dialect: bigip.
+Status: `not-tested`. Channel: Current Rust source/API definitions and unexecuted software controls.
 
 The inspected Rust original child-source, descriptive class-roster and inherited-frame lattice contract supplies no original bigip execution or provider result. Authored model profiles and event labels do not establish external worker, frame or TMM behavior.
-
-## Historical references
-
-- `collection-source-0` (implementation): [docs/design/contracts/original-secondary-body-analysis.md](../../../../docs/design/contracts/original-secondary-body-analysis.md). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-1` (implementation): [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-2` (implementation): [rust/tcl-compiler/src/interprocedural/transfer.rs](../../../../rust/tcl-compiler/src/interprocedural/transfer.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-3` (implementation): [rust/tcl-compiler/src/irules_checks.rs](../../../../rust/tcl-compiler/src/irules_checks.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-4` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-5` (implementation): [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs). Authentic descent retains independently selected namespace, complete parent/body/source/input/configuration correspondence and the opaque readonly geometry owner; the temporary parent/enclosing owner is restored. Source selection does not manufacture Native body entry, lookup or handler authority, and conditional frame purpose remains distinct.
-- `collection-source-6` (implementation): [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-7` (implementation): [rust/tcl-compiler/src/sccp.rs](../../../../rust/tcl-compiler/src/sccp.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-8` (implementation): [rust/tcl-compiler/src/signature_scan/mod.rs](../../../../rust/tcl-compiler/src/signature_scan/mod.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-9` (implementation): [rust/tcl-compiler/src/signature_scan/walker.rs](../../../../rust/tcl-compiler/src/signature_scan/walker.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-- `collection-source-10` (implementation): [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs). Current exact Rust source/API owner, required consumer/parent registration or bounded contract. These bytes define conditional source facts and finite software controls; they provide no assertion execution, Native provider observation, physical frame or performance result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -108,8 +90,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/compilation_unit.rs](../../../../rust/tcl-compiler/src/compilation_unit.rs), `compilation_unit::selected_class_roster_tests::retained_roster_projection_withdraws_changed_cu_module_input_and_store` (linked): Finite source-defined control: retained roster projection withdraws changed cu module input and store. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-compiler/src/object_types.rs](../../../../rust/tcl-compiler/src/object_types.rs), `object_types::tests::normal_result_query_uses_the_shared_roster_and_withdraws_missing_source_ownership` (linked): Finite source-defined control: normal result query uses the shared roster and withdraws missing source ownership. Conditional result types under existing allocation guards, not runtime execution. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Executed software assertions require a matching independently successful owned Compiler producer, actual executable inventory and separately closed exact selector receipts. No such assertion outcome is attached to these eleven controls. The conditional source factory, model profiles and event-table labels do not establish any C/Jim/BIG-IP worker, physical frame/class/cell lifetime, dynamic-definer completeness or measured scanning/performance result.
+- [docs/design/contracts/original-secondary-body-analysis.md](../../contracts/original-secondary-body-analysis.md)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler/src/interprocedural/transfer.rs](../../../../rust/tcl-compiler/src/interprocedural/transfer.rs)
+- [rust/tcl-compiler/src/lowering/mod.rs](../../../../rust/tcl-compiler/src/lowering/mod.rs)
+- [rust/tcl-compiler/src/optimiser/branch_folding.rs](../../../../rust/tcl-compiler/src/optimiser/branch_folding.rs)
+- [rust/tcl-compiler/src/signature_scan/mod.rs](../../../../rust/tcl-compiler/src/signature_scan/mod.rs)
+- [rust/tcl-compiler/src/signature_scan/walker.rs](../../../../rust/tcl-compiler/src/signature_scan/walker.rs)
+- [rust/tcl-lsp-db/src/lib.rs](../../../../rust/tcl-lsp-db/src/lib.rs)

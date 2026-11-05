@@ -22,55 +22,11 @@ Workspace ordering boundary. The workspace timeline retains original full-input/
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No native execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No native execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No native execution of this Rust implementation question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -103,9 +59,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/types.rs](../../../../rust/tcl-compiler/src/analyser/types.rs), `analyser::types::original_namespace_export_inventory_tests::original_namespace_inventory_does_not_extend_static_scope_through_an_unentered_callable` (linked): The bounded static namespace trail cannot create conditional namespace declarations through an unentered callable scope.
 - [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs), `workspace_index::original_source_order_transport_tests::workspace_order_keeps_original_export_evidence_without_conditional_clear_completion` (linked): A same-document unconditional clear after the pattern carries DocumentSequence order and revokes it at the document end; legacy has_run stays unavailable.
 - [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs), `workspace_index::original_source_order_transport_tests::workspace_order_keeps_cross_document_clear_conditional` (linked): A clear in another document is never ordered after the pattern, so the original export stays Exported.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The listed Rust selectors bind the implementation contract; no execution receipt is attached. Native source-control questions and measured providers retain their separate records. Source advice never establishes runtime import completion or command absence.

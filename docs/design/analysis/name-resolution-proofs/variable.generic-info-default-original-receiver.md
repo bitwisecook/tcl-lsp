@@ -102,7 +102,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 The thirty retained case/provider outcomes establish only this handler's observed completion, result and subsequent original-name existence/read bytes for these five producer shapes. Generated binary FF/00/78 input and decomposed e/U+0301 input remain independent of source character encoding and of a counted resident-string C API input. No physical header, normal-completion receipt or general alias/read closure follows.
@@ -110,114 +109,6 @@ The thirty retained case/provider outcomes establish only this handler's observe
 ## Scope
 
 Only the listed fixed scripts and recorded provider builds; ASCII source character input produces the queried native objects. Binary/decomposed names are generated values, not raw document bytes. BIG-IP, physical object headers, compiler opcode selection and arbitrary observer/alias closure are excluded.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/manifest.json`: Original sources, interpreter versions and process results.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-plain.tcl`: Exact original info_default-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-plain.stdout`: tcl8.4 info_default-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-plain.stderr`: tcl8.4 info_default-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-qualified.tcl`: Exact original info_default-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-qualified.stdout`: tcl8.4 info_default-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-qualified.stderr`: tcl8.4 info_default-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-index.tcl`: Exact original info_default-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-index.stdout`: tcl8.4 info_default-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-index.stderr`: tcl8.4 info_default-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-binary_nul.tcl`: Exact original info_default-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-binary_nul.stdout`: tcl8.4 info_default-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-binary_nul.stderr`: tcl8.4 info_default-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-decomposed.tcl`: Exact original info_default-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-decomposed.stdout`: tcl8.4 info_default-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.4-info_default-decomposed.stderr`: tcl8.4 info_default-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-plain.tcl`: Exact original info_default-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-plain.stdout`: tcl8.5 info_default-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-plain.stderr`: tcl8.5 info_default-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-qualified.tcl`: Exact original info_default-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-qualified.stdout`: tcl8.5 info_default-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-qualified.stderr`: tcl8.5 info_default-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-index.tcl`: Exact original info_default-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-index.stdout`: tcl8.5 info_default-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-index.stderr`: tcl8.5 info_default-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-binary_nul.tcl`: Exact original info_default-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-binary_nul.stdout`: tcl8.5 info_default-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-binary_nul.stderr`: tcl8.5 info_default-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-decomposed.tcl`: Exact original info_default-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-decomposed.stdout`: tcl8.5 info_default-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.5-info_default-decomposed.stderr`: tcl8.5 info_default-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-plain.tcl`: Exact original info_default-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-plain.stdout`: tcl8.6 info_default-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-plain.stderr`: tcl8.6 info_default-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-qualified.tcl`: Exact original info_default-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-qualified.stdout`: tcl8.6 info_default-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-qualified.stderr`: tcl8.6 info_default-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-index.tcl`: Exact original info_default-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-index.stdout`: tcl8.6 info_default-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-index.stderr`: tcl8.6 info_default-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-binary_nul.tcl`: Exact original info_default-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-binary_nul.stdout`: tcl8.6 info_default-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-binary_nul.stderr`: tcl8.6 info_default-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-decomposed.tcl`: Exact original info_default-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-decomposed.stdout`: tcl8.6 info_default-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl8.6-info_default-decomposed.stderr`: tcl8.6 info_default-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-plain.tcl`: Exact original info_default-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-plain.stdout`: tcl9.0 info_default-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-plain.stderr`: tcl9.0 info_default-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-qualified.tcl`: Exact original info_default-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-qualified.stdout`: tcl9.0 info_default-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-qualified.stderr`: tcl9.0 info_default-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-index.tcl`: Exact original info_default-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-index.stdout`: tcl9.0 info_default-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-index.stderr`: tcl9.0 info_default-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-binary_nul.tcl`: Exact original info_default-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-binary_nul.stdout`: tcl9.0 info_default-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-binary_nul.stderr`: tcl9.0 info_default-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-decomposed.tcl`: Exact original info_default-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-decomposed.stdout`: tcl9.0 info_default-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.0-info_default-decomposed.stderr`: tcl9.0 info_default-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-plain.tcl`: Exact original info_default-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-plain.stdout`: tcl9.1 info_default-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-plain.stderr`: tcl9.1 info_default-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-qualified.tcl`: Exact original info_default-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-qualified.stdout`: tcl9.1 info_default-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-qualified.stderr`: tcl9.1 info_default-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-index.tcl`: Exact original info_default-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-index.stdout`: tcl9.1 info_default-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-index.stderr`: tcl9.1 info_default-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-binary_nul.tcl`: Exact original info_default-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-binary_nul.stdout`: tcl9.1 info_default-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-binary_nul.stderr`: tcl9.1 info_default-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-decomposed.tcl`: Exact original info_default-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-decomposed.stdout`: tcl9.1 info_default-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/tcl9.1-info_default-decomposed.stderr`: tcl9.1 info_default-decomposed original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-version.stdout`: Actual shell version query.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-plain.tcl`: Exact original info_default-plain script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-plain.stdout`: jim info_default-plain original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-plain.stderr`: jim info_default-plain original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-qualified.tcl`: Exact original info_default-qualified script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-qualified.stdout`: jim info_default-qualified original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-qualified.stderr`: jim info_default-qualified original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-index.tcl`: Exact original info_default-index script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-index.stdout`: jim info_default-index original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-index.stderr`: jim info_default-index original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-binary_nul.tcl`: Exact original info_default-binary_nul script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-binary_nul.stdout`: jim info_default-binary_nul original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-binary_nul.stderr`: jim info_default-binary_nul original stderr
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-decomposed.tcl`: Exact original info_default-decomposed script, including producer and reporter order.
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-decomposed.stdout`: jim info_default-decomposed original stdout
-- `rust/tcl-syntax/tests/data/native_generic_variable_consumers/jim-info_default-decomposed.stderr`: jim info_default-decomposed original stderr
-
-## Replay
-
-```sh
-/path/to/recorded/tclsh rust/tcl-syntax/tests/data/native_generic_variable_consumers/info_default-plain.tcl
-```
-
-Run each input listed above in a separate fresh process using its manifested provider/build. Require exact stdout bytes, exact stderr bytes and recorded process status for that case; guest failure tuples are part of the expected stdout. Preserve the ASCII character channel and each in-script native producer/reporter order. This example command replays only its named case; repeat it for all cases/provider rows in this record. Original /tmp launcher paths are provenance, not a currently provisioned executable. No maintained multi-provider wrapper or new execution is claimed.
 
 ## Rust comparisons
 

@@ -20,39 +20,15 @@ Original Jim_StringToWide(...,10) calls with sixteen C strings, including raw-ze
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No native observation of this exact question is attached for this provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-No native observation of this exact question is attached for this provider.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No native observation of this exact question is attached for this provider.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No native observation of this exact question is attached for this provider.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
 
 ### jim
 
-Status: `observed`. Version: not queried (capture association; launched patchlevel/revision unqueried). Build: exit=0. Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Direct Jim_StringToWide CString conversion with explicit base10 and errno seed; no interpreter evaluator.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Direct Jim_StringToWide CString conversion with explicit base10 and errno seed; no interpreter evaluator. Version: jim launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -93,29 +69,13 @@ Exact relevant original rows:
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-jim` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
-
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/scalar_getter.rs](../../../../rust/tcl-syntax/src/scalar_getter.rs), `NativeScalarGetterProtocol::jim_decimal_wide_probe`: Owns this decimal string-only stage independently from primitive cache and expression numeral purposes.
 - [rust/tcl-syntax/src/scalar_getter/tests.rs](../../../../rust/tcl-syntax/src/scalar_getter/tests.rs), `scalar_getter::tests::jim_decimal_string_switch_keeps_its_own_native_stage` (linked): Compares32 exact outcomes while rejecting the stage under an unrelated C protocol.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/probe.c)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/manifest.json)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/decimal-switch/jim0.84.txt)

@@ -20,55 +20,11 @@ Rust implementation contract under the explicit contexts used by the linked test
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,21 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs), `resolved_invocation::tests::structured_option_boundary_shares_alias_abbreviation_and_value_span_rules` (linked): Selected option occurrence ranges preserve aliases, abbreviation, fixed value widths and terminator boundaries; computed selectors decline.
 - [rust/tcl-spec-studio/src/sample.rs](../../../../rust/tcl-spec-studio/src/sample.rs), `sample::tests::original_sample_walk_keeps_actual_input_body_purpose_and_word_geometry` (linked): Finite source-defined control: original sample walk keeps actual input body purpose and word geometry. Actual installed Bench input, default C9 file BOM and supplied Skip/Content/FirstClose/strict; complete parent argv/config and true child BOM geometry. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-spec-studio/src/sample.rs](../../../../rust/tcl-spec-studio/src/sample.rs), `sample::tests::original_sample_view_refuses_missing_foreign_and_changed_input_without_zero_counts` (linked): Finite source-defined control: original sample view refuses missing foreign and changed input without zero counts. Genuine source positive, missing input/foreign source/store/changed config refusal; null tokens/summary with retained plain source/diagnostics. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "--manifest-path",
-  "rust/Cargo.toml",
-  "sample::tests::computed_selectors_and_expansion_keep_source_roles_unknown"
-]
-```
-
-Run each listed selector in its owning crate; the argument vector shows the first selector. A coverage binding is not a recorded test execution. Native interpreter measurements are separate records.

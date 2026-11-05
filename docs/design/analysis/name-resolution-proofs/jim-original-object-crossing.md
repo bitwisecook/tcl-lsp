@@ -20,63 +20,23 @@ One exact ASCII LF source runs in the fresh pinned Jim core/static-extension C A
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `not-tested`. Version: 8.4.20. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No C interpreter is executed for this Jim interp-extension crossing question. Public C child APIs and object ownership are independent.
-
-### tcl8.5
-
-Status: `not-tested`. Version: 8.5.19. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No C interpreter is executed for this Jim interp-extension crossing question. Public C child APIs and object ownership are independent.
-
-### tcl8.6
-
-Status: `not-tested`. Version: 8.6.18. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No C interpreter is executed for this Jim interp-extension crossing question. Public C child APIs and object ownership are independent.
-
-### tcl9.0
-
-Status: `not-tested`. Version: 9.0.4. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No C interpreter is executed for this Jim interp-extension crossing question. Public C child APIs and object ownership are independent.
-
-### tcl9.1
-
-Status: `not-tested`. Version: 9.1.0. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
+Status: `not-tested`. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 No C interpreter is executed for this Jim interp-extension crossing question. Public C child APIs and object ownership are independent.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact pinned current Jim archive/executable/header/build/source and counted driver ELF; compiler version unrecorded. Channel: External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only. Dialect: Pinned original provider API/source purpose.
+Status: `observed`. Channel: External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only. Version: jim 0.84-9-g5bac7c9.
 
 Whole guest rows report equality1/1 and lengths0/3/3/2/5 for empty/spaced/NUL/Unicode/escaped; multi-source concat A B versus single nested {A B}; raw return2, return -code7 still2, break3, continue4, error1; parent-frame values LOCAL ::N. Separate counted driver ORIGINAL0/empty. One compile and one original process exit0/empty stderr. Source-copy ownership is separately pinned, with no native pointer/refcount observation.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
+Status: `not-tested`.
 
 No appliance execution answers this exact question.
-
-## Historical references
-
-- `native_jim_child_object_crossing302-capture.py` (input): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/capture.py). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-jim-compile.receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-jim-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-jim-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-jim-original-counted-child-crossing-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-jim-original-counted-child-crossing-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-jim-original-counted-child-crossing-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-jim-probe.elf` (provider): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/probe.elf](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/probe.elf). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-original-request.json` (input): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/original-request.json](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/original-request.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-probe.c` (input): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.c](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.c). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-probe.tcl` (input): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.tcl). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-request.json` (input): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/request.json](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/request.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_object_crossing302-source-jim-interp.c` (source-anchor): [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/source/jim-interp.c](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/source/jim-interp.c). Whole independently pinned Jim interp extension source; source-copy/alias ownership is distinct from public runtime equality and completion observations.
 
 ## Source inspection
 
@@ -164,15 +124,19 @@ static const jim_subcmd_type interp_command_table[] = {
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `Interp::copy_original_jim_object_to`: Copy counted original String bytes at the selected crossing into an independently live target context; ordinary foreign-context binding remains refused.
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::tests::jim_child_crossing_copies_counted_strings_and_preserves_original_context_refusal` (linked): Actual independently live Runtime Jim object contexts copy counted NUL/Unicode bytes into a distinct target producer; foreign/retired ordinary ownership refuses. Authored API identity is not external native pointer evidence.
 - [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::tests::jim_child_counted_crossings_match_original_native_public_rows` (linked): Use exact original302 source and all guest public rows, assert counted VERSION/ORIGINAL0-empty separately, and exclude only reported version metadata from Runtime behaviour comparison. No reconstructed source or native private ownership assertion.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Whole original inputs, actual commands/receipts, counted public outputs, executable/build/source pins and environment overrides are retained. Other inherited environment/compiler version are unrecorded. Absolute external paths are retained; portable replay is not promised. Re-execution yields new observations. Publication runs no native/compiler/Rust process.
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/capture.py)
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stderr)
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/compile.stdout)
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stderr)
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/jim/original-counted-child-crossing/stdout)
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.c](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.c)
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/probe.tcl)
+- [rust/tcl-registry/tests/data/native_jim_child_object_crossing302/source/jim-interp.c](../../../../rust/tcl-registry/tests/data/native_jim_child_object_crossing302/source/jim-interp.c)

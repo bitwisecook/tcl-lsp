@@ -14,7 +14,6 @@ Can constructor signature and class-family advice share an exact original source
 
 OriginalSourceClassDeclaration retains the selected original definer vector, full context, original class-name word, purpose-specific conditional publication geometry and move/alias lineage. OriginalSourceConstructorCall retains the later whole written call and composed effective post-head source operands. Its class join uses the canonical declaration site and whole name operand. The selected declaration schema supplies the family grammar; a reporting metaclass does not select it. The canonical member ledger supplies inherited manufacturer visibility and refuses own overrides, deletion, moves and incomplete coverage. Explicit manufacturer descriptors and provider-authored bare-word construction supply constructor argument coordinates. Known command replacement, deletion, alias cycles, dynamic class names and foreign source images refuse the join. Unknown expansion length remains unknown. OriginalConstructorArityAdvice retains the already assessed expected arity and actual effective count, including indeterminate expansion, under complete original source ownership. Mandatory object-name positions stay distinct from constructor parameters. Core transports this constructor purpose and count independently of message text or a fresh source-head query. Single-command operand capture precedes enclosing operand effects and retains the complete original child vector. Deferred and immediate parent bodies retain genuine selected source geometry. Logical source class calls retain Logical names and body applicability, have no Native input, and abstain from constructor_shape. Top-level manufacturer visibility uses only original member effects before the call; a deferred procedure body retains its separate conditional final-source horizon. A genuine selected setter can join its whole substitution to this class carrier through OriginalSourceHandleConstruction, without a stored handle or a permanent created-command set. Unknown earlier mutation stays explicit, while known class replacement or deletion blocks the join. Constructor diagnostic transport preserves distinct source applicability obligations rather than treating them as observed effects. Inherited constructor source signatures retain their provider's own original factory grammar, name policy and formal dialect; the child cannot issue those axes. Family source handlers consume OriginalClassDefinerSource from the genuinely selected factory/effective argv and canonical original declaration site/name. Captured alias prefix anchors remain earlier original operands; reporting class labels do not select the definer grammar. Genuine family walkers accumulate source metadata through retain_original_source_class_update before presentation publication. The helper requires the selected canonical original class declaration, exact original occurrence/name, unchanged creation name/body geometry and unambiguous typed publication. It updates only the authentic canonical row; a final reporting map cannot select a class or donate arbitrary detached metadata. Later original TclOO configuration sites retain the canonical member ledger independently of reporting maps. This source metadata accumulation establishes no successful class/member handler, Native allocation, runtime method table, MRO, frame or edits. Pending scalar-variable constructor geometry and constant value labels cannot select a Native class. resolve_user_class_at, resolve_user_class_in and pending reporting settlement require the actual positively retained result.resolved_input Logical purpose, not reconstructed default input or a copied advice flag. Removing that actual input withdraws both reporting class queries; genuine original constructor/source-class carriers remain independent. Original Native class user-name units, including distinct precomposed/combining names and Jim class values containing spaces, delegate the existing purpose-selected native publication owner without an added ASCII reporting gate. Empty/NUL names retain their explicit source refusal; Logical naming geometry remains independently bounded. Method/factory schema selectors and registered factory-name slots retain their own descriptors and are not promoted to arbitrary Native publication. Pure name geometry supplies no created class/object or current Native cell identity. Constructor source signatures require independently selected formal parameter grammar. Plain tcl retains authored C8.6 naming simulation while native_name_protocol and parameter_grammar remain unavailable, so name geometry supplies no constructor arity. Explicit C9 source controls select their own formal topology without constructor entry or actual argv. Pending constructor values retain genuine setter-selected variable and selector geometry through the shared source protocol. Source-only Native/hosted class candidates never fall back to reporting labels. Separately positive retained Logical reported-class assistance follows canonical lexical namespace candidates and withdraws when actual input is removed; it grants no Native class/object identity or formal grammar. The separate Logical constructor-shape query requires the canonical same-source class declaration, selected family grammar and exact original factory/captured operands. Overridden or unavailable manufacturers and missing/typed unavailable input withhold it. Native constructor_shape and Native class membership queries retain their independent receipts. The marked outline source definition retains an original class header separately from member-role availability; an older retained release does not borrow Tcl9 member syntax from a catalogue label.
 
-
 Original C/Tcl namespace-body class declarations retain the genuine whole source body and selected factory schema through `ConditionalCBodyApplicability` and the independently retained conditional source namespace. This source publication geometry does not enter a namespace or body and cannot borrow NativeBaseline or Jim authority. Whole original vectors, body containment, full input/configuration/context, source namespace availability and occupied-target refusals remain required. Branch-local declarations do not install into the enclosing graph; later root construction and dispatch need their own owners. These original class cards leave lexical edit admission unavailable and do not themselves supply a completed command world; an independently completed original command world is retained beside them. tclsh 8.6.18, 9.0.4 and 9.1.0 complete the nested `namespace eval outer {namespace eval inner {oo::class create Widget {method m {} {}}}}` control with code 0 and one fixed command world.
 
 ## Scope
@@ -23,57 +22,11 @@ Five class-call source controls cover moves, captured manufacturer prefixes, can
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-Source-only class declaration/call and constructor-signature contract; no native process, successful manufacture, installed class, Native admission or Normal observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 Source-only class declaration/call and constructor-signature contract; no native process, successful manufacture, installed class, Native admission or Normal observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-Source-only class declaration/call and constructor-signature contract; no native process, successful manufacture, installed class, Native admission or Normal observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-Source-only class declaration/call and constructor-signature contract; no native process, successful manufacture, installed class, Native admission or Normal observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-Source-only class declaration/call and constructor-signature contract; no native process, successful manufacture, installed class, Native admission or Normal observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-Source-only class declaration/call and constructor-signature contract; no native process, successful manufacture, installed class, Native admission or Normal observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-Source-only class declaration/call and constructor-signature contract; no native process, successful manufacture, installed class, Native admission or Normal observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -135,16 +88,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs), `command_binding::declaration_layout::logical_purpose_tests::source_class_projection_separates_native_name_from_logical_metadata` (linked): Source class projection separates native name from logical metadata. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 - [rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_purpose_tests.rs), `command_binding::declaration_layout::logical_purpose_tests::logical_class_metadata_requires_original_correspondence_and_unique_inventory` (linked): Logical class metadata requires original correspondence and unique inventory. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission.
 
-
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs), `BodyWalk::apply_original_body_class_effects`: Retain a genuine C/Tcl namespace-body class factory only under conditional original body/schema/namespace ownership, independently of physical receiver or entered-frame authority.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs), `command_binding::source_transition_advice::source_class::tests::c_source_namespace_class_declarations_retain_original_body_and_conditional_scope` (linked): Nested original C/Tcl source namespace declarations preserve canonical class/member cards and explicit conditional body/namespace/factory obligations. Changed source, foreign input, unknown namespace, known factory shadow and closed NativeBaseline refuse. Lexical edit admission remains unavailable; the independently completed original command world is retained, as tclsh 8.6.18 / 9.0.4 / 9.1.0 complete the same script with one fixed command world. This source-defined control has no attached current assertion result.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked source-contract tests require independently retained exact Rust source/executable receipts. Native naming, lifecycle, class filters and constructor runtime behaviour retain their own questions and evidence. No reporting class/family label or successful construction is inferred from this source join.
-
 
 ## Exact original-source Compiler software outcomes
 
@@ -154,8 +99,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -165,4 +109,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 1 | 0 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

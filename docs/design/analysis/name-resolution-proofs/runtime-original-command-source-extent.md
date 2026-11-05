@@ -26,73 +26,45 @@ This body uses the default leak_free interpreter and checks four software result
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred.. Dialect: C Tcl public source/error/frame CLI.
+Status: `observed`. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred. Version: tcl8.4 8.4.20.
 
 Actual stock 8.4.20 retains trailing spaces/tabs and quote/brace closers in all seven successful ::errorInfo reads; each specimen catches marker with code one. The reported C continuation VALUE has two trailing spaces after outer braced formation. Procedure errorInfo retains error proc_marker plus three spaces. info frame is caught unsupported with code one and no frame cmd branch is executed. Original complete hex rows supply the exact public strings without a private engine/frame or arbitrary script claim. Whole process exits zero with empty stderr.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred.. Dialect: C Tcl public source/error/frame CLI.
+Status: `observed`. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred. Version: tcl8.5 8.5.19.
 
 Actual stock 8.5.19 retains trailing spaces/tabs and quote/brace closers in all seven successful ::errorInfo reads; each specimen catches marker with code one. The reported C continuation VALUE has two trailing spaces after outer braced formation. Procedure errorInfo retains error proc_marker plus three spaces. info frame is caught available with code zero/result2 and both measured cmd fields are source_frame_target plus three spaces. Original complete hex rows supply the exact public strings without a private engine/frame or arbitrary script claim. Whole process exits zero with empty stderr.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred.. Dialect: C Tcl public source/error/frame CLI.
+Status: `observed`. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred. Version: tcl8.6 8.6.18.
 
 Actual stock 8.6.18 retains trailing spaces/tabs and quote/brace closers in all seven successful ::errorInfo reads; each specimen catches marker with code one. The reported C continuation VALUE has two trailing spaces after outer braced formation. Procedure errorInfo retains error proc_marker plus three spaces. info frame is caught available with code zero/result2 and both measured cmd fields are source_frame_target plus three spaces. Original complete hex rows supply the exact public strings without a private engine/frame or arbitrary script claim. Whole process exits zero with empty stderr.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred.. Dialect: C Tcl public source/error/frame CLI.
+Status: `observed`. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred. Version: tcl9.0 9.0.4.
 
 Actual stock 9.0.4 retains trailing spaces/tabs and quote/brace closers in all seven successful ::errorInfo reads; each specimen catches marker with code one. The reported C continuation VALUE has two trailing spaces after outer braced formation. Procedure errorInfo retains error proc_marker plus three spaces. info frame is caught available with code zero/result2 and both measured cmd fields are source_frame_target plus three spaces. Original complete hex rows supply the exact public strings without a private engine/frame or arbitrary script claim. Whole process exits zero with empty stderr.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred.. Dialect: C Tcl public source/error/frame CLI.
+Status: `observed`. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred. Version: tcl9.1 9.1.0.
 
 Actual stock 9.1.0 retains trailing spaces/tabs and quote/brace closers in all seven successful ::errorInfo reads; each specimen catches marker with code one. The reported C continuation VALUE has two trailing spaces after outer braced formation. Procedure errorInfo retains error proc_marker plus three spaces. info frame is caught available with code zero/result2 and both measured cmd fields are source_frame_target plus three spaces. Original complete hex rows supply the exact public strings without a private engine/frame or arbitrary script claim. Whole process exits zero with empty stderr.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred.. Dialect: Jim public source/error/frame CLI.
+Status: `observed`. Channel: Fixed original ASCII LF source-file CLI; each specimen original script is also output as hex. Source file tabs are literal ASCII tabs. The continuation specimen is a literal backslash-newline inside a braced value; the language performs its specified brace continuation substitution. No Unicode/raw-NUL/list-object/private command table or compiler admission assertion is inferred. Version: jim 0.84-9-g5bac7c9.
 
 Actual Jim 0.84-9-g5bac7c9 records seven caught marker errors and a caught proc_marker procedure error. Each explicit ::errorInfo read is caught with code one and no-such-variable text. info frame is actually available with code zero/result1; both cmd fields are exactly source_frame_target without trailing spaces. The reported continuation script VALUE retains literal backslash/newline plus three spaces. Complete original hex rows remain authoritative; the request anticipation does not replace this actual availability. Whole process exits zero with empty stderr.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: BIG-IP.
+Status: `not-tested`.
 
 No appliance execution answers this exact command-source reporting question; stock C/Jim caller projections supply no hosted result.
-
-## Historical references
-
-- `extent286-probe.tcl` (input): [rust/tcl-registry/tests/data/native_command_source_extent286/probe.tcl](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/probe.tcl). Exact original fixed ASCII LF source executed by all six providers.
-- `extent286-request.json` (input): [rust/tcl-registry/tests/data/native_command_source_extent286/request.json](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/request.json). Unchanged authored question/source/provider/channel request and original expectations; actual observed availability and values govern the canonical conclusion.
-- `extent286-capture.py` (input): [rust/tcl-registry/tests/data/native_command_source_extent286/capture.py](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/capture.py). Exact Root-executed launcher with explicit provider/executable/artifact checks, external prior provider receipts, recorded CLI source-file commands and whole streams; no new launch is claimed.
-- `extent286-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `extent286-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20/stdout). Whole exact stdout with reported specimen VALUE hex, caught error/result fields and actual frame availability/cmd values; no row inferred or normalised.
-- `extent286-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20/stderr). Whole exact empty process stderr.
-- `extent286-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `extent286-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19/stdout). Whole exact stdout with reported specimen VALUE hex, caught error/result fields and actual frame availability/cmd values; no row inferred or normalised.
-- `extent286-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19/stderr). Whole exact empty process stderr.
-- `extent286-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `extent286-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18/stdout). Whole exact stdout with reported specimen VALUE hex, caught error/result fields and actual frame availability/cmd values; no row inferred or normalised.
-- `extent286-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18/stderr). Whole exact empty process stderr.
-- `extent286-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `extent286-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4/stdout). Whole exact stdout with reported specimen VALUE hex, caught error/result fields and actual frame availability/cmd values; no row inferred or normalised.
-- `extent286-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4/stderr). Whole exact empty process stderr.
-- `extent286-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `extent286-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0/stdout). Whole exact stdout with reported specimen VALUE hex, caught error/result fields and actual frame availability/cmd values; no row inferred or normalised.
-- `extent286-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0/stderr). Whole exact empty process stderr.
-- `extent286-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_command_source_extent286/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/jim/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `extent286-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/jim/stdout](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/jim/stdout). Whole exact stdout with reported specimen VALUE hex, caught error/result fields and actual frame availability/cmd values; no row inferred or normalised.
-- `extent286-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_command_source_extent286/jim/stderr](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/jim/stderr). Whole exact empty process stderr.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -103,18 +75,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lexer/src/native_script_words.rs](../../../../rust/tcl-lexer/src/native_script_words.rs), `native_script_words::tests::original_command_extent_rebases_inside_its_genuine_region` (linked): Genuine bounded original region retains rebased physical source extent separately from word envelope and whole-image NativeWord ownership.
 - [rust/tcl-compiler/src/codegen/statements.rs](../../../../rust/tcl-compiler/src/codegen/statements.rs), `codegen::statements::tests::original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim` (linked): C recipe emitter uses parser-issued physical reporting extent while vector-only/Jim/unknown recipe retains represented span; opaque byte coverage is implementation-only, not an additional native observed input.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::log_command_info`: Pass the actual parsed command slice and source line to the shared reached error-log owner; an already logged nested command suppresses enclosing duplicate logging.
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `Interp::log_command_bytes`: Retain reached command bytes, selected error-log policy and frame-relative line through shared errorInfo/errorStack publication.
 - [runtime/rust/src/cmd_error.rs](../../../../runtime/rust/src/cmd_error.rs), `cmd_error::tests::error_info_stack_traces` (linked): Four default Interp public errorInfo strings assert trailing space in a simple proc command, body-relative multiline line3, suppression of the enclosing nested-substitution command, and the apply lambda frame. These are software expectations, not new six-provider excerpt or source-offset observations.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Whole exact source/commands/streams, public version row, recorded environment overrides and required executable/library/header/Makefile/source associations remain in unchanged receipts. Other inherited environment variables are unrecorded. The exact executed launcher depends on original external paths and prior receipts; its bytes are not a portable replay promise. Re-running produces new observations. Source/build associations do not prove executable compiled-source identity. Publication/gate launches no native or Rust process.
-
 
 ## Exact original-source349 software outcomes
 
@@ -125,4 +90,14 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_command_source_extent286](../../../../rust/tcl-registry/tests/data/native_command_source_extent286)
+- [rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.4.20)
+- [rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.5.19)
+- [rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/8.6.18)
+- [rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.0.4)
+- [rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/9.1.0)
+- [rust/tcl-registry/tests/data/native_command_source_extent286/jim](../../../../rust/tcl-registry/tests/data/native_command_source_extent286/jim)

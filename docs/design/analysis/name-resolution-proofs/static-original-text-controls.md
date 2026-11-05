@@ -20,92 +20,23 @@ Six exact ASCII source strings, one fresh interpreter per case and source mode. 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
-
-Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
-
-Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
-
-Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
-
-Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Dialect: Tcl.
+Status: `observed`. Channel: Original ASCII source passed to Tcl_EvalEx flags0 and TCL_EVAL_DIRECT in separate fresh interpreters. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The same finite observations hold in each explicit C source mode.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact original compile argv, header/library/build/source and stream digests are retained in the provider receipt. Channel: Original ASCII source passed to Jim_Eval; no C Direct recipe. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original ASCII source passed to Jim_Eval; no C Direct recipe. Version: jim 0.84-9-g5bac7c9.
 
 Four positive cases complete0: escaped words 70 ed a0 80, empty quote zero bytes, opaque procedure call VALUE; both negative cases complete1. The Jim C Direct control is unavailable.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded Channel: not tested Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance capture is attached to these exact fresh-source scripts.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-compiler/tests/data/native_original_jim_text/probe.c](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/probe.c). Exact original source scripts, fresh interpreter per case and explicit C source modes or Jim source.
-- `inputs` (input): [rust/tcl-compiler/tests/data/native_original_jim_text/inputs.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/inputs.json). Exact ASCII source escapes and question scope; no raw surrogate or NUL source character.
-- `aggregate` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/receipt.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/receipt.json). All six actual original compile/process captures and provider/input/executable/stream digests.
-- `queue` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/queue.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/queue.json). Original input/provider/source/header/library/build pin correspondence.
-- `capture-runner` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/capture.py](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/capture.py). Exact original capture driver; absolute paths are archival.
-- `replay` (implementation): [rust/tcl-compiler/tests/data/native_original_jim_text/replay.py](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/replay.py). Offline retained-byte verification and optional independent fresh capture using exact provider pins.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/receipt.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/receipt.json). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.4-stdout.tsv` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/stdout.tsv](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/stdout.tsv). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.4-stderr` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.4-compile.stdout` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/compile.stdout](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/compile.stdout). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.4-compile.stderr` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/compile.stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20/compile.stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/receipt.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/receipt.json). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.5-stdout.tsv` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/stdout.tsv](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/stdout.tsv). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.5-stderr` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.5-compile.stdout` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/compile.stdout](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/compile.stdout). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.5-compile.stderr` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/compile.stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19/compile.stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/receipt.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/receipt.json). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.6-stdout.tsv` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/stdout.tsv](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/stdout.tsv). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.6-stderr` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.6-compile.stdout` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/compile.stdout](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/compile.stdout). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl8.6-compile.stderr` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/compile.stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18/compile.stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/receipt.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/receipt.json). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.0-stdout.tsv` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/stdout.tsv](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/stdout.tsv). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.0-stderr` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.0-compile.stdout` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/compile.stdout](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/compile.stdout). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.0-compile.stderr` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/compile.stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4/compile.stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/receipt.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/receipt.json). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.1-stdout.tsv` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/stdout.tsv](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/stdout.tsv). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.1-stderr` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.1-compile.stdout` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/compile.stdout](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/compile.stdout). Unchanged original per-provider receipt or actual compile/process stream.
-- `tcl9.1-compile.stderr` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/compile.stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0/compile.stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `jim-receipt.json` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/jim/receipt.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/jim/receipt.json). Unchanged original per-provider receipt or actual compile/process stream.
-- `jim-stdout.tsv` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/jim/stdout.tsv](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/jim/stdout.tsv). Unchanged original per-provider receipt or actual compile/process stream.
-- `jim-stderr` (observation): [rust/tcl-compiler/tests/data/native_original_jim_text/jim/stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/jim/stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `jim-compile.stdout` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/jim/compile.stdout](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/jim/compile.stdout). Unchanged original per-provider receipt or actual compile/process stream.
-- `jim-compile.stderr` (provider): [rust/tcl-compiler/tests/data/native_original_jim_text/jim/compile.stderr](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/jim/compile.stderr). Unchanged original per-provider receipt or actual compile/process stream.
-- `jim-source-2087` (source-anchor): [rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-2087-2111.txt](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-2087-2111.txt). Exact Jim source excerpt; full original source digest and line extent are retained separately.
-- `jim-source-2549` (source-anchor): [rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-2549-2558.txt](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-2549-2558.txt). Exact Jim source excerpt; full original source digest and line extent are retained separately.
-- `jim-source-11256` (source-anchor): [rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-11256-11269.txt](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-11256-11269.txt). Exact Jim source excerpt; full original source digest and line extent are retained separately.
-- `jim-source-11663` (source-anchor): [rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-11663-11679.txt](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-11663-11679.txt). Exact Jim source excerpt; full original source digest and line extent are retained separately.
-- `jim-source-11343` (source-anchor): [rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-11343-11400.txt](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source/jim-11343-11400.txt). Exact Jim source excerpt; full original source digest and line extent are retained separately.
-- `source-anchors` (source-anchor): [rust/tcl-compiler/tests/data/native_original_jim_text/source-anchors.json](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source-anchors.json). Source-reading identity and exact function/line/snippet/full-source digests; source inspection is independent of output observations.
 
 ## Source inspection
 
@@ -246,7 +177,6 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c
         Jim_SetSourceInfo(interp, objPtr, fileNameObj, line);
     }
 
-
     s = objPtr->bytes = Jim_Alloc(totlen + 1);
     objPtr->length = totlen;
     for (i = 0; i < tokens; i++) {
@@ -264,14 +194,13 @@ jim 0.84-9-g5bac7c9, revision `5bac7c99ad65864c87da513e22e2f01703fa4e03`, `jim.c
 
 A named selector is a coverage binding, not a claim that it executed.
 
-## Replay
+## Evidence
 
-```json
-[
-  "python3",
-  "rust/tcl-compiler/tests/data/native_original_jim_text/replay.py",
-  "--verify-only"
-]
-```
-
-Offline verification checks retained exact input/stream/hash and finite result controls; it makes no fresh execution claim. Optional --output requires an absent directory and every original provider pin at the archived path, then records fresh attempts separately. Jim C Direct is unavailable. No Rust execution result is inferred.
+- [rust/tcl-compiler/tests/data/native_original_jim_text](../../../../rust/tcl-compiler/tests/data/native_original_jim_text)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.4.20)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.5.19)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/8.6.18)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.0.4)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/9.1.0)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/jim](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/jim)
+- [rust/tcl-compiler/tests/data/native_original_jim_text/source](../../../../rust/tcl-compiler/tests/data/native_original_jim_text/source)

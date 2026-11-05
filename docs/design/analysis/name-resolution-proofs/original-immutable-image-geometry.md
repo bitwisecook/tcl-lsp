@@ -20,55 +20,11 @@ Immutable byte-position geometry and storage reuse only. No role, name key, avai
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This immutable source byte/channel/digest/line-position cache contract supplies no native interpreter, source evaluation, compiler admission, object/header/frame or result observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This immutable source byte/channel/digest/line-position cache contract supplies no native interpreter, source evaluation, compiler admission, object/header/frame or result observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This immutable source byte/channel/digest/line-position cache contract supplies no native interpreter, source evaluation, compiler admission, object/header/frame or result observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This immutable source byte/channel/digest/line-position cache contract supplies no native interpreter, source evaluation, compiler admission, object/header/frame or result observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This immutable source byte/channel/digest/line-position cache contract supplies no native interpreter, source evaluation, compiler admission, object/header/frame or result observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This immutable source byte/channel/digest/line-position cache contract supplies no native interpreter, source evaluation, compiler admission, object/header/frame or result observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This immutable source byte/channel/digest/line-position cache contract supplies no native interpreter, source evaluation, compiler admission, object/header/frame or result observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `source_map::immutable_image_geometry_tests::original_image_positions_reuse_immutable_geometry_without_changing_identity` (linked): Finite Unicode/CRLF/NUL positions match across clones; independent cache, exact equality/hash/ordering and changed source/channel remain distinct.
 - [rust/tcl-lexer/src/source_map.rs](../../../../rust/tcl-lexer/src/source_map.rs), `source_map::immutable_image_geometry_tests::original_native_byte_positions_need_no_unicode_or_document_channel` (linked): Opaque Native bytes retain their exact positions/channel without a Unicode view.
 - [rust/tcl-compiler/src/registry_invocation/source_structure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure.rs), `registry_invocation::source_structure::retained_image_geometry_tests::source_schema_geometry_reuses_the_whole_retained_image_and_keeps_currency` (linked): Genuine Logical schema words reuse the whole immutable byte allocation; stale source/configuration and NativeValue channel decline.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Marked Rust selectors bind immutable geometry reuse, exact identity and source currency. No elapsed-time, allocation-count, stack bound or performance improvement observation is attached. Source roles, handler selection, runtime objects and native results remain independent.

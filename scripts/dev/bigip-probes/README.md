@@ -72,11 +72,13 @@ captures use tmsh submissions and actual Chrome APL rendering.
 
 ## Naming oracle captures
 
-`name-patterns/` retains complete inputs, applied configuration, invocation
-receipts and raw result bytes under `experiments/name-handling/`. `report.py`
-derives answer records without deploying or promoting them. `register.py`
-prepares narrowly scoped records for the existing canonical proof authority;
-review those records before merging them. Sealed run directories are immutable.
+`name-patterns/` deploys the naming oracle probes and collects their raw
+output into a local, ignored run directory under `experiments/name-handling/`.
+Commit only the minimised result: one file per executed case under
+`evidence/tcl`, linking the shared harness as a
+[fixture](../../../evidence/tcl/fixtures/README.md) and recording the case's
+own setup/operation/cleanup and decoded results. Do not commit applied
+configurations, raw logs, archives or hashes.
 
 `persistence.py --run <unique-tag>` measures once-seeded TMM state and paired
 connections. `namespace_owner.py --run <unique-tag>` checks the requested,

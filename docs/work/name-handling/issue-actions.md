@@ -10,6 +10,6 @@ Runtime174, VM133, Formatter88 and integration55/15 remain **UNEXECUTED**. The f
 
 Only Root updates GitHub, after concrete published source and complete issue-specific acceptance. Closed issues #2287, #2300 and #2450 retain their original scoped published receipts; do not reopen or extend their acceptance from this audit. Preserve their regressions and the other closed-issue cases catalogued in [issues.md](issues.md).
 
-[Issue metadata](audit-next-issues.json) is 449 reads / 97 OPEN / 352 CLOSED as of 2026-10-15 11:06:53 UTC. All 103 additional hits have report-scope classification; current source/selector/acceptance mapping remains separate. No issue state was changed here. Do not infer 97 remaining naming issues or derive migration counts from issues.
+Issue metadata is 449 reads / 97 OPEN / 352 CLOSED as of 2026-10-15 11:06:53 UTC. All 103 additional hits have report-scope classification; current source/selector/acceptance mapping remains separate. No issue state was changed here. Do not infer 97 remaining naming issues or derive migration counts from issues.
 
 Before closing #2286, execute the unchanged original program plus actual positive/negative/import/shared-read/refusal controls with matching original provider libraries/harnesses, retain all assertions/budgets, and establish the full issue acceptance. No closure or PR is warranted now.

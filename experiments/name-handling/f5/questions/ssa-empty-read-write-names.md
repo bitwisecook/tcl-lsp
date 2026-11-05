@@ -2,7 +2,7 @@
 
 Status: unanswered. C/Jim observations are not F5/TMM observations. Return actual answers on the same `work` branch under experiments/name-handling/f5/answers/ssa-empty-read-write-names/. Do not replace an unavailable iRule operation with tmsh or a Linux tclsh result.
 
-Run the unchanged [finite source](../../results/ssa-empty-read-write-names/probe.tcl) in an isolated supported TMM/iRule context through the actual platform harness. Its procedure helper uses uplevel only to keep each captured operation in the supplied scope. If that helper, command or declaration is unsupported, retain the complete setup/refusal output and the unreached cases. A separately adapted iRule must retain its full actual source and context; it is a different input.
+Run the unchanged finite source in an isolated supported TMM/iRule context through the actual platform harness. Its procedure helper uses uplevel only to keep each captured operation in the supplied scope. If that helper, command or declaration is unsupported, retain the complete setup/refusal output and the unreached cases. A separately adapted iRule must retain its full actual source and context; it is a different input.
 
 Questions:
 

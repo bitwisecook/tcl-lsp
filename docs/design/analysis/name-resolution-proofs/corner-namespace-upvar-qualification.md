@@ -36,44 +36,6 @@ The six original provider scripts, process statuses, caught guest completion cod
 
 C8.5–9.1 and Jim return VALUE; C8.4 retains its unavailable upvar-option error.
 
-## Historical references
-
-- `manifest`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original six-provider case rows; filter case=namespace-upvar-qualification.
-- `versions`: `rust/tcl-syntax/tests/data/native_naming_corners/version-inventory.json`. Original reported interpreter identity.
-- `controls`: `rust/tcl-syntax/tests/data/native_naming_corners/controls.json`. Authored control body for namespace-upvar-qualification; exact observer wrappers are separate provider inputs.
-- `tcl8.4-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-upvar-qualification.tcl`. Exact 8.4.20 input for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.4-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-upvar-qualification.stdout`. Exact 8.4.20 stdout for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.4-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.4.20/namespace-upvar-qualification.stderr`. Exact 8.4.20 stderr for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.4-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.4.20 namespace-upvar-qualification. JSON pointer `/rows/22`.
-- `tcl8.5-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-upvar-qualification.tcl`. Exact 8.5.19 input for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.5-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-upvar-qualification.stdout`. Exact 8.5.19 stdout for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.5-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.5.19/namespace-upvar-qualification.stderr`. Exact 8.5.19 stderr for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.5-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.5.19 namespace-upvar-qualification. JSON pointer `/rows/62`.
-- `tcl8.6-input`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-upvar-qualification.tcl`. Exact 8.6.18 input for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.6-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-upvar-qualification.stdout`. Exact 8.6.18 stdout for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.6-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/8.6.18/namespace-upvar-qualification.stderr`. Exact 8.6.18 stderr for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl8.6-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 8.6.18 namespace-upvar-qualification. JSON pointer `/rows/102`.
-- `tcl9.0-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-upvar-qualification.tcl`. Exact 9.0.4 input for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl9.0-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-upvar-qualification.stdout`. Exact 9.0.4 stdout for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl9.0-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.0.4/namespace-upvar-qualification.stderr`. Exact 9.0.4 stderr for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl9.0-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.0.4 namespace-upvar-qualification. JSON pointer `/rows/142`.
-- `tcl9.1-input`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-upvar-qualification.tcl`. Exact 9.1.0 input for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl9.1-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-upvar-qualification.stdout`. Exact 9.1.0 stdout for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl9.1-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/9.1.0/namespace-upvar-qualification.stderr`. Exact 9.1.0 stderr for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `tcl9.1-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for 9.1.0 namespace-upvar-qualification. JSON pointer `/rows/182`.
-- `jim-input`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-upvar-qualification.tcl`. Exact Jim input for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `jim-stdout`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-upvar-qualification.stdout`. Exact Jim stdout for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `jim-stderr`: `rust/tcl-syntax/tests/data/native_naming_corners/Jim/namespace-upvar-qualification.stderr`. Exact Jim stderr for namespace-upvar-qualification; source channel is the retained CLI script file.
-- `jim-row`: `rust/tcl-syntax/tests/data/native_naming_corners/manifest.json`. Original process/guest status and hashes for Jim namespace-upvar-qualification. JSON pointer `/rows/222`.
-
 ## Source anchors and implementation tests
 
 No interpreter-source excerpt or executed Rust test is attached to this question. The selected name-policy owner must retain each consumer purpose separately; this native script result cannot substitute for a Rust assertion.
-
-## Replay
-
-```text
-python3 scripts/dev/replay-native-naming-corners.py --case namespace-upvar-qualification --provider <provider-id>=<exact-native-CLI-path> --library <provider-id>=<matching-native-library-directory> --output <new-independent-receipt.json>
-```
-
-The original executed script and its captured results are in [per-script evidence](../../../../evidence/tcl/native-naming-corner-namespace-upvar-qualification.md). A replay is a separate execution and must record its own results.

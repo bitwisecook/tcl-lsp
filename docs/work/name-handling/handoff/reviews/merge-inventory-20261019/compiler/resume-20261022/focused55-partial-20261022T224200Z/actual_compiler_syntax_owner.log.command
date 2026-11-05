@@ -1,1 +1,0 @@
-cargo test --locked -p tcl-compiler --lib command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner -- --exact --nocapture --test-threads=1

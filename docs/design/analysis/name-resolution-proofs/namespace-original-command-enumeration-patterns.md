@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.4.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl8.4 8.4.20.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -115,7 +115,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.5.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl8.5 8.5.19.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -208,7 +208,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.6.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl8.6 8.6.18.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -301,7 +301,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.0.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl9.0 9.0.4.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -394,7 +394,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.1.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source. Version: tcl9.1 9.1.0.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -487,7 +487,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### jim
 
-Status: `observed`. Version: jim. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.. Dialect: jim.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: Jim_Eval, Jim_EvalObjVector, Tcl_Eval, Tcl_EvalObjv. Exact lengths, flags and input constructors remain in the source.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -570,63 +570,14 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-registry/tests/data/native_info_commands/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_info_commands/8.4.20.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-registry/tests/data/native_info_commands/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_info_commands/8.5.19.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (observation): [rust/tcl-registry/tests/data/native_info_commands/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_info_commands/8.6.18.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-3` (observation): [rust/tcl-registry/tests/data/native_info_commands/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_info_commands/9.0.4.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (observation): [rust/tcl-registry/tests/data/native_info_commands/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_info_commands/9.1.0.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5` (observation): [rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-5-row-6` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-5-row-7` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-5-row-8` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-5-row-9` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-5-row-10` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-5-row-11` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt1-manifest.json). JSON pointer `/5`. Original provider/capture association at its exact selected row.
-- `file-12` (observation): [rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-12-row-13` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-12-row-14` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-12-row-15` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-12-row-16` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-12-row-17` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-12-row-18` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt2-manifest.json). JSON pointer `/5`. Original provider/capture association at its exact selected row.
-- `file-19` (input): [rust/tcl-registry/tests/data/native_info_commands/attempt3-jim-probe.c](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-jim-probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-20` (observation): [rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-20-row-21` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-20-row-22` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-20-row-23` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-20-row-24` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-20-row-25` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-20-row-26` (provider): [rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-manifest.json). JSON pointer `/5`. Original provider/capture association at its exact selected row.
-- `file-27` (input): [rust/tcl-registry/tests/data/native_info_commands/attempt3-probe.c](../../../../rust/tcl-registry/tests/data/native_info_commands/attempt3-probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-28` (input): [rust/tcl-registry/tests/data/native_info_commands/cases.rs](../../../../rust/tcl-registry/tests/data/native_info_commands/cases.rs). Exact retained input/program bytes; purpose is limited to this question.
-- `file-29` (input): [rust/tcl-registry/tests/data/native_info_commands/jim-probe.c](../../../../rust/tcl-registry/tests/data/native_info_commands/jim-probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-30` (observation): [rust/tcl-registry/tests/data/native_info_commands/jim.txt](../../../../rust/tcl-registry/tests/data/native_info_commands/jim.txt). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-31` (observation): [rust/tcl-registry/tests/data/native_info_commands/manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-31-row-32` (provider): [rust/tcl-registry/tests/data/native_info_commands/manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/manifest.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-31-row-33` (provider): [rust/tcl-registry/tests/data/native_info_commands/manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/manifest.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-31-row-34` (provider): [rust/tcl-registry/tests/data/native_info_commands/manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/manifest.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-31-row-35` (provider): [rust/tcl-registry/tests/data/native_info_commands/manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/manifest.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-31-row-36` (provider): [rust/tcl-registry/tests/data/native_info_commands/manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/manifest.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-31-row-37` (provider): [rust/tcl-registry/tests/data/native_info_commands/manifest.json](../../../../rust/tcl-registry/tests/data/native_info_commands/manifest.json). JSON pointer `/5`. Original provider/capture association at its exact selected row.
-- `file-38` (input): [rust/tcl-registry/tests/data/native_info_commands/probe.c](../../../../rust/tcl-registry/tests/data/native_info_commands/probe.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-39` (observation): [rust/tcl-registry/tests/data/native_info_commands/windows.tsv](../../../../rust/tcl-registry/tests/data/native_info_commands/windows.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted. The source digests in attempt1-manifest.json and attempt2-manifest.json match no retained probe. Those two missing original probe variants cannot be reconstructed or replayed from a hash. Their rejected/aborted statuses remain evidence of the captured harness outcome only; successful enumeration claims use the separately retained final source and output tables.
+- [rust/tcl-registry/tests/data/native_info_commands](../../../../rust/tcl-registry/tests/data/native_info_commands)

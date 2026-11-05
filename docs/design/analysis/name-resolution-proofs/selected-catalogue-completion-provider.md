@@ -14,31 +14,7 @@ Exact existing catalogue unit: lsp-completion-catalogue-selected-provider-filter
 
 ## Provider answers
 
-### tcl8.4
-
-Status: `not-tested`. Source-advice implementation only; no provider execution or ordinary Rust test result is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Source-advice implementation only; no provider execution or ordinary Rust test result is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Source-advice implementation only; no provider execution or ordinary Rust test result is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Source-advice implementation only; no provider execution or ordinary Rust test result is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Source-advice implementation only; no provider execution or ordinary Rust test result is claimed.
-
-### jim
-
-Status: `not-tested`. Source-advice implementation only; no provider execution or ordinary Rust test result is claimed.
-
-### bigip
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
 Status: `not-tested`. Source-advice implementation only; no provider execution or ordinary Rust test result is claimed.
 
@@ -66,13 +42,6 @@ The legacy instance_methods_for_descriptor_at wrapper retains its original unifo
 - `completion::inherited_registry_completion_provider_tests::inherited_completion_uses_selected_provider_package_instead_of_receiver_package` (linked): opposite receiver/provider package floors and a later foreign same-name descriptor cannot suppress or invent an inherited item.
 
 A named selector is unexecuted coverage, not a provider or Rust result. All original test fixtures and assertions remain byte-identical.
-
-## Replay
-
-Root owns ordinary build, exact binary singleton listing, execution and count reconciliation. The original two and added three selectors are validation annexes to the one existing caller purpose; neither is a new semantic owner or per-helper count. Preserve all original completion operator, method-context, package, grammar, source/currentness and provider controls.
-
-The additional `completion::inherited_registry_roster_completion_tests::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster` selector retains a genuine Jim 0.79 Logical editing input. A Tcl surface edge alone admits the superclass descriptor, while the actual inherited command roster excludes it. Full context resolution, including roster and invocation realm, must select that exact descriptor before any method or package floor is projected. This new control remains unexecuted.
-
 
 ## Current index binding
 

@@ -31,10 +31,10 @@ set rows
 
 ## Results
 
-### TMM 0:0, HTTP_REQUEST
+### TMM 0:0, HTTP_REQUEST; TMM 0:1, HTTP_REQUEST; TMM 0:2, HTTP_REQUEST; TMM 0:3, HTTP_REQUEST
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:0, HTTP_REQUEST.
+- Recorded input channel: TMM 0:0, HTTP_REQUEST; TMM 0:1, HTTP_REQUEST; TMM 0:2, HTTP_REQUEST; TMM 0:3, HTTP_REQUEST.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -46,70 +46,10 @@ set rows
 
 The wrapper recorded Tcl completion code 0. The same result appeared in 32 responses with status HTTP/1.0 200 OK.
 
-### TMM 0:1, HTTP_REQUEST
+### TmshCliScript; IAppImplementation
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:1, HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{{"abcd" matches "a*"} 0 1} {{"a*" matches "a*"} 0 1} {{"a*" matches "abcd"} 0 0} {{"abcd" matches "a.*"} 0 0} {{"abcd" matches "bc"} 0 0} {{"abcd" matches "abcd"} 0 1} {{1 or 0 matches 0} 0 1} {{not "abc" starts_with "a"} 1 {can't use non-numeric string as operand of "!"}} {{not ("abc" starts_with "a")} 0 0}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result appeared in 32 responses with status HTTP/1.0 200 OK.
-
-### TMM 0:2, HTTP_REQUEST
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:2, HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{{"abcd" matches "a*"} 0 1} {{"a*" matches "a*"} 0 1} {{"a*" matches "abcd"} 0 0} {{"abcd" matches "a.*"} 0 0} {{"abcd" matches "bc"} 0 0} {{"abcd" matches "abcd"} 0 1} {{1 or 0 matches 0} 0 1} {{not "abc" starts_with "a"} 1 {can't use non-numeric string as operand of "!"}} {{not ("abc" starts_with "a")} 0 0}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result appeared in 32 responses with status HTTP/1.0 200 OK.
-
-### TMM 0:3, HTTP_REQUEST
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:3, HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{{"abcd" matches "a*"} 0 1} {{"a*" matches "a*"} 0 1} {{"a*" matches "abcd"} 0 0} {{"abcd" matches "a.*"} 0 0} {{"abcd" matches "bc"} 0 0} {{"abcd" matches "abcd"} 0 1} {{1 or 0 matches 0} 0 1} {{not "abc" starts_with "a"} 1 {can't use non-numeric string as operand of "!"}} {{not ("abc" starts_with "a")} 0 0}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result appeared in 32 responses with status HTTP/1.0 200 OK.
-
-### TmshCliScript
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TmshCliScript.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{{"abcd" matches "a*"} 0 1} {{"a*" matches "a*"} 0 1} {{"a*" matches "abcd"} 0 0} {{"abcd" matches "a.*"} 0 0} {{"abcd" matches "bc"} 0 0} {{"abcd" matches "abcd"} 0 1} {{1 or 0 matches 0} 0 1} {{not "abc" starts_with "a"} 1 {can't use non-numeric string as operand of "!"}} {{not ("abc" starts_with "a")} 0 0}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. This result was decoded from the retained context marker.
-
-### IAppImplementation
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: IAppImplementation.
+- Recorded input channel: TmshCliScript; IAppImplementation.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.

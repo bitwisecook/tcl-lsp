@@ -30,16 +30,6 @@ Six fixed public C callback controls per C8.4.20–9.1.0 release; scalar getter 
 
 All five C captures preserve repeated and nested original pointer identity. Reached integer and string getters publish the retained primary/resident changes on that same object; failed integer conversion may still install a Double or Bignum primary depending on the release. Binary backing00FF materializes as C080C3BF while retaining ByteArray primary. Equal text alone establishes none of these object facts.
 
-## Historical references
-
-- `probe`: `rust/tcl-cshim/tests/data/native_original_objects/probe.c`. Exact public callback/getter program.
-- `manifest`: `rust/tcl-cshim/tests/data/native_original_objects/manifest.json`. Provider compile/library/output hashes plus all thirty native rows.
-- `native-8.4.20`: `rust/tcl-cshim/tests/data/native_original_objects/8.4.20.jsonl`. Actual six rows with original alias/primary/resident observations.
-- `native-8.5.19`: `rust/tcl-cshim/tests/data/native_original_objects/8.5.19.jsonl`. Actual six rows with original alias/primary/resident observations.
-- `native-8.6.18`: `rust/tcl-cshim/tests/data/native_original_objects/8.6.18.jsonl`. Actual six rows with original alias/primary/resident observations.
-- `native-9.0.4`: `rust/tcl-cshim/tests/data/native_original_objects/9.0.4.jsonl`. Actual six rows with original alias/primary/resident observations.
-- `native-9.1.0`: `rust/tcl-cshim/tests/data/native_original_objects/9.1.0.jsonl`. Actual six rows with original alias/primary/resident observations.
-
 ## Source anchors
 
 No interpreter-source anchor is asserted for this question; the retained probe and outcomes establish the narrow observation.

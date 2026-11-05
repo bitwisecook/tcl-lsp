@@ -20,55 +20,11 @@ Authored Rust source applicability only. Complete current editing input, whole i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -91,9 +47,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/interpreter_handle.rs), `command_binding::source_transition_advice::interpreter_handle::tests::original_created_handle_moves_keep_child_path_and_parent_lineage_separate` (linked): The conditional source ledger retains the exact original child path and parent Move lineage separately under complete Create/Move vectors and current input; no runtime child or callable is installed.
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_moved_handle_visibility_uses_the_original_child_path` (linked): Conditional moved-handle visibility joins the unique current untainted retained Create vector and uses the original child path independently of its changed parent reporting key.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice.rs), `command_binding::source_transition_advice::tests::original_move_qualifier_retains_the_complete_operand_and_rejects_other_projections` (linked): The original Move namespace qualifier retains the complete destination at its actual ordinal and native extent, while unrelated/missing projections cannot acquire a complete namespace word.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The three named selectors bind source-contract coverage without an executed Rust claim. Independent CLI parent-command observations establish no private handle or runtime allocation identity.

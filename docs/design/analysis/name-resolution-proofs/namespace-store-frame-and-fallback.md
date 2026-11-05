@@ -24,73 +24,29 @@ Current direct test attributes and real module parents attach these source/API c
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.4.20. Build: Actual shell executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: ASCII file bytes supplied to native shell stdin. Dialect: Tcl.
-
-EXISTING_ROOT: bare Set updates root to VALUE and ::N::x is absent. FRESH_NO_ROOT: ::Fresh::x=VALUE and root is absent. EXPLICIT_VARIABLE: namespace x=VALUE and root stays ROOT.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual shell executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: ASCII file bytes supplied to native shell stdin. Dialect: Tcl.
+Status: `observed`. Channel: ASCII file bytes supplied to native shell stdin. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 EXISTING_ROOT: bare Set updates root to VALUE and ::N::x is absent. FRESH_NO_ROOT: ::Fresh::x=VALUE and root is absent. EXPLICIT_VARIABLE: namespace x=VALUE and root stays ROOT.
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Actual shell executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: ASCII file bytes supplied to native shell stdin. Dialect: Tcl.
-
-EXISTING_ROOT: bare Set updates root to VALUE and ::N::x is absent. FRESH_NO_ROOT: ::Fresh::x=VALUE and root is absent. EXPLICIT_VARIABLE: namespace x=VALUE and root stays ROOT.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual shell executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: ASCII file bytes supplied to native shell stdin. Dialect: Tcl.
-
-EXISTING_ROOT: ::N::x=VALUE and root stays ROOT. FRESH_NO_ROOT: namespace x=VALUE and root is absent. EXPLICIT_VARIABLE: namespace x=VALUE and root stays ROOT.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual shell executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: ASCII file bytes supplied to native shell stdin. Dialect: Tcl.
+Status: `observed`. Channel: ASCII file bytes supplied to native shell stdin. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 EXISTING_ROOT: ::N::x=VALUE and root stays ROOT. FRESH_NO_ROOT: namespace x=VALUE and root is absent. EXPLICIT_VARIABLE: namespace x=VALUE and root stays ROOT.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual shell executable; independent original header/library/Makefile/source-owner hashes retained. Actual info patchlevel result is retained.. Channel: ASCII file bytes supplied to native shell stdin. Dialect: Jim Tcl.
+Status: `observed`. Channel: ASCII file bytes supplied to native shell stdin. Version: jim 0.84-9-g5bac7c9.
 
 Bare Set creates activation-local x: namespace global x is absent in both cases and an existing root stays ROOT. Explicit variable creates ::Explicit::x=VALUE and leaves root ROOT.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this exact question.
-
-## Historical references
-
-- `input` (input): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/namespace-cases.tcl](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/namespace-cases.tcl). Exact immutable native source input.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/receipt.json](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/receipt.json). JSON pointer `/namespace`. Actual original provider/source/header/library/Makefile/executable/process correspondence.
-- `tcl8.4-namespace.stdout` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/namespace.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/namespace.stdout). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl8.4-namespace.stderr` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/namespace.stderr](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20/namespace.stderr). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/receipt.json](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/receipt.json). JSON pointer `/namespace`. Actual original provider/source/header/library/Makefile/executable/process correspondence.
-- `tcl8.5-namespace.stdout` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/namespace.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/namespace.stdout). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl8.5-namespace.stderr` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/namespace.stderr](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19/namespace.stderr). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/receipt.json](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/receipt.json). JSON pointer `/namespace`. Actual original provider/source/header/library/Makefile/executable/process correspondence.
-- `tcl8.6-namespace.stdout` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/namespace.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/namespace.stdout). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl8.6-namespace.stderr` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/namespace.stderr](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18/namespace.stderr). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/receipt.json](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/receipt.json). JSON pointer `/namespace`. Actual original provider/source/header/library/Makefile/executable/process correspondence.
-- `tcl9.0-namespace.stdout` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/namespace.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/namespace.stdout). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl9.0-namespace.stderr` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/namespace.stderr](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4/namespace.stderr). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/receipt.json](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/receipt.json). JSON pointer `/namespace`. Actual original provider/source/header/library/Makefile/executable/process correspondence.
-- `tcl9.1-namespace.stdout` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/namespace.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/namespace.stdout). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `tcl9.1-namespace.stderr` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/namespace.stderr](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0/namespace.stderr). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `jim-receipt.json` (provider): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/receipt.json](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/receipt.json). JSON pointer `/namespace`. Actual original provider/source/header/library/Makefile/executable/process correspondence.
-- `jim-namespace.stdout` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/namespace.stdout](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/namespace.stdout). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-- `jim-namespace.stderr` (observation): [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/namespace.stderr](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim/namespace.stderr). Exact original native process stream; guest errors remain caught output and are separate from harness exit.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -98,27 +54,16 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/cmd_namespace/native_store_tests.rs](../../../../rust/tcl-vm/src/cmd_namespace/native_store_tests.rs), `cmd_namespace::native_store_tests::namespace_stores_match_native_existing_root_fresh_and_declared_controls` (linked): Compare all18 native namespace-store result rows using independent actual engine fixtures, root-present/absent initialization and original native namespace script objects.
 - [rust/tcl-compiler/src/var_resolve/original_bytes.rs](../../../../rust/tcl-compiler/src/var_resolve/original_bytes.rs), `var_resolve::original_bytes::tests::namespace_runtime_root_requires_current_or_global_table_membership` (linked): Independent current/global inventory for ASCII x distinguishes C8 existing-root fallback from C9 namespace selection and declines missing membership; opaque-byte equality is separate Rust correspondence beyond the measured ASCII native controls.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-compiler/src/analyser/scope.rs](../../../../rust/tcl-compiler/src/analyser/scope.rs), `analyser::scope::tests::original_namespace_store_symbols_use_the_selected_activation_and_fallback` (linked): Original source symbol projection keeps selected C existing-root/fresh-namespace fallback and Jim namespace-activation local purpose distinct from explicit variable namespace storage; no actual Native frame or store completion is attached.
 
 Current source linkage supplies no execution or assertion credit.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/replay.py",
-  "--c-root",
-  "tmp",
-  "--jim-root",
-  "/workspace/.proofs/native-providers/jimtcl",
-  "--output",
-  "/tmp/native-namespace-store-trace-subject-reconfirmation"
-]
-```
-
-Requires exact provider shell/header/static-library/source-owner/Makefile hashes and immutable input/probe bytes. Compiles the public probe, compares complete stdout/stderr and exit for both inputs. Guest errors are data; nonzero harness exit or stream mismatch fails replay. --verify-only checks source/provider/stream associations without compiling or launching native code. No Rust execution claim.
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.4.20)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.5.19)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/8.6.18)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.0.4)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/9.1.0)
+- [rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim](../../../../rust/tcl-syntax/tests/data/native_namespace_store_trace_subject/jim)

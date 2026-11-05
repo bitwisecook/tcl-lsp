@@ -20,55 +20,17 @@ Conditional source procedure topology under the independently selected compiler-
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +41,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs), `command_binding::compiled_preflight::ordered_locals::tests::ordered_source_locals_keep_counted_primary_and_namespace_attempts` (linked): Authentic formals and selected source allocations keep the first same-length counted primary; different source channel and direct compilation refuse reuse.
 - [rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs), `command_binding::compiled_preflight::ordered_locals::tests::source_locals_retain_recursive_word_allocations_and_anonymous_slot_order` (linked): Recursive original words and represented control preparation retain local allocation order and anonymous slot positions; mismatched lexer configuration refuses reuse.
 - [rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs), `command_binding::compiled_preflight::ordered_locals::tests::source_locals_preserve_partial_namespace_allocations_and_withdraw_missing_attempts` (linked): An explicit declined namespace prefix remains in the inventory while an unrepresented attempted upvar prefix withdraws completeness.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors exercise the scoped implementation premises. No Rust execution receipt or native provider observation is attached.

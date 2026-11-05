@@ -6,7 +6,7 @@ Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 T
 
 MCP actual profiled source/Expr transport186, pool encoding199, configured literal RHS216 and Written object-name decoding231 are adopted. Source221 MCP43 is32 PASS/11 FAIL, including a URI hint gain;231 needs fresh replay. Model/tool reports, Rust grammar parsers and heuristic generated sample data are distinct from Tcl target lookup. The aggressive minifier remains a genuine Core alias-reference emitter with evidence/design only.
 
-Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; `handoff/README.md` contains explicitly unadopted continuation work.
 
 ## Retained bounded audit
 
@@ -52,9 +52,9 @@ helper changed. Direct Rust formatting passed.
 ## Observed validation
 
 Earlier sealed evidence remains unchanged:
-[first five-error compile capture](../../../experiments/name-handling/results/mcp-exact-command-name/validation-01/validation.json),
-[exact literal-name pass](../../../experiments/name-handling/results/mcp-exact-command-name/validation-02/README.md),
-and [three original controls](../../../experiments/name-handling/results/mcp-exact-command-name/existing-controls-01/README.md).
+first five-error compile capture,
+exact literal-name pass,
+and three original controls.
 The exact-name control passed its real key and seven adverse values. The
 original three controls passed helper/event reports and failed static inventory
 with `[]` against `["hits"]`; the later multi-TMM assertion was not reached.
@@ -77,7 +77,7 @@ Later static-scaffold assertions remain unreached. No source changed or test
 repeated after the failure. Full raw outputs, unchanged controls, exact
 invocations, prepared patch, current source, source/artifact provenance and
 classification are in the
-[current receipts](../../../experiments/name-handling/results/mcp-static-name-inventory/validation-01/README.md).
+current receipts.
 
 The actual selected executable is
 `/workspace/tcl-lsp/target/debug/deps/tcl_mcp-0700f7245459bc2c`, SHA256
@@ -88,7 +88,7 @@ cache. Root confirmed coordinated-team default-target exclusivity during the bui
 root ran no default-target build and Core/Registry/Runtime builds used explicit
 runtime targets under separate leases. External host processes are not
 independently attested. The
-[scoped amendment](../../../experiments/name-handling/results/mcp-static-name-inventory/validation-01-cache-provenance/README.md)
+scoped amendment
 records that attestation while preserving the original capture/seal unchanged.
 No repeated build was performed; actual source/binary and fresh artifacts remain
 retained.
@@ -116,7 +116,7 @@ Public literal compatibility/search behavior remains unchanged. Full authored
 SpecTcl/Studio declaration, loader, renderer and form parity is implemented;
 no GAPS or Native object/handler identity follows from this metadata.
 
-The [joint six-library capture](../../../experiments/name-handling/results/joint-source-metadata-validation/validation-01/README.md)
+The joint six-library capture
 build passed; fifteen exact controls ran once with 13 passes/two failures.
 Metadata 10/2 included the original Registry DynamicNonOption bit failure and
 unchanged braced-expression datagroup failure. Compiler source-selector 2 and
@@ -124,7 +124,7 @@ corrected VM SamePosition 1 passed on that exact dependency preimage. Its 26
 packages/11,803 source-data hashes and six binary hashes stayed unchanged.
 Both failures and full raw logs remain sealed.
 
-The [two-file refinements](../../../experiments/name-handling/results/joint-source-metadata-validation/reference-refinement-01/README.md)
+The two-file refinements
 build passed all four selected Registry/iRules controls once, preserving old
 expectations/fixtures. Finite literal unknown-option/operator/cardinality/NUL
 controls passed and public legacy compatibility remains tested. Current
@@ -133,9 +133,9 @@ SHA-256 93a5f642...5c03 were unchanged through the 25-package/11,764-hash scope
 and both pinned binaries. Compiler/VM acceptance retains its earlier exact
 dependency preimage. Studio schema/reference documentation integration 2 and
 field-document regeneration passed in the separate
-[Studio capture](../../../experiments/name-handling/results/mcp-static-name-inventory/structured-reference-studio-doc-01/README.md).
+Studio capture.
 
-The [fresh current MCP generator capture](../../../experiments/name-handling/results/mcp-static-name-inventory/current-generator-validation-01/README.md)
+The fresh current MCP generator capture
 selected the actual tcl-mcp binary on explicit default target and passed the
 unchanged generator control once: 1 passed/132 filtered. The original single
 request-closure, helper_dg, multi-TMM, live/static and inert exclusion assertions
@@ -148,7 +148,7 @@ released; root owns subsequent source/cache coordination.
 ## Remaining obligations
 
 The original unchanged braced-expression failure was retained. The
-[temporary probe capture](../../../experiments/name-handling/results/joint-source-metadata-validation/braced-source-probe-capture-01/README.md)
+temporary probe capture
 built only iRules and ran the exact original positive once, retaining its same
 failure. Actual compiled owned scope was 12 packages; the frozen baseline
 was 25 packages/11,764 hashes including Registry root dev dependencies.
@@ -162,7 +162,7 @@ the complete baseline matched; the instrumented binary is noncurrent.
 The one-owner Compiler repair now chains the existing genuine Expr children
 alongside Syntax bodies through the same full-source/config/context, visited
 and vendor-body-origin gates. The
-[production repair capture](../../../experiments/name-handling/results/joint-source-metadata-validation/braced-source-repair-validation-01/README.md)
+production repair capture
 built Compiler/iRules once and ran five exact controls with 4 passes/1 failure.
 The unchanged original braced positive, inert negative and DTO/source-currentness
 counterfactual pass; the new missing-input/dynamic-body/changed-source/foreign-input
@@ -176,7 +176,7 @@ actual selected Registry EXPR_CONCATENATES_ARGS trait, argument offset and
 exact argv count to decline unproved joined-tail coordinates. Its separate
 AST-base issuer is byte-unchanged. Current owner SHA-256 24c2ef68...5651.
 
-The [final guard capture](../../../experiments/name-handling/results/joint-source-metadata-validation/braced-whole-expression-guard-validation-01/README.md)
+The final guard capture
 built Compiler/iRules once and ran the same five exact controls once each:
 5 passed/0 failed. Both unchanged multi-argument/cooked owner negatives now
 reach and pass, alongside original braced positive/inert negative, source/DTO
@@ -197,4 +197,4 @@ writer; namespace-imported cursor location before rename and unknown writer.
 Tie any conformance claim to the retained interpreter/native-context oracle
 for the exact question. Canonical proof/provider records are unchanged.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

@@ -22,39 +22,23 @@ C84-91 ten cases/provider, separate Tcl_ObjSetVar2 input, original list object/r
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Version: tcl8.4 8.4.20.
 
 Exact captured transcript:
 
 "before|shape=missing-namespace|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=Write|selected=none|visits=|result=can't set \"::missing::arr(k)\": parent namespace doesn't exist\nafter|shape=missing-namespace|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=missing-namespace|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=missing-namespace|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=scalar-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=Write|selected=none|visits=|result=can't set \"scalar(k)\": variable isn't array\nafter|shape=scalar-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=scalar-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=scalar-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=array-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=Write|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=array-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=QuietWrite|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=Write|selected=some|visits=|result=can't set \"arr(inner)(k)\": variable isn't array\nafter|shape=fresh-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=QuietWrite|selected=some|visits=|result=SENTINEL\nafter|shape=fresh-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=Write|selected=none|visits=|result=can't set \"arr(inner)(k)\": variable isn't array\nafter|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\n"
 
-### tcl8.5
+### tcl8.5, tcl8.6
 
-Status: `observed`. Version: 8.5.19. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
-
-Exact captured transcript:
-
-"before|shape=missing-namespace|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=Write|selected=none|visits=|result=can't set \"::missing::arr(k)\": parent namespace doesn't exist\nafter|shape=missing-namespace|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=missing-namespace|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=missing-namespace|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=scalar-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=Write|selected=none|visits=|result=can't set \"scalar(k)\": variable isn't array\nafter|shape=scalar-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=scalar-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=scalar-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=array-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=Write|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=2|index-string=yes\nbefore|shape=array-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=QuietWrite|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=2|index-string=yes\nbefore|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=Write|selected=none|visits=|result=can't set \"arr(inner)(k)\": variable isn't array\nafter|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=Write|selected=none|visits=|result=can't set \"arr(inner)(k)\": no such variable\nafter|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\n"
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Version: tcl8.5 8.5.19; tcl8.6 8.6.18.
 
 Exact captured transcript:
 
 "before|shape=missing-namespace|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=Write|selected=none|visits=|result=can't set \"::missing::arr(k)\": parent namespace doesn't exist\nafter|shape=missing-namespace|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=missing-namespace|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=missing-namespace|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=scalar-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=Write|selected=none|visits=|result=can't set \"scalar(k)\": variable isn't array\nafter|shape=scalar-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=scalar-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=scalar-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=array-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=Write|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=2|index-string=yes\nbefore|shape=array-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=QuietWrite|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=2|index-string=yes\nbefore|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=Write|selected=none|visits=|result=can't set \"arr(inner)(k)\": variable isn't array\nafter|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=Write|selected=none|visits=|result=can't set \"arr(inner)(k)\": no such variable\nafter|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\n"
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
-
-Exact captured transcript:
-
-"before|shape=missing-namespace|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=Write|selected=none|visits=|result=can't set \"::missing::arr(k)\": parent namespace doesn't exist\nafter|shape=missing-namespace|purpose=Write|root-type=list|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=missing-namespace|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=missing-namespace|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=missing-namespace|purpose=QuietWrite|root-type=list|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nbefore|shape=scalar-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=Write|selected=none|visits=|result=can't set \"scalar(k)\": variable isn't array\nafter|shape=scalar-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=scalar-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=scalar-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=scalar-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nbefore|shape=array-root|purpose=Write|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=Write|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=2|index-string=yes\nbefore|shape=array-root|purpose=QuietWrite|root-type=list|root-refs=1|root-string=no|index-type=list|index-refs=1|index-string=no\nshape=array-root|purpose=QuietWrite|selected=some|visits=|result=SENTINEL\nafter|shape=array-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=2|index-string=yes\nbefore|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=Write|selected=none|visits=|result=can't set \"arr(inner)(k)\": variable isn't array\nafter|shape=fresh-combined-root|purpose=Write|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=fresh-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=fresh-combined-root|purpose=QuietWrite|root-type=NULL|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nbefore|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=Write|selected=none|visits=|result=can't set \"arr(inner)(k)\": no such variable\nafter|shape=cached-combined-root|purpose=Write|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=yes\nbefore|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\nshape=cached-combined-root|purpose=QuietWrite|selected=none|visits=|result=SENTINEL\nafter|shape=cached-combined-root|purpose=QuietWrite|root-type=parsedVarName|root-refs=1|root-string=yes|index-type=list|index-refs=1|index-string=no\n"
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Static native library; probe. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Dialect: Tcl.
+Status: `observed`. Channel: Original native object/C API construction and recorded C evaluation, as specified by probe.c; not a document ingress. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Exact captured transcript:
 
@@ -62,55 +46,26 @@ Exact captured transcript:
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/manifest.json). Exact original compiler/header/library/executable hashes, process receipts and native source anchors where supplied.
-- `e1` (input): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/probe.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/probe.c). Complete original C translation unit; selected public API and reporter stages are retained.
-- `e2` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.4.20.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.4.20.stdout). 8.4.20 complete original captured native transcript.
-- `e3` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.5.19.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.5.19.stdout). 8.5.19 complete original captured native transcript.
-- `e4` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.6.18.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.6.18.stdout). 8.6.18 complete original captured native transcript.
-- `e5` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.0.4.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.0.4.stdout). 9.0.4 complete original captured native transcript.
-- `e6` (observation): [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.1.0.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.1.0.stdout). 9.1.0 complete original captured native transcript.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-std=c11",
-  "-I/path/to/recorded/generic",
-  "-I/path/to/recorded/unix",
-  "rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/probe.c",
-  "/path/to/recorded/libtcl.a",
-  "-lpthread",
-  "-ldl",
-  "-lm",
-  "-lz",
-  "-o",
-  "/tmp/original-variable-probe"
-]
-```
-
-Use each manifested compiler command, provider headers/library and original flags; replace only stale provisioning paths. Run /tmp/original-variable-probe once per selected provider in a fresh process. Require byte-exact complete stdout, recorded stderr and process status; do not omit failed selection or pre/post object observations. Private-header probes additionally require their recorded STDC_HEADERS/HAVE_UNISTD_H flags. Rebuilding changes artifact hashes and is a fresh observation. Jim and BIG-IP are not probed by these C translation units. No Rust equivalence is inferred.
+- [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/manifest.json](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/manifest.json)
+- [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/probe.c](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/probe.c)
+- [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.4.20.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.4.20.stdout)
+- [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.5.19.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.5.19.stdout)
+- [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.6.18.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/8.6.18.stdout)
+- [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.0.4.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.0.4.stdout)
+- [rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.1.0.stdout](../../../../rust/tcl-syntax/tests/data/native_generic_variable_consumers/separate-input/9.1.0.stdout)

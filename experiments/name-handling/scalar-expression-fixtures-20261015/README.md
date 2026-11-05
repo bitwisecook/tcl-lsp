@@ -6,6 +6,6 @@ All six original providers reject bare `one` as the other operand of `$x eq one`
 
 The probe preceded replacing invalid bare fixture operands with quoted literals and transporting actual expression contexts. Expected names, values and adversarial scalar subjects remain independent assertions.
 
-This evidence concerns actual expression/name grammar and literal values. It supplies no F5 execution, reached lookup, frame, Native/Rust acceptance or edit authority. See the [name-handling contract](../../../docs/design/contracts/name-handling.md), [pattern catalogue](../patterns/README.md) and [result index](../results/README.md).
+This evidence concerns actual expression/name grammar and literal values. It supplies no F5 execution, reached lookup, frame, Native/Rust acceptance or edit authority. See the [name-handling contract](../../../docs/design/contracts/name-handling.md), [pattern catalogue](../patterns/README.md) and result index.
 
 Original outputs remain immutable. `SHA256SUMS` covers all evidence and replay support. Run `python replay.py --out /tmp/new-scalar-expression-fixtures-20261015-capture` for a separate reproduction with the retained providers and init files. The runner verifies provider hashes, refuses an existing output directory and never overwrites these original outputs. Any replay is separate evidence.

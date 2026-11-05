@@ -22,104 +22,45 @@ Actual retained MethodOwner and current payload/type/private flags; original ent
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded entered call-chain original report record, current payload and producer flags contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.4 not tested for this source/API question.
 
 No original tcl8.4 process tests this entered call-chain original report record, current payload and producer flags contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded entered call-chain original report record, current payload and producer flags contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.5 not tested for this source/API question.
 
 No original tcl8.5 process tests this entered call-chain original report record, current payload and producer flags contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded entered call-chain original report record, current payload and producer flags contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.6 not tested for this source/API question.
 
 No original tcl8.6 process tests this entered call-chain original report record, current payload and producer flags contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: 9.0.4. Build: Exact original C source/API inspection; no external entered report process. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl9.0 9.0.4.
 
 Inspected C9.0.4 call/report sources select actual filter/unknown/private and declaring-facet flags, current mutable Method payload/type and actual record/Foundation name members. The retained34 total source extents inspect caller/installer/renderer roles. No original report worker execution, safe Class/Method pointer lifetime, displaced payload retention or callback parity is observed.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: 9.1.0. Build: Exact original C source/API inspection; no external entered report process. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl9.1 9.1.0.
 
 Inspected C9.1.0 call/report sources select actual filter/unknown/private and declaring-facet flags, current mutable Method payload/type and actual record/Foundation name members. The retained34 total source extents inspect caller/installer/renderer roles. No original report worker execution, safe Class/Method pointer lifetime, displaced payload retention or callback parity is observed.
 
 ### jim
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded entered call-chain original report record, current payload and producer flags contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: jim.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: jim not tested for this source/API question.
 
 No original jim process tests this entered call-chain original report record, current payload and producer flags contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded entered call-chain original report record, current payload and producer flags contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: bigip.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: bigip not tested for this source/API question.
 
 No original bigip process tests this entered call-chain original report record, current payload and producer flags contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
-
-## Historical references
-
-- `whole-source-9.0.4-tclOOCall` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOCall.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOCall.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-0` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1850-1921.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1850-1921.txt). actual isFilter/unknown/private precedence, Foundation versus record name, actual declaring facet and CURRENT mutable payload descriptor; original List member roles. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-1` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-68-90.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-68-90.txt). true private, unexported and public selection are independent native flags. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-2` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1009-1057.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1009-1057.txt). actual MInvoke isFilter producer, independent of selector spelling. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-3` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1264-1290.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1264-1290.txt). actual filtered unknown fallback call-chain flag. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-4` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1345-1371.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1345-1371.txt). actual unfiltered unknown fallback call-chain flag. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-5` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1530-1559.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOCall.c-1530-1559.txt). actual class stereotype unknown fallback flag. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.0.4-tclOO` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOO.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOO.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-6` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOO.c-124-181.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOO.c-124-181.txt). genuine stock method descriptors and installer visibility; class/configurable constructor descriptors remain distinct. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-7` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOO.c-425-441.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOO.c-425-441.txt). genuine Foundation unknown/constructor/destructor header allocation and independent +1 ownership. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-8` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOO.c-817-826.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOO.c-817-826.txt). actual Foundation report-header retirement. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.0.4-tclOOMethod` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOMethod.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOMethod.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-9` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOMethod.c-82-95.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOMethod.c-82-95.txt). genuine procedure/forward payload descriptors. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-10` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOMethod.c-157-195.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOMethod.c-157-195.txt). same exact Method record retains its name but resets flags/current mutable payload on replacement. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-11` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOMethod.c-280-314.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOMethod.c-280-314.txt). class same-record current payload/flags replacement and real declaring Class join. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.0.4-tclOOProp` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOProp.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOProp.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-12` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOProp.c-62-81.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOProp.c-62-81.txt). PropertyGetter/PropertySetter descriptor independently issued by property producer. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.0.4-tclOODefineCmds` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOODefineCmds.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOODefineCmds.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-13` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOODefineCmds.c-28-61.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOODefineCmds.c-28-61.txt). slot accessor and operation descriptors supplied by actual installer data. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-14` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOODefineCmds.c-193-228.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOODefineCmds.c-193-228.txt). actual slot descriptor fragments, operation names and visibility. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.0.4-tclOOInfo` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOInfo.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.0.4/tclOOInfo.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-15` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOInfo.c-1742-1776.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOInfo.c-1742-1776.txt). actual object report requests PUBLIC_METHOD, retains selected context then releases it after result. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-16` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOInfo.c-1789-1821.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.0.4-tclOOInfo.c-1789-1821.txt). actual class report requests PUBLIC_METHOD and renders retained stereotype chain. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.1.0-tclOOCall` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOCall.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOCall.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-17` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1867-1938.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1867-1938.txt). actual isFilter/unknown/private precedence, Foundation versus record name, actual declaring facet and CURRENT mutable payload descriptor; original List member roles. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-18` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-68-90.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-68-90.txt). true private, unexported and public selection are independent native flags. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-19` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1027-1075.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1027-1075.txt). actual MInvoke isFilter producer, independent of selector spelling. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-20` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1282-1308.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1282-1308.txt). actual filtered unknown fallback call-chain flag. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-21` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1360-1386.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1360-1386.txt). actual unfiltered unknown fallback call-chain flag. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-22` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1545-1574.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOCall.c-1545-1574.txt). actual class stereotype unknown fallback flag. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.1.0-tclOO` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOO.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOO.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-23` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOO.c-124-181.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOO.c-124-181.txt). genuine stock method descriptors and installer visibility; class/configurable constructor descriptors remain distinct. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-24` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOO.c-428-444.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOO.c-428-444.txt). genuine Foundation unknown/constructor/destructor header allocation and independent +1 ownership. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-25` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOO.c-805-814.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOO.c-805-814.txt). actual Foundation report-header retirement. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.1.0-tclOOMethod` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOMethod.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOMethod.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-26` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOMethod.c-82-95.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOMethod.c-82-95.txt). genuine procedure/forward payload descriptors. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-27` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOMethod.c-157-195.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOMethod.c-157-195.txt). same exact Method record retains its name but resets flags/current mutable payload on replacement. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-28` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOMethod.c-280-314.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOMethod.c-280-314.txt). class same-record current payload/flags replacement and real declaring Class join. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.1.0-tclOOProp` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOProp.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOProp.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-29` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOProp.c-62-81.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOProp.c-62-81.txt). PropertyGetter/PropertySetter descriptor independently issued by property producer. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.1.0-tclOODefineCmds` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOODefineCmds.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOODefineCmds.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-30` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOODefineCmds.c-28-61.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOODefineCmds.c-28-61.txt). slot accessor and operation descriptors supplied by actual installer data. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-31` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOODefineCmds.c-122-157.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOODefineCmds.c-122-157.txt). actual slot descriptor fragments, operation names and visibility. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `whole-source-9.1.0-tclOOInfo` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOInfo.c.gz](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/9.1.0/tclOOInfo.c.gz). Whole exact original source gzip with full SHA/byte roundtrip; inspected source only, no configure/build receipt or binary/source equivalence.
-- `report-source-extent-32` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOInfo.c-1734-1768.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOInfo.c-1734-1768.txt). actual object report requests PUBLIC_METHOD, retains selected context then releases it after result. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `report-source-extent-33` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOInfo.c-1781-1813.txt](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources/9.1.0-tclOOInfo.c-1781-1813.txt). actual class report requests PUBLIC_METHOD and renders retained stereotype chain. Exact physical-LF static source/API extent; no original callback, pointer lifetime or report process is executed.
-- `original-source-associations` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/original-source-windows.json](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/original-source-windows.json). Exact34 original physical-LF C9.0/C9.1 call-report source associations independently joined to whole retained source bytes.
-- `complete-source-restoration-map` (source-anchor): [runtime/rust/tests/data/original_entered_call_chain_report_source/full-source-storage-map.json](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/full-source-storage-map.json). Verify gzip SHA, then restore complete original source SHA/size before source inspection replay. Original execution is unmeasured.
-- `source-contract-manifest` (implementation): [runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-manifest.json](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-manifest.json). Exact accepted source contract/guarded producer/selector association, separate from a compiled inventory or matching assertion outcome.
-- `source-contract-selectors` (implementation): [runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-selectors.json](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-selectors.json). Exact accepted source contract/guarded producer/selector association, separate from a compiled inventory or matching assertion outcome.
-- `source-contract-census` (implementation): [runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-census.json](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-census.json). Exact accepted source contract/guarded producer/selector association, separate from a compiled inventory or matching assertion outcome.
-- `source-contract-preservation` (implementation): [runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-preservation.json](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/source-contract-preservation.json). Exact accepted source contract/guarded producer/selector association, separate from a compiled inventory or matching assertion outcome.
-- `implementation-0` (implementation): [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs). Exact current entered record/report flags/payload owner or finite software definition; bounded inspection pin only.
-- `implementation-1` (implementation): [runtime/rust/src/cmd_oo/native_method_cache.rs](../../../../runtime/rust/src/cmd_oo/native_method_cache.rs). Exact current entered record/report flags/payload owner or finite software definition; bounded inspection pin only.
-- `implementation-2` (implementation): [runtime/rust/src/cmd_oo/original_call_report_tests.rs](../../../../runtime/rust/src/cmd_oo/original_call_report_tests.rs). Exact current entered record/report flags/payload owner or finite software definition; bounded inspection pin only.
-- `implementation-3` (implementation): [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs). Exact current entered record/report flags/payload owner or finite software definition; bounded inspection pin only.
 
 ## Source inspection
 
@@ -659,7 +600,6 @@ typedef struct DeclaredSlotMethod {
     {name, flags, {TCL_OO_METHOD_VERSION_1,				\
 	    "core method: " name " slot", impl, NULL, NULL}}
 
-
 ```
 
 tcl9.0 9.0.4, revision `Complete exact source hash and independently joined physical-LF extent; static inspection only`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclOODefineCmds.c`, function `Source/API extent: actual slot descriptor fragments, operation names and visibility`, lines 193–228. Retained reference `report-source-extent-14`.
@@ -1109,7 +1049,6 @@ static const Tcl_MethodType2 configurableConstructor = {
     TclOO_Configurable_Constructor, NULL, NULL
 };
 
-
 ```
 
 tcl9.1 9.1.0, revision `Complete exact source hash and independently joined physical-LF extent; static inspection only`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOO.c`, function `Source/API extent: genuine Foundation unknown/constructor/destructor header allocation and independent +1 ownership`, lines 428–444. Retained reference `report-source-extent-24`.
@@ -1254,7 +1193,6 @@ tcl9.1 9.1.0, revision `Complete exact source hash and independently joined phys
 	}
     }
 
-
 ```
 
 tcl9.1 9.1.0, revision `Complete exact source hash and independently joined physical-LF extent; static inspection only`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c`, function `Source/API extent: PropertyGetter/PropertySetter descriptor independently issued by property producer`, lines 62–81. Retained reference `report-source-extent-29`.
@@ -1279,7 +1217,6 @@ static const Tcl_MethodType2 SetterType = {
     DetailsDeleter,
     DetailsCloner
 };
-
 
 ```
 
@@ -1319,7 +1256,6 @@ typedef struct DeclaredSlotMethod {
 #define SLOT_METHOD(name,impl,flags) \
     {name, flags, {TCL_OO_METHOD_VERSION_2,				\
 	    "core method: " name " slot", impl, NULL, NULL}}
-
 
 ```
 
@@ -1445,7 +1381,6 @@ InfoClassCallCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs), `build_call_chain`: Retain exact selected chain steps and original producer flags rather than reselecting roles from displayed names.
@@ -1458,8 +1393,11 @@ InfoClassCallCmd(
 - [runtime/rust/src/cmd_oo/original_call_report_tests.rs](../../../../runtime/rust/src/cmd_oo/original_call_report_tests.rs), `cmd_oo::original_call_report_tests::original_call_report_retains_original_name_until_checked_presentation_and_first_cause` (linked): Actual original record/Foundation name membership remains lazy until independently checked String presentation; first Host or context ABA during that updater preserves reached effects and prevents later report continuation. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 - [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `native_tcloo_method_definition::call_report_tests::original_call_report_flags_and_payload_types_do_not_classify_selector_spellings` (linked): The pure Registry protocol classifies actual payload descriptor and producer filter/unknown/private/facet/role flags, preserving independent List member roles without turning selector spelling into an entered Method/cache authority. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Restore each complete original source from the verified gzip and join its declared physical-LF excerpt. Software controls require their own matching producer, inventory/admission and closed assertion receipts; no original report callback or Native pointer/payload lifetime experiment is attached.
+- [runtime/rust/tests/data/original_entered_call_chain_report_source/sources](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source/sources)
+- [runtime/rust/tests/data/original_entered_call_chain_report_source](../../../../runtime/rust/tests/data/original_entered_call_chain_report_source)
+- [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs)
+- [runtime/rust/src/cmd_oo/native_method_cache.rs](../../../../runtime/rust/src/cmd_oo/native_method_cache.rs)
+- [runtime/rust/src/cmd_oo/original_call_report_tests.rs](../../../../runtime/rust/src/cmd_oo/original_call_report_tests.rs)
+- [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs)

@@ -22,7 +22,7 @@ Six ASCII scripts per C84-91 and manifested Jim build, public counted evaluation
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `unsupported`. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Version: tcl8.4 8.4.20.
 
 Each row records the guest completion before reporter observation.
 
@@ -37,7 +37,7 @@ Each row records the guest completion before reporter observation.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Version: tcl8.5 8.5.19.
 
 Each row records the guest completion before reporter observation.
 
@@ -50,39 +50,9 @@ Each row records the guest completion before reporter observation.
 | upvar-missing-write | 1 | "namespace \"missing\" not found in \"::\"" |
 | upvar-current-relative | 1 | "namespace \"missing\" not found in \"::n\"" |
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
-
-Each row records the guest completion before reporter observation.
-
-| case | code | result |
-| --- | --- | --- |
-| upvar-no-pairs | 0 | "" |
-| upvar-odd-pair | 1 | "wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"" |
-| upvar-odd-tail | 1 | "wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"" |
-| upvar-missing-read | 1 | "namespace \"missing\" not found in \"::\"" |
-| upvar-missing-write | 1 | "namespace \"missing\" not found in \"::\"" |
-| upvar-current-relative | 1 | "namespace \"missing\" not found in \"::n\"" |
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
-
-Each row records the guest completion before reporter observation.
-
-| case | code | result |
-| --- | --- | --- |
-| upvar-no-pairs | 0 | "" |
-| upvar-odd-pair | 1 | "wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"" |
-| upvar-odd-tail | 1 | "wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"" |
-| upvar-missing-read | 1 | "namespace \"missing\" not found in \"::\"" |
-| upvar-missing-write | 1 | "namespace \"missing\" not found in \"::\"" |
-| upvar-current-relative | 1 | "namespace \"missing\" not found in \"::n\"" |
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Each row records the guest completion before reporter observation.
 
@@ -97,7 +67,7 @@ Each row records the guest completion before reporter observation.
 
 ### jim
 
-Status: `observed`. Version: not recorded (manifest label Jim). Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Jim Tcl.
+Status: `observed`. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c.
 
 Each row records the guest completion before reporter observation.
 
@@ -112,26 +82,9 @@ Each row records the guest completion before reporter observation.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-vm/tests/data/native_namespace_upvar/manifest.json](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/manifest.json). Six exact build/compiler/library/header/binary/log/fixture hashes and six results per provider.
-- `e1` (input): [rust/tcl-vm/tests/data/native_namespace_upvar/probe.c](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/probe.c). Retained exact probe.c; original source/object inputs and reporter boundary, independent of Rust implementation.
-- `e2` (input): [rust/tcl-vm/tests/data/native_namespace_upvar/cases.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/cases.tsv). Retained exact cases.tsv; original source/object inputs and reporter boundary, independent of Rust implementation.
-- `e3` (input): [rust/tcl-vm/tests/data/native_namespace_upvar/README.md](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/README.md). Retained exact README.md; original source/object inputs and reporter boundary, independent of Rust implementation.
-- `e4` (observation): [rust/tcl-vm/tests/data/native_namespace_upvar/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/8.4.20.tsv). Complete retained semantic TSV for 8.4.20; Each row records the guest completion before reporter observation.
-- `e5` (observation): [rust/tcl-vm/tests/data/native_namespace_upvar/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/8.5.19.tsv). Complete retained semantic TSV for 8.5.19; Each row records the guest completion before reporter observation.
-- `e6` (observation): [rust/tcl-vm/tests/data/native_namespace_upvar/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/8.6.18.tsv). Complete retained semantic TSV for 8.6.18; Each row records the guest completion before reporter observation.
-- `e7` (observation): [rust/tcl-vm/tests/data/native_namespace_upvar/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/9.0.4.tsv). Complete retained semantic TSV for 9.0.4; Each row records the guest completion before reporter observation.
-- `e8` (observation): [rust/tcl-vm/tests/data/native_namespace_upvar/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/9.1.0.tsv). Complete retained semantic TSV for 9.1.0; Each row records the guest completion before reporter observation.
-- `e9` (observation): [rust/tcl-vm/tests/data/native_namespace_upvar/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_upvar/Jim.tsv). Complete retained semantic TSV for Jim; Each row records the guest completion before reporter observation.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -140,28 +93,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/cmd_namespace.rs](../../../../rust/tcl-vm/src/cmd_namespace.rs), `cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results` (linked): Compares all thirty-six original script completions and target-cell results, including unsupported C84.
 - [runtime/rust/src/cmd_namespace/native_upvar_tests.rs](../../../../runtime/rust/src/cmd_namespace/native_upvar_tests.rs), `cmd_namespace::native_upvar_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results` (linked): Independently compares the same thirty-six scripts in the Runtime original native core.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I/path/to/recorded/generic",
-  "-I/path/to/recorded/unix",
-  "rust/tcl-vm/tests/data/native_namespace_upvar/probe.c",
-  "/path/to/recorded/libtcl.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "/tmp/native-variable-proof"
-]
-```
-
-Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses public object/evaluation entry points; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred. Jim requires its independent manifested USE_JIM/libjim build. Preserve cases.tsv exact source bytes and guest error tuples; all host processes exit 0.
+- [rust/tcl-vm/tests/data/native_namespace_upvar](../../../../rust/tcl-vm/tests/data/native_namespace_upvar)

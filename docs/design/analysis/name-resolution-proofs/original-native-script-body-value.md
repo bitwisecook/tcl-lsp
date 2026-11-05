@@ -20,55 +20,17 @@ Original C Tcl/Jim script operand transport and readonly source correspondence. 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +42,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/list.rs](../../../../rust/tcl-syntax/src/list.rs), `find_element_with_syntax`: Own strict C and lenient Jim list-element source spans without a consumer-specific scanner.
 - [rust/tcl-compiler/src/command_binding/executed_script_source.rs](../../../../rust/tcl-compiler/src/command_binding/executed_script_source.rs), `command_binding::executed_script_source::tests::original_body_value_mapping_keeps_native_units_and_original_channels_separate` (linked): C5 original Document and opaque NativeValue words retain exact native bytes; C8 translated units remain materialised, unchanged C9/native extents remain contiguous, and wrong values, foreign origins and mismatched C8/C9 protocols cannot gain original coordinates.
 - [rust/tcl-compiler/src/command_binding/executed_script_source.rs](../../../../rust/tcl-compiler/src/command_binding/executed_script_source.rs), `command_binding::executed_script_source::tests::original_script_list_geometry_uses_the_same_selected_grammar_as_values` (linked): Genuine Jim adjacent and unterminated list elements retain unchanged child byte coordinates under the selected lenient grammar; the same malformed lists decline under strict C rules. Existing decoded escape control remains materialised.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Run the exact linked Rust selector through the maintained workspace setup. No Rust or interpreter result is inferred from this coverage binding.

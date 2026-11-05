@@ -1,5 +1,0 @@
-Loading configuration...
-  /var/tmp/tcl_lsp_nh20261012native1/rejected.conf
-There were warnings:
-/Common/__tcl_lsp_probe_nh20261012native1_provider:5: warning: [variable reference used where variable name expected][$cell]
-

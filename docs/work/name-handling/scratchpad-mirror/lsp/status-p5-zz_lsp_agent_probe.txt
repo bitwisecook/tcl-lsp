@@ -1,2 +1,0 @@
-FAILED probe_completion_and_irules
-FAILED probe_rename_refusals

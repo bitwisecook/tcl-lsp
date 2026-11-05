@@ -22,7 +22,7 @@ Seven exact C8.4 public Tcl_EvalObjv TCL_EVAL_GLOBAL definition/call controls in
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel unqueried). Build: Original observer; static library; process0/empty stderr. Header/compiler/configure attribution unrecorded.. Channel: Original counted Tcl_EvalObjv TCL_EVAL_GLOBAL; result-before-error-global metadata getter sequence.. Dialect: C Tcl.
+Status: `observed`. Channel: Original counted Tcl_EvalObjv TCL_EVAL_GLOBAL; result-before-error-global metadata getter sequence. Version: tcl8.4 8.4.20 (capture association; launched patchlevel unqueried).
 
 Original case/definition-code/call-code/name-hex/body-hex/result-hex/errorInfo-hex/errorCode-hex:
 
@@ -41,58 +41,18 @@ missing "
 "p"
 ```
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: C Tcl.
-
-No original procedure parse-context capture for this provider is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: C Tcl.
+Status: `not-tested`.
 
 No original procedure parse-context capture for this provider is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: C Tcl.
-
-No original procedure parse-context capture for this provider is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: C Tcl.
-
-No original procedure parse-context capture for this provider is attached.
-
-### jim
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: Jim Tcl.
-
-No original procedure parse-context capture for this provider is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not measured. Build: not measured. Channel: not tested. Dialect: F5 iRules.
-
-No original procedure parse-context capture for this provider is attached.
-
-## Historical references
-
-- `input` (input): [rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c). Exact original counted definition/call vectors and reached result/error metadata observer.
-- `rows` (observation): [rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv). Complete original case/code/name/body/result/errorInfo/errorCode stdout.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json). Original source/archive/observer/output/status associations.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions` (linked): Compares definition/call completion, exact result/errorInfo/errorCode. The extra no-side-store assertion is Rust coverage beyond the original native observer fields.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact original source and complete seven-row stdout checksum are retained. Reconfirmation must compile unchanged against explicit matching selected C8.4 public headers/archive, retain original argv/count/flags and result-before-metadata observation order. Full launched patchlevel/header/compiler/configure identities were unrecorded. No current replay or test execution is claimed.
+- [rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/probe.c)
+- [rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/8.4.20.tsv)
+- [rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_parse_context/manifest.json)

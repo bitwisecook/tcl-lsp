@@ -1,7 +1,0 @@
-{
-  "overrides": {},
-  "programs": {
-    "cc": "/usr/bin/cc",
-    "ar": "/usr/bin/ar"
-  }
-}

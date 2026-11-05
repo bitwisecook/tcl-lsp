@@ -20,69 +20,29 @@ Selected original C9 ClassVariable operand count, current method context and dec
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, jim
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded selected ClassVariable preflight and original link owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.4.
-
-No original process tests this selected C9 ClassVariable source/API purpose. The current pure schedule leaves this profile unselected; an older/authored compatibility route and Jim behavior are independent and receive no unavailable-worker or callback-parity observation from that software selection.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded selected ClassVariable preflight and original link owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.5.
-
-No original process tests this selected C9 ClassVariable source/API purpose. The current pure schedule leaves this profile unselected; an older/authored compatibility route and Jim behavior are independent and receive no unavailable-worker or callback-parity observation from that software selection.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded selected ClassVariable preflight and original link owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: tcl8.4 not tested for this source/API question; tcl8.5 not tested for this source/API question; tcl8.6 not tested for this source/API question; jim not tested for this source/API question.
 
 No original process tests this selected C9 ClassVariable source/API purpose. The current pure schedule leaves this profile unselected; an older/authored compatibility route and Jim behavior are independent and receive no unavailable-worker or callback-parity observation from that software selection.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: 9.0.4. Build: Complete original C source inspection only; no original ClassVariable process for this question. Channel: Static selected original worker and method-frame API source; authored software callbacks remain independent. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Static selected original worker and method-frame API source; authored software callbacks remain independent. Version: tcl9.0 9.0.4.
 
 Exact C9.0 source checks operand count and current method context before any ordinary name getters, reaching the head only to report missing context. Exact C9.1 source obtains the command head before its current-method-frame helper. The inspected selected worker gets and validates every original local name before namespace-only target lookup and local-link publication. Source order establishes no safe frame/Class/Var pointer lifetime, original callback continuation, link refcount or externally executed Host/ABA parity.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: 9.1.0. Build: Complete original C source inspection only; no original ClassVariable process for this question. Channel: Static selected original worker and method-frame API source; authored software callbacks remain independent. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Static selected original worker and method-frame API source; authored software callbacks remain independent. Version: tcl9.1 9.1.0.
 
 Exact C9.1 source obtains the command head before selecting current method context through TclOOGetContextFromCurrentStackFrame. The inspected selected worker gets and validates every original local name before namespace-only target lookup and local-link publication. Source order establishes no safe frame/Class/Var pointer lifetime, original callback continuation, link refcount or externally executed Host/ABA parity.
 
-### jim
-
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded selected ClassVariable preflight and original link owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: jim.
-
-No original process tests this selected C9 ClassVariable source/API purpose. The current pure schedule leaves this profile unselected; an older/authored compatibility route and Jim behavior are independent and receive no unavailable-worker or callback-parity observation from that software selection.
-
 ### bigip
 
-Status: `not-tested`. Version: not tested for this source/API question. Build: No external process executes this bounded selected ClassVariable preflight and original link owner contract. Channel: Source/API inspection and authored software records only; no external worker input for this question. Dialect: bigip.
+Status: `not-tested`. Channel: Source/API inspection and authored software records only; no external worker input for this question. Version: bigip not tested for this source/API question.
 
 No original bigip process tests this selected ClassVariable preflight and original link owner contract. Retained source inspection and unrun authored controls establish neither Native callback outcomes nor physical context, frame, record identity or execution authority.
-
-## Historical references
-
-- `original-source-window-associations` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/original-source-windows.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/original-source-windows.json). Exact original C9.0/C9.1 source associations for the selected ClassVariable worker and current-method-frame helper. Original whole-source and physical-LF byte joins are independently verified; callback or frame lifetime executions are absent.
-- `full-source-9.0.4-tclOOBasic` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.0.4/tclOOBasic.c.gz](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.0.4/tclOOBasic.c.gz). Whole original source bytes retained by lossless gzip. This source inspection has no attached configure/build replay, binary/source equivalence or original worker execution.
-- `classvariable-source-window-0` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.0.4/tclOOBasic_c-1846-1937.txt](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.0.4/tclOOBasic_c-1846-1937.txt). C90 argc/context before all name validation, then namespace-only original lookup and original local link. Static source/API inspection only; no original operand callback, class/frame pointer lifetime or link execution is measured.
-- `full-source-9.1.0-tclOOBasic` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOBasic.c.gz](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOBasic.c.gz). Whole original source bytes retained by lossless gzip. This source inspection has no attached configure/build replay, binary/source equivalence or original worker execution.
-- `classvariable-source-window-1` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOBasic_c-1863-1936.txt](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOBasic_c-1863-1936.txt). C91 head getter before current-frame selection, all names before all original links. Static source/API inspection only; no original operand callback, class/frame pointer lifetime or link execution is measured.
-- `full-source-9.1.0-tclOOInt` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOInt.h.gz](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOInt.h.gz). Whole original source bytes retained by lossless gzip. This source inspection has no attached configure/build replay, binary/source equivalence or original worker execution.
-- `classvariable-source-window-2` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOInt_h-673-708.txt](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0/tclOOInt_h-673-708.txt). Actual current FRAME_IS_METHOD context gate and typed context-required diagnostic. Static source/API inspection only; no original operand callback, class/frame pointer lifetime or link execution is measured.
-- `verified-physical-source-joins` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/verified-source-joins.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/verified-source-joins.json). Independent original C9.0/C9.1 whole-source/window byte joins. Source ordering is static inspection, with no assumed safe callback pointer or entered-frame lifetime.
-- `full-source-storage-map` (source-anchor): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/full-source-storage-map.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/full-source-storage-map.json). Complete original source gzip/raw byte identities and exact restoration requirements for inspection replay.
-- `source-contract-manifest` (implementation): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-manifest.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-manifest.json). Exact accepted source contract, selector or guarded continuation association. Current per-body qid/document pairs and original source extents are independently checked. No matching owned assertion or external execution outcome is attached.
-- `source-contract-selectors` (implementation): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-selectors.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-selectors.json). Exact accepted source contract, selector or guarded continuation association. Current per-body qid/document pairs and original source extents are independently checked. No matching owned assertion or external execution outcome is attached.
-- `source-contract-census` (implementation): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-census.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-census.json). Exact accepted source contract, selector or guarded continuation association. Current per-body qid/document pairs and original source extents are independently checked. No matching owned assertion or external execution outcome is attached.
-- `source-contract-preservation` (implementation): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-preservation.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/source-contract-preservation.json). Exact accepted source contract, selector or guarded continuation association. Current per-body qid/document pairs and original source extents are independently checked. No matching owned assertion or external execution outcome is attached.
-- `formal-parent-module-association` (implementation): [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/formal-parent-module-association.json](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/formal-parent-module-association.json). Exact accepted parent-module declaration association. All four Runtime child tests independently resolve from the actual library root; declaration reachability supplies no compiled inventory, assertion or external execution outcome.
-- `implementation-source-0` (implementation): [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs). Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent.
-- `implementation-source-1` (implementation): [runtime/rust/src/cmd_oo/native_context.rs](../../../../runtime/rust/src/cmd_oo/native_context.rs). Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent.
-- `implementation-source-2` (implementation): [runtime/rust/src/interp/native_variable_names.rs](../../../../runtime/rust/src/interp/native_variable_names.rs). Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent.
-- `implementation-source-3` (implementation): [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs). Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent.
-- `implementation-source-4` (implementation): [runtime/rust/src/cmd_oo/original_classvariable_tests.rs](../../../../runtime/rust/src/cmd_oo/original_classvariable_tests.rs). Exact selected ClassVariable source/API owner or finite software definition. The pinned purpose is actual retained frame, declaring Class facet/namespace, preflight and link continuation only; external frame/variable pointer, callback parity and matching assertion outcomes remain independent.
 
 ## Source inspection
 
@@ -306,7 +266,6 @@ TclOOGetContextFromCurrentStackFrame(
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_oo.rs](../../../../runtime/rust/src/cmd_oo.rs), `classvariable_cmd`: Select the explicit C9 ClassVariable schedule through authentic original arguments; the existing independent compatibility branch remains separate.
@@ -320,8 +279,12 @@ TclOOGetContextFromCurrentStackFrame(
 - [runtime/rust/src/cmd_oo/original_classvariable_tests.rs](../../../../runtime/rust/src/cmd_oo/original_classvariable_tests.rs), `cmd_oo::original_classvariable_tests::selected_classvariable_missing_context_reads_only_its_original_head` (linked): Initial missing actual method context reaches only the original command head and selected context-required Guest presentation, leaving all name headers unread with caller holds. An initially absent frame is distinct from a reached frame withdrawal. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 - [rust/tcl-registry/src/native_tcloo_method_definition.rs](../../../../rust/tcl-registry/src/native_tcloo_method_definition.rs), `native_tcloo_method_definition::classvariable_tests::selected_classvariable_schedule_keeps_availability_and_cstring_shapes_distinct` (linked): The pure Registry schedule selects the inspected C9 workers, keeps C9.0 missing-context and C9.1 before-context head stages distinct, validates local array/namespace shapes using selected CString extent and keeps Jim/older profiles unselected. Protocol selection issues no frame, Class facet, variable target or link authority. This source-defined software control has no attached matching owned assertion outcome; it establishes no external-provider observation or Native execution grant.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Restore each complete source from its verified gzip before exact physical-LF source-window replay. The five authored software definitions require independent matching producer, inventory/admission and closed assertion receipts. No external ClassVariable process, callback parity, original pointer lifetime or full-suite outcome is attached.
+- [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.0.4](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.0.4)
+- [runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0](../../../../runtime/rust/tests/data/original_classvariable_preflight_link_owner_source/9.1.0)
+- [runtime/rust/tests/data](../../../../runtime/rust/tests/data)
+- [runtime/rust/src](../../../../runtime/rust/src)
+- [runtime/rust/src/cmd_oo](../../../../runtime/rust/src/cmd_oo)
+- [runtime/rust/src/interp](../../../../runtime/rust/src/interp)
+- [rust/tcl-registry/src](../../../../rust/tcl-registry/src)

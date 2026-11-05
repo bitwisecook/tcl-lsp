@@ -20,55 +20,11 @@ Core and Server readonly source facts for Native variable/namespace and readonly
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This question concerns a Rust readonly source carrier. No native provider experiment or Rust execution receipt is attached; native naming/runtime observations remain separate questions.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This question concerns a Rust readonly source carrier. No native provider experiment or Rust execution receipt is attached; native naming/runtime observations remain separate questions.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This question concerns a Rust readonly source carrier. No native provider experiment or Rust execution receipt is attached; native naming/runtime observations remain separate questions.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This question concerns a Rust readonly source carrier. No native provider experiment or Rust execution receipt is attached; native naming/runtime observations remain separate questions.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This question concerns a Rust readonly source carrier. No native provider experiment or Rust execution receipt is attached; native naming/runtime observations remain separate questions.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This question concerns a Rust readonly source carrier. No native provider experiment or Rust execution receipt is attached; native naming/runtime observations remain separate questions.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This question concerns a Rust readonly source carrier. No native provider experiment or Rust execution receipt is attached; native naming/runtime observations remain separate questions.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -89,9 +45,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/workspace_symbols.rs](../../../../rust/tcl-lsp-core/src/workspace_symbols.rs), `workspace_symbols::tests::original_workspace_symbols_preserve_opaque_owners_and_ignore_reporting_maps` (linked): Independent equal-source URI owners preserve opaque procedure symbols despite cleared reports; changed source or selected dialect withdraws every retained location.
 - [rust/tcl-lsp-core/src/workspace_symbols.rs](../../../../rust/tcl-lsp-core/src/workspace_symbols.rs), `workspace_symbols::tests::original_registry_workspace_symbols_use_selected_source_cards_after_ui_clear` (linked): A genuine selected Registry Test card survives cleared report maps, validates current original membership and withdraws on whole-source edits or document removal.
 - [rust/tcl-lsp-core/src/workspace_index.rs](../../../../rust/tcl-lsp-core/src/workspace_index.rs), `workspace_index::original_settlement_transport_tests::workspace_symbols_require_current_source_context_before_report_advice` (linked): Real Logical presentation and Native original locators remain distinct; missing input/stale config/removed or reused document context withdraw symbol advice.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors exercise the scoped implementation premises. No Rust execution receipt or native provider observation is attached. The carrier validates source facts and preserves its URI; a host must separately map that URI to the current document and retain it through rendering.

@@ -26,7 +26,7 @@ The original Native safe-visibility rows remain independent observations. This c
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable; exact SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls. Version: tcl8.4 8.4.20.
 
 Exact original stdout:
 
@@ -59,7 +59,7 @@ Outer process status 0 with empty stderr. These finite guest results supply no p
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Actual executable; exact SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls. Version: tcl8.5 8.5.19.
 
 Exact original stdout:
 
@@ -92,7 +92,7 @@ Outer process status 0 with empty stderr. These finite guest results supply no p
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable; exact SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls. Version: tcl8.6 8.6.18.
 
 Exact original stdout:
 
@@ -125,7 +125,7 @@ Outer process status 0 with empty stderr. These finite guest results supply no p
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable; exact SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls. Version: tcl9.0 9.0.4.
 
 Exact original stdout:
 
@@ -158,7 +158,7 @@ Outer process status 0 with empty stderr. These finite guest results supply no p
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Actual executable; exact SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls.. Dialect: Tcl.
+Status: `observed`. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls. Version: tcl9.1 9.1.0.
 
 Exact original stdout:
 
@@ -191,7 +191,7 @@ Outer process status 0 with empty stderr. These finite guest results supply no p
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Actual executable; exact SDK/header/library/source/environment pins are retained in the receipt.. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls.. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: Exact complete original ASCII LF source-file CLI; eight independent child entry controls. Version: jim 0.84-9-g5bac7c9.
 
 Exact original stdout:
 
@@ -224,58 +224,25 @@ Child entry is unsupported in every case; no child visibility or hidden-token an
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-- `source` (input): [rust/tcl-registry/tests/data/native_safe_visibility_original/probe.tcl](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/probe.tcl). Exact original complete ASCII LF source containing eight independently owned child controls.
-- `runner` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/capture.py](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/capture.py). Exact original Root runner; process argv, queue dependency and output capture protocol retained.
-- `queue` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/queue.json](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/queue.json). Original selected executable/SDK/header/library/source/environment queue.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20/receipt.json). Original process argv/status, queried version, source/runner/executable/SDK/environment and raw stream digests. No child activation receipt is issued.
-- `tcl8.4-stdout` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20/stdout). Exact original complete stdout bytes; inner catch codes remain separate from process status.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20/stderr). Exact original complete stderr bytes; inner catch codes remain separate from process status.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19/receipt.json). Original process argv/status, queried version, source/runner/executable/SDK/environment and raw stream digests. No child activation receipt is issued.
-- `tcl8.5-stdout` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19/stdout). Exact original complete stdout bytes; inner catch codes remain separate from process status.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19/stderr). Exact original complete stderr bytes; inner catch codes remain separate from process status.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18/receipt.json). Original process argv/status, queried version, source/runner/executable/SDK/environment and raw stream digests. No child activation receipt is issued.
-- `tcl8.6-stdout` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18/stdout). Exact original complete stdout bytes; inner catch codes remain separate from process status.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18/stderr). Exact original complete stderr bytes; inner catch codes remain separate from process status.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4/receipt.json). Original process argv/status, queried version, source/runner/executable/SDK/environment and raw stream digests. No child activation receipt is issued.
-- `tcl9.0-stdout` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4/stdout). Exact original complete stdout bytes; inner catch codes remain separate from process status.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4/stderr). Exact original complete stderr bytes; inner catch codes remain separate from process status.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0/receipt.json). Original process argv/status, queried version, source/runner/executable/SDK/environment and raw stream digests. No child activation receipt is issued.
-- `tcl9.1-stdout` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0/stdout). Exact original complete stdout bytes; inner catch codes remain separate from process status.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0/stderr). Exact original complete stderr bytes; inner catch codes remain separate from process status.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_safe_visibility_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/jim/receipt.json). Original process argv/status, queried version, source/runner/executable/SDK/environment and raw stream digests. No child activation receipt is issued.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/jim/stdout](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/jim/stdout). Exact original complete stdout bytes; inner catch codes remain separate from process status.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_safe_visibility_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/jim/stderr). Exact original complete stderr bytes; inner catch codes remain separate from process status.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `Analyser::original_interp_visibility_body`: Require the genuine selected child source visibility/body purpose with complete original input and words; reporting spellings cannot supply the independent child allocation or entry.
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_child_visibility_is_scoped_conditional_and_retains_possible_source_edges` (linked): Conditional C child source loads retain three original source-qualified forms, their exact path word and current source subject with six independent obligations; foreign source refuses, and Jim does not inherit the C child surface.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "/workspace/.proofs/native-safe-visibility157/capture.py"
-]
-```
-
-The original runner retains capture-machine paths and its provider queue dependency. Replay requires independently verified matching executable/SDK/source/environment pins and fresh output paths. This review launches no native process or Rust tests. Jim child creation is unsupported; its outer catches cannot supply any hidden-command or child lookup answer.
+- [rust/tcl-registry/tests/data/native_safe_visibility_original](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original)
+- [rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.4.20)
+- [rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.5.19)
+- [rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/8.6.18)
+- [rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.0.4)
+- [rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_safe_visibility_original/jim](../../../../rust/tcl-registry/tests/data/native_safe_visibility_original/jim)

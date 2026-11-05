@@ -20,65 +20,17 @@ Pure Rust source proposal contract under the complete supplied source channel, L
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation` (implementation): [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs). Selected scalar source spelling validates independently supplied name protocol, channel and scanner before returning complete source proposals. Source definition only; separately retained Syntax controls cover fixed cases and do not execute consumer, editor or Native provider.
-
-- `syntax-source-naming-fixed-controls` (observation): [separate Syntax helper receipt](rust-validation/syntax-source-naming-20261103/receipt.json). Separate current-owned Syntax receipt for five scalar-spelling and authored-source naming controls; only the relevant named cases apply to this proof. No consumer/editor, Native provider or complete-proof result; reused dependency artifacts and external toolchain/cache remain outside custody.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs), `native_scalar_source_spelling`: Render and revalidate literal scalar source syntax through the shared byte ingress, source renderer and complete variable scanner without cell or edit authority.
 - [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs), `naming::variable_spelling::tests::scalar_source_proposals_preserve_native_operand_and_complete_reference` (linked): Six selected recipes preserve café as a complete braced reference, reject independently invalid scalar/source cases and keep raw-zero C/Jim purpose differences.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained Syntax receipt records the named scalar-spelling control; no Native interpreter, editor or consumer execution follows.
+- [rust/tcl-syntax/src/naming/variable_spelling.rs](../../../../rust/tcl-syntax/src/naming/variable_spelling.rs)

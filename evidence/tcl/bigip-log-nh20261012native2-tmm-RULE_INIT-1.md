@@ -105,89 +105,24 @@ ltm virtual /Common/__tcl_lsp_probe_nh20261012native2_caller_vs { destination 19
 
 ## Results
 
-### tmm-RULE_INIT, unit 0:0, invocation once
+### tmm-RULE_INIT, unit 0:0, invocation once; tmm-RULE_INIT, unit 0:1, invocation once; tmm-RULE_INIT, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|736565646564206e6832303236313031326e617469766532
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- native2-state-seed, setup, completion 0, result, chunk 0 of 1:
+- native2-state-seed, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- native2-state-seed, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-seeded nh20261012native2⟦EOF⟧
-```
-
-- native2-state-seed: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|736565646564206e6832303236313031326e617469766532
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- native2-state-seed, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- native2-state-seed, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-seeded nh20261012native2⟦EOF⟧
-```
-
-- native2-state-seed: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|736565646564206e6832303236313031326e617469766532
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- native2-state-seed, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- native2-state-seed, lookup, completion 0, result, chunk 0 of 1:
+- native2-state-seed, lookup, completion 0, result:
 
 ```text-visible
 seeded nh20261012native2⟦EOF⟧
@@ -202,22 +137,17 @@ seeded nh20261012native2⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-NHO|nh20261012native2|native2-state-seed|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|736565646564206e6832303236313031326e617469766532
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- native2-state-seed, setup, completion 0, result, chunk 0 of 1:
+- native2-state-seed, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- native2-state-seed, lookup, completion 0, result, chunk 0 of 1:
+- native2-state-seed, lookup, completion 0, result:
 
 ```text-visible
 seeded nh20261012native2⟦EOF⟧

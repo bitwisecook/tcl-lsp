@@ -20,20 +20,9 @@ Five private C Interp header probes. Ordinary ASCII Tcl_EvalEx return/error scri
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `observed`. Version: 8.4.20 (captured release association; launched patchlevel unqueried). Build: compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Private C Interp observer following public Tcl_EvalEx/Tcl_SaveInterpState/Tcl_RestoreInterpState with ordinary ASCII input.. Dialect: C Tcl.
-
-Exact selected emitted rows:
-
-```text
-initial-stack	absent-field
-```
-absent-field is a compile-time branch sentinel; it does not observe the omitted runtime API.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19 (captured release association; launched patchlevel unqueried). Build: compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Private C Interp observer following public Tcl_EvalEx/Tcl_SaveInterpState/Tcl_RestoreInterpState with ordinary ASCII input.. Dialect: C Tcl.
+Status: `observed`. Channel: Private C Interp observer following public Tcl_EvalEx/Tcl_SaveInterpState/Tcl_RestoreInterpState with ordinary ASCII input. Version: tcl8.4 8.4.20 (captured release association; launched patchlevel unqueried); tcl8.5 8.5.19 (captured release association; launched patchlevel unqueried).
 
 Exact selected emitted rows:
 
@@ -42,24 +31,9 @@ initial-stack	absent-field
 ```
 absent-field is a compile-time branch sentinel; it does not observe the omitted runtime API.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18 (captured release association; launched patchlevel unqueried). Build: compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Private C Interp observer following public Tcl_EvalEx/Tcl_SaveInterpState/Tcl_RestoreInterpState with ordinary ASCII input.. Dialect: C Tcl.
-
-Exact selected emitted rows:
-
-```text
-initial-stack	none	1
-stack-before	list	1	2	none	1
-stack-saved	2	1
-stack-mutated	1	1	1
-stack-restored	1	1	1
-```
-absent-field is a compile-time branch sentinel; it does not observe the omitted runtime API.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4 (captured release association; launched patchlevel unqueried). Build: compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Private C Interp observer following public Tcl_EvalEx/Tcl_SaveInterpState/Tcl_RestoreInterpState with ordinary ASCII input.. Dialect: C Tcl.
+Status: `observed`. Channel: Private C Interp observer following public Tcl_EvalEx/Tcl_SaveInterpState/Tcl_RestoreInterpState with ordinary ASCII input. Version: tcl8.6 8.6.18 (captured release association; launched patchlevel unqueried); tcl9.0 9.0.4 (captured release association; launched patchlevel unqueried); tcl9.1 9.1.0 (captured release association; launched patchlevel unqueried).
 
 Exact selected emitted rows:
 
@@ -72,44 +46,11 @@ stack-restored	1	1	1
 ```
 absent-field is a compile-time branch sentinel; it does not observe the omitted runtime API.
 
-### tcl9.1
+### jim, bigip
 
-Status: `observed`. Version: 9.1.0 (captured release association; launched patchlevel unqueried). Build: compile_exit=0. Full configuration/compiler version and launched runtime patchlevel were not queried. Any absent binary/status/hash field is unrecorded, not reconstructed from the currently selected providers.. Channel: Private C Interp observer following public Tcl_EvalEx/Tcl_SaveInterpState/Tcl_RestoreInterpState with ordinary ASCII input.. Dialect: C Tcl.
-
-Exact selected emitted rows:
-
-```text
-initial-stack	none	1
-stack-before	list	1	2	none	1
-stack-saved	2	1
-stack-mutated	1	1	1
-stack-restored	1	1	1
-```
-absent-field is a compile-time branch sentinel; it does not observe the omitted runtime API.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation of this exact question is retained for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No observation of this exact question is retained for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c). Exact private field conditional boundaries, original child selection and saved-state pointer/count sampling.
-- `receipt` (observation): [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json). All five separate compile/process status/stdout/stderr captures; sentinel branches retained.
-- `rows` (observation): [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv). Exact 38-row projection agrees byte-for-byte with the prefixed original inline streams.
-- `authored-consumer645d-697f7e7187ab` (implementation): [runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs). Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
-- `authored-consumer645d-2db75cd5b415` (implementation): [runtime/rust/src/interp/native_error_headers.rs](../../../../runtime/rust/src/interp/native_error_headers.rs). Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -118,8 +59,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs), `interp::native_body_artifact::native_error::original_return_boundary_tests::original_return_stack_string_refuses_before_list_backing_and_private_stack_adoption` (linked): Actual private-stack header/episode and original frame survive selected String and checked duplicate/List adoption, with first refusal retained before unused owner cleanup. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 - [runtime/rust/src/interp/native_error_headers.rs](../../../../runtime/rust/src/interp/native_error_headers.rs), `interp::native_error_headers::original_prepared_stack_tests::original_prepared_stack_unavailable_releases_do_not_issue_or_retire_private_headers` (linked): Actual C84/C85 unsupported stack recipes issue no prepared private owner and perform no Native private-header retirement. This is an inspected Rust software control; it supplies no passed assertion, external Native callback chronology, role parity or new getter/worker authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native execution or Rust test result is asserted. A new comparison must compile the exact retained probe against independently identified release headers and archive, preserve its original API/flags and declared observer references, then capture separate process status, stdout and stderr. Original absolute compiler paths are attribution metadata, not a portable replay command. The probe is input source, not an excerpt of the Tcl/Jim implementation.
+- [rust/tcl-registry/tests/data/native_error_headers/probe.c](../../../../rust/tcl-registry/tests/data/native_error_headers/probe.c)
+- [rust/tcl-registry/tests/data/native_error_headers/manifest.json](../../../../rust/tcl-registry/tests/data/native_error_headers/manifest.json)
+- [rust/tcl-registry/tests/data/native_error_headers/observations.tsv](../../../../rust/tcl-registry/tests/data/native_error_headers/observations.tsv)
+- [runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_error/original_return_boundary_tests.rs)
+- [runtime/rust/src/interp/native_error_headers.rs](../../../../runtime/rust/src/interp/native_error_headers.rs)

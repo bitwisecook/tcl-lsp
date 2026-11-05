@@ -1,1 +1,0 @@
-Historical start capture: replay was pending when this file was first committed. Complete execution and exact postflight are now preserved in completed-726/. Result596PASS/127FAIL/3TIMEOUT; no complete acceptance is claimed. Original start invocation remains unchanged.

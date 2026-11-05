@@ -20,63 +20,11 @@ Readonly original operand correspondence only. Existing bounded point retention,
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this immutable original operand projection invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation is attached to this immutable original operand projection invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this immutable original operand projection invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this immutable original operand projection invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation is attached to this immutable original operand projection invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation is attached to this immutable original operand projection invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation is attached to this immutable original operand projection invariant.
-
-## Historical references
-
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.original-point-operand-projection`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `current-cst-green` (implementation): [rust/tcl-compiler/src/parsing/syntax/green.rs](../../../../rust/tcl-compiler/src/parsing/syntax/green.rs). Retain the actual original lexer record recipe separately from literal trivia tiling width, without reconstructing token meaning from bytes. Current implementation source is independent of the diagnostic images and conveys no executed assertion.
-- `current-cst-build` (implementation): [rust/tcl-compiler/src/parsing/syntax/build.rs](../../../../rust/tcl-compiler/src/parsing/syntax/build.rs). Keep original lexer trivia records while assembling the configured original source CST. Current implementation source is independent of the diagnostic images and conveys no executed assertion.
-- `current-cst-red` (implementation): [rust/tcl-compiler/src/parsing/syntax/red.rs](../../../../rust/tcl-compiler/src/parsing/syntax/red.rs). Project actual original lexer records and anchor coordinates while keeping the semantic token API independent. Current implementation source is independent of the diagnostic images and conveys no executed assertion.
-- `current-cst-segment` (implementation): [rust/tcl-compiler/src/parsing/syntax/segment.rs](../../../../rust/tcl-compiler/src/parsing/syntax/segment.rs). Supply original interior separators to shared written-word grouping, preserving reporting extents independently. Current implementation source is independent of the diagnostic images and conveys no executed assertion.
-- `independent-cst-lexer-projection` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/receipts.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/receipts.json). Four actual independent diagnostic processes: both compile successfully; semantic projection compared with full original lexical records exits1 with112 differences; lexical projection exits0 with126 exact vectors. This is not a Compiler library test or native-provider observation.
-- `independent-cst-lexer-retention` (provider): [docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/retention.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/cst-original-lexer-projection/retention.json). Whole original three-owner sources, compiler/Lexer library bytes, driver inputs, streams and lossless executable images; limited to the actual recorded diagnostic.
-- `original-compiler-purpose-8f80d33b964b` (implementation): [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs). Actual token or retained materialized-world ownership supplies the common source-purpose tag before procedure roles, realm or body ownership. Complete input/source/configuration and Native allocation/caller/provider guards remain independent.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -108,12 +56,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/parsing/syntax/red.rs](../../../../rust/tcl-compiler/src/parsing/syntax/red.rs), `parsing::syntax::red::tests::original_cst_lexer_tokens_keep_actual_trivia_and_empty_terminators` (linked): Across seven configured dialects, nine original sources and both document/native-byte channels, the lexical CST API exactly preserves original lexer kind/span/content-offset/quote records, including empty separators/terminators and anchor translation; the semantic API retains its separately filtered contract. This source-defined control has no matching current whole-Compiler assertion outcome or external-provider result.
 - [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs), `command_binding::materialized_footprint::tests::original_logical_procedure_roles_keep_declaration_layout_separate_from_allocation_advice` (linked): Complete Logical original Proc/alias source provides lexical argv roles through its dedicated declaration layout. Returned public targets carry no implementation allocation, and the Native/formal allocation-bearing layout remains unavailable; opaque, unsupported, changed vector/input/store paths refuse.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked Rust selectors do not establish execution or timing. The unchanged 80-depth default-stack selector and its 60-second result require separate actual execution.
-
 ## Immutable identity and derived memo lifetime
 
 `SourceOriginId` retains its unchanged semantic kind, fingerprint and activation key. `OriginalSourceAnalysisOwner` retains its actual allocation identity and immutable original source, complete metadata and configuration. Their Eq/Hash policies do not depend on cache warmth. Mutable lexical projections and the analysis owner's existing weak registered-instance/operand-cache links and conditional-declaration memo are kept outside these key types in private derived sidecars.
@@ -123,3 +65,11 @@ A sidecar belongs to the actual Arc allocation: an address is only a bucket, and
 `OriginalSourceProjectionMemo` also owns one `NestedBodyCutMemo` for the same origin's whole image. It records a command-substitution body only after the unchanged recursive parse-cut walk of that body finished clean, keyed by whole-image body extent, full lexer configuration and channel. Bodies that cut or whose lexical stream or geometry is unavailable are never recorded and are walked again, so every projection keeps the unmemoised first cut and refusal. `SourceOriginId::original_script_words_in` shares the same memo for checked script-word plans of regions of that image — the source transition advice root plan and its body walk — whose plans equal the unshared capture. The sidecar is derived warmth: its Debug output names no bytes or keys, and it is not origin identity.
 
 Fixed source/analysis-owner lifetime controls retain products through the real lexical and conditional-declaration routes, drop the owner, and verify weak expiry plus retirement on the next sidecar access. Existing lexical projection controls use the accessor in place of the removed mutable field; their capture-count predicates, values and original source fixtures remain unchanged. These source controls are not claimed executed by this packet.
+
+## Evidence
+
+- [rust/tcl-compiler/src/parsing/syntax/green.rs](../../../../rust/tcl-compiler/src/parsing/syntax/green.rs)
+- [rust/tcl-compiler/src/parsing/syntax/build.rs](../../../../rust/tcl-compiler/src/parsing/syntax/build.rs)
+- [rust/tcl-compiler/src/parsing/syntax/red.rs](../../../../rust/tcl-compiler/src/parsing/syntax/red.rs)
+- [rust/tcl-compiler/src/parsing/syntax/segment.rs](../../../../rust/tcl-compiler/src/parsing/syntax/segment.rs)
+- [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs)

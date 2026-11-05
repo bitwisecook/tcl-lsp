@@ -65,10 +65,10 @@ set rows
 
 The initial HTTP collection labeled for this root test returned the array-index test's result, so it cannot establish a result for this script. The separately loaded root rerun is recorded below.
 
-### TMM 0:0, HTTP_REQUEST, rerun
+### TMM 0:0, HTTP_REQUEST, rerun; TMM 0:1, HTTP_REQUEST, rerun; TMM 0:2, HTTP_REQUEST, rerun; TMM 0:3, HTTP_REQUEST, rerun
 
 - Recorded version: Not recorded; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:0, HTTP_REQUEST, rerun.
+- Recorded input channel: TMM 0:0, HTTP_REQUEST, rerun; TMM 0:1, HTTP_REQUEST, rerun; TMM 0:2, HTTP_REQUEST, rerun; TMM 0:3, HTTP_REQUEST, rerun.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -80,70 +80,10 @@ The initial HTTP collection labeled for this root test returned the array-index 
 
 The wrapper recorded Tcl completion code 0. The same result was recorded in 32 responses with status HTTP/1.0 200 OK.
 
-### TMM 0:1, HTTP_REQUEST, rerun
-
-- Recorded version: Not recorded; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:1, HTTP_REQUEST, rerun.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{roots 33 35} {trace_proc 0 {}} {trace_add 0 {}} {write 36 0 PLAIN} {write 38 0 COUNTED} {exists plain 1} {read plain 0 PLAIN} {exists counted 1} {read counted 0 COUNTED} {upvar_write 0 COUNTED_MUTATION} {after_link plain 0 PLAIN} {after_link counted 0 COUNTED_MUTATION} {unset_counted_root 0 {}} {after_unset_exists plain 1} {after_unset_read plain 0 PLAIN} {after_unset_exists counted 0} {after_unset_read counted 1 {can't read "__tcl_lsp_2286_r2286s_arrayroot_A⟦U+0000⟧B(k)": no such variable}} {trace_rows {{5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {616c696173 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 {} u} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r}}}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result was recorded in 32 responses with status HTTP/1.0 200 OK.
-
-### TMM 0:2, HTTP_REQUEST, rerun
-
-- Recorded version: Not recorded; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:2, HTTP_REQUEST, rerun.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{roots 33 35} {trace_proc 0 {}} {trace_add 0 {}} {write 36 0 PLAIN} {write 38 0 COUNTED} {exists plain 1} {read plain 0 PLAIN} {exists counted 1} {read counted 0 COUNTED} {upvar_write 0 COUNTED_MUTATION} {after_link plain 0 PLAIN} {after_link counted 0 COUNTED_MUTATION} {unset_counted_root 0 {}} {after_unset_exists plain 1} {after_unset_read plain 0 PLAIN} {after_unset_exists counted 0} {after_unset_read counted 1 {can't read "__tcl_lsp_2286_r2286s_arrayroot_A⟦U+0000⟧B(k)": no such variable}} {trace_rows {{5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {616c696173 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 {} u} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r}}}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result was recorded in 32 responses with status HTTP/1.0 200 OK.
-
-### TMM 0:3, HTTP_REQUEST, rerun
-
-- Recorded version: Not recorded; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: TMM 0:3, HTTP_REQUEST, rerun.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{roots 33 35} {trace_proc 0 {}} {trace_add 0 {}} {write 36 0 PLAIN} {write 38 0 COUNTED} {exists plain 1} {read plain 0 PLAIN} {exists counted 1} {read counted 0 COUNTED} {upvar_write 0 COUNTED_MUTATION} {after_link plain 0 PLAIN} {after_link counted 0 COUNTED_MUTATION} {unset_counted_root 0 {}} {after_unset_exists plain 1} {after_unset_read plain 0 PLAIN} {after_unset_exists counted 0} {after_unset_read counted 1 {can't read "__tcl_lsp_2286_r2286s_arrayroot_A⟦U+0000⟧B(k)": no such variable}} {trace_rows {{5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {616c696173 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 {} u} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r}}}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. The same result was recorded in 32 responses with status HTTP/1.0 200 OK.
-
-### IAppImplementation
+### IAppImplementation; ICallScript
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: IAppImplementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-{roots 33 35} {trace_proc 0 {}} {trace_add 0 {}} {write 36 0 PLAIN} {write 38 0 COUNTED} {exists plain 1} {read plain 0 PLAIN} {exists counted 1} {read counted 0 COUNTED} {upvar_write 0 COUNTED_MUTATION} {after_link plain 0 PLAIN} {after_link counted 0 COUNTED_MUTATION} {unset_counted_root 0 {}} {after_unset_exists plain 1} {after_unset_read plain 0 PLAIN} {after_unset_exists counted 0} {after_unset_read counted 1 {can't read "__tcl_lsp_2286_r2286s_arrayroot_A⟦U+0000⟧B(k)": no such variable}} {trace_rows {{5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {616c696173 6b w} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f410042 {} u} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r} {5f5f74636c5f6c73705f323238365f7232323836735f6172726179726f6f745f41 6b r}}}⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0. This result was decoded from the retained context marker.
-
-### ICallScript
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded in this run's result.
-- Recorded input channel: ICallScript.
+- Recorded input channel: IAppImplementation; ICallScript.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.

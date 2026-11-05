@@ -22,66 +22,45 @@ Current pure reporting-QName API, compatibility type-advice projection, test-onl
 
 ### tcl8.4
 
-Status: `not-tested`. Version: not applicable to this pure presentation question. Build: No original provider process applies to this Rust reporting query.. Channel: Unicode analytical QName source/API controls only.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Unicode analytical QName source/API controls only. Version: tcl8.4 not applicable to this pure presentation question.
 
 External tcl8.4 execution is not applicable to the pure reporting-prefix question. No provider namespace interpretation, lookup, object/header getter, frame, constructor or body effect is tested or inferred. Independently retained source/namespace/construction owners are software API requirements, not a provider experiment.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: not applicable to this pure presentation question. Build: No original provider process applies to this Rust reporting query.. Channel: Unicode analytical QName source/API controls only.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Unicode analytical QName source/API controls only. Version: tcl8.5 not applicable to this pure presentation question.
 
 External tcl8.5 execution is not applicable to the pure reporting-prefix question. No provider namespace interpretation, lookup, object/header getter, frame, constructor or body effect is tested or inferred. Independently retained source/namespace/construction owners are software API requirements, not a provider experiment.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: not applicable to this pure presentation question. Build: No original provider process applies to this Rust reporting query.. Channel: Unicode analytical QName source/API controls only.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Unicode analytical QName source/API controls only. Version: tcl8.6 not applicable to this pure presentation question.
 
 External tcl8.6 execution is not applicable to the pure reporting-prefix question. No provider namespace interpretation, lookup, object/header getter, frame, constructor or body effect is tested or inferred. Independently retained source/namespace/construction owners are software API requirements, not a provider experiment.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: not applicable to this pure presentation question. Build: No original provider process applies to this Rust reporting query.. Channel: Unicode analytical QName source/API controls only.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Unicode analytical QName source/API controls only. Version: tcl9.0 not applicable to this pure presentation question.
 
 External tcl9.0 execution is not applicable to the pure reporting-prefix question. No provider namespace interpretation, lookup, object/header getter, frame, constructor or body effect is tested or inferred. Independently retained source/namespace/construction owners are software API requirements, not a provider experiment.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: not applicable to this pure presentation question. Build: No original provider process applies to this Rust reporting query.. Channel: Unicode analytical QName source/API controls only.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Unicode analytical QName source/API controls only. Version: tcl9.1 not applicable to this pure presentation question.
 
 External tcl9.1 execution is not applicable to the pure reporting-prefix question. No provider namespace interpretation, lookup, object/header getter, frame, constructor or body effect is tested or inferred. Independently retained source/namespace/construction owners are software API requirements, not a provider experiment.
 
 ### jim
 
-Status: `not-tested`. Version: not applicable to this pure presentation question. Build: No original provider process applies to this Rust reporting query.. Channel: Unicode analytical QName source/API controls only.. Dialect: jim.
+Status: `not-tested`. Channel: Unicode analytical QName source/API controls only. Version: jim not applicable to this pure presentation question.
 
 External jim execution is not applicable to the pure reporting-prefix question. No provider namespace interpretation, lookup, object/header getter, frame, constructor or body effect is tested or inferred. Independently retained source/namespace/construction owners are software API requirements, not a provider experiment.
 
 ### bigip
 
-Status: `not-tested`. Version: not applicable to this pure presentation question. Build: No original provider process applies to this Rust reporting query.. Channel: Unicode analytical QName source/API controls only.. Dialect: f5-bigip.
+Status: `not-tested`. Channel: Unicode analytical QName source/API controls only. Version: bigip not applicable to this pure presentation question.
 
 External bigip execution is not applicable to the pure reporting-prefix question. No provider namespace interpretation, lookup, object/header getter, frame, constructor or body effect is tested or inferred. Independently retained source/namespace/construction owners are software API requirements, not a provider experiment.
-
-## Historical references
-
-- `syntax-naming-scoped-22031e4d15e0` (observation): [Scoped syntax naming receipt](rust-validation/syntax-naming-20261103/receipt.json). Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows.
-
-- `reporting-source-0` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed source role: Declares and re-exports the independently owned reporting-QName query; source API role only. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-- `reporting-source-1` (implementation): [rust/tcl-syntax/src/naming/reporting.rs](../../../../rust/tcl-syntax/src/naming/reporting.rs). Pure literal reporting QName namespace projection under its explicitly selected purpose; no source or Native namespace/lookup authority. Source entry alone does not execute a consumer; a separately retained Syntax control checks fixed reporting examples.
-- `reporting-source-2` (implementation): [rust/tcl-compiler/src/inlining/mod.rs](../../../../rust/tcl-compiler/src/inlining/mod.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-- `reporting-source-3` (implementation): [rust/tcl-compiler/src/inline_uplevel.rs](../../../../rust/tcl-compiler/src/inline_uplevel.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-- `reporting-source-4` (implementation): [rust/tcl-compiler/src/type_infer.rs](../../../../rust/tcl-compiler/src/type_infer.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-- `reporting-source-5` (implementation): [rust/tcl-compiler/src/inlining/frame.rs](../../../../rust/tcl-compiler/src/inlining/frame.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-- `reporting-source-6` (implementation): [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-- `reporting-source-7` (implementation): [rust/tcl-compiler/src/command_binding/namespace_context.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_context.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-- `reporting-source-8` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-- `reporting-source-9` (implementation): [rust/tcl-compiler/src/ir.rs](../../../../rust/tcl-compiler/src/ir.rs). Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect.
-
-- `syntax-reporting-source-role-review` (observation): [separate source review](rust-validation/syntax-reporting-20261103/source-review.json). Separate source review references the earlier retained named Syntax reporting control; no new execution, compiler/W214 consumer, Native provider, lookup or whole-proof result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -100,8 +79,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/inline_uplevel.rs](../../../../rust/tcl-compiler/src/inline_uplevel.rs), `inline_uplevel::reported_namespace_tests::uplevel_caller_reporting_namespace_roots_relative_prefixes` (linked): Actual private uplevel delegate selects RootRelativePrefix on fixed labels. Source-defined fixed software control only; no matching owned executable/assertion result or external provider execution is attached.
 - [rust/tcl-compiler/src/type_infer.rs](../../../../rust/tcl-compiler/src/type_infer.rs), `type_infer::reported_namespace_tests::constructor_advice_reporting_namespace_preserves_literal_prefixes` (linked): Actual private constructor-advice delegate selects LiteralPrefix on fixed labels. Source-defined fixed software control only; no matching owned executable/assertion result or external provider execution is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained receipt records one named pure reporting-QName syntax control; other named controls have no attached current execution outcome. No original external provider observation is attached. Consumer purpose and independent original source/namespace/metadata owners remain necessary.
+- [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs)
+- [rust/tcl-syntax/src/naming/reporting.rs](../../../../rust/tcl-syntax/src/naming/reporting.rs)
+- [rust/tcl-compiler/src/inlining/mod.rs](../../../../rust/tcl-compiler/src/inlining/mod.rs)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler/src/inlining/frame.rs](../../../../rust/tcl-compiler/src/inlining/frame.rs)
+- [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs)
+- [rust/tcl-compiler/src/command_binding/namespace_context.rs](../../../../rust/tcl-compiler/src/command_binding/namespace_context.rs)
+- [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs)

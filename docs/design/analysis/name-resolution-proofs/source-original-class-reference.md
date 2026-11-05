@@ -20,55 +20,11 @@ Three fixed Rust source-contract controls cover genuine BASES children/current m
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original source class-reference implementation contract supplies no native process, runtime inheritance/adoption, class object, allocation, frame, callable or edit observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original source class-reference implementation contract supplies no native process, runtime inheritance/adoption, class object, allocation, frame, callable or edit observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original source class-reference implementation contract supplies no native process, runtime inheritance/adoption, class object, allocation, frame, callable or edit observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original source class-reference implementation contract supplies no native process, runtime inheritance/adoption, class object, allocation, frame, callable or edit observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original source class-reference implementation contract supplies no native process, runtime inheritance/adoption, class object, allocation, frame, callable or edit observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original source class-reference implementation contract supplies no native process, runtime inheritance/adoption, class object, allocation, frame, callable or edit observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original source class-reference implementation contract supplies no native process, runtime inheritance/adoption, class object, allocation, frame, callable or edit observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -112,9 +68,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::missing_class_source_cannot_publish_native_definition_stubs` (linked): Missing canonical original class, Native and hosted input cannot publish Logical source definition stubs or manufacture a Native worker/member table.
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::a_stub_retraction_of_an_undeclared_member_leaves_a_tombstone` (linked): Positive retained Logical stub source retraction leaves a terminal source tombstone, not an actual Native table mutation.
 - [rust/tcl-compiler/src/analyser/oo.rs](../../../../rust/tcl-compiler/src/analyser/oo.rs), `analyser::oo::tests::a_stub_renamemethod_tombstones_only_the_source_name` (linked): Positive retained Logical rename stub preserves exact source-name tombstone and canonical source correspondence without current Native dispatch/edit authority.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Exact Rust selectors bind original source producers/consumers and refusals only. Actual compilation and assertion receipts remain independent; no successful test or native provider execution is claimed.

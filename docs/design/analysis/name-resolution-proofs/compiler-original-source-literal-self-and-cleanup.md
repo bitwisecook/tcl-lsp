@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4 source purpose and original archive digest; no fresh linked-version query; 8.4.20. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.4.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source. Version: tcl8.4 8.4 source purpose and original archive digest; no fresh linked-version query; 8.4.20.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -126,7 +126,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.5.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source. Version: tcl8.5 8.5.19.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -167,7 +167,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl8.6.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source. Version: tcl8.6 8.6.18.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -208,7 +208,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.0.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source. Version: tcl9.0 9.0.4.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -249,7 +249,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source.. Dialect: tcl9.1.
+Status: `observed`. Channel: Compiled retained C probe; original evaluator/API calls: direct original-object/private-header calls. Exact lengths, flags and input constructors remain in the source. Version: tcl9.1 9.1.0.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -288,43 +288,22 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 }
 ```
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: jim.
-
-No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (input): [rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.c](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-1` (observation): [rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-2` (input): [rust/tcl-runtime-api/tests/data/native_source_literals/larger.c](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/larger.c). Exact retained input/program bytes; purpose is limited to this question.
-- `file-3` (observation): [rust/tcl-runtime-api/tests/data/native_source_literals/larger84.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/larger84.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4` (observation): [rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-4-row-5` (provider): [rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-4-row-6` (provider): [rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-4-row-7` (provider): [rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-4-row-8` (provider): [rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-4-row-9` (provider): [rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-10` (observation): [rust/tcl-runtime-api/tests/data/native_source_literals/observations.tsv](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/observations.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-11` (input): [rust/tcl-runtime-api/tests/data/native_source_literals/probe.c](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/probe.c). Exact retained input/program bytes; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.c](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.c)
+- [rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/cleanup.json)
+- [rust/tcl-runtime-api/tests/data/native_source_literals/larger.c](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/larger.c)
+- [rust/tcl-runtime-api/tests/data/native_source_literals/larger84.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/larger84.json)
+- [rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/manifest.json)
+- [rust/tcl-runtime-api/tests/data/native_source_literals/observations.tsv](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/observations.tsv)
+- [rust/tcl-runtime-api/tests/data/native_source_literals/probe.c](../../../../rust/tcl-runtime-api/tests/data/native_source_literals/probe.c)

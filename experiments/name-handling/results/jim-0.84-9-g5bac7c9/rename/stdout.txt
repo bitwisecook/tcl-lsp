@@ -1,1 +1,0 @@
-     rename.test: Total    10   Passed    10  Skipped     0  Failed     0

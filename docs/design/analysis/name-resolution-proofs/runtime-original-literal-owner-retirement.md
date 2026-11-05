@@ -20,58 +20,11 @@ Implementation source and software allocation controls only. All seven external 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-runtime-original-literal-owner-retirement-rust-tcl-runtime-api-src-native_literal.rs` (implementation): [rust/tcl-runtime-api/src/native_literal.rs](../../../../rust/tcl-runtime-api/src/native_literal.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-runtime-original-literal-owner-retirement-runtime-rust-src-interp-native_literal_pool.rs` (implementation): [runtime/rust/src/interp/native_literal_pool.rs](../../../../runtime/rust/src/interp/native_literal_pool.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-runtime-original-literal-owner-retirement-rust-tcl-vm-src-literal_pool.rs` (implementation): [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `own-source349-runtime-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/frozen349/question-body-outcomes.json). JSON pointer `/by_question/naming.runtime.original-literal-owner-retirement`. Exact original-source349 body/question/document joins to the owned Runtime image, actual inventory/admission and separate grouped/isolated process outcomes. Later implementation source and external-provider answers receive no result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,8 +34,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-runtime-api/src/native_literal.rs](../../../../rust/tcl-runtime-api/src/native_literal.rs), `native_literal::empty_world_tests::detached_final_owner_can_release_nested_registration_without_pool_borrow` (linked): The software final owner detaches without running a destructor; its later drop releases an independently retained child registration after the mutable RefCell borrow ends. Exact two-owner drop count and empty software inventory are asserted, without native destructor or table-identity evidence.
 - [runtime/rust/src/interp/native_literal_pool.rs](../../../../runtime/rust/src/interp/native_literal_pool.rs), `interp::native_literal_pool::tests::retiring_registered_bytecode_releases_nested_literals_outside_world_borrow` (linked): An authenticated Runtime C8.4 NativeCore constructor retains actual compiler epochs, original Bytecode cache and nested registrations in the same software world. Releasing the final owner outside the mutable borrow empties that inventory. This is the software allocation control definition, not an executed positive result or separately observed native destructor chronology.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-runtime-api/src/native_literal.rs](../../../../rust/tcl-runtime-api/src/native_literal.rs)
+- [runtime/rust/src/interp/native_literal_pool.rs](../../../../runtime/rust/src/interp/native_literal_pool.rs)
+- [rust/tcl-vm/src/literal_pool.rs](../../../../rust/tcl-vm/src/literal_pool.rs)

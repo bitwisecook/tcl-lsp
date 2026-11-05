@@ -20,55 +20,11 @@ Current Rust consumer and source geometry contract. Native naming observations r
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation-source` (implementation): [rust/tcl-lsp-core/src/type_hierarchy.rs](../../../../rust/tcl-lsp-core/src/type_hierarchy.rs). Current Rust source geometry and consumer assertions; no native or Rust execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,8 +36,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/type_hierarchy.rs](../../../../rust/tcl-lsp-core/src/type_hierarchy.rs), `type_hierarchy::original_hierarchy_tests::original_hierarchy_earlier_nonclass_headers_block_later_class_candidates` (linked): Prepare retains a current class declaration identity. Direct superclasses and mixins use the shared original relation kernel with occupied non-class headers; ambiguous providers decline. Workspace joins preserve URI ownership and recheck complete source and scanner configuration. Wire locators refer to bounded retained identities and supply no declaration authority by themselves. The result is source declaration advice, independently of runtime class installation and MRO.
 - [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs), `tests::original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source` (linked): Round trip a retained current class owner independently of item labels/ranges, and reject missing data, foreign URI and changed complete source.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named fixed Rust selectors are reproducible source contract checks. Their execution is not asserted by this record. Native experiments are independently scoped.
+- [rust/tcl-lsp-core/src/type_hierarchy.rs](../../../../rust/tcl-lsp-core/src/type_hierarchy.rs)

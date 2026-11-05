@@ -20,70 +20,36 @@ One exact original Double1.5 lives in an inner name/default List, inside a real 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5
 
-Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: . Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity.. Dialect: C Tcl.
-
-Actual callback reports {"same_object":false,"cache":"string"}. Original raw stream equals the attached manifest observation; missing process/build fields are not inferred.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: . Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity.. Dialect: C Tcl.
+Status: `observed`. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity. Version: tcl8.4 8.4.20; tcl8.5 8.5.19.
 
 Actual callback reports {"same_object":false,"cache":"string"}. Original raw stream equals the attached manifest observation; missing process/build fields are not inferred.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: . Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity.. Dialect: C Tcl.
-
-Actual callback reports {"same_object":true,"cache":"double"}. Original raw stream equals the attached manifest observation; missing process/build fields are not inferred.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: . Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity.. Dialect: C Tcl.
-
-Actual callback reports {"same_object":true,"cache":"double"}. Original raw stream equals the attached manifest observation; missing process/build fields are not inferred.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: . Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity.. Dialect: C Tcl.
-
-Actual callback reports {"same_object":true,"cache":"double"}. Original raw stream equals the attached manifest observation; missing process/build fields are not inferred.
-
-### jim
-
-Status: `observed`. Version: Jim capture; patchlevel, revision and UTF configuration unrecorded. Build: . Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Real original Double in nested formal Lists, public original argv definition/invocation and callback argument identity. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0; jim Jim capture.
 
 Actual callback reports {"same_object":true,"cache":"double"}. Original raw stream equals the attached manifest observation; missing process/build fields are not inferred.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No original observation for this exact question is attached for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-probe.c](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-probe.c). Exact Double/List producers, omitted-argument public invocation and original pointer/type callback.
-- `receipt` (provider): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json). Minimal original six-provider/library/observations record; absent build/process/checksum fields remain unrecorded.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.4.20.jsonl). Exact original callback pointer-equality/type row matched to the recorded observation object.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.5.19.jsonl). Exact original callback pointer-equality/type row matched to the recorded observation object.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.6.18.jsonl). Exact original callback pointer-equality/type row matched to the recorded observation object.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.0.4.jsonl). Exact original callback pointer-equality/type row matched to the recorded observation object.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.1.0.jsonl). Exact original callback pointer-equality/type row matched to the recorded observation object.
-- `rows-jim` (observation): [rust/tcl-syntax/tests/data/native_formal_storage/default-object-jim0.84.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-jim0.84.jsonl). Exact original callback pointer-equality/type row matched to the recorded observation object.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_proc.rs](../../../../runtime/rust/src/cmd_proc.rs), `parse_params_object`: Retains selected original default object ownership apart from its printed spelling.
 - [runtime/rust/src/cmd_proc.rs](../../../../runtime/rust/src/cmd_proc.rs), `cmd_proc::tests::native_formals_keep_storage_keys_and_original_default_objects` (linked): Recreates genuine Double/List defaults and compares retained pointer identity to all six original rows; does not claim original callback launched during the Rust test.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No new native run or Rust execution result is claimed. Replay must compile the retained exact probe against independently identified release headers/libraries and preserve separate compile/process status and raw streams before comparing the attached original hashes. Original absolute compile paths are capture metadata, not a portable executable command. No evaluator/source/parser or native allocation authority may be obtained by matching display text. Probe code is input/observer code; absent native source excerpts supply no implementation explanation.
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-probe.c](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-probe.c)
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-manifest.json)
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.4.20.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.4.20.jsonl)
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.5.19.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.5.19.jsonl)
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.6.18.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-8.6.18.jsonl)
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.0.4.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.0.4.jsonl)
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.1.0.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-9.1.0.jsonl)
+- [rust/tcl-syntax/tests/data/native_formal_storage/default-object-jim0.84.jsonl](../../../../rust/tcl-syntax/tests/data/native_formal_storage/default-object-jim0.84.jsonl)

@@ -26,59 +26,11 @@ Fixed source/API controls test static selected move/delete/scalar-head outcomes,
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-source-logical-original-operation-transfer-logical_definition.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs). Current source/API owner and marked fixed assertion bodies; no executed Rust or native provider observation.
-- `naming-source-logical-original-operation-transfer-logical_operation.rs` (implementation): [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs). The same genuine original invocation purpose, complete input and current captured target own conditional Logical scalar operations; raw eligibility cannot admit a Native Jim entry to that source model.
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.source.logical-original-operation-transfer`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `original-compiler-purpose-7adb1666df91` (implementation): [rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs). Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -104,8 +56,8 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs), `command_binding::logical_dispatch_purpose_tests::original_logical_dispatch_condition_requires_exact_retained_input_and_availability` (linked): Finite source-defined control: original logical dispatch condition requires exact retained input and availability. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs), `command_binding::logical_dispatch_purpose_tests::original_native_and_explicit_standalone_dispatch_keep_their_reached_purpose` (linked): Finite source-defined control: original native and explicit standalone dispatch keep their reached purpose. Live VM capture checks the software owner; no external provider row is inferred. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/command_binding/logical_definition.rs](../../../../rust/tcl-compiler/src/command_binding/logical_definition.rs)
+- [rust/tcl-compiler/src/command_binding/logical_operation.rs](../../../../rust/tcl-compiler/src/command_binding/logical_operation.rs)
+- [rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs](../../../../rust/tcl-compiler/src/command_binding/logical_dispatch_purpose_tests.rs)

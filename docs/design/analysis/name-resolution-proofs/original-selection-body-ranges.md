@@ -20,55 +20,11 @@ Readonly Rust selection geometry for current document source. Fixed coverage inc
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This precise Rust source contract has no native execution receipt.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This precise Rust source contract has no native execution receipt.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This precise Rust source contract has no native execution receipt.
-
-## Historical references
-
-- `implementation` (implementation): [rust/tcl-lsp-core/src/selection_range.rs](../../../../rust/tcl-lsp-core/src/selection_range.rs). Current Rust source and fixed meaningful coverage selectors; no Rust or native execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,8 +35,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/selection_range.rs](../../../../rust/tcl-lsp-core/src/selection_range.rs), `selection_range::tests::original_body_ranges_keep_named_and_nameless_class_workers` (linked): Opaque class and method declarations retain method, constructor and destructor body nesting without display maps for C86/C90/C91 source metadata.
 - [rust/tcl-lsp-core/src/selection_range.rs](../../../../rust/tcl-lsp-core/src/selection_range.rs), `selection_range::tests::original_body_ranges_refuse_stale_configuration_and_foreign_headers` (linked): Changed complete source or strict quoting, a foreign original header, and a default assistance result cannot supply semantic body ranges.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The linked Rust selectors check this implementation contract. No native interpreter executes this editor or source-rendering owner, and no test execution receipt is asserted.
+- [rust/tcl-lsp-core/src/selection_range.rs](../../../../rust/tcl-lsp-core/src/selection_range.rs)

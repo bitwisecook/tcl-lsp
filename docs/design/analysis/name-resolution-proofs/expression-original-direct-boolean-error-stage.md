@@ -22,7 +22,7 @@ One retained original counted variable value per case enters the exact API indic
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation.. Dialect: C Tcl.
+Status: `observed`. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation. Version: tcl8.4 8.4.20 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -39,7 +39,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation.. Dialect: C Tcl.
+Status: `observed`. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation. Version: tcl8.5 8.5.19 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -56,7 +56,7 @@ Fields, input case indices and observer order are defined by the retained probe.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation.. Dialect: C Tcl.
+Status: `observed`. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation. Version: tcl8.6 8.6.18 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -71,26 +71,9 @@ route=1 case=5 code=0 inside=31 insideCode=50524f4245204245464f5245 insideOption
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation.. Dialect: C Tcl.
-
-Exact relevant original rows:
-
-```text
-route=1 case=0 code=1 inside=657870656374656420626f6f6c65616e2076616c75652062757420676f7420227822 insideCode=54434c2056414c5545204e554d424552 insideOptionsCode=54434c2056414c5545204e554d424552 result=657870656374656420626f6f6c65616e2076616c75652062757420676f7420227822 propagatedCode=54434c2056414c5545204e554d424552
-route=1 case=1 code=0 inside=31 insideCode=50524f4245204245464f5245 insideOptionsCode=50524f4245204245464f5245 result=31 propagatedCode=414253454e54
-route=1 case=2 code=0 inside=31 insideCode=50524f4245204245464f5245 insideOptionsCode=50524f4245204245464f5245 result=31 propagatedCode=414253454e54
-route=1 case=3 code=1 inside=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765 insideCode=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d insideOptionsCode=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d result=646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e6765 propagatedCode=415249544820444f4d41494e207b646f6d61696e206572726f723a20617267756d656e74206e6f7420696e2076616c69642072616e67657d
-route=1 case=4 code=0 inside=31 insideCode=50524f4245204245464f5245 insideOptionsCode=50524f4245204245464f5245 result=31 propagatedCode=414253454e54
-route=1 case=5 code=0 inside=31 insideCode=50524f4245204245464f5245 insideOptionsCode=50524f4245204245464f5245 result=31 propagatedCode=414253454e54
-```
-
-Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (capture association; launched patchlevel/revision unqueried). Build: . Compiler version/full configure flags unqueried; missing header/compiler status/executable digests were not measured.. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation.. Dialect: C Tcl.
+Status: `observed`. Channel: Original variable value set from counted Tcl_NewStringObj, selected direct expression API or entered expr, then outer Tcl_Eval propagation. Version: tcl9.0 9.0.4 (capture association; launched patchlevel/revision unqueried); tcl9.1 9.1.0 (capture association; launched patchlevel/revision unqueried).
 
 Exact relevant original rows:
 
@@ -105,38 +88,22 @@ route=1 case=5 code=0 inside=31 insideCode=50524f4245204245464f5245 insideOption
 
 Fields, input case indices and observer order are defined by the retained probe. No current object or compiler capability follows from this capture.
 
-### jim
+### jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No native observation of this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No native observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe-0` (input): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/probe.c). Exact retained input constructors, selected APIs, callback and before/after observers.
-- `receipt-0` (provider): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/manifest.json). Original release/build/status association. Only fields actually recorded are claimed; reconstructed current checksums do not create an absent original full stdout digest.
-- `rows-tcl8.4` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.4.20.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.5` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.5.19.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl8.6` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.6.18.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.0` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.0.4.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-- `rows-tcl9.1` (observation): [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.1.0.txt). Original retained full stream; provider answer selects only this question's relevant windows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `report_cmd_error`: Keeps primitive/direct expression error publication separate from later entered script error normalization.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native launch or executed Rust result is claimed. The retained exact probe is an input artifact, not native implementation source. Reconfirmation must independently identify actual release, headers/library/build and preserve the original constructor, selected getter/API, observer order and input channel. Capture-time absolute paths are not a portable replay runner. Unrecorded compiler/configure/version queries and original output digests remain explicit limits.
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/probe.c](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/probe.c)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/manifest.json](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/manifest.json)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.4.20.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.4.20.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.5.19.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.5.19.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.6.18.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/8.6.18.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.0.4.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.0.4.txt)
+- [rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.1.0.txt](../../../../rust/tcl-syntax/tests/data/native_scalar_getters/errors/expression_stage/9.1.0.txt)

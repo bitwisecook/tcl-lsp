@@ -16,55 +16,10 @@ if {[info exists tcl_patchLevel]} {set tcl_patchLevel} else {set x UNSET}⟦EOF�
 
 ## Results
 
-### TMM log tag tmm, RULE_INIT, case p_tcl_patchlevel
+### TMM log tag tmm, RULE_INIT, case p_tcl_patchlevel; TMM log tag tmm1, RULE_INIT, case p_tcl_patchlevel; TMM log tag tmm2, RULE_INIT, case p_tcl_patchlevel; TMM log tag tmm3, RULE_INIT, case p_tcl_patchlevel; iApp implementation, case p_tcl_patchlevel; iCall script, case p_tcl_patchlevel
 
 - Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-8.4.6⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm1, RULE_INIT, case p_tcl_patchlevel
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm1, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-8.4.6⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm2, RULE_INIT, case p_tcl_patchlevel
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm2, RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-8.4.6⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### TMM log tag tmm3, RULE_INIT, case p_tcl_patchlevel
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: TMM log tag tmm3, RULE_INIT.
+- Recorded input channel: TMM log tag tmm, RULE_INIT; TMM log tag tmm1, RULE_INIT; TMM log tag tmm2, RULE_INIT; TMM log tag tmm3, RULE_INIT; iApp implementation; iCall script.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
@@ -102,36 +57,6 @@ The wrapper recorded Tcl completion code 0.
 
 ```text-visible
 8.5.13⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iApp implementation, case p_tcl_patchlevel
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iApp implementation.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-8.4.6⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0.
-
-### iCall script, case p_tcl_patchlevel
-
-- Recorded version: BIG-IP 21.1.0.1, Tcl 8.4.6.
-- Recorded input channel: iCall script.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-8.4.6⟦EOF⟧
 ```
 
 The wrapper recorded Tcl completion code 0.

@@ -81,89 +81,24 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-RULE_INIT, unit 0:0, invocation rejected-provider-lifetime
+### tmm-RULE_INIT, unit 0:0, invocation rejected-provider-lifetime; tmm-RULE_INIT, unit 0:1, invocation rejected-provider-lifetime; tmm-RULE_INIT, unit 0:2, invocation rejected-provider-lifetime
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|setup|0|0:0|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|lookup|0|0:0|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- rejected-provider-lifetime, setup, completion 0, result, chunk 0 of 1:
+- rejected-provider-lifetime, setup, completion 0, result:
 
 ```text-visible
 provider-write⟦EOF⟧
 ```
 
-- rejected-provider-lifetime, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-phase rejected value {owner NEW argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
-```
-
-- rejected-provider-lifetime: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:1, invocation rejected-provider-lifetime
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|setup|0|0:1|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|lookup|0|0:1|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- rejected-provider-lifetime, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider-write⟦EOF⟧
-```
-
-- rejected-provider-lifetime, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-phase rejected value {owner NEW argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
-```
-
-- rejected-provider-lifetime: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:2, invocation rejected-provider-lifetime
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|setup|0|0:2|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|lookup|0|0:2|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- rejected-provider-lifetime, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-provider-write⟦EOF⟧
-```
-
-- rejected-provider-lifetime, lookup, completion 0, result, chunk 0 of 1:
+- rejected-provider-lifetime, lookup, completion 0, result:
 
 ```text-visible
 phase rejected value {owner NEW argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧
@@ -178,22 +113,17 @@ phase rejected value {owner NEW argc 2 argv {{a b} {{x} ::tail}} argv-hex {61206
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|setup|0|0:3|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70726f76696465722d7772697465
-NHO|nh20261012native2|rejected-provider-lifetime|tmm-RULE_INIT|lookup|0|0:3|rejected-provider-lifetime|result|binary-scan-tcl-value|0|1|70686173652072656a65637465642076616c7565207b6f776e6572204e4557206172676320322061726776207b7b6120627d207b7b787d203a3a7461696c7d7d20617267762d686578207b3631323036322037623738376432303361336137343631363936637d7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- rejected-provider-lifetime, setup, completion 0, result, chunk 0 of 1:
+- rejected-provider-lifetime, setup, completion 0, result:
 
 ```text-visible
 provider-write⟦EOF⟧
 ```
 
-- rejected-provider-lifetime, lookup, completion 0, result, chunk 0 of 1:
+- rejected-provider-lifetime, lookup, completion 0, result:
 
 ```text-visible
 phase rejected value {owner NEW argc 2 argv {{a b} {{x} ::tail}} argv-hex {612062 7b787d203a3a7461696c}}⟦EOF⟧

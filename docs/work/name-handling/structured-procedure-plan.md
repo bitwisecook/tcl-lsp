@@ -6,7 +6,7 @@ Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 T
 
 This is a dated13 October design proposal, not the present Module representation. Current issued procedure IDs, original Authored/Logical/Native body cards and report-label projections are adopted. Current226 readonly coverage preserves all Authored+Installed rows with unique injective actual allocation/site/origin/formals/namespace/current Module/FU/CFG pairing; it grants only Authored analytical admissibility. Remaining live source-scope/catalogue consumers are in the current ledger; no old rendered-name architecture should be reinstated.
 
-Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; `handoff/README.md` contains explicitly unadopted continuation work.
 
 ## Retained bounded audit
 
@@ -213,4 +213,4 @@ sidecars/traces/teardown too; a compiler migration alone is not full issue closu
 Original-argv acceptance, F5 answers and current naming-base/variable-policy
 producer work remain independent prerequisites or explicit outstanding items.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

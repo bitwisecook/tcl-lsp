@@ -20,65 +20,11 @@ Six marked source/API controls cover whole input/config and source scalar names,
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-navigation-retained-path-source-inventory-rust-tcl-compiler-src-auto_path_eval-path_constants-original.rs` (implementation): [rust/tcl-compiler/src/auto_path_eval/path_constants/original.rs](../../../../rust/tcl-compiler/src/auto_path_eval/path_constants/original.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-navigation-retained-path-source-inventory-rust-tcl-compiler-src-auto_path_eval.rs` (implementation): [rust/tcl-compiler/src/auto_path_eval.rs](../../../../rust/tcl-compiler/src/auto_path_eval.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-navigation-retained-path-source-inventory-rust-tcl-registry-src-source_navigation.rs` (implementation): [rust/tcl-registry/src/source_navigation.rs](../../../../rust/tcl-registry/src/source_navigation.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-navigation-retained-path-source-inventory-rust-tcl-registry-src-resolved_invocation.rs` (implementation): [rust/tcl-registry/src/resolved_invocation.rs](../../../../rust/tcl-registry/src/resolved_invocation.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-navigation-retained-path-source-inventory-rust-tcl-lsp-core-src-document_links.rs` (implementation): [rust/tcl-lsp-core/src/document_links.rs](../../../../rust/tcl-lsp-core/src/document_links.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.navigation.retained-path-source-inventory`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `source-purpose-91fe50625613` (implementation): [rust/tcl-registry/src/value_transfer/path.rs](../../../../rust/tcl-registry/src/value_transfer/path.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-- `source-purpose-8d932d3e772a` (implementation): [rust/tcl-registry/src/value_transfer/path/original_argument_coordinates_tests.rs](../../../../rust/tcl-registry/src/value_transfer/path/original_argument_coordinates_tests.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-- `source-purpose-9aaa1bb485c3` (implementation): [rust/tcl-compiler/src/auto_path_eval/source_expression.rs](../../../../rust/tcl-compiler/src/auto_path_eval/source_expression.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-- `source-purpose-44457d436ab0` (implementation): [rust/tcl-compiler/src/auto_path_eval/source_expression/original_path_argument_coordinates_tests.rs](../../../../rust/tcl-compiler/src/auto_path_eval/source_expression/original_path_argument_coordinates_tests.rs). Current purpose-specific source owner and linked software control definitions. Original full input/config/geometry and independent Native/Logical/standalone routes remain required; no executed assertion, runtime cell/frame/handler, filesystem or native provider outcome follows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -127,12 +73,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/value_transfer/path/original_argument_coordinates_tests.rs](../../../../rust/tcl-registry/src/value_transfer/path/original_argument_coordinates_tests.rs), `value_transfer::path::original_argument_coordinates_tests::original_path_values_keep_the_first_operand_in_both_selected_layouts` (linked): The shared Registry path evaluator uses the genuine argument_offset for both selected operation values and actual file-member operands. Join, dirname, tail, extension and rootname keep the first value; empty/malformed unary cardinalities decline. This is pure algebra and argument geometry, without filesystem or runtime filename facts.
 - [rust/tcl-registry/src/value_transfer/path/original_argument_coordinates_tests.rs](../../../../rust/tcl-registry/src/value_transfer/path/original_argument_coordinates_tests.rs), `value_transfer::path::original_argument_coordinates_tests::original_path_coordinates_keep_unknown_first_values_and_platform_declines_terminal` (linked): Actual LiteralInputs retain their first unknown value at offset zero or one. Shared path evaluation declines unproved values and independent drive/platform shapes without supplying a runtime filename or filesystem observation.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
-
 ## Logical document-link prefix and anchor adoption
 
 The Core lexical link consumer folds `PathConstantAssignments::before` at the actual selected source invocation before evaluating its path operand. The retained full input, source image, configuration, immutable Realm owner, imports and source scopes remain unchanged. `OriginalRegistryWords::original_logical_static_operand_prefix_before` first retains the complete genuine Logical source/schema/input/config and the actual earlier Written head/arguments. Every such original whole word must be statically classified by Syntax; substitutions, dynamic reads with unclosed observers, expansion and missing/foreign source decline this continuity facet. Captured alias arguments are earlier producer data and remain retained in the complete invocation, without becoming evaluated current Written operands. Only then may current and later assignment/effect observations be excluded; earlier unknown barriers remain terminal and all original applicability/lookup/observer debts remain retained. This receipt closes source operand syntax only and supplies no executed quietness, actual stored value or Normal result. A source call following another external source still cannot infer unchanged path variables from missing loaded-file effects. This adoption does not close that independent coverage debt or the current Native-value obligation.
@@ -153,7 +93,6 @@ The immutable V1 prefix proposal was held because it did not distinguish invocat
 
 These are additional unexecuted source controls. No previous assertion, native path, prior barrier or applicability debt was weakened; V1 HOLD remains archived. Root reconciles the exact earlier-operand facet once against the existing source-document-link purpose, never once per control.
 
-
 ## Explicit authored source simulation and Logical link purpose
 
 `lexical_document_links_in_context` also serves the existing direct readonly authored source-simulation control for Jim 0.84. Its actual typed original path inventory retains the full analysis/input/configuration, original words, naming provider and distinct namespace-local scopes. This purpose is separate from `AnalysisResult::allows_lexical_declaration_advice`: the latter selects the Logical link route and its genuine original earlier-Written continuity receipt, invocation-prefix constant fold and shared whole-child/static-tail anchor. Missing Logical continuity or geometry remains terminal and never falls through to the authored route.
@@ -161,3 +100,14 @@ These are additional unexecuted source controls. No previous assertion, native p
 The direct non-Logical authored simulation retains the predecessor's complete-inventory fold and original segmented-token anchor, after the same exact Registry navigation role, Written ordinal, original whole operand and source-expression capture. It issues a conditional path candidate only. Public Native `document_links_from_analysis` continues through its independent original value/input/schema gate and cannot borrow this source simulation. No Native value, entered namespace, effect closure, physical read, Normal result or edit permission follows.
 
 The ordinary446 regression is the unchanged `document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export`: a Logical-only continuation receipt had been imposed on its genuine non-Logical Jim issuer, and its compound original variable word could not supply the new Logical single-child anchor. The bounded repair restores the existing purpose split without changing that source or any assertion. Additional fixed control `document_links::authored_source_link_purpose_tests::authored_jim_path_advice_keeps_scope_without_becoming_public_native_value` retains the direct scoped positive, public Native refusal and changed source/configuration refusals. The current Logical prefix/tail controls and dynamic-earlier-argument refusals are unchanged. These are unexecuted source controls; Root owns ordinary validation. This is repair of the already-counted path-link purpose, with no additional owner or helper count.
+
+## Evidence
+
+- [rust/tcl-compiler/src/auto_path_eval/path_constants](../../../../rust/tcl-compiler/src/auto_path_eval/path_constants)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-registry/src](../../../../rust/tcl-registry/src)
+- [rust/tcl-lsp-core/src](../../../../rust/tcl-lsp-core/src)
+- [rust/tcl-registry/src/value_transfer](../../../../rust/tcl-registry/src/value_transfer)
+- [rust/tcl-registry/src/value_transfer/path](../../../../rust/tcl-registry/src/value_transfer/path)
+- [rust/tcl-compiler/src/auto_path_eval](../../../../rust/tcl-compiler/src/auto_path_eval)
+- [rust/tcl-compiler/src/auto_path_eval/source_expression](../../../../rust/tcl-compiler/src/auto_path_eval/source_expression)

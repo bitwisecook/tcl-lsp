@@ -24,55 +24,11 @@ This owner refinement adds no selector or assertion result. The failed actual C-
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No original external provider process answers this selected variable-inventory policy contract. Linked controls describe software policy/admission and preservation of original pattern/result state; Native table/frame/handler behaviour remains independent.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -87,8 +43,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs](../../../../rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs), `interp::native_variable_inventory_policy_tests::unsupported_inventory_policy_refuses_before_a_pattern_getter` (linked): Explicit Standalone ingress with unsupported Jim0.79 source purpose and no independently retained native issuer has no actual name policy; both shared inventory queries refuse before a nonresident original pattern getter. No Jim0.79 process or Native cache observation is claimed.
 - [runtime/rust/src/state_traits.rs](../../../../runtime/rust/src/state_traits.rs), `state_traits::tests::unsupported_variable_inventory_policy_preserves_original_guest_state` (linked): Unsupported actual inventory purpose refuses both queries without giving the original wide pattern a string representation or changing the prior Runtime guest result. Software ownership/state control only.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs](../../../../rust/tcl-vm/src/interp/native_variable_inventory_policy_tests.rs), `interp::native_variable_inventory_policy_tests::genuine_native_inventory_policy_survives_unknown_source_profile` (linked): An independently retained actual C8.6 native issuer preserves its selected inventory purpose and original variable results after source compatibility changes to Jim0.79; the source profile cannot revoke or create that issuer. Current software definition only; no external-provider observation or assertion outcome attached.
 
 A source profile and an independently retained native issuer are distinct policy premises; no assertion outcome is attached by this source binding.
@@ -96,7 +50,3 @@ A source profile and an independently retained native issuer are distinct policy
 - [rust/tcl-vm/src/interp/object_materialization.rs](../../../../rust/tcl-vm/src/interp/object_materialization.rs), `InterpState::object_materialization`: Keep compound object conversion and length purpose independent of selected variable-name inventory policy and descriptive source profile.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Current software definitions are linked only. Assertion coverage requires the independently compiled/listed/executed image matching those definitions. No original process, Native/private table/frame or mutable implementation digest is supplied.

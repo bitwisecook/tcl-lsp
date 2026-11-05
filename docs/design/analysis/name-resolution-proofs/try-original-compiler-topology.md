@@ -24,87 +24,27 @@ These source assertions have no attached run outcome. They cover the unchanged21
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-2 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 40}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
+Status: `observed`. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 2 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 40}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
-### tcl8.6
+### jim, bigip
 
-Status: `observed`. Version: 8.6.18. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-2 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 40}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-2 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 40}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-2 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"compile_exit": 0, "exit": 0, "observations": 40}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-## Historical references
-
-- `receipt-0` (observation): [runtime/rust/tests/data/native_compiled_try/manifest.json](../../../../runtime/rust/tests/data/native_compiled_try/manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-1` (observation): [runtime/rust/tests/data/native_compiled_try/8.4.20.tsv](../../../../runtime/rust/tests/data/native_compiled_try/8.4.20.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-2` (observation): [runtime/rust/tests/data/native_compiled_try/8.5.19.tsv](../../../../runtime/rust/tests/data/native_compiled_try/8.5.19.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-3` (observation): [runtime/rust/tests/data/native_compiled_try/8.6.18.tsv](../../../../runtime/rust/tests/data/native_compiled_try/8.6.18.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-4` (observation): [runtime/rust/tests/data/native_compiled_try/9.0.4.tsv](../../../../runtime/rust/tests/data/native_compiled_try/9.0.4.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-5` (observation): [runtime/rust/tests/data/native_compiled_try/9.1.0.tsv](../../../../runtime/rust/tests/data/native_compiled_try/9.1.0.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-6` (observation): [runtime/rust/tests/data/native_compiled_try/cases.tsv](../../../../runtime/rust/tests/data/native_compiled_try/cases.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-7` (input): [runtime/rust/tests/data/native_compiled_try/probe.c](../../../../runtime/rust/tests/data/native_compiled_try/probe.c). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `receipt-8` (observation): [rust/tcl-registry/tests/data/native_each_try_compilation/manifest.json](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-9` (observation): [rust/tcl-registry/tests/data/native_each_try_compilation/8.4.20.tsv](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.4.20.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-10` (observation): [rust/tcl-registry/tests/data/native_each_try_compilation/8.5.19.tsv](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.5.19.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-11` (observation): [rust/tcl-registry/tests/data/native_each_try_compilation/8.6.18.tsv](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.6.18.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-12` (observation): [rust/tcl-registry/tests/data/native_each_try_compilation/9.0.4.tsv](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.0.4.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-13` (observation): [rust/tcl-registry/tests/data/native_each_try_compilation/9.1.0.tsv](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.1.0.tsv). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-14` (input): [rust/tcl-registry/tests/data/native_each_try_compilation/cases.rs](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/cases.rs). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `artifact-15` (input): [rust/tcl-registry/tests/data/native_each_try_compilation/probe.c](../../../../rust/tcl-registry/tests/data/native_each_try_compilation/probe.c). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [runtime/rust/src/interp/native_body_artifact/native_try.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_try.rs), `Builder::try_operation`: Retain the selected original native Try recipe, preparations and actual result/options/local bindings separately from generic or rejected compilation.
 - [runtime/rust/src/interp/native_body_artifact/native_try.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_try.rs), `Interp::execute_body_try`: Execute the admitted software protected completion, handler and finally plan with original retained result/options owners and typed Host refusal boundaries.
 - [runtime/rust/src/interp/native_body_artifact/native_try.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_try.rs), `interp::native_body_artifact::native_try::tests::compiled_try_matches_original_native_handlers_fallthrough_and_finally` (linked): The unchanged case19..39 source subset compares63 public Guest completions/results across C8.6/C9.0/C9.1 software interpreters with no Host refusal; cases19..24 and34..39 additionally require36 genuine cached procedure artifacts to contain an Operation::Try.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
-
-## Replay
-
-Original producer code/inputs and captured invocation metadata are pinned above. Restore the exact named provider build and run the original probe with its matching public/private headers and library, preserving its observer order and the60-second/two-slot limits. Recorded absolute executable/output paths are metadata, not usable current paths. Original host probes absent from a corpus remain unreplayable; no source is reconstructed from a digest. Maintained source-only replay instructions are supplied separately where available.
-
 
 ## Exact original-source349 software outcomes
 
@@ -115,4 +55,9 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [runtime/rust/tests/data/native_compiled_try](../../../../runtime/rust/tests/data/native_compiled_try)
+- [rust/tcl-registry/tests/data/native_each_try_compilation](../../../../rust/tcl-registry/tests/data/native_each_try_compilation)

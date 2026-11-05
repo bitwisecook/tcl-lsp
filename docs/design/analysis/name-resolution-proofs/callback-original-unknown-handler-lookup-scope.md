@@ -22,93 +22,39 @@ One exact ASCII LF standalone source contains original catches, three explicitly
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Pinned actual standalone executable; exact executable/static-library/header/Makefile/source associations retained and rechecked.. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Dialect: Original C Tcl namespace/package unknown controls.
+Status: `observed`. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Version: tcl8.4 8.4.20.
 
 Namespace unknown is unavailable: original installation returns code1 with its full bad-option table, creation code0/empty and missing-command trigger code1/invalid command with observed empty. Package installation succeeds code0/empty; require returns code1/can't find package resolution_scope_missing_package with observed GLOBAL. The exact original and independent version CLI processes each exit0 with empty stderr; these finite authored shadows supply no private frame/current cell or future lookup identity.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: Pinned actual standalone executable; exact executable/static-library/header/Makefile/source associations retained and rechecked.. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Dialect: Original C Tcl namespace/package unknown controls.
-
-Namespace installation returns code0/resolution_scope_handler, creation code0/empty and trigger code0/handled with observed TRIGGER. Package installation returns code0/empty; require returns code1/can't find package resolution_scope_missing_package with observed GLOBAL. Trigger routing is publicly observed while package completion remains failed. The exact original and independent version CLI processes each exit0 with empty stderr; these finite authored shadows supply no private frame/current cell or future lookup identity.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Pinned actual standalone executable; exact executable/static-library/header/Makefile/source associations retained and rechecked.. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Dialect: Original C Tcl namespace/package unknown controls.
-
-Namespace installation returns code0/resolution_scope_handler, creation code0/empty and trigger code0/handled with observed TRIGGER. Package installation returns code0/empty; require returns code1/can't find package resolution_scope_missing_package with observed GLOBAL. Trigger routing is publicly observed while package completion remains failed. The exact original and independent version CLI processes each exit0 with empty stderr; these finite authored shadows supply no private frame/current cell or future lookup identity.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Pinned actual standalone executable; exact executable/static-library/header/Makefile/source associations retained and rechecked.. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Dialect: Original C Tcl namespace/package unknown controls.
-
-Namespace installation returns code0/resolution_scope_handler, creation code0/empty and trigger code0/handled with observed TRIGGER. Package installation returns code0/empty; require returns code1/can't find package resolution_scope_missing_package with observed GLOBAL. Trigger routing is publicly observed while package completion remains failed. The exact original and independent version CLI processes each exit0 with empty stderr; these finite authored shadows supply no private frame/current cell or future lookup identity.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Pinned actual standalone executable; exact executable/static-library/header/Makefile/source associations retained and rechecked.. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Dialect: Original C Tcl namespace/package unknown controls.
+Status: `observed`. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Namespace installation returns code0/resolution_scope_handler, creation code0/empty and trigger code0/handled with observed TRIGGER. Package installation returns code0/empty; require returns code1/can't find package resolution_scope_missing_package with observed GLOBAL. Trigger routing is publicly observed while package completion remains failed. The exact original and independent version CLI processes each exit0 with empty stderr; these finite authored shadows supply no private frame/current cell or future lookup identity.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Pinned actual standalone executable; exact executable/static-library/header/Makefile/source associations retained and rechecked.. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Dialect: Original Jim unavailable namespace/package unknown subcommands.
+Status: `observed`. Channel: Exact standalone ASCII LF CLI original script, explicit catch as written; version separately executed, no surrounding evaluation wrapper; observed callback markers are public results, no private-frame/TMM claim. Version: jim 0.84-9-g5bac7c9.
 
 Namespace unknown installation returns code1 with its exact unsupported subcommand table; namespace creation returns code0/resolution_scope_handler and missing-command trigger code1 with observed empty. Package unknown installation returns code1 with its exact unavailable subcommand table; require returns code1/Can't load package resolution_scope_missing_package with observed empty. No callback is observed and alternative API is not substituted. The exact original and independent version CLI processes each exit0 with empty stderr; these finite authored shadows supply no private frame/current cell or future lookup identity.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: BIG-IP.
+Status: `not-tested`.
 
 No appliance execution answers these exact original standalone callback-scope controls.
-
-## Historical references
-
-- `callback240-8.4.20-original.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/original.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/original.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.4.20-original.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/original.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/original.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/receipt.json). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.4.20-version.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/version.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/version.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.4.20-version.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/version.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.4.20/version.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.5.19-original.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/original.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/original.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.5.19-original.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/original.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/original.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/receipt.json). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.5.19-version.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/version.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/version.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.5.19-version.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/version.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.5.19/version.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.6.18-original.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/original.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/original.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.6.18-original.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/original.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/original.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/receipt.json). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.6.18-version.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/version.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/version.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-8.6.18-version.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/version.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.6.18/version.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.0.4-original.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/original.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/original.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.0.4-original.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/original.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/original.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/receipt.json). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.0.4-version.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/version.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/version.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.0.4-version.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/version.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.0.4/version.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.1.0-original.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/original.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/original.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.1.0-original.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/original.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/original.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/receipt.json). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.1.0-version.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/version.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/version.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-9.1.0-version.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/version.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.1.0/version.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-jim-original.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/jim/original.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/jim/original.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-jim-original.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/jim/original.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/jim/original.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_callback_scope240/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_callback_scope240/jim/receipt.json). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-jim-version.stderr` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/jim/version.stderr](../../../../rust/tcl-registry/tests/data/native_callback_scope240/jim/version.stderr). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-jim-version.stdout` (observation): [rust/tcl-registry/tests/data/native_callback_scope240/jim/version.stdout](../../../../rust/tcl-registry/tests/data/native_callback_scope240/jim/version.stdout). Whole unchanged actual nested process receipt or stdout/stderr; no selected/normalised rows.
-- `callback240-probe.tcl` (input): [rust/tcl-registry/tests/data/native_callback_scope240/probe.tcl](../../../../rust/tcl-registry/tests/data/native_callback_scope240/probe.tcl). Exact unchanged original ASCII LF source or separate version query.
-- `callback240-version.tcl` (input): [rust/tcl-registry/tests/data/native_callback_scope240/version.tcl](../../../../rust/tcl-registry/tests/data/native_callback_scope240/version.tcl). Exact unchanged original ASCII LF source or separate version query.
-- `callback240-capture.py` (input): [rust/tcl-registry/tests/data/native_callback_scope240/capture.py](../../../../rust/tcl-registry/tests/data/native_callback_scope240/capture.py). Exact Root-executed launcher; separate original/version process commands with actual pins and stream checks.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/selected_script_timing.rs](../../../../rust/tcl-registry/src/selected_script_timing.rs), `SelectedScriptMetadata::lookup_arguments`: Project independently selected Registry source callback lookup purpose; native public observations remain separate.
 - [rust/tcl-registry/src/selected_script_timing.rs](../../../../rust/tcl-registry/src/selected_script_timing.rs), `selected_script_timing::tests::original_unknown_handler_scopes_require_selected_supported_callback_operands` (linked): Actual selected availability projects C85+ namespace TriggerFrame and all5C package GlobalFrame descriptors, unavailable C84/Jim controls and literal/dynamic/query/expanded/non-callback refusal. This is metadata selection, not observed callback entry or physical frame.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact original/source-version files, whole stdout/stderr, nested actual commands/exits/durations, environment overrides and executable/library/header/Makefile/source pins remain unchanged. Inherited environment variables and compiler binary version are unrecorded. The original launcher uses external prior-provider receipts and absolute paths, so no portable replay is promised. A replay yields new observations. Publication launches no native, compiler or Rust process.
+- [rust/tcl-registry/tests/data/native_callback_scope240/8.4.20](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.4.20)
+- [rust/tcl-registry/tests/data/native_callback_scope240/8.5.19](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.5.19)
+- [rust/tcl-registry/tests/data/native_callback_scope240/8.6.18](../../../../rust/tcl-registry/tests/data/native_callback_scope240/8.6.18)
+- [rust/tcl-registry/tests/data/native_callback_scope240/9.0.4](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.0.4)
+- [rust/tcl-registry/tests/data/native_callback_scope240/9.1.0](../../../../rust/tcl-registry/tests/data/native_callback_scope240/9.1.0)
+- [rust/tcl-registry/tests/data/native_callback_scope240/jim](../../../../rust/tcl-registry/tests/data/native_callback_scope240/jim)
+- [rust/tcl-registry/tests/data/native_callback_scope240](../../../../rust/tcl-registry/tests/data/native_callback_scope240)

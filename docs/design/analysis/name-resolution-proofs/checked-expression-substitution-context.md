@@ -20,60 +20,11 @@ Rust implementation contract under the explicit contexts used by the linked test
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation invariant; no native-language observation for this question is claimed.
-
-## Historical references
-
-- `current-original-source-purpose-c44258ad16e1b6be` (implementation): [rust/tcl-syntax/src/expr/checked.rs](../../../../rust/tcl-syntax/src/expr/checked.rs). Checked parser owns distinct NativeSyntax and SourceTopology admission and the latter returns no Native certification. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution.
-- `current-original-source-purpose-aea7fd4e8800e02f` (implementation): [rust/tcl-syntax/src/expr/parser.rs](../../../../rust/tcl-syntax/src/expr/parser.rs). Shared Pratt and parser context implementation retains complete selected grammar and token boundaries. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution.
-- `current-original-source-purpose-2760f3974abf9410` (implementation): [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs). Checked substitution bridges preserve original index and command boundaries, including separate source-only topology. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution.
-- `current-original-source-purpose-44d7eae1482b2716` (implementation): [rust/tcl-syntax/src/expr/mod.rs](../../../../rust/tcl-syntax/src/expr/mod.rs). Expression module exposes the parser and substitution APIs; this module export is a source role only. Source entry is source-only; separately retained fixed software controls provide their stated observations, not Native/provider, compiler/editor or full-proof execution.
-
-- `expression-topology-fixed-software-controls` (observation): [separate scoped software receipt](rust-validation/expression-topology-20261103/receipt.json). Separate current-owned Syntax software receipt for six named raw-read and substitution/topology controls; only the relevant named cases apply to this proof. No Native/provider, compiler/editor, consumer or whole-proof outcome follows; reused dependency artifacts and external tools/cache are outside custody.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,20 +39,9 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs), `expr::substitution::original_source_topology_tests::original_source_topology_keeps_complete_unicode_bom_ranges_without_native_syntax` (linked): Under an actual Unknown Native syntax context, the source-only bridge retains complete original BOM/Unicode bracket spans in both lazy branches with no variable reads in this fixture. The Native bridge declines and the checked Native parser explicitly remains Unsupported(UnknownNativeSyntax); the context stays Unknown. This control supplies no positive scalar/array/brace-root matrix, preparation or Native object/entry authority. The separate scoped software receipt records this exact control passing; no provider outcome is attached.
 - [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs), `expr::substitution::original_source_topology_tests::original_source_topology_refuses_incomplete_lexing_unsupported_operators_and_unconsumed_suffix` (linked): The source-only bridge declines incomplete expression, bracket, quote and array-index syntax, unsupported or unconsumed suffixes, and a selected unavailable operator. Selected Tcl 8/Tcl 9 comment grammar independently refuses or inventories the complete outer command span. The final known Native context keeps unavailable-operator refusal in both bridges. This control does not assert a SourceTopology depth limit or Native execution. The separate scoped software receipt records this exact control passing; no provider outcome is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cargo",
-  "test",
-  "--manifest-path",
-  "rust/Cargo.toml",
-  "expr::substitution::tests::checked_substitutions_retain_overridden_variable_and_comment_grammar"
-]
-```
-
-The separate scoped receipt records five named Syntax controls. The linked lexer geometry control remains source-only in this record. Native interpreter measurements, consumer execution and whole-proof results remain separate.
+- [rust/tcl-syntax/src/expr/checked.rs](../../../../rust/tcl-syntax/src/expr/checked.rs)
+- [rust/tcl-syntax/src/expr/parser.rs](../../../../rust/tcl-syntax/src/expr/parser.rs)
+- [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs)
+- [rust/tcl-syntax/src/expr/mod.rs](../../../../rust/tcl-syntax/src/expr/mod.rs)

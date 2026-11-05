@@ -20,51 +20,11 @@ Rust source-analysis contract for independently selected C Tcl 8.6/9.0/9.1 ordin
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json). JSON pointer `/source_anchors`. Retained complete C function snippets, original full file hashes and exact line ranges for independently selected bootstrap or declaration purposes.
 
 ## Source inspection
 
@@ -388,7 +348,6 @@ TclOO_Configurable_Constructor(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_tcloo_bootstrap.rs](../../../../rust/tcl-registry/src/native_tcloo_bootstrap.rs), `NativeClassFactoryRecipe`: Stock constructor and support role selection only.
@@ -399,8 +358,6 @@ TclOO_Configurable_Constructor(
 - [rust/tcl-compiler/src/command_binding/registered_class_factory.rs](../../../../rust/tcl-compiler/src/command_binding/registered_class_factory.rs), `command_binding::registered_class_factory::tests::original_configurable_class_retains_the_selected_support_allocation` (linked): Actual source manufacture must retain its selected support token and independently closed own lifecycle.
 - [rust/tcl-compiler/src/command_binding/registered_class_factory.rs](../../../../rust/tcl-compiler/src/command_binding/registered_class_factory.rs), `command_binding::registered_class_factory::tests::original_configurable_existing_classes_keep_moved_support_but_new_factories_reselect` (linked): Existing source classes retain the moved support allocation while the original support slot is unavailable to future factory selection.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The listed Rust selectors check the implementation obligations. No passing Rust or guest execution result for these implementation questions is attached. The retained C source snippets explain separate semantic purposes.
+- [rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_configurable_bootstrap/source-anchors.json)

@@ -20,55 +20,11 @@ Rust readonly variable-name assistance under an independently selected C purpose
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this readonly Rust root-projection invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation establishes this readonly Rust root-projection invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this readonly Rust root-projection invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this readonly Rust root-projection invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this readonly Rust root-projection invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation establishes this readonly Rust root-projection invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation establishes this readonly Rust root-projection invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,12 +33,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/realm.rs](../../../../rust/tcl-compiler/src/realm.rs), `CommandBindingRealm::original_c_array_operand_root_at_span_in_source`: Forward the same sealed root purpose without recapturing a compatibility Realm or whole operand value.
 - [rust/tcl-compiler/src/analyser/scope.rs](../../../../rust/tcl-compiler/src/analyser/scope.rs), `original_qualified_variable_input`: Retain readonly namespace variable root advice independently of complete index/argv value and entered link or cell.
 - [rust/tcl-compiler/src/signature_scan/name_value.rs](../../../../rust/tcl-compiler/src/signature_scan/name_value.rs), `signature_scan::name_value::variable_operand_root_tests::original_c_array_operand_root_keeps_unknown_index_and_complete_word_separate` (linked): Five C authoring labels retain ::N::array from the original ::N::array($index) word with no produced value, whole-word key or static container. A dynamic root and escaped opening delimiter cannot supply that fixed CompoundArray root.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selector is linked coverage only. Existing native source snippets support the compound variable-word boundary, not this consumer result or whole-word/SET/slot/index/Normal authority. No native or Rust execution receipt is attached.
 
 ## Authored source grammar and naming abstraction
 

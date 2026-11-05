@@ -22,7 +22,7 @@ Only the original retained programs, capture windows and provider labels in the 
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.4.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -260,7 +260,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.5.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -498,7 +498,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl8.6.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -736,7 +736,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.0.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -974,7 +974,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: tcl9.1.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -1212,7 +1212,7 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### jim
 
-Status: `observed`. Version: jim0.84. Build: Original build/library/header/executable identities and compile arguments are retained where captured; absent fields are not reconstructed from present launchers.. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred.. Dialect: jim.
+Status: `observed`. Channel: Original script/result controls; launch channel is not recorded unless an argv in the attached receipt states it. No stdin/file equivalence is inferred. Version: jim jim0.84.
 
 Only the following original capture association answers this question for this provider. Rejected/setup/unavailable rows are retained as such; no result from a different release or entry mode is substituted.
 
@@ -1450,127 +1450,15 @@ Exact selected capture outcomes (hex fields remain native bytes; process status 
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not tested. Dialect: bigip.
+Status: `not-tested`.
 
 No execution of this question is attached for this provider. An API or command observed elsewhere supplies no answer here.
-
-## Historical references
-
-- `file-0` (observation): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). Exact retained capture/provenance artifact; purpose is limited to this question.
-- `file-0-row-1` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/0`. Original provider/capture association at its exact selected row.
-- `file-0-row-2` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/1`. Original provider/capture association at its exact selected row.
-- `file-0-row-3` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/2`. Original provider/capture association at its exact selected row.
-- `file-0-row-4` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/3`. Original provider/capture association at its exact selected row.
-- `file-0-row-5` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/4`. Original provider/capture association at its exact selected row.
-- `file-0-row-6` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/5`. Original provider/capture association at its exact selected row.
-- `file-0-row-7` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/6`. Original provider/capture association at its exact selected row.
-- `file-0-row-8` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/7`. Original provider/capture association at its exact selected row.
-- `file-0-row-9` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/8`. Original provider/capture association at its exact selected row.
-- `file-0-row-10` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/9`. Original provider/capture association at its exact selected row.
-- `file-0-row-11` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/10`. Original provider/capture association at its exact selected row.
-- `file-0-row-12` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/11`. Original provider/capture association at its exact selected row.
-- `file-0-row-13` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/12`. Original provider/capture association at its exact selected row.
-- `file-0-row-14` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/13`. Original provider/capture association at its exact selected row.
-- `file-0-row-15` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/14`. Original provider/capture association at its exact selected row.
-- `file-0-row-16` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/15`. Original provider/capture association at its exact selected row.
-- `file-0-row-17` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/16`. Original provider/capture association at its exact selected row.
-- `file-0-row-18` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/17`. Original provider/capture association at its exact selected row.
-- `file-0-row-19` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/18`. Original provider/capture association at its exact selected row.
-- `file-0-row-20` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/19`. Original provider/capture association at its exact selected row.
-- `file-0-row-21` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/20`. Original provider/capture association at its exact selected row.
-- `file-0-row-22` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/21`. Original provider/capture association at its exact selected row.
-- `file-0-row-23` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/22`. Original provider/capture association at its exact selected row.
-- `file-0-row-24` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/23`. Original provider/capture association at its exact selected row.
-- `file-0-row-25` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/24`. Original provider/capture association at its exact selected row.
-- `file-0-row-26` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/25`. Original provider/capture association at its exact selected row.
-- `file-0-row-27` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/26`. Original provider/capture association at its exact selected row.
-- `file-0-row-28` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/27`. Original provider/capture association at its exact selected row.
-- `file-0-row-29` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/28`. Original provider/capture association at its exact selected row.
-- `file-0-row-30` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/29`. Original provider/capture association at its exact selected row.
-- `file-0-row-31` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/30`. Original provider/capture association at its exact selected row.
-- `file-0-row-32` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/31`. Original provider/capture association at its exact selected row.
-- `file-0-row-33` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/32`. Original provider/capture association at its exact selected row.
-- `file-0-row-34` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/33`. Original provider/capture association at its exact selected row.
-- `file-0-row-35` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/34`. Original provider/capture association at its exact selected row.
-- `file-0-row-36` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/35`. Original provider/capture association at its exact selected row.
-- `file-0-row-37` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/36`. Original provider/capture association at its exact selected row.
-- `file-0-row-38` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/37`. Original provider/capture association at its exact selected row.
-- `file-0-row-39` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/38`. Original provider/capture association at its exact selected row.
-- `file-0-row-40` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/39`. Original provider/capture association at its exact selected row.
-- `file-0-row-41` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/40`. Original provider/capture association at its exact selected row.
-- `file-0-row-42` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/41`. Original provider/capture association at its exact selected row.
-- `file-0-row-43` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/42`. Original provider/capture association at its exact selected row.
-- `file-0-row-44` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/43`. Original provider/capture association at its exact selected row.
-- `file-0-row-45` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/44`. Original provider/capture association at its exact selected row.
-- `file-0-row-46` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/45`. Original provider/capture association at its exact selected row.
-- `file-0-row-47` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/46`. Original provider/capture association at its exact selected row.
-- `file-0-row-48` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/47`. Original provider/capture association at its exact selected row.
-- `file-0-row-49` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/48`. Original provider/capture association at its exact selected row.
-- `file-0-row-50` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/49`. Original provider/capture association at its exact selected row.
-- `file-0-row-51` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/50`. Original provider/capture association at its exact selected row.
-- `file-0-row-52` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/51`. Original provider/capture association at its exact selected row.
-- `file-0-row-53` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/52`. Original provider/capture association at its exact selected row.
-- `file-0-row-54` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/53`. Original provider/capture association at its exact selected row.
-- `file-0-row-55` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/54`. Original provider/capture association at its exact selected row.
-- `file-0-row-56` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/55`. Original provider/capture association at its exact selected row.
-- `file-0-row-57` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/56`. Original provider/capture association at its exact selected row.
-- `file-0-row-58` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/57`. Original provider/capture association at its exact selected row.
-- `file-0-row-59` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/58`. Original provider/capture association at its exact selected row.
-- `file-0-row-60` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/59`. Original provider/capture association at its exact selected row.
-- `file-0-row-61` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/60`. Original provider/capture association at its exact selected row.
-- `file-0-row-62` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/61`. Original provider/capture association at its exact selected row.
-- `file-0-row-63` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/62`. Original provider/capture association at its exact selected row.
-- `file-0-row-64` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/63`. Original provider/capture association at its exact selected row.
-- `file-0-row-65` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/64`. Original provider/capture association at its exact selected row.
-- `file-0-row-66` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/65`. Original provider/capture association at its exact selected row.
-- `file-0-row-67` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/66`. Original provider/capture association at its exact selected row.
-- `file-0-row-68` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/67`. Original provider/capture association at its exact selected row.
-- `file-0-row-69` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/68`. Original provider/capture association at its exact selected row.
-- `file-0-row-70` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/69`. Original provider/capture association at its exact selected row.
-- `file-0-row-71` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/70`. Original provider/capture association at its exact selected row.
-- `file-0-row-72` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/71`. Original provider/capture association at its exact selected row.
-- `file-0-row-73` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/72`. Original provider/capture association at its exact selected row.
-- `file-0-row-74` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/73`. Original provider/capture association at its exact selected row.
-- `file-0-row-75` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/74`. Original provider/capture association at its exact selected row.
-- `file-0-row-76` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/75`. Original provider/capture association at its exact selected row.
-- `file-0-row-77` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/76`. Original provider/capture association at its exact selected row.
-- `file-0-row-78` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/77`. Original provider/capture association at its exact selected row.
-- `file-0-row-79` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/78`. Original provider/capture association at its exact selected row.
-- `file-0-row-80` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/79`. Original provider/capture association at its exact selected row.
-- `file-0-row-81` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/80`. Original provider/capture association at its exact selected row.
-- `file-0-row-82` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/81`. Original provider/capture association at its exact selected row.
-- `file-0-row-83` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/82`. Original provider/capture association at its exact selected row.
-- `file-0-row-84` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/83`. Original provider/capture association at its exact selected row.
-- `file-0-row-85` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/84`. Original provider/capture association at its exact selected row.
-- `file-0-row-86` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/85`. Original provider/capture association at its exact selected row.
-- `file-0-row-87` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/86`. Original provider/capture association at its exact selected row.
-- `file-0-row-88` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/87`. Original provider/capture association at its exact selected row.
-- `file-0-row-89` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/88`. Original provider/capture association at its exact selected row.
-- `file-0-row-90` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/89`. Original provider/capture association at its exact selected row.
-- `file-0-row-91` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/90`. Original provider/capture association at its exact selected row.
-- `file-0-row-92` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/91`. Original provider/capture association at its exact selected row.
-- `file-0-row-93` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/92`. Original provider/capture association at its exact selected row.
-- `file-0-row-94` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/93`. Original provider/capture association at its exact selected row.
-- `file-0-row-95` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/94`. Original provider/capture association at its exact selected row.
-- `file-0-row-96` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/95`. Original provider/capture association at its exact selected row.
-- `file-0-row-97` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/96`. Original provider/capture association at its exact selected row.
-- `file-0-row-98` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/97`. Original provider/capture association at its exact selected row.
-- `file-0-row-99` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/98`. Original provider/capture association at its exact selected row.
-- `file-0-row-100` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/99`. Original provider/capture association at its exact selected row.
-- `file-0-row-101` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/100`. Original provider/capture association at its exact selected row.
-- `file-0-row-102` (provider): [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json). JSON pointer `/101`. Original provider/capture association at its exact selected row.
-- `file-103` (observation): [rust/tcl-registry/tests/data/native_unset_compilation/windows.tsv](../../../../rust/tcl-registry/tests/data/native_unset_compilation/windows.tsv). Exact retained capture/provenance artifact; purpose is limited to this question.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The attached artifacts retain captured outputs, available original inputs and recorded compile/run arguments. A missing input or wrapper limits exact replay; no new native execution is claimed. A replay requires the corresponding source/library/build configuration and original evaluator flags/argv; vanished outside capture paths are provenance, not executable replay dependencies. Where only source hex is retained, preserve those bytes. The per-purpose README/probe supplies the protocol; no new accepted reconfirmation or Rust pass is asserted.
+- [rust/tcl-registry/tests/data/native_unset_compilation/observations.json](../../../../rust/tcl-registry/tests/data/native_unset_compilation/observations.json)
+- [rust/tcl-registry/tests/data/native_unset_compilation/windows.tsv](../../../../rust/tcl-registry/tests/data/native_unset_compilation/windows.tsv)

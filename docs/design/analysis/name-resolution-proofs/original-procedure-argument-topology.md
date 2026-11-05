@@ -20,55 +20,11 @@ Readonly same-document procedure argument topology, hint geometry and independen
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this implementation question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this implementation question.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this implementation question.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No observation for this implementation question.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -85,9 +41,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/semantic_tokens.rs](../../../../rust/tcl-lsp-core/src/semantic_tokens.rs), `semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children` (linked): Independent original formal variable-write roles colour the actual corresponding expanded child in direct and alias calls; ordinary later arguments do not borrow that role after reporting maps are erased.
 - [rust/tcl-compiler/src/registry_invocation/source_structure/procedure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure/procedure.rs), `registry_invocation::source_structure::procedure::tests::original_procedure_descriptor_precedes_selected_dialect_argument_binding` (linked): The authentic original procedure descriptor retains C/Jim required-after-default formal count grammar before binding; successful argc/binding and entered call remain independent.
 - [rust/tcl-compiler/src/registry_invocation/source_structure/procedure.rs](../../../../rust/tcl-compiler/src/registry_invocation/source_structure/procedure.rs), `registry_invocation::source_structure::procedure::tests::original_procedure_descriptor_keeps_invalid_count_and_unknown_lookup_separate` (linked): Wrong argc retains descriptive signature while rich bindings decline; changed whole source and lost original lookup projection remain terminal for both source descriptors.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact Rust selectors exercise the source allocation, topology and geometry premises. No Rust execution receipt or native provider observation is attached to this implementation contract.

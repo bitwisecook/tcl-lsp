@@ -22,7 +22,7 @@ C84-91 sixty cases each: five raw00/modified00/rawFF/encodedFF/plain name famili
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Version: tcl8.4 8.4.20.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -89,216 +89,9 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 | plain/trace-undefined | resident-string | "::a" | "::a" |
 | plain/trace-undefined | pure-byte-array | "::a" | "::a" |
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
-
-Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-
-| name/state | object input path | original result | short result |
-| --- | --- | --- | --- |
-| raw00/absent | resident-string | "" | "" |
-| raw00/absent | pure-byte-array | "" | "" |
-| raw00/full-only | resident-string | "" | "" |
-| raw00/full-only | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| raw00/short-only | resident-string | "::a" | "::a" |
-| raw00/short-only | pure-byte-array | "" | "::a" |
-| raw00/both | resident-string | "::a" | "::a" |
-| raw00/both | pure-byte-array | "::a\\xc0\\x80z" | "::a" |
-| raw00/declared-undefined | resident-string | "" | "" |
-| raw00/declared-undefined | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| raw00/trace-undefined | resident-string | "::a" | "::a" |
-| raw00/trace-undefined | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| modified00/absent | resident-string | "" | "" |
-| modified00/absent | pure-byte-array | "" | "" |
-| modified00/full-only | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/full-only | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| modified00/short-only | resident-string | "" | "::a" |
-| modified00/short-only | pure-byte-array | "" | "::a" |
-| modified00/both | resident-string | "::a\\xc0\\x80z" | "::a" |
-| modified00/both | pure-byte-array | "::a\u00c0\u0080z" | "::a" |
-| modified00/declared-undefined | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/declared-undefined | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| modified00/trace-undefined | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/trace-undefined | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| rawFF/absent | resident-string | "" | "" |
-| rawFF/absent | pure-byte-array | "" | "" |
-| rawFF/full-only | resident-string | "::a\\xff" | "" |
-| rawFF/full-only | pure-byte-array | "::a\u00ff" | "" |
-| rawFF/short-only | resident-string | "" | "::a" |
-| rawFF/short-only | pure-byte-array | "" | "::a" |
-| rawFF/both | resident-string | "::a\\xff" | "::a" |
-| rawFF/both | pure-byte-array | "::a\u00ff" | "::a" |
-| rawFF/declared-undefined | resident-string | "::a\\xff" | "" |
-| rawFF/declared-undefined | pure-byte-array | "::a\u00ff" | "" |
-| rawFF/trace-undefined | resident-string | "::a\\xff" | "" |
-| rawFF/trace-undefined | pure-byte-array | "::a\u00ff" | "" |
-| encodedFF/absent | resident-string | "" | "" |
-| encodedFF/absent | pure-byte-array | "" | "" |
-| encodedFF/full-only | resident-string | "::a\u00ff" | "" |
-| encodedFF/full-only | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| encodedFF/short-only | resident-string | "" | "::a" |
-| encodedFF/short-only | pure-byte-array | "" | "::a" |
-| encodedFF/both | resident-string | "::a\u00ff" | "::a" |
-| encodedFF/both | pure-byte-array | "::a\u00c3\u00bf" | "::a" |
-| encodedFF/declared-undefined | resident-string | "::a\u00ff" | "" |
-| encodedFF/declared-undefined | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| encodedFF/trace-undefined | resident-string | "::a\u00ff" | "" |
-| encodedFF/trace-undefined | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| plain/absent | resident-string | "" | "" |
-| plain/absent | pure-byte-array | "" | "" |
-| plain/full-only | resident-string | "::a" | "::a" |
-| plain/full-only | pure-byte-array | "::a" | "::a" |
-| plain/short-only | resident-string | "::a" | "::a" |
-| plain/short-only | pure-byte-array | "::a" | "::a" |
-| plain/both | resident-string | "::a" | "::a" |
-| plain/both | pure-byte-array | "::a" | "::a" |
-| plain/declared-undefined | resident-string | "::a" | "::a" |
-| plain/declared-undefined | pure-byte-array | "::a" | "::a" |
-| plain/trace-undefined | resident-string | "::a" | "::a" |
-| plain/trace-undefined | pure-byte-array | "::a" | "::a" |
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
-
-Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-
-| name/state | object input path | original result | short result |
-| --- | --- | --- | --- |
-| raw00/absent | resident-string | "" | "" |
-| raw00/absent | pure-byte-array | "" | "" |
-| raw00/full-only | resident-string | "" | "" |
-| raw00/full-only | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| raw00/short-only | resident-string | "::a" | "::a" |
-| raw00/short-only | pure-byte-array | "" | "::a" |
-| raw00/both | resident-string | "::a" | "::a" |
-| raw00/both | pure-byte-array | "::a\\xc0\\x80z" | "::a" |
-| raw00/declared-undefined | resident-string | "" | "" |
-| raw00/declared-undefined | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| raw00/trace-undefined | resident-string | "::a" | "::a" |
-| raw00/trace-undefined | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| modified00/absent | resident-string | "" | "" |
-| modified00/absent | pure-byte-array | "" | "" |
-| modified00/full-only | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/full-only | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| modified00/short-only | resident-string | "" | "::a" |
-| modified00/short-only | pure-byte-array | "" | "::a" |
-| modified00/both | resident-string | "::a\\xc0\\x80z" | "::a" |
-| modified00/both | pure-byte-array | "::a\u00c0\u0080z" | "::a" |
-| modified00/declared-undefined | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/declared-undefined | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| modified00/trace-undefined | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/trace-undefined | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| rawFF/absent | resident-string | "" | "" |
-| rawFF/absent | pure-byte-array | "" | "" |
-| rawFF/full-only | resident-string | "::a\\xff" | "" |
-| rawFF/full-only | pure-byte-array | "::a\u00ff" | "" |
-| rawFF/short-only | resident-string | "" | "::a" |
-| rawFF/short-only | pure-byte-array | "" | "::a" |
-| rawFF/both | resident-string | "::a\\xff" | "::a" |
-| rawFF/both | pure-byte-array | "::a\u00ff" | "::a" |
-| rawFF/declared-undefined | resident-string | "::a\\xff" | "" |
-| rawFF/declared-undefined | pure-byte-array | "::a\u00ff" | "" |
-| rawFF/trace-undefined | resident-string | "::a\\xff" | "" |
-| rawFF/trace-undefined | pure-byte-array | "::a\u00ff" | "" |
-| encodedFF/absent | resident-string | "" | "" |
-| encodedFF/absent | pure-byte-array | "" | "" |
-| encodedFF/full-only | resident-string | "::a\u00ff" | "" |
-| encodedFF/full-only | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| encodedFF/short-only | resident-string | "" | "::a" |
-| encodedFF/short-only | pure-byte-array | "" | "::a" |
-| encodedFF/both | resident-string | "::a\u00ff" | "::a" |
-| encodedFF/both | pure-byte-array | "::a\u00c3\u00bf" | "::a" |
-| encodedFF/declared-undefined | resident-string | "::a\u00ff" | "" |
-| encodedFF/declared-undefined | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| encodedFF/trace-undefined | resident-string | "::a\u00ff" | "" |
-| encodedFF/trace-undefined | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| plain/absent | resident-string | "" | "" |
-| plain/absent | pure-byte-array | "" | "" |
-| plain/full-only | resident-string | "::a" | "::a" |
-| plain/full-only | pure-byte-array | "::a" | "::a" |
-| plain/short-only | resident-string | "::a" | "::a" |
-| plain/short-only | pure-byte-array | "::a" | "::a" |
-| plain/both | resident-string | "::a" | "::a" |
-| plain/both | pure-byte-array | "::a" | "::a" |
-| plain/declared-undefined | resident-string | "::a" | "::a" |
-| plain/declared-undefined | pure-byte-array | "::a" | "::a" |
-| plain/trace-undefined | resident-string | "::a" | "::a" |
-| plain/trace-undefined | pure-byte-array | "::a" | "::a" |
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
-
-Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-
-| name/state | object input path | original result | short result |
-| --- | --- | --- | --- |
-| raw00/absent | resident-string | "" | "" |
-| raw00/absent | pure-byte-array | "" | "" |
-| raw00/full-only | resident-string | "" | "" |
-| raw00/full-only | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| raw00/short-only | resident-string | "::a" | "::a" |
-| raw00/short-only | pure-byte-array | "" | "::a" |
-| raw00/both | resident-string | "::a" | "::a" |
-| raw00/both | pure-byte-array | "::a\\xc0\\x80z" | "::a" |
-| raw00/declared-undefined | resident-string | "" | "" |
-| raw00/declared-undefined | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| raw00/trace-undefined | resident-string | "::a" | "::a" |
-| raw00/trace-undefined | pure-byte-array | "::a\\xc0\\x80z" | "" |
-| modified00/absent | resident-string | "" | "" |
-| modified00/absent | pure-byte-array | "" | "" |
-| modified00/full-only | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/full-only | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| modified00/short-only | resident-string | "" | "::a" |
-| modified00/short-only | pure-byte-array | "" | "::a" |
-| modified00/both | resident-string | "::a\\xc0\\x80z" | "::a" |
-| modified00/both | pure-byte-array | "::a\u00c0\u0080z" | "::a" |
-| modified00/declared-undefined | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/declared-undefined | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| modified00/trace-undefined | resident-string | "::a\\xc0\\x80z" | "" |
-| modified00/trace-undefined | pure-byte-array | "::a\u00c0\u0080z" | "" |
-| rawFF/absent | resident-string | "" | "" |
-| rawFF/absent | pure-byte-array | "" | "" |
-| rawFF/full-only | resident-string | "::a\\xff" | "" |
-| rawFF/full-only | pure-byte-array | "::a\u00ff" | "" |
-| rawFF/short-only | resident-string | "" | "::a" |
-| rawFF/short-only | pure-byte-array | "" | "::a" |
-| rawFF/both | resident-string | "::a\\xff" | "::a" |
-| rawFF/both | pure-byte-array | "::a\u00ff" | "::a" |
-| rawFF/declared-undefined | resident-string | "::a\\xff" | "" |
-| rawFF/declared-undefined | pure-byte-array | "::a\u00ff" | "" |
-| rawFF/trace-undefined | resident-string | "::a\\xff" | "" |
-| rawFF/trace-undefined | pure-byte-array | "::a\u00ff" | "" |
-| encodedFF/absent | resident-string | "" | "" |
-| encodedFF/absent | pure-byte-array | "" | "" |
-| encodedFF/full-only | resident-string | "::a\u00ff" | "" |
-| encodedFF/full-only | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| encodedFF/short-only | resident-string | "" | "::a" |
-| encodedFF/short-only | pure-byte-array | "" | "::a" |
-| encodedFF/both | resident-string | "::a\u00ff" | "::a" |
-| encodedFF/both | pure-byte-array | "::a\u00c3\u00bf" | "::a" |
-| encodedFF/declared-undefined | resident-string | "::a\u00ff" | "" |
-| encodedFF/declared-undefined | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| encodedFF/trace-undefined | resident-string | "::a\u00ff" | "" |
-| encodedFF/trace-undefined | pure-byte-array | "::a\u00c3\u00bf" | "" |
-| plain/absent | resident-string | "" | "" |
-| plain/absent | pure-byte-array | "" | "" |
-| plain/full-only | resident-string | "::a" | "::a" |
-| plain/full-only | pure-byte-array | "::a" | "::a" |
-| plain/short-only | resident-string | "::a" | "::a" |
-| plain/short-only | pure-byte-array | "::a" | "::a" |
-| plain/both | resident-string | "::a" | "::a" |
-| plain/both | pure-byte-array | "::a" | "::a" |
-| plain/declared-undefined | resident-string | "::a" | "::a" |
-| plain/declared-undefined | pure-byte-array | "::a" | "::a" |
-| plain/trace-undefined | resident-string | "::a" | "::a" |
-| plain/trace-undefined | pure-byte-array | "::a" | "::a" |
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Tcl.
+Status: `observed`. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -367,7 +160,7 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 
 ### jim
 
-Status: `observed`. Version: not recorded (manifest label Jim). Build: See historical references.. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c. Dialect: Jim Tcl.
+Status: `observed`. Channel: Native C/Jim object construction and counted evaluation as retained in probe.c.
 
 Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
 
@@ -406,53 +199,15 @@ Quoted values below are exact byte strings. Empty string is an empty query resul
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-vm/tests/data/native_namespace_variables/manifest.json](../../../../rust/tcl-vm/tests/data/native_namespace_variables/manifest.json). Five C360-window and Jim180-window raw-log hashes, semantic TSV hashes and exact native header/library/binary builds; raw logs themselves are not retained here.
-- `e1` (input): [rust/tcl-vm/tests/data/native_namespace_variables/probe.c](../../../../rust/tcl-vm/tests/data/native_namespace_variables/probe.c). Retained exact probe.c; original source/object inputs and reporter boundary, independent of Rust implementation.
-- `e2` (input): [rust/tcl-vm/tests/data/native_namespace_variables/README.md](../../../../rust/tcl-vm/tests/data/native_namespace_variables/README.md). Retained exact README.md; original source/object inputs and reporter boundary, independent of Rust implementation.
-- `e3` (observation): [rust/tcl-vm/tests/data/native_namespace_variables/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_variables/8.4.20.tsv). Complete retained semantic TSV for 8.4.20; Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-- `e4` (observation): [rust/tcl-vm/tests/data/native_namespace_variables/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_variables/8.5.19.tsv). Complete retained semantic TSV for 8.5.19; Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-- `e5` (observation): [rust/tcl-vm/tests/data/native_namespace_variables/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_variables/8.6.18.tsv). Complete retained semantic TSV for 8.6.18; Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-- `e6` (observation): [rust/tcl-vm/tests/data/native_namespace_variables/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_variables/9.0.4.tsv). Complete retained semantic TSV for 9.0.4; Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-- `e7` (observation): [rust/tcl-vm/tests/data/native_namespace_variables/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_variables/9.1.0.tsv). Complete retained semantic TSV for 9.1.0; Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-- `e8` (observation): [rust/tcl-vm/tests/data/native_namespace_variables/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_namespace_variables/Jim.tsv). Complete retained semantic TSV for Jim; Quoted values below are exact byte strings. Empty string is an empty query result; each original and short query is distinct.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `namespace_queries_match_660_fixed_native_original_and_short_results`: Independent current Rust comparison at the stated semantic boundary.
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `interp::native_namespace_variable_fixture_tests::namespace_queries_match_660_fixed_native_original_and_short_results` (linked): Compares the 660 fixed original/short query result values, not every field of the separately hashed raw native diagnostic logs.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "cc",
-  "-DSTDC_HEADERS=1",
-  "-DHAVE_UNISTD_H=1",
-  "-I/path/to/recorded/generic",
-  "-I/path/to/recorded/unix",
-  "rust/tcl-vm/tests/data/native_namespace_variables/probe.c",
-  "/path/to/recorded/libtcl.a",
-  "-lm",
-  "-ldl",
-  "-lpthread",
-  "-lz",
-  "-o",
-  "/tmp/native-variable-proof"
-]
-```
-
-Rebuild retained probe.c with each exact manifest command and authentic original release/header/archive, including separate Jim USE_JIM/libjim flags. Run one fresh probe process per provider; capture the emitted raw windows and apply the original/short query result projection stated by probe.c and each TSV. Require exactly the 60 C or 30 Jim semantic rows (two result values each), matching all retained query bytes, and host exit 0. The complete original raw logs are not retained here, only SHA256, so comparing every raw physical diagnostic field is unavailable without recovering that log. Pure byte-array materialisation differs from counted resident strings; do not replay via a shell document channel. No Rust pass is inferred.
+- [rust/tcl-vm/tests/data/native_namespace_variables](../../../../rust/tcl-vm/tests/data/native_namespace_variables)

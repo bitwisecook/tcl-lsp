@@ -20,55 +20,11 @@ Rust Registry transition selection for known native byte operands under C Tcl 8.
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -77,9 +33,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_command_mutation.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_mutation.rs), `OriginalCommandMove`: Independent actual occupied source, vacant existing destination, quiet intrinsic handler and preserved post-transfer allocation completion checks.
 - [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs), `state_transition::tests::original_byte_rename_transitions_select_destination_extent_and_keep_ordinals` (linked): Selected C rename extent preserves opaque and modified-NUL destinations, qualifier ordinals and complete original operands; raw NUL selects deletion and absent or Jim context remains unknown.
 - [rust/tcl-compiler/src/command_binding/original_command_mutation.rs](../../../../rust/tcl-compiler/src/command_binding/original_command_mutation.rs), `command_binding::original_command_mutation::tests::original_byte_command_move_keeps_the_original_definition_and_complete_world` (linked): The separately closed source intrinsic move retains the genuine original procedure allocation at an opaque destination for every selected C release.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact named Rust selectors are validation obligations without an attached execution receipt. Native guest observations, namespace allocation, command destruction and actual body entry remain separate.

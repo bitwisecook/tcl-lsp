@@ -22,59 +22,17 @@ Four exact Jim source excerpts are interpretations of the retained revision 0.84
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No external input for this deferred ownership question. Dialect: tcl8.4.
-
-No original external provider process or source comparison answers this Jim deferred-script ownership purpose.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No external input for this deferred ownership question. Dialect: tcl8.5.
-
-No original external provider process or source comparison answers this Jim deferred-script ownership purpose.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No external input for this deferred ownership question. Dialect: tcl8.6.
-
-No original external provider process or source comparison answers this Jim deferred-script ownership purpose.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No external input for this deferred ownership question. Dialect: tcl9.0.
-
-No original external provider process or source comparison answers this Jim deferred-script ownership purpose.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No external input for this deferred ownership question. Dialect: tcl9.1.
+Status: `not-tested`. Channel: No external input for this deferred ownership question.
 
 No original external provider process or source comparison answers this Jim deferred-script ownership purpose.
 
 ### jim
 
-Status: `not-tested`. Version: 0.84-9-g5bac7c9. Build: Pinned source interpretation only; no provider process for deferred ownership. Channel: No external input for this deferred ownership question. Dialect: jim.
+Status: `not-tested`. Channel: No external input for this deferred ownership question. Version: jim 0.84-9-g5bac7c9.
 
 No original external provider process answers this software deferred-script ownership question. Exact Jim source excerpts explain the ordinary Script reference boundary; they are not private header/refcount or successful native execution observations.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: No external input for this deferred ownership question. Dialect: bigip.
-
-No original external provider process or source comparison answers this Jim deferred-script ownership purpose.
-
-## Historical references
-
-- `jim-owner-anchor-index` (source-anchor): [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/manifest.json](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/manifest.json). Exact immutable source-window index and retained source-version recipe; source inspection, not a process or private object observation.
-- `jim-owner-source-0` (source-anchor): [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-entry.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-entry.c). Exact counted LF source excerpt from the pinned whole jim.c; retained lines and snippet bytes are independently checked. No native header/refcount/process observation.
-- `jim-owner-source-1` (source-anchor): [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-release.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-release.c). Exact counted LF source excerpt from the pinned whole jim.c; retained lines and snippet bytes are independently checked. No native header/refcount/process observation.
-- `jim-owner-source-2` (source-anchor): [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-eval-core-command.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-eval-core-command.c). Exact counted LF source excerpt from the pinned whole jim.c; retained lines and snippet bytes are independently checked. No native header/refcount/process observation.
-- `jim-owner-source-3` (source-anchor): [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-uplevel-core-command.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-uplevel-core-command.c). Exact counted LF source excerpt from the pinned whole jim.c; retained lines and snippet bytes are independently checked. No native header/refcount/process observation.
-- `jim-owner-whole-source` (source-anchor): [rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c](../../../../rust/tcl-registry/tests/data/native_info_inventory_original/sources/jim/jim.c). Existing exact retained whole Jim source shared without mutation; source interpretation is distinct from original public completions from experiment435.
-- `jim-owner-version-recipe` (source-anchor): [rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json](../../../../rust/tcl-registry/tests/data/native_mathop_jim_original_source/request.json). Existing unchanged original current-Jim source/helper request ties the retained source revision/version recipe. Its 24 public results remain an independent question and confer no private lifecycle outcome.
-- `jim-owner-failed-software-receipt` (limitation): [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/diagnostics/integration-vm-jim-retirement-diagnostic288/receipt.json.gz](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/diagnostics/integration-vm-jim-retirement-diagnostic288/receipt.json.gz). Unchanged failed Source288 VM software diagnostic receipt, compressed losslessly. No new Native process or current418 assertion result; exact original receipt SHA256 9f69d8f355e2ed5abb58c09f3d8256ac06b3e1641988dc11b367a20f3d223583.
-- `jim-owner-failed-software-stack` (limitation): [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/diagnostics/integration-vm-jim-retirement-diagnostic288/tests.log](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/diagnostics/integration-vm-jim-retirement-diagnostic288/tests.log). Whole original failed Source288 software stack: Value::drop in eval_original_uplevel releases before NativeJimScriptState::new accesses a retired header. 0 passed, 1 failed, 751 filtered; no native-provider or 418 success inference.
 
 ## Source inspection
 
@@ -107,7 +65,6 @@ int Jim_EvalObj(Jim_Interp *interp, Jim_Obj *scriptObjPtr)
     /* Reset the interpreter result. This is useful to
      * return the empty result in the case of empty program. */
     Jim_SetEmptyResult(interp);
-
 
 ```
 
@@ -195,7 +152,6 @@ static int Jim_UplevelCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/compiled.rs](../../../../rust/tcl-vm/src/compiled.rs), `CompiledUnit::with_deferred_script_original`: Move the actual same live worker-produced script into the pending Jim entry; this transport creates no distinct object or compiled-body permission.
@@ -207,8 +163,11 @@ static int Jim_UplevelCoreCommand(Jim_Interp *interp, int argc, Jim_Obj *const *
 - [rust/tcl-vm/src/value_script_execution_tests.rs](../../../../rust/tcl-vm/src/value_script_execution_tests.rs), `value::script::execution_tests::deferred_original_jim_script_owner_refuses_foreign_and_retired_original_headers` (linked): A foreign same-byte script or retired lifetime view cannot supply the actual pending original owner; the independently live original remains unchanged. Software refusal control only.
 - [rust/tcl-vm/src/value_script_execution_tests.rs](../../../../rust/tcl-vm/src/value_script_execution_tests.rs), `value::script::execution_tests::deferred_original_jim_eval_and_uplevel_keep_their_worker_produced_script` (linked): Actual software eval and uplevel workers retain their own fresh original script through deferred entry and compare authored result bytes. No original-provider completion or arbitrary frame/handler authority is inferred.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Source/API definitions and exact source interpretation only. Original Source288 diagnostic is a failed independent software run, not a replay command or 418 assertion pass. No new native or Rust execution is supplied.
+- [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/manifest.json](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/manifest.json)
+- [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-entry.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-entry.c)
+- [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-release.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-evalobj-release.c)
+- [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-eval-core-command.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-eval-core-command.c)
+- [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-uplevel-core-command.c](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/source-anchors/jim-uplevel-core-command.c)
+- [rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/diagnostics/integration-vm-jim-retirement-diagnostic288/tests.log](../../../../rust/tcl-vm/tests/data/jim_original_deferred_script_ownership/diagnostics/integration-vm-jim-retirement-diagnostic288/tests.log)

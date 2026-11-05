@@ -48,7 +48,6 @@ original-document selection, one-use receipts, edit/revert ABA, bare rename
 coordinates and a source change during provider await. These controls require
 ordinary execution; source inspection alone establishes no passing result.
 
-
 ## Current index binding
 
 Stable proof ID: `naming.editor.original-code-action-source-publication`.

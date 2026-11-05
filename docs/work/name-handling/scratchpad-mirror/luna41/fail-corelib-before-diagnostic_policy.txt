@@ -1,1 +1,0 @@
-FAILED diagnostic_policy::truth_table::tests::every_row_holds_in_the_core_report

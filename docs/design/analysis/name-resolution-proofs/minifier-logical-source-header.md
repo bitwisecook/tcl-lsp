@@ -20,55 +20,11 @@ Explicit Logical authoring advice only. The immutable Realm must retain the exac
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical source-header contract has no native interpreter observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This Rust Logical source-header contract has no native interpreter observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical source-header contract has no native interpreter observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical source-header contract has no native interpreter observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This Rust Logical source-header contract has no native interpreter observation.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This Rust Logical source-header contract has no native interpreter observation.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This Rust Logical source-header contract has no native interpreter observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +36,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::lexical_source_headers_keep_runtime_and_metadata_separate` (linked): An original static Logical IF has source metadata/body compaction while its independent runtime invocation remains unknown before and after querying.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::lexical_source_headers_refuse_dynamic_argv_and_prior_mutations` (linked): Dynamic argv, unknown prior command, authored shadow/deletion and Native input cannot supply the Logical header.
 - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::lexical_source_header_checks_retained_input_source_and_configuration` (linked): Same retained input clones work; foreign full source, changed full grammar and independently constructed equal-context generation refuse.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Linked fixed Rust controls exercise whole-input Logical source-header ownership, unknown runtime lookup, shadows/mutations and source/configuration/context currency. No executed Rust receipt or native-provider result is supplied by this implementation contract.

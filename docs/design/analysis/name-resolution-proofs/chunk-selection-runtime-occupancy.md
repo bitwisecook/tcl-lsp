@@ -20,63 +20,17 @@ Original full command vector/current head producer and authentic immutable compi
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this compiler-carrier contract.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
+Status: `not-tested`. Channel: Rust source contract. Version: tcl8.4 not tested for this Rust contract; tcl8.5 not tested for this Rust contract; tcl8.6 not tested for this Rust contract; tcl9.0 not tested for this Rust contract; tcl9.1 not tested for this Rust contract; jim not tested for this Rust contract; bigip not tested for this Rust contract.
 
 No native interpreter executes this compiler-carrier contract.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this compiler-carrier contract.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this compiler-carrier contract.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Tcl.
-
-No native interpreter executes this compiler-carrier contract.
-
-### jim
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: Jim Tcl.
-
-No native interpreter executes this compiler-carrier contract.
-
-### bigip
-
-Status: `not-tested`. Version: not tested for this Rust contract. Build: not recorded. Channel: Rust source contract. Dialect: F5 iRules.
-
-No native interpreter executes this compiler-carrier contract.
-
-## Historical references
-
-- `implementation` (implementation): [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs). Actual central compiler selector and finite discriminating unit test; digest is source correspondence, not execution evidence.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `select_invocation`: Join current original-head currency with independent chunk compiler selection; unresolved runtime occupancy supplies no stable handler.
 - [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs), `command_binding::compiled_invocation::tests::original_chunk_compiler_selection_survives_unknown_runtime_occupancy` (linked): Across the five authored Tcl compilation dialects, unknown runtime occupancy removes stable_handler while a genuine BytecodeObject chunk retains its original selection; Unknown compilation cannot acquire executable admission. No native or Rust pass is inferred from this binding.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named fixed Rust selector binds a finite compiler-carrier contract. Its execution outcome is a separate receipt; no native provider execution is asserted.
+- [rust/tcl-compiler/src/command_binding/compiled_invocation.rs](../../../../rust/tcl-compiler/src/command_binding/compiled_invocation.rs)

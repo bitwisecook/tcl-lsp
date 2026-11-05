@@ -1,2 +1,0 @@
-PROVIDER 9.0.4
-ROW readable-writable-executable 0 {directory executable.txt} {NH UNSET}

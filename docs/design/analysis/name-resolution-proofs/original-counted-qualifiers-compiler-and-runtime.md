@@ -22,92 +22,33 @@ Exactly twenty fixed counted String inputs, two actual object-vector call forms,
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Version: tcl8.4 8.4.20.
 
 Direct and procedure calls have the same CString results and strip preceding colon runs. Nonempty results are String-primary through Tcl_AppendToObj; empty results are NULL. Raw00 stops the direct scan; raw FF and D800/D801 prefix bytes stay distinct. No C8.6 Qualifiers compiler is claimed.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Version: tcl8.5 8.5.19.
 
 Direct and procedure calls have the same CString results and strip preceding colon runs. Fresh byte results remain NULL-primary. Raw00 stops the scan; raw FF and D800/D801 prefix bytes stay distinct. No C8.6 Qualifiers compiler is claimed.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
-
-The genuine procedure compiles last-find, decrement/index/colon-equality backward loop, then range. Compiled raw00 prefix becomes aC080 and FF prefix becomes C3BF through counted Unicode; direct raw00 returns empty and FF stays FF. D800/D801 prefixes remain distinct. C strips preceding colon runs. Nonempty compiled result and subject are String-primary; empty result is NULL. Direct fresh result stays NULL-primary.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
-
-The genuine procedure compiles last-find, decrement/index/colon-equality backward loop, then range. Compiled raw00 prefix becomes aC080 and FF prefix becomes C3BF through counted Unicode; direct raw00 returns empty and FF stays FF. D800/D801 prefixes remain distinct. C strips preceding colon runs. Nonempty compiled result and subject are String-primary; empty result is NULL. Direct fresh result stays NULL-primary.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Tcl.
+Status: `observed`. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 The genuine procedure compiles last-find, decrement/index/colon-equality backward loop, then range. Compiled raw00 prefix becomes aC080 and FF prefix becomes C3BF through counted Unicode; direct raw00 returns empty and FF stays FF. D800/D801 prefixes remain distinct. C strips preceding colon runs. Nonempty compiled result and subject are String-primary; empty result is NULL. Direct fresh result stays NULL-primary.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Executable; header; linked library. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Dialect: Jim Tcl.
+Status: `observed`. Channel: Counted native NewString object-vector argv, separate fixed ASCII proc source; result/input primary before counted result getters and exact hex streams. Version: jim 0.84-9-g5bac7c9.
 
 Direct and procedure calls have equal fresh NULL-primary results. Jim retains preceding colons: :::a returns one colon, :::: returns two and a::::b returns a::. Raw00 stops the qualifier scan. Raw FF and D800/D801 prefixes remain exact. The D row records no C Qualifiers compiler.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this finite question.
-
-## Historical references
-
-- `counted-input` (input): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/probe.c](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/probe.c). Exact counted NewString object-vector argv, twenty fixed native byte inputs and independent fixed ASCII procedure source.
-- `actual-captures` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/receipt.json). All six exact actual version/header/library/executable/compiler/stream joins and process exit codes.
-- `capture-protocol` (input): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/capture.py](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/capture.py). Retained exact capture runner; replay requires its recorded executable and source paths. This file supplies no execution result.
-- `source-anchors` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors`. Exact pinned direct/compiler/last-find/index/range source windows; full source and LF snippet SHA joins.
-- `source-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/0/snippet`. NamespaceQualifiersCmd for tcl8.4
-- `source-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/1/snippet`. NamespaceQualifiersCmd for tcl8.5
-- `source-window-2` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/2/snippet`. NamespaceQualifiersCmd for tcl8.6
-- `source-window-3` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/3/snippet`. TclCompileNamespaceQualifiersCmd for tcl8.6
-- `source-window-4` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/4/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl8.6
-- `source-window-5` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/5/snippet`. NamespaceQualifiersCmd for tcl9.0
-- `source-window-6` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/6/snippet`. TclCompileNamespaceQualifiersCmd for tcl9.0
-- `source-window-7` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/7/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl9.0
-- `source-window-8` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/8/snippet`. TclStringLast for tcl9.0
-- `source-window-9` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/9/snippet`. NamespaceQualifiersCmd for tcl9.1
-- `source-window-10` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/10/snippet`. TclCompileNamespaceQualifiersCmd for tcl9.1
-- `source-window-11` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/11/snippet`. TclExecuteByteCode (INST_STR_INDEX case) for tcl9.1
-- `source-window-12` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/12/snippet`. TclStringLast for tcl9.1
-- `source-window-13` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/13/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl8.6
-- `source-window-14` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/14/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl8.6
-- `source-window-15` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/15/snippet`. Tcl_GetRange for tcl8.6
-- `source-window-16` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/16/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl9.0
-- `source-window-17` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/17/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl9.0
-- `source-window-18` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/18/snippet`. Tcl_GetRange for tcl9.0
-- `source-window-19` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/19/snippet`. TclExecuteByteCode (INST_STR_FIND_LAST case) for tcl9.1
-- `source-window-20` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/20/snippet`. TclExecuteByteCode (INST_STR_RANGE case) for tcl9.1
-- `source-window-21` (source-anchor): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/source-anchors.json). JSON pointer `/source_anchors/21/snippet`. Tcl_GetRange for tcl9.1
-- `tcl8.4-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl8.4-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20/stderr). Actual empty stderr for the retained successful process.
-- `tcl8.5-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl8.5-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19/stderr). Actual empty stderr for the retained successful process.
-- `tcl8.6-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl8.6-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18/stderr). Actual empty stderr for the retained successful process.
-- `tcl9.0-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl9.0-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4/stderr). Actual empty stderr for the retained successful process.
-- `tcl9.1-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `tcl9.1-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0/stderr). Actual empty stderr for the retained successful process.
-- `jim-output` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stdout.tsv). Exact forty code/primary/identity/count/hex results, forty original descriptors/bytes, actual version and native disassembly.
-- `jim-receipt` (provider): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/receipt.json). Exact actual provider compilation/process/stream/header/library/executable joins.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stderr](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim/stderr). Actual empty stderr for the retained successful process.
 
 ## Source inspection
 
@@ -323,7 +264,6 @@ tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file diges
 	TRACE_APPEND(("\"%s\"\n", O2S(objResultPtr)));
 	NEXT_INST_F(1, 2, 1);
 
-
 ```
 
 tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclNamesp.c`, function `NamespaceQualifiersCmd`, lines 4360–4398. Retained reference `source-window-5`.
@@ -458,7 +398,6 @@ tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest 
 
 	TRACE_APPEND(("\"%s\"\n", O2S(objResultPtr)));
 	NEXT_INST_F(1, 2, 1);
-
 
 ```
 
@@ -669,7 +608,6 @@ tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest 
 	TRACE_APPEND_OBJ(objResultPtr);
 	NEXT_INST_F(1, 2, 1);
 
-
 ```
 
 tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclStringObj.c`, function `TclStringLast`, lines 3956–4022. Retained reference `source-window-12`.
@@ -769,7 +707,6 @@ tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file diges
 	TclNewIntObj(objResultPtr, match);
 	NEXT_INST_F(1, 2, 1);
 
-
 ```
 
 tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file digest identifies exact bytes`, `tmp/tcl8.6.18/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5595–5620. Retained reference `source-window-14`.
@@ -800,7 +737,6 @@ tcl8.6 8.6.18, revision `Retained Tcl 8.6.18 release source; complete file diges
 	}
 	TRACE_APPEND(("\"%.30s\"\n", O2S(objResultPtr)));
 	NEXT_INST_V(1, 3, 1);
-
 
 ```
 
@@ -909,7 +845,6 @@ tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest 
 		O2S(OBJ_UNDER_TOS), O2S(OBJ_AT_TOS), O2S(objResultPtr)));
 	NEXT_INST_F(1, 2, 1);
 
-
 ```
 
 tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest identifies exact bytes`, `tmp/tcl9.0.4/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5382–5407. Retained reference `source-window-17`.
@@ -940,7 +875,6 @@ tcl9.0 9.0.4, revision `Retained Tcl 9.0.4 release source; complete file digest 
 	}
 	TRACE_APPEND(("\"%.30s\"\n", O2S(objResultPtr)));
 	NEXT_INST_V(1, 3, 1);
-
 
 ```
 
@@ -1037,7 +971,6 @@ tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest 
 	TRACE_APPEND_NUM_OBJ(objResultPtr);
 	NEXT_INST_F(1, 2, 1);
 
-
 ```
 
 tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest identifies exact bytes`, `tmp/tcl9.1.0/generic/tclExecute.c`, function `TclExecuteByteCode (INST_STR_RANGE case)`, lines 5720–5741. Retained reference `source-window-20`.
@@ -1064,7 +997,6 @@ tcl9.1 9.1.0, revision `Retained Tcl 9.1.0 release source; complete file digest 
 	}
 	TRACE_APPEND_OBJ(objResultPtr);
 	NEXT_INST_V(1, 3, 1);
-
 
 ```
 
@@ -1152,7 +1084,6 @@ Tcl_GetRange(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_namespace_string_compilation.rs](../../../../rust/tcl-registry/src/native_namespace_string_compilation.rs), `compile_native_namespace_string`: Same complete original one-operand geometry for separately selected Tail and Qualifiers recipes; no compiler admission.
@@ -1169,13 +1100,6 @@ Tcl_GetRange(
 - [rust/tcl-vm/src/exec/native_namespace_string_tests.rs](../../../../rust/tcl-vm/src/exec/native_namespace_string_tests.rs), `exec::native_namespace_string_tests::original_compiled_index_preserves_counted_single_bytes_and_native_units` (linked): Prepared original index returns fresh byte-primary FF/raw00/D800/D801; foreign protocol or missing reached Unicode backing refuses.
 - [rust/tcl-compiler/src/codegen/statements/native_namespace_string_tests.rs](../../../../rust/tcl-compiler/src/codegen/statements/native_namespace_string_tests.rs), `codegen::statements::native_namespace_string::tests::original_namespace_qualifiers_emits_the_observed_counted_compiler_loop` (linked): The selected C8.6/9.0/9.1 emitter retains the captured last-find, decrement/index, colon predicate, backward loop and reached range sequence; C84/85 original NoHook selection emits its generic call instead. This is emitted-program model coverage, with no executed backend or native compiler grant.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Native replay requires the exact retained probe, provider build/source/header and input channels recorded by capture.py. The immutable provider receipts and raw streams retain the actual finite captures. The named Rust selectors are linked coverage, with no passing Rust execution receipt attached; fixed ASCII procedure source and counted object-vector operands remain separate channels.
-
-
 ## Exact original-source349 software outcomes
 
 These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
@@ -1185,4 +1109,14 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data](../../../../rust/tcl-registry/tests/data)
+- [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.4.20)
+- [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.5.19)
+- [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/8.6.18)
+- [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.0.4)
+- [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/9.1.0)
+- [rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim](../../../../rust/tcl-registry/tests/data/native_namespace_qualifiers_compilation/jim)

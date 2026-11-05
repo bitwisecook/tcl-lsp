@@ -6,7 +6,7 @@ Fresh ordinary272 on actual source238 seals956 controls: 643 PASS, 312 FAIL, 1 T
 
 Typed declaration/cursor consumers190/208/209, full inline229 and formatter230 are adopted. Source221 Core243 is161 PASS/82 FAIL; Server15 is12/3; DB76 is63/13. Current238 selected Core272 is165 PASS/82 FAIL across247 controls; broader editing/formatter annexes remain separate. Remaining live work is authentic Logical scope/occurrence transport, positive source call catalogue/occupancy and aggressive-minifier alias-reference construction; do not restore String inverse joins.
 
-Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; [handoff/README.md](handoff/README.md) contains explicitly unadopted continuation work.
+Priority remains finishing actual naming-consumer migrations in parallel; [implementation-ledger.md](implementation-ledger.md) assigns the next owners. [current-state.md](current-state.md) records the current executed scopes; `handoff/README.md` contains explicitly unadopted continuation work.
 
 ## Retained bounded audit
 
@@ -387,4 +387,4 @@ Every row is retained from the accompanying sealed candidate-callsite snapshot; 
 
 Roster: 381 tracked implementation/test source files, 232 classified non-test files, 330 lexical candidate function/module groups. These are census counts, not conformance or completed-consumer counts.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in [handoff/README.md](handoff/README.md). Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

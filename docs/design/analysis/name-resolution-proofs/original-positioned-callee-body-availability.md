@@ -20,62 +20,11 @@ Current Compiler local-body availability and opaque-callee argument assistance i
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This positioned Compiler implementation contract retains source ownership and body availability only. No native process, actual callee frame, effects closure, Native execution or edit observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This positioned Compiler implementation contract retains source ownership and body availability only. No native process, actual callee frame, effects closure, Native execution or edit observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This positioned Compiler implementation contract retains source ownership and body availability only. No native process, actual callee frame, effects closure, Native execution or edit observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This positioned Compiler implementation contract retains source ownership and body availability only. No native process, actual callee frame, effects closure, Native execution or edit observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This positioned Compiler implementation contract retains source ownership and body availability only. No native process, actual callee frame, effects closure, Native execution or edit observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This positioned Compiler implementation contract retains source ownership and body availability only. No native process, actual callee frame, effects closure, Native execution or edit observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This positioned Compiler implementation contract retains source ownership and body availability only. No native process, actual callee frame, effects closure, Native execution or edit observation is attached.
-
-## Historical references
-
-- `original-compiler341345-software-validation` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-owned341345-experiments.json). JSON pointer `/question_observations/naming.compiler.original-positioned-callee-body-availability`. Exact selected software outcomes joined to authored question/document pairs in their original Source341–345 test bodies, retained whole source snapshots and strict owned Compiler images. Each operation keeps its own original argv, streams, status and incomplete boundary. No outcome transfers to current source, unselected assertions, external providers or performance.
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
-- `original-compiler-purpose-2ae5968d01c6` (implementation): [rust/tcl-compiler/src/command_binding/declaration_layout.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_layout.rs). Original declaration/vector/configuration joins remain independent of request purpose. Genuine Native/authored advice reborrows its own immutable metadata; present reached refusal is terminal and only the actual retained Logical owner selects Logical declaration operations.
-- `original-compiler-purpose-8f80d33b964b` (implementation): [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs). Actual token or retained materialized-world ownership supplies the common source-purpose tag before procedure roles, realm or body ownership. Complete input/source/configuration and Native allocation/caller/provider guards remain independent.
-- `original-restored-declaration-64aa956da6cf` (implementation): [rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs). Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology.
-- `original-restored-declaration-e66cef51bd36` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology.
-- `current-compiler-source-be948feabcb4df24` (implementation): [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs). Genuine original declaration advice selects Logical procedure reading only under its retained purpose; independent Native/source allocation and full original source-image guards remain.
-- `current-compiler-source-9cd1fca4ef23a4be` (implementation): [rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs). Current original source/software control definitions and independent retained owner purpose; no executed assertion, external Native observation or provider grant.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -109,8 +58,11 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs), `command_binding::original_restoration_obligation_tests::original_native_restoration_refuses_missing_changed_and_foreign_obligations_without_repair` (linked): Actual saved script restoration refuses missing admission, changed source/provider requirement and foreign source obligation without replacing the original receipt.
 - [rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs), `command_binding::original_restoration_obligation_tests::original_native_restoration_requires_full_failure_contexts_and_dependency_generations` (linked): Actual held C84 original failure requires complete legacy/source context and dependency generation correspondence through metadata restoration; failures remain unresolved and retained.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named selectors are source coverage bindings, not executed-result claims. Exact Rust build/test receipts remain independent; no native process or callee name-effect closure is implied by local source body availability.
+- [rust/tcl-compiler/src/command_binding/declaration_layout.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_layout.rs)
+- [rust/tcl-compiler/src/command_binding/materialized_footprint.rs](../../../../rust/tcl-compiler/src/command_binding/materialized_footprint.rs)
+- [rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs)
+- [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs)
+- [rust/tcl-compiler/src/command_binding/declaration_preview.rs](../../../../rust/tcl-compiler/src/command_binding/declaration_preview.rs)
+- [rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs](../../../../rust/tcl-compiler/src/command_binding/original_restoration_obligation_tests.rs)

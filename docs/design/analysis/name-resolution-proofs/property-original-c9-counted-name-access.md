@@ -20,85 +20,23 @@ Finite pFF, pD800, pD801 and p/raw-zero/tail names; default original-list write/
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, jim
 
-Status: `observed`. Version: 8.4.20. Build: Actual executable SHA 8e9c5f50c4f32bea679c823622a64b5d7866d2f37e081f5a9f6567faeeb360ea; compiler argv/path/SHA/version and 5 source/header/library/build pins are retained in its provider receipt.. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter.. Dialect: Tcl.
-
-The actual configurable command inventory is empty. All five fresh bootstrap source queries return code 1 with the recorded unavailable-command diagnostic. Property declaration/access and invalid-name controls are not reached; these are availability negatives.
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19. Build: Actual executable SHA 260b46b756626d5219eb987a4921941796ef47e439277698d39651b0b27ee9d0; compiler argv/path/SHA/version and 5 source/header/library/build pins are retained in its provider receipt.. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; jim 0.84-9-g5bac7c9.
 
 The actual configurable command inventory is empty. All five fresh bootstrap source queries return code 1 with the recorded unavailable-command diagnostic. Property declaration/access and invalid-name controls are not reached; these are availability negatives.
 
-### tcl8.6
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable SHA f9035ad4773f073e61ae083779e757d6db23675e553fd01e4279ab59dd6d8b3b; compiler argv/path/SHA/version and 6 source/header/library/build pins are retained in its provider receipt.. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter.. Dialect: Tcl.
-
-The actual configurable command inventory is empty. All five fresh bootstrap source queries return code 1 with the recorded unavailable-command diagnostic. Property declaration/access and invalid-name controls are not reached; these are availability negatives.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual executable SHA 5a15c3a7d83eeb2efdd3dfa3d53f5ca487f1ca464d1c392e0b40d861d9ac8821; compiler argv/path/SHA/version and 6 source/header/library/build pins are retained in its provider receipt.. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 All four counted names pFF, pD800, pD801 and p/raw-zero/tail define, write and read successfully; each default read retains the original supplied list object. D800/D801 custom getters remain distinct as FIRST/SECOND. The zero roster is -p, preserving the independent CString formatting extent. All six invalid declarations return the recorded byte diagnostics.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable SHA 76753b900868b46db658a3214dd97baa484ac785a26f177d93ed6a945ac35ce1; compiler argv/path/SHA/version and 6 source/header/library/build pins are retained in its provider receipt.. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter.. Dialect: Tcl.
-
-All four counted names pFF, pD800, pD801 and p/raw-zero/tail define, write and read successfully; each default read retains the original supplied list object. D800/D801 custom getters remain distinct as FIRST/SECOND. The zero roster is -p, preserving the independent CString formatting extent. All six invalid declarations return the recorded byte diagnostics.
-
-### jim
-
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual executable SHA fd1a0c94d6808e943cdc300aeeddb3a556e908c884acfa59352e141074a3249d; compiler argv/path/SHA/version and 5 source/header/library/build pins are retained in its provider receipt.. Channel: Original counted native String/list object vectors for declaration/configure; separate ASCII bootstrap, version and property roster source queries. Original result pointer is sampled before the sole result getter.. Dialect: Jim Tcl.
-
-The actual configurable command inventory is empty. All five fresh bootstrap source queries return code 1 with the recorded unavailable-command diagnostic. Property declaration/access and invalid-name controls are not reached; these are availability negatives.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance execution is attached.
-
-## Historical references
-
-- `probe.c` (input): [rust/tcl-registry/tests/data/native_property_counted_original/probe.c](../../../../rust/tcl-registry/tests/data/native_property_counted_original/probe.c). Exact original counted native String/list operands with result pointer sampled before sole getter.
-- `queue.json` (input): [rust/tcl-registry/tests/data/native_property_counted_original/queue.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/queue.json). Finite requested controls and channels; criteria only.
-- `capture.py` (input): [rust/tcl-registry/tests/data/native_property_counted_original/capture.py](../../../../rust/tcl-registry/tests/data/native_property_counted_original/capture.py). Retained actual compiler/launcher protocol and provider pins.
-- `receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_counted_original/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/receipt.json). Six complete provider captures with exact source/library/header/compiler/version and stream associations.
-- `tcl8.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/receipt.json). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.4-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/stdout.tsv). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.4-stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.4-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/compile.stdout](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/compile.stdout). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.4-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/compile.stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.4.20/compile.stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.5-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/receipt.json). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.5-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/stdout.tsv). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.5-stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.5-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/compile.stdout](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/compile.stdout). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.5-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/compile.stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.5.19/compile.stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.6-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/receipt.json). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.6-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/stdout.tsv). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.6-stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.6-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/compile.stdout](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/compile.stdout). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl8.6-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/compile.stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.6.18/compile.stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/receipt.json). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.0-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/stdout.tsv). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.0-stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.0-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/compile.stdout](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/compile.stdout). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.0-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/compile.stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.0.4/compile.stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.1-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/receipt.json). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.1-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/stdout.tsv). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.1-stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.1-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/compile.stdout](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/compile.stdout). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `tcl9.1-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/compile.stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.1.0/compile.stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_property_counted_original/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/jim/receipt.json). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `jim-stdout.tsv` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_property_counted_original/jim/stdout.tsv). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/jim/stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/jim/stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `jim-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_property_counted_original/jim/compile.stdout). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `jim-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_property_counted_original/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_property_counted_original/jim/compile.stderr). Exact immutable capture; complete process status, version and provider joins remain in its receipt.
-- `member-accessor-source` (source-anchor): [rust/tcl-registry/tests/data/native_property_counted_original/member-accessor-source-anchors.json](../../../../rust/tcl-registry/tests/data/native_property_counted_original/member-accessor-source-anchors.json). JSON pointer `/source_anchors/0/snippet`. Exact LF-window/full-file C91 source association for formatting original configuration member children.
 
 ## Source inspection
 
@@ -128,7 +66,6 @@ GetImplNamesForProperty(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `NativePropertyLookupProtocol::member_accessor_names`: Selects exact C91 already-dashed original configuration member CString formatting independently from the C90/C91 pure declaration-name formatter.
@@ -137,17 +74,12 @@ GetImplNamesForProperty(
 - [runtime/rust/src/cmd_oo/native_property_counted_tests.rs](../../../../runtime/rust/src/cmd_oo/native_property_counted_tests.rs), `cmd_oo::native_property_counted_tests::original_property_names_and_values_match_native_c9_counted_access` (linked): Independently compares original Runtime result pointers before its only getter and the same finite counted name/argv controls with no host refusal. No Rust execution result is inferred.
 - [rust/tcl-registry/src/native_property_lookup.rs](../../../../rust/tcl-registry/src/native_property_lookup.rs), `native_property_lookup::tests::original_c91_property_member_accessors_preserve_the_native_dash_once` (linked): Consumes the four actual C91 member roster/read/write rows, then joins cached dashed-member formatting to independent declaration-name formatting; CString zero extent is retained. No physical capability or execution result follows from the pure comparison.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_property_counted_original/capture.py"
-]
-```
-
-The retained runner describes the exact captured absolute paths, source/compiler/header/library pins and stdout/stderr associations. A replay requires matching providers and a fresh output directory. Native observations establish only these finite controls; linked Rust assertions are not execution receipts.
+- [rust/tcl-registry/tests/data/native_property_counted_original](../../../../rust/tcl-registry/tests/data/native_property_counted_original)
+- [rust/tcl-registry/tests/data/native_property_counted_original/8.4.20](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.4.20)
+- [rust/tcl-registry/tests/data/native_property_counted_original/8.5.19](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.5.19)
+- [rust/tcl-registry/tests/data/native_property_counted_original/8.6.18](../../../../rust/tcl-registry/tests/data/native_property_counted_original/8.6.18)
+- [rust/tcl-registry/tests/data/native_property_counted_original/9.0.4](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.0.4)
+- [rust/tcl-registry/tests/data/native_property_counted_original/9.1.0](../../../../rust/tcl-registry/tests/data/native_property_counted_original/9.1.0)
+- [rust/tcl-registry/tests/data/native_property_counted_original/jim](../../../../rust/tcl-registry/tests/data/native_property_counted_original/jim)

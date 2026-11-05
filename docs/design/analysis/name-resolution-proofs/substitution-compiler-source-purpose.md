@@ -22,61 +22,27 @@ Pinned retained function windows and complete source hashes for five exact C rel
 
 ### tcl8.4
 
-Status: `inspected`. Version: 8.4.20. Build: Pinned retained source-file and exact function-window digests; this answer comes from source inspection, independently of the executed probes.. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer. Version: tcl8.4 8.4.20.
 
 Inspected Tcl_SubstObj in generic/tclCmdMZ.c. Direct incremental result-object append.
 
 ### tcl8.5
 
-Status: `inspected`. Version: 8.5.19. Build: Pinned retained source-file and exact function-window digests; this answer comes from source inspection, independently of the executed probes.. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer. Version: tcl8.5 8.5.19.
 
 Inspected Tcl_SubstObj in generic/tclParse.c. Direct incremental result-object append.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Pinned retained source-file and exact function-window digests; this answer comes from source inspection, independently of the executed probes.. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer.. Dialect: Tcl.
-
-Inspected CompileSubstObj in generic/tclCompile.c. Independent substcode currency and retained localCache; procPtr NULL.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned retained source-file and exact function-window digests; this answer comes from source inspection, independently of the executed probes.. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Inspected CompileSubstObj in generic/tclCompile.c. Independent substcode currency and retained localCache; procPtr NULL.
 
-### tcl9.1
+### jim, bigip
 
-Status: `inspected`. Version: 9.1.0. Build: Pinned retained source-file and exact function-window digests; this answer comes from source inspection, independently of the executed probes.. Channel: Inspection of the retained pinned native C function window; no guest input is executed for this source-only answer.. Dialect: Tcl.
-
-Inspected CompileSubstObj in generic/tclCompile.c. Independent substcode currency and retained localCache; procPtr NULL.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 This exact C substitution/private-header question was not tested on this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This exact C substitution/private-header question was not tested on this provider.
-
-## Historical references
-
-- `e0` (input): [rust/tcl-registry/tests/data/native_substitution_owner/inputs.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/inputs.json). Complete ten native template byte arrays as hexadecimal. v1 shortened counts are separately encoded in its original probe.
-- `e1` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c). Exact immutable v1 translation unit and original counted template/setup operations.
-- `e2` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c). Exact immutable v2 translation unit and original counted template/setup operations.
-- `e3` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c). Exact immutable v3 translation unit and original counted template/setup operations.
-- `e4` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c). Exact immutable v4 translation unit and original counted template/setup operations.
-- `e5` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c). Exact immutable v5 translation unit and original counted template/setup operations.
-- `e6` (input): [rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c). Exact immutable v6 translation unit and original counted template/setup operations.
-- `e7` (provider): [rust/tcl-registry/tests/data/native_substitution_owner/manifest.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/manifest.json). Finite corpus provider mapping, variant input/setup/process limits and source excerpts.
-- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.4.20.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.4.20.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.5.19.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.5.19.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e10` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.6.18.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/8.6.18.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e11` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.0.4.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.0.4.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
-- `e12` (source-anchor): [rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.1.0.json](../../../../rust/tcl-registry/tests/data/native_substitution_owner/source-anchors/9.1.0.json). JSON pointer `/snippet`. Actual retained function text from exact configured native release.
 
 ## Source inspection
 
@@ -672,13 +638,16 @@ CompileSubstObj(
 
 ```
 
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Retrieve each original C file from its attached pinned release URL, verify the complete source SHA-256, then compare the recorded function line range and exact snippet SHA-256. The separate Subst replay.py validates observed program captures; it does not reproduce this implementation-source inspection.
+- [rust/tcl-registry/tests/data/native_substitution_owner](../../../../rust/tcl-registry/tests/data/native_substitution_owner)
+- [rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v1/probe.c)
+- [rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v2/probe.c)
+- [rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v3/probe.c)
+- [rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v4/probe.c)
+- [rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v5/probe.c)
+- [rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c](../../../../rust/tcl-registry/tests/data/native_substitution_owner/v6/probe.c)

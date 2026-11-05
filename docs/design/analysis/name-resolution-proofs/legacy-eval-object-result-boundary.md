@@ -20,76 +20,29 @@ Six fixed declaration/primary arrangements (plain, raw zero, qualifier-after-zer
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `not-tested`. Version: 8.4.20. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
-
-Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
-
-### tcl8.5
-
-Status: `not-tested`. Version: 8.5.19. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `not-tested`. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; jim 0.84-9-g5bac7c9.
 
 Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes. Version: tcl8.6 8.6.18.
 
 Legacy Tcl_Eval raw-zero report leaf is 6b; EvalEx and object-vector leaf are 6b007461696c.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
-
-All three raw-zero report leaves are 6b007461696c.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Tcl.
+Status: `observed`. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 All three raw-zero report leaves are 6b007461696c.
-
-### jim
-
-Status: `not-tested`. Version: 0.84-9-g5bac7c9. Build: Actual executable; retained compile command, header/static-library/Makefile/source-owner hashes and process streams.. Channel: Original counted declaration/method objects and Tcl_EvalObjv calls; ASCII Tcl_Eval/Tcl_EvalEx reporter source; actual ListObjIndex child bytes.. Dialect: Jim Tcl.
-
-Captured OO_UNAVAILABLE control; no TclOO resident-key/API comparison executed for this provider.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `v5-probe.c` (input): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/probe.c](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/probe.c). Exact retained input/runner or aggregate native build/process/stream association. Prior variants are immutable and are not interchangeable.
-- `v5-capture.py` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/capture.py](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/capture.py). Exact retained input/runner or aggregate native build/process/stream association. Prior variants are immutable and are not interchangeable.
-- `v5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/receipt.json). Exact retained input/runner or aggregate native build/process/stream association. Prior variants are immutable and are not interchangeable.
-- `v5-tcl8.4-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20/receipt.json). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.4-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20/stdout.tsv). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.4-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20/stderr](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20/stderr). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.5-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19/receipt.json). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.5-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19/stdout.tsv). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.5-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19/stderr](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19/stderr). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.6-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18/receipt.json). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.6-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18/stdout.tsv). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl8.6-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18/stderr](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18/stderr). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl9.0-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4/receipt.json). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl9.0-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4/stdout.tsv). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl9.0-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4/stderr](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4/stderr). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl9.1-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0/receipt.json). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl9.1-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0/stdout.tsv). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-tcl9.1-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0/stderr](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0/stderr). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-jim-receipt.json` (provider): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim/receipt.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim/receipt.json). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-jim-stdout.tsv` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim/stdout.tsv](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim/stdout.tsv). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `v5-jim-stderr` (observation): [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim/stderr](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim/stderr). Actual original process/build/version and exact captured native rows. Successful process exit is independent of guest error or unsupported doors.
-- `source-tcl8.4` (source-anchor): [rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/8.4.20.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/8.4.20.json). JSON pointer `/snippet`. Exact pinned C wrapper or macro excerpt; source inspection is separate from native output.
-- `source-tcl8.5` (source-anchor): [rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/8.5.19.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/8.5.19.json). JSON pointer `/snippet`. Exact pinned C wrapper or macro excerpt; source inspection is separate from native output.
-- `source-tcl8.6` (source-anchor): [rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/8.6.18.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/8.6.18.json). JSON pointer `/snippet`. Exact pinned C wrapper or macro excerpt; source inspection is separate from native output.
-- `source-tcl9.0` (source-anchor): [rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/9.0.4.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/9.0.4.json). JSON pointer `/snippet`. Exact pinned C wrapper or macro excerpt; source inspection is separate from native output.
-- `source-tcl9.1` (source-anchor): [rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/9.1.0.json](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/source-anchors/9.1.0.json). JSON pointer `/snippet`. Exact pinned C wrapper or macro excerpt; source inspection is separate from native output.
 
 ## Source inspection
 
@@ -173,7 +126,6 @@ tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0`, `tmp/tcl9.1.0/generic/tclDecls.h`, fu
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/native_string.rs](../../../../rust/tcl-syntax/src/native_string.rs), `NativeStringProtocol::legacy_eval_result_input`: Pure selected legacy C result extent; does not mutate counted results or stored variable keys.
@@ -181,8 +133,13 @@ tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0`, `tmp/tcl9.1.0/generic/tclDecls.h`, fu
 - [runtime/rust/src/cmd_oo/native_variables.rs](../../../../runtime/rust/src/cmd_oo/native_variables.rs), `cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls` (linked): Compares original counted dispatch results with the legacy result projection only for rows actually captured through Tcl_Eval, and independently asserts v5 object-vector bytes without projection. No execution is inferred.
 - [rust/tcl-syntax/src/native_string.rs](../../../../rust/tcl-syntax/src/native_string.rs), `native_string::tests::legacy_eval_result_extent_keeps_encoded_zero_separate_from_counted_zero` (linked): Pure C API result extent selection distinguishes raw zero from encoded C080; Jim C API purpose is unavailable. Source-only old C recipe checks are not empirical old C TclOO comparisons.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Original runners contain captured workspace paths and refuse output-directory reuse. Exact input/source/build/executable/stdout/stderr hashes remain in immutable receipts. No portable re-launch or Rust execution result is inferred; v3 failed compile produced no C86 guest rows.
+- [rust/tcl-vm/tests/data/native_oo_resident_keys/v5](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5)
+- [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.4.20)
+- [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.5.19)
+- [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/8.6.18)
+- [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.0.4)
+- [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/9.1.0)
+- [rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys/v5/jim)
+- [rust/tcl-vm/tests/data/native_oo_resident_keys](../../../../rust/tcl-vm/tests/data/native_oo_resident_keys)

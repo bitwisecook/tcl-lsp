@@ -22,61 +22,21 @@ One exact ASCII LF original uses runtime backslash-u escapes for NUL/Unicode val
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual selected native child/source API under pinned full process initialisation; exact executable/archive/header/source/build/driver ELF hashes retained; compiler version unrecorded. Channel: External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only. Dialect: Pinned original provider API/source purpose.
+Status: `observed`. Channel: External C API driver: fresh full Tcl_Init or Jim core/static extensions per control; independent exact prelude, original counted source, query evaluations in one interpreter; source is not surrounded by catch/eval/puts; C Tcl_EvalEx flags0, Jim original counted object Jim_EvalObj; public counted hex completions only. Version: jim 0.84-9-g5bac7c9.
 
 Exact original guest fields argv3→1/A, global argc COUNT, Unicode argv0 length/equality2/2/1, absent parent0. Driver ORIGINAL0/empty is separate. Pinned startup copy source is CString/global purpose, independently of counted object crossings.
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `not-tested`. Version: 8.4.20. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No process executes this provider for the exact Jim-specific source/API question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: 8.5.19. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No process executes this provider for the exact Jim-specific source/API question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: 8.6.18. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No process executes this provider for the exact Jim-specific source/API question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: 9.0.4. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
-
-No process executes this provider for the exact Jim-specific source/API question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: 9.1.0. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
+Status: `not-tested`. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 No process executes this provider for the exact Jim-specific source/API question.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Pinned original provider API/source purpose.
+Status: `not-tested`.
 
 No appliance execution answers this exact question.
-
-## Historical references
-
-- `native_jim_child_variable_extent306-capture.py` (input): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/capture.py). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-jim-compile.receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-jim-compile.stderr` (observation): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-jim-compile.stdout` (observation): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-jim-original-jim-child-variable-extent-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/receipt.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-jim-original-jim-child-variable-extent-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stderr). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-jim-original-jim-child-variable-extent-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stdout). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-jim-probe.elf` (provider): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/probe.elf](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/probe.elf). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-original-request.json` (input): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/original-request.json](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/original-request.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-probe.c` (input): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.c](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.c). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-probe.tcl` (input): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.tcl). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-request.json` (input): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/request.json](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/request.json). Exact unchanged input/actual provider artifact or whole command receipt/stdout/stderr; no selected rows or normalisation.
-- `native_jim_child_variable_extent306-source-jim-interp.c` (source-anchor): [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/source/jim-interp.c](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/source/jim-interp.c). Whole separately pinned original provider source; source ownership/initialisation is independent of finite public rows.
 
 ## Source inspection
 
@@ -118,13 +78,17 @@ static int JimInterpCommand(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 ```
 
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Whole original inputs, actual commands/receipts, counted public outputs, executable/build/source pins and environment overrides are retained. Other inherited environment/compiler version are unrecorded. Absolute external paths are retained; portable replay is not promised. Re-execution yields new observations. Publication runs no native/compiler/Rust process.
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/capture.py)
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stderr)
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/compile.stdout)
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stderr](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stderr)
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stdout](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/jim/original-jim-child-variable-extent/stdout)
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.c](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.c)
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/probe.tcl)
+- [rust/tcl-registry/tests/data/native_jim_child_variable_extent306/source/jim-interp.c](../../../../rust/tcl-registry/tests/data/native_jim_child_variable_extent306/source/jim-interp.c)

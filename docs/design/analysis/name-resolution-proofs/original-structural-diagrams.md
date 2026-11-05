@@ -20,55 +20,11 @@ Current shared tcl-diagram data and simple graph producers, consumed by CLI, MCP
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -95,9 +51,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-diagram/src/graph.rs](../../../../rust/tcl-diagram/src/graph.rs), `graph::original_completion_tests::original_diagram_renderer_does_not_infer_completion_from_action_labels` (linked): A displayed drop spelling keeps structural fallthrough without a completion hint; a terminal hint on an unrelated label terminates the projected path.
 - [rust/tcl-diagram/src/data.rs](../../../../rust/tcl-diagram/src/data.rs), `data::original_source_tests::original_diagram_metadata_keeps_actual_availability_and_source_currency` (linked): An original source throw operand is selected under genuine current availability despite a counterfactual display label; older same-store availability, changed source, missing complete input or changed grammar withdraw it. Restoration retains source advice without issuing a Native invocation or completion.
 - [rust/tcl-diagram/src/data.rs](../../../../rust/tcl-diagram/src/data.rs), `data::original_source_tests::diagram_source_calls_keep_real_body_owners_and_refuse_foreign_ids` (linked): Two original same-label declarations retain distinct actual issued body IDs and full body keys; real foreign-issued replacement, duplicate body row, missing input and changed source refuse the call join. Counterfactual reporting labels do not select calls.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.

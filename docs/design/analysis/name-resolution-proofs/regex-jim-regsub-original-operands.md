@@ -20,62 +20,17 @@ Only the exact retained Jim direct-worker/object probe and selected case windows
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
+Status: `not-tested`.
 
 No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
 
 ### jim
 
-Status: `observed`. Version: not queried by this probe; Jim source/library identities retained (patch/revision not queried). Build: Original libjim.a; original source/header/executable metadata in original-capture.. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original native Jim object/direct-worker arguments and manually inspected internal representation; no document source parser is used.
 
 Original selected native attempts: [{"case":0,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t586258\n","stderr":""},{"case":1,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t58\n","stderr":""},{"case":2,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t58\n","stderr":""},{"case":3,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t58\n","stderr":""},{"case":4,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t616261\n","stderr":""},{"case":5,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t6161626161\n","stderr":""},{"case":6,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t586158625861\n","stderr":""},{"case":7,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tnone\t1\t1\nobject\tresult\tstring\t1\t1\nobject\tindex\tindex\t1\t1\nbytes\t616258\n","stderr":""},{"case":8,"exit":0,"stdout":"code\t0\nobject\tpattern\tnone\t1\t1\nobject\tsubject\tnone\t1\t1\nobject\treplacement\tlist\t1\t1\nobject\tresult\tstring\t1\t1\nbytes\t416261\n","stderr":""}]. Process status is independent of printed command return and object rows.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No execution of this precise question on this provider is attached. Other interpreter or source-inspection results do not supply it.
-
-## Historical references
-
-- `original-capture` (provider): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). Original source/library/header/build context and every process status/stream, including incomplete attempts.
-- `original-probe` (input): [runtime/rust/tests/data/native_regexp_jim_regsub/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/probe.c). Exact direct Jim worker invocation, object construction and physical reporting order.
-- `jim-case-0` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/0`. Exact original process status and raw output/error of this case.
-- `jim-case-1` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/1`. Exact original process status and raw output/error of this case.
-- `jim-case-2` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/2`. Exact original process status and raw output/error of this case.
-- `jim-case-3` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/3`. Exact original process status and raw output/error of this case.
-- `jim-case-4` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/4`. Exact original process status and raw output/error of this case.
-- `jim-case-5` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/5`. Exact original process status and raw output/error of this case.
-- `jim-case-6` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/6`. Exact original process status and raw output/error of this case.
-- `jim-case-7` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/7`. Exact original process status and raw output/error of this case.
-- `jim-case-8` (observation): [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json). JSON pointer `/captures/8`. Exact original process status and raw output/error of this case.
-- `exact-source-1` (source-anchor): [docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json](../../../../docs/design/analysis/name-resolution-proofs/regexp-retained-source-anchors.json). JSON pointer `/1/snippet`. Exact current source excerpt whose complete source SHA equals the original captured source; independent of interpreter output and build revision query.
 
 ## Source inspection
 
@@ -117,14 +72,12 @@ jim Jim0.84 captured source label; no captured patch query, revision `5bac7c99ad
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_regex.rs](../../../../runtime/rust/src/cmd_regex.rs), `regsub_cmd`: Separate Rust regex consumer; these physical native rows provide no executed Rust or object-manufacturer grant.
 - [runtime/rust/src/cmd_regex.rs](../../../../runtime/rust/src/cmd_regex.rs), `cmd_regex::tests::jim_regsub_original_objects_match_all_nine_completed_native_controls` (linked): Checks its scoped original input/object/result windows against retained native controls. Adapter withdrawal after an aborted native attempt is a separate Rust contract; no executed Rust result is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No replay runner or new execution is asserted. Rebuild the retained probe only with independently verified matching source/header/library identities, run each selected case in a fresh process and preserve stdout, stderr and process status separately. Original abnormal exits are retained observations of incomplete attempts; they are not successful completions and are not requested to be rerun.
+- [runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/manifest.json)
+- [runtime/rust/tests/data/native_regexp_jim_regsub/probe.c](../../../../runtime/rust/tests/data/native_regexp_jim_regsub/probe.c)

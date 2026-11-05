@@ -20,65 +20,23 @@ Exactly retained C child-creation, interp-delete and child-command-delete callba
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.4.20. Build: Pinned source only; no launched build observation. Channel: Inspected source functions, not a guest source invocation. Dialect: Tcl.
-
-Actual child allocation, child-table entry and command token retain separate lifetime and placement owners.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: Pinned source only; no launched build observation. Channel: Inspected source functions, not a guest source invocation. Dialect: Tcl.
-
-Actual child allocation, child-table entry and command token retain separate lifetime and placement owners.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Pinned source only; no launched build observation. Channel: Inspected source functions, not a guest source invocation. Dialect: Tcl.
-
-Actual child allocation, child-table entry and command token retain separate lifetime and placement owners.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned source only; no launched build observation. Channel: Inspected source functions, not a guest source invocation. Dialect: Tcl.
-
-Actual child allocation, child-table entry and command token retain separate lifetime and placement owners.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned source only; no launched build observation. Channel: Inspected source functions, not a guest source invocation. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected source functions, not a guest source invocation. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Actual child allocation, child-table entry and command token retain separate lifetime and placement owners.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `tcl8.4-creation` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json). JSON pointer `/windows/0/snippet`. Exact pinned source-only creation window; no launch or linked-library observation.
-- `tcl8.4-interp-delete` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json). JSON pointer `/windows/1/snippet`. Exact pinned source-only interp-delete window; no launch or linked-library observation.
-- `tcl8.4-delete-callback` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json). JSON pointer `/windows/2/snippet`. Exact pinned source-only delete-callback window; no launch or linked-library observation.
-- `tcl8.5-creation` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json). JSON pointer `/windows/0/snippet`. Exact pinned source-only creation window; no launch or linked-library observation.
-- `tcl8.5-interp-delete` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json). JSON pointer `/windows/1/snippet`. Exact pinned source-only interp-delete window; no launch or linked-library observation.
-- `tcl8.5-delete-callback` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json). JSON pointer `/windows/2/snippet`. Exact pinned source-only delete-callback window; no launch or linked-library observation.
-- `tcl8.6-creation` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Exact pinned source-only creation window; no launch or linked-library observation.
-- `tcl8.6-interp-delete` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Exact pinned source-only interp-delete window; no launch or linked-library observation.
-- `tcl8.6-delete-callback` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json). JSON pointer `/windows/2/snippet`. Exact pinned source-only delete-callback window; no launch or linked-library observation.
-- `tcl9.0-creation` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Exact pinned source-only creation window; no launch or linked-library observation.
-- `tcl9.0-interp-delete` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Exact pinned source-only interp-delete window; no launch or linked-library observation.
-- `tcl9.0-delete-callback` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json). JSON pointer `/windows/2/snippet`. Exact pinned source-only delete-callback window; no launch or linked-library observation.
-- `tcl9.1-creation` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Exact pinned source-only creation window; no launch or linked-library observation.
-- `tcl9.1-interp-delete` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Exact pinned source-only interp-delete window; no launch or linked-library observation.
-- `tcl9.1-delete-callback` (source-anchor): [runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json). JSON pointer `/windows/2/snippet`. Exact pinned source-only delete-callback window; no launch or linked-library observation.
 
 ## Source inspection
 
@@ -445,7 +403,6 @@ ChildObjCmdDeleteProc(
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `ChildInterpreterCommand::retire`: Retire the independently actual child allocation without owning its teardown lifetime.
@@ -453,8 +410,10 @@ ChildObjCmdDeleteProc(
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::tests::child_commands_keep_namespace_and_allocation_through_rename_and_recreation` (linked): C API unqualified root publication, exact token-directed rename/deletion and refusal to retarget a retained old child command to a new allocation.
 - [runtime/rust/src/interp/native_children.rs](../../../../runtime/rust/src/interp/native_children.rs), `interp::native_children::tests::replacing_or_deleting_child_command_retires_only_its_actual_interpreter` (linked): Replacement and active child deletion withdraw the actual old child while preserving new same-name recreation.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Reproduce source excerpts against their retained full-file hashes and exact line ranges. No fresh C/Jim/Rust execution is claimed by this packet. Full child interpreter teardown callbacks and cross-interpreter alias target retirement require their independent owners. Source line coordinates count LF only. The separately retained source metadata preserves its exact artifact identity under retained-source-metadata.
+- [runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.4-source.json)
+- [runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.5-source.json)
+- [runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl8.6-source.json)
+- [runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.0-source.json)
+- [runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json](../../../../runtime/rust/tests/data/native_child_command_lifetime/tcl9.1-source.json)

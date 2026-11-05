@@ -20,88 +20,17 @@ Pinned C8.5.19/8.6.18/9.0.4/9.1.0 FUNCTION emission and counted literal allocati
 
 ## Provider answers
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.5.19. Build: Pinned source inspection only; no executed build association.. Channel: Inspected FUNCTION emission, literal allocation/reuse/release code and selected macro; no native input supplied.. Dialect: Tcl.
-
-Compiles a counted tcl::mathfunc:: qualified literal before emitting runtime invocation. C8.5 uses the namespace-scoped literal flag; C8.6–9.1 use command-name literals. Literal reuse may get a string from an existing pooled object; release decrements references. Object callbacks are an independent prerequisite.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Pinned source inspection only; no executed build association.. Channel: Inspected FUNCTION emission, literal allocation/reuse/release code and selected macro; no native input supplied.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected FUNCTION emission, literal allocation/reuse/release code and selected macro; no native input supplied. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Compiles a counted tcl::mathfunc:: qualified literal before emitting runtime invocation. C8.5 uses the namespace-scoped literal flag; C8.6–9.1 use command-name literals. Literal reuse may get a string from an existing pooled object; release decrements references. Object callbacks are an independent prerequisite.
 
-### tcl9.0
+### tcl8.4, jim, bigip
 
-Status: `inspected`. Version: 9.0.4. Build: Pinned source inspection only; no executed build association.. Channel: Inspected FUNCTION emission, literal allocation/reuse/release code and selected macro; no native input supplied.. Dialect: Tcl.
-
-Compiles a counted tcl::mathfunc:: qualified literal before emitting runtime invocation. C8.5 uses the namespace-scoped literal flag; C8.6–9.1 use command-name literals. Literal reuse may get a string from an existing pooled object; release decrements references. Object callbacks are an independent prerequisite.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned source inspection only; no executed build association.. Channel: Inspected FUNCTION emission, literal allocation/reuse/release code and selected macro; no native input supplied.. Dialect: Tcl.
-
-Compiles a counted tcl::mathfunc:: qualified literal before emitting runtime invocation. C8.5 uses the namespace-scoped literal flag; C8.6–9.1 use command-name literals. Literal reuse may get a string from an existing pooled object; release decrements references. Object callbacks are an independent prerequisite.
-
-### tcl8.4
-
-Status: `not-tested`. Version: 8.4.20. Build: not recorded. Channel: No input supplied for this modern C compiler purpose.. Dialect: Tcl.
+Status: `not-tested`. Channel: No input supplied for this modern C compiler purpose. Version: tcl8.4 8.4.20; jim 0.84-9-g5bac7c9.
 
 No modern C command-literal compiler recipe is selected for this provider. No native function-dispatch or evaluator observation is claimed.
-
-### jim
-
-Status: `not-tested`. Version: 0.84-9-g5bac7c9. Build: not recorded. Channel: No input supplied for this modern C compiler purpose.. Dialect: Jim Tcl.
-
-No modern C command-literal compiler recipe is selected for this provider. No native function-dispatch or evaluator observation is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: No input supplied for this modern C compiler purpose.. Dialect: F5 iRules.
-
-No modern C command-literal compiler recipe is selected for this provider. No native function-dispatch or evaluator observation is claimed.
-
-## Historical references
-
-- `tcl8.5-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/0/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/1/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/2/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/3/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.5-4` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/4/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.5-4-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.5/tclCompile.h). Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/5/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/6/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/7/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/8/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl8.6-4` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/9/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl8.6-4-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl8.6/tclCompile.h). Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/10/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/11/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/12/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl9.0-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/13/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.0-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.0/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-0` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/14/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-0-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclCompExpr.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclCompExpr.c). Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-1` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/15/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-1-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-2` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/16/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-2-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-- `tcl9.1-3` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/source-windows.json). JSON pointer `/17/snippet`. Exact LF-selected original compiler/literal source window. Inspection only; pooled getters/refcount release are not assumed callback-free.
-- `tcl9.1-3-full` (source-anchor): [rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c](../../../../rust/tcl-registry/tests/data/native_expression_compiler_name_effects/sources/tcl9.1/tclLiteral.c). Pinned whole source file for exact source-window reproduction.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
@@ -1520,7 +1449,6 @@ TclReleaseLiteral(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_expression_program.rs](../../../../rust/tcl-registry/src/native_expression_program.rs), `NativeExpressionProgram::compiler_name_effects`: Select source-only checked expression compiler name operations, separately from runtime function dispatch.
@@ -1530,13 +1458,6 @@ TclReleaseLiteral(
 - [rust/tcl-compiler/src/command_binding/original_compiler_effects.rs](../../../../rust/tcl-compiler/src/command_binding/original_compiler_effects.rs), `command_binding::original_compiler_effects::tests::function_name_registration_requires_original_pool_and_quiet_lookup` (linked): Current authored pool permits only name-effect recipe; unavailable pool, unknown entry or retained execution observer declines. No dispatch/Normal/native admission is issued.
 - [rust/tcl-compiler/src/command_binding/original_compiler_effects.rs](../../../../rust/tcl-compiler/src/command_binding/original_compiler_effects.rs), `command_binding::original_compiler_effects::tests::function_argument_compilation_keeps_original_nested_script_visits` (linked): Argument brackets retain exact native image/config/body spans in recursive compiler visits; unavailable pool withdraws.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Reproduce retained full source SHA and exact LF-selected snippet SHA only; no native or Rust execution accompanies this source record.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -1545,8 +1466,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -1556,4 +1476,4 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 1 | 0 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.

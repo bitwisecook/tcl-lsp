@@ -452,7 +452,7 @@ intact, as C's `ObjectNamespaceDeleted` does. Deletion goes **by namespace id**
 (`delete_namespace_by_id`, over `descendant_ids`) rather than by name,
 specifically so variable unset traces fire as the namespace is torn down.
 
-The [original C descendant controls](../../../experiments/name-handling/results/original-dying-descendant-sdk-20261014/README.md)
+The original C descendant controls
 isolate publication through a dying ancestor during an actual unset callback.
 New descendants retain that original physical ancestor and disappear after the
 outer teardown. The native namespace API can still find the parent while the

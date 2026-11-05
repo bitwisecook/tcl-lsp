@@ -20,56 +20,11 @@ Six linked source/API controls cover authentic alias captures and moved append, 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-registry_invocation.rs` (implementation): [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs). Original structure, topology, expression, option and purity consumers query the actual invocation or independently joined declaration/CPP advice purpose before selecting Logical roles. Readonly Native/authored layouts retain their own guards and supply no handler or entered frame.
-- `naming-optimiser-original-chain-write-metadata-rust-tcl-compiler-src-optimiser-chain_fold.rs` (implementation): [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -86,8 +41,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs), `optimiser::chain_fold::tests::traced_interleaved_write_ends_chain` (linked): A protected interleaved write can observe the accumulator through its authored trace hazard, so it ends source-chain advice. No installed callback or executed trace value is claimed.
 - [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs), `optimiser::chain_fold::tests::chain_requires_original_statement_tape_after_structured_lowering` (linked): A genuine typed AssignConst with no direct tokens keeps its original shared source tape and positive chain advice. Removing the complete original statement carriers withdraws that advice; the statement variant supplies no replacement tape or execution/erasure authority.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-compiler/src/registry_invocation.rs](../../../../rust/tcl-compiler/src/registry_invocation.rs)
+- [rust/tcl-compiler/src/optimiser/chain_fold.rs](../../../../rust/tcl-compiler/src/optimiser/chain_fold.rs)

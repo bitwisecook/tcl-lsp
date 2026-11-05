@@ -22,71 +22,45 @@ Current original-source procedure inventory, issued body-keyed CFG frame/paramet
 
 ### tcl8.4
 
-Status: `not-tested`. Version: No external provider execution is attached to this constructed summary-index implementation question.. Build: Fixed pure geometry and actual whole-source software producer/control definitions only.. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.. Dialect: tcl8.4.
+Status: `not-tested`. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs. Version: tcl8.4 No external provider execution is attached to this constructed summary-index implementation question.
 
 External tcl8.4 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.
 
 ### tcl8.5
 
-Status: `not-tested`. Version: No external provider execution is attached to this constructed summary-index implementation question.. Build: Fixed pure geometry and actual whole-source software producer/control definitions only.. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.. Dialect: tcl8.5.
+Status: `not-tested`. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs. Version: tcl8.5 No external provider execution is attached to this constructed summary-index implementation question.
 
 External tcl8.5 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.
 
 ### tcl8.6
 
-Status: `not-tested`. Version: No external provider execution is attached to this constructed summary-index implementation question.. Build: Fixed pure geometry and actual whole-source software producer/control definitions only.. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.. Dialect: tcl8.6.
+Status: `not-tested`. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs. Version: tcl8.6 No external provider execution is attached to this constructed summary-index implementation question.
 
 External tcl8.6 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.
 
 ### tcl9.0
 
-Status: `not-tested`. Version: No external provider execution is attached to this constructed summary-index implementation question.. Build: Fixed pure geometry and actual whole-source software producer/control definitions only.. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.. Dialect: tcl9.0.
+Status: `not-tested`. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs. Version: tcl9.0 No external provider execution is attached to this constructed summary-index implementation question.
 
 External tcl9.0 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.
 
 ### tcl9.1
 
-Status: `not-tested`. Version: No external provider execution is attached to this constructed summary-index implementation question.. Build: Fixed pure geometry and actual whole-source software producer/control definitions only.. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.. Dialect: tcl9.1.
+Status: `not-tested`. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs. Version: tcl9.1 No external provider execution is attached to this constructed summary-index implementation question.
 
 External tcl9.1 execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.
 
 ### jim
 
-Status: `not-tested`. Version: No external provider execution is attached to this constructed summary-index implementation question.. Build: Fixed pure geometry and actual whole-source software producer/control definitions only.. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.. Dialect: jim.
+Status: `not-tested`. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs. Version: jim No external provider execution is attached to this constructed summary-index implementation question.
 
 External jim execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.
 
 ### bigip
 
-Status: `not-tested`. Version: No external provider execution is attached to this constructed summary-index implementation question.. Build: Fixed pure geometry and actual whole-source software producer/control definitions only.. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs.. Dialect: bigip.
+Status: `not-tested`. Channel: Source-only constructed metadata keys and retained original Module/procedure/CFG inputs. Version: bigip No external provider execution is attached to this constructed summary-index implementation question.
 
 External bigip execution is not tested or applicable as proof of this pure metadata/candidate policy. The source-defined controls prove no selected Native lookup, command token, frame, cell, contents, read absence or successful completion. Independently recorded native naming and BIG-IP TMM observations remain separately scoped and unchanged.
-
-## Historical references
-
-- `syntax-naming-scoped-ab7d28965c06` (observation): [Scoped syntax naming receipt](rust-validation/syntax-naming-20261103/receipt.json). Proof-scoped named fixed syntax software controls within a shared receipt; no compiler, Core, external provider or whole-proof result follows.
-
-- `procedure-candidate-source-0` (implementation): [rust/tcl-syntax/src/naming.rs](../../../../rust/tcl-syntax/src/naming.rs). Reviewed source role: Pure constructed-label key suffixes; no selected lookup. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-- `procedure-candidate-source-1` (implementation): [rust/tcl-compiler/src/cfg_builder/mod.rs](../../../../rust/tcl-compiler/src/cfg_builder/mod.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-2` (implementation): [rust/tcl-compiler/src/cfg_builder/summary_candidates.rs](../../../../rust/tcl-compiler/src/cfg_builder/summary_candidates.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-3` (implementation): [rust/tcl-compiler/src/interprocedural.rs](../../../../rust/tcl-compiler/src/interprocedural.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-4` (implementation): [rust/tcl-compiler/tests/inlining_interproc_residual.rs](../../../../rust/tcl-compiler/tests/inlining_interproc_residual.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-5` (implementation): [rust/tcl-compiler/src/ir.rs](../../../../rust/tcl-compiler/src/ir.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-6` (implementation): [rust/tcl-compiler/src/command_binding/retained_source.rs](../../../../rust/tcl-compiler/src/command_binding/retained_source.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-7` (implementation): [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-8` (implementation): [rust/tcl-compiler/src/cfg_builder/upvar_info.rs](../../../../rust/tcl-compiler/src/cfg_builder/upvar_info.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-9` (implementation): [rust/tcl-compiler/src/cfg_builder/global_write_info.rs](../../../../rust/tcl-compiler/src/cfg_builder/global_write_info.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-10` (implementation): [rust/tcl-compiler/src/deferred_writes.rs](../../../../rust/tcl-compiler/src/deferred_writes.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-11` (implementation): [rust/tcl-compiler/src/optimiser/elimination.rs](../../../../rust/tcl-compiler/src/optimiser/elimination.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-12` (implementation): [rust/tcl-compiler/src/optimiser/elimination/source_reads.rs](../../../../rust/tcl-compiler/src/optimiser/elimination/source_reads.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-13` (implementation): [rust/tcl-compiler/src/cfg.rs](../../../../rust/tcl-compiler/src/cfg.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-14` (implementation): [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-15` (implementation): [rust/tcl-compiler/src/lib.rs](../../../../rust/tcl-compiler/src/lib.rs). Current canonical constructed geometry, original source-owner/CFG producer, protective metadata consumer or genuine fixed software control definition. Source-only; no execution outcome or Native authority.
-- `procedure-candidate-source-16` (implementation): [rust/tcl-syntax/src/lib.rs](../../../../rust/tcl-syntax/src/lib.rs). Reviewed source role: Public naming module export; source API role only. The separate receipt records only named fixed syntax software controls; no compiler, Core or Native provider result follows.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -108,8 +82,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/tests/inlining_interproc_residual.rs](../../../../rust/tcl-compiler/tests/inlining_interproc_residual.rs), `protective_proc_index_unions_every_colliding_parameter_and_default_read` (linked): Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached.
 - [rust/tcl-compiler/tests/inlining_interproc_residual.rs](../../../../rust/tcl-compiler/tests/inlining_interproc_residual.rs), `protective_proc_index_missing_key_retains_literal_possible_name_arguments` (linked): Fixed source-defined constructed labels, complete retained procedure headers, original whole-module frame summaries and protective MAY read/default unions. No assertion outcome, selected Native dispatch, frame/cell/value, lookup absence or provider execution is attached.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The separately retained receipt records the named constructed-label syntax control only; other fixed controls have no attached execution outcome. No external C/Jim/BIG-IP process is attached; metadata geometry cannot certify Native namespace/command lookup.
+- [rust/tcl-syntax/src](../../../../rust/tcl-syntax/src)
+- [rust/tcl-compiler/src](../../../../rust/tcl-compiler/src)
+- [rust/tcl-compiler](../../../../rust/tcl-compiler)
+- [rust/tcl-compiler/tests](../../../../rust/tcl-compiler/tests)
+- [rust/tcl-compiler/src/command_binding](../../../../rust/tcl-compiler/src/command_binding)
+- [rust/tcl-compiler/src/optimiser](../../../../rust/tcl-compiler/src/optimiser)
+- [rust/tcl-compiler/src/optimiser/elimination](../../../../rust/tcl-compiler/src/optimiser/elimination)
+- [rust/tcl-compiler/src/registry_invocation](../../../../rust/tcl-compiler/src/registry_invocation)

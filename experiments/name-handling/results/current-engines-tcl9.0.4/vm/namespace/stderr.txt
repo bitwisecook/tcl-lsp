@@ -1,2 +1,0 @@
-VM error: invalid command name "list"
-options: -code 1 -level 0 -errorcode {TCL LOOKUP COMMAND list}

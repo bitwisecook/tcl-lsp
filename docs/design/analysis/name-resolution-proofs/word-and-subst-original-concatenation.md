@@ -32,32 +32,6 @@ The eight inputs are ordinary String `A`, Unicode units `0000 D800`, resident St
 
 The operations require independently selected purposes. C8.4 compiled concatenation can return an untouched Unicode first operand while subst materializes it. C8.5 subst preserves pure Unicode or binary input through its token append path, independently of compiled concatenation. C8.6 word and subst preserve a binary result, but subst materializes the Unicode-empty concatenation that compiled word evaluation returns unchanged. C9 both operations retain the observed binary and empty-operand reuse behavior. Original subst templates acquire SubstCode only on C8.6/C9; Jim word results and both template caches use its independent source/script types. The complete retained rows define the narrow result/cache/alias behavior, including changes caused by the first result getter before the second call.
 
-## Historical references
-
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/probe.c`. Exact public C/Jim original object constructors, pre-getter snapshots and repeated entry.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/input.json`. Eight input kinds, exact source templates, operation modes and observation boundary.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/receipt.json`. Six actual compile/run receipts; exact input/library/header/executable and stream hashes.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/observations.tsv`. Derived selected header/alias/result rows consumed by Rust tests; not a substitute for original stdout.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/replay.py`. Strict sequential native reconfirmation; startup, unavailable constructor controls and all rows compared.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.4.20/stderr`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.5.19/stderr`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/8.6.18/stderr`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.0.4/stderr`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/9.1.0/stderr`. Empty stderr for the completed native program.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/stdout.jsonl`. Actual native rows, including launched patchlevel, original primary/resident and alias state before result getter.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/receipt.json`. Actual process and compile status and original static-library/header/executable identities.
-- `rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/jim/stderr`. Empty stderr for the completed native program.
-
 ## Source anchors
 
 The retained public probe is the execution evidence. Interpreter source supplies separate operation explanations: C8.4 `generic/tclCmdMZ.c::Tcl_SubstObj` starts a fresh string result; C8.5 `generic/tclParse.c::TclSubstTokens` adopts then appends token objects; C8.6/C9 `generic/tclCompile.c::CompileSubstObj` has its own interpreter/epoch/namespace/flags-dependent SubstCode owner. No broader cache admission follows from these observed primary names.
@@ -80,7 +54,6 @@ python3 rust/tcl-cmd-core/tests/data/native_word_subst_concatenation/replay.py -
 
 Requires the exact built static libraries and headers for five named C releases plus Jim source revision5bac7c99ad65864c87da513e22e2f01703fa4e03 configured UTF8=1 and reporting0.84-9-g5bac7c9. Sequential calls have a60-second process budget. All startup/result rows are compared exactly; constructor unavailable rows are expected probe admission data. Compile, launch, nonzero process, stderr and malformed JSON are harness failures. Output rows alone do not prove Rust correspondence or cache lifetime authority.
 
-
 ## Exact original-source349 software outcomes
 
 These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
@@ -90,4 +63,4 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.

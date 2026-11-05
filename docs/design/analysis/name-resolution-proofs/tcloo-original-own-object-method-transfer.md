@@ -20,53 +20,11 @@ Current Compiler/Core implementation contract for source analysis with an explic
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a Rust source transfer and provenance contract. No C Tcl, Jim or BIG-IP execution of this question is claimed.
-
-## Historical references
-
-- `c-source` (source-anchor): [rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json). JSON pointer `/source_anchors`. Retained complete function snippets and full original C source file hashes for the setter, procedure method creation, own object table replacement and known procedure deletion boundaries.
-
-- `own-source347-software-outcomes` (observation): [docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json](../../../../docs/design/analysis/name-resolution-proofs/rust-validation/compiler-core-runtime-owned347-experiments.json). JSON pointer `/exact_question_body_outcomes`. Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.
 
 ## Source inspection
 
@@ -650,7 +608,6 @@ DeleteProcedureMethod(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `native_deferred_method_setter`: Selects the intrinsic exact setter storage contract independently of metadata and construction effects.
@@ -667,13 +624,6 @@ DeleteProcedureMethod(
 - [rust/tcl-lsp-core/src/receiver_identity.rs](../../../../rust/tcl-lsp-core/src/receiver_identity.rs), `receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation` (linked): Checks the actual allocation/worker/native-field/current-table axis stated in this contract, with unsupported cases remaining terminal.
 - [rust/tcl-compiler/src/command_binding/own_object_configuration.rs](../../../../rust/tcl-compiler/src/command_binding/own_object_configuration.rs), `command_binding::own_object_configuration::original_configuration_body_purpose_tests::original_own_object_configuration_keeps_body_bom_and_parent_policy_separate` (linked): Finite source-defined control: original own object configuration keeps body bom and parent policy separate. Actual original stock own-object transfer, whole prologue versus BOM-prefixed worker body, unchanged parent full config/source and foreign source refusal. No physical method-entry authority. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Run the named selectors on the coherent compiled workspace before claiming a passing result. C source inspection is separate from native observations and native compilation/object/body capabilities.
-
-
 ## Exact original-source Compiler software outcomes
 
 The table reports only admitted selectors attached to this question by exact comments in the retained original test bodies. Each result is limited to its named source snapshot, owned Compiler image and selector invocation. No other source/image, unselected assertion, external-provider observation or performance conclusion follows.
@@ -682,8 +632,7 @@ The table reports only admitted selectors attached to this question by exact com
 | --- | ---: | ---: | ---: |
 | `integration-compiler-focused-consumer-tests344` | 1 | 0 | 0 |
 
-[Exact original-source body hashes, receipts, streams, inventories and owned images](rust-validation/compiler-owned341345-experiments.json) preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
-
+Exact original-source body hashes, receipts, streams, inventories and owned images preserve the per-selector events and independent producer/admission limits. The existing provider answers retain their own experimental scope.
 
 ## Exact original-source347 software outcomes
 
@@ -693,4 +642,8 @@ These results belong only to the retained source347 body/question pairs and thei
 | --- | ---: | ---: |
 | `integration-compiler-focused-consumer-tests347` | 1 | 0 |
 
-[Exact original body hashes, producer/list/admission receipts, raw logs and owned images](rust-validation/compiler-core-runtime-owned347-experiments.json) retain the finite per-selector results and independent failed Runtime producer.
+`Exact original body hashes, producer/list/admission receipts, raw logs and owned images` retain the finite per-selector results and independent failed Runtime producer.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json](../../../../rust/tcl-registry/tests/data/native_tcloo_own_method_source/anchors.json)

@@ -20,55 +20,11 @@ Explicit compatibility source metadata and existing Logical formatting behavior.
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust metadata selection invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No interpreter observation establishes this Rust metadata selection invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust metadata selection invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust metadata selection invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No interpreter observation establishes this Rust metadata selection invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No interpreter observation establishes this Rust metadata selection invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No interpreter observation establishes this Rust metadata selection invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -80,9 +36,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/lambda_literal.rs](../../../../rust/tcl-compiler/src/lambda_literal.rs), `split_original_lambda_literal_lexical_decoded`: Decode only a genuine complete Document/braced/non-expanded word with its retained full source/list grammar; no Native value, name key or cooked source extent.
 - [rust/tcl-lsp-core/src/formatting/engine.rs](../../../../rust/tcl-lsp-core/src/formatting/engine.rs), `formatting::engine::tests::logical_default_formatting_retains_its_whole_context_over_mixed_specs` (linked): Mixed descriptors retain the intended Tcl-family authored schema with genuine original words and without Native inputs/recipes; changed full config declines context and keyword projection.
 - [rust/tcl-compiler/src/lambda_literal.rs](../../../../rust/tcl-compiler/src/lambda_literal.rs), `lambda_literal::tests::original_lexical_lambda_decoding_retains_word_config_and_channel` (linked): Whole original Document/braced/non-expanded words retain literal-versus-folded continuation grammar; NativeValue channel refuses this lexical view.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Exact Rust coverage is linked without execution. Existing compatibility procedure and expression formatter tests provide additional consumer checks; native behavior cannot establish the formatter's own retained-context invariant.

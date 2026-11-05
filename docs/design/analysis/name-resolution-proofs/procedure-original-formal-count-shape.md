@@ -22,74 +22,27 @@ Six actual process exits0 and empty stderr retain six queried versions and372 ca
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Actual CLI executable SHA f0e742ccc08a150afd9a0a236ce24c8e12098dae38c0efd46e59f9b1a28bf58a; retained SDK/header/library/Makefile/source pins and exact environment/runner. No compilation argv or compiler version is recorded for this CLI capture.. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection. Version: tcl8.4 8.4.20.
 
 For tested argc0..5, accepted counts: empty=0; required-after-default=3; middle-args=3; middle-rest-name=3; trailing-rest=1,2,3,4,5; defaults-around-rest=3,4; all-optional=0,1,2. All seven definitions succeed and the malformed three-field formal definition is refused. Apply is unavailable; alias creation succeeds without proving its target can run, and the target invocations and rename fail. These controls provide no Apply body or alias-call acceptance.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.5.19. Build: Actual CLI executable SHA e7eb17821aeb7b1f84619f431e89ecff667bc5461fa8e00d67498b6b7d5dd61a; retained SDK/header/library/Makefile/source pins and exact environment/runner. No compilation argv or compiler version is recorded for this CLI capture.. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection.. Dialect: Tcl.
-
-For tested argc0..5, accepted counts: empty=0; required-after-default=3; middle-args=3; middle-rest-name=3; trailing-rest=1,2,3,4,5; defaults-around-rest=3,4; all-optional=0,1,2. All seven definitions succeed and the malformed three-field formal definition is refused. Direct Apply accepts its exact two-argument case and refuses short/surplus, required-after-default and middle-rest controls. Rooted, ordinary alias, captured-lambda alias and renamed short calls retain arity failures after successful setup. Error codes are NONE in C8.5 and TCL WRONGARGS in C8.6–C9.1.
-
-### tcl8.6
-
-Status: `observed`. Version: 8.6.18. Build: Actual CLI executable SHA 9b156375d068a58fcfb82a2a0afd170afd2b03912cbb6e588676c7688118c8ff; retained SDK/header/library/Makefile/source pins and exact environment/runner. No compilation argv or compiler version is recorded for this CLI capture.. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection.. Dialect: Tcl.
-
-For tested argc0..5, accepted counts: empty=0; required-after-default=3; middle-args=3; middle-rest-name=3; trailing-rest=1,2,3,4,5; defaults-around-rest=3,4; all-optional=0,1,2. All seven definitions succeed and the malformed three-field formal definition is refused. Direct Apply accepts its exact two-argument case and refuses short/surplus, required-after-default and middle-rest controls. Rooted, ordinary alias, captured-lambda alias and renamed short calls retain arity failures after successful setup. Error codes are NONE in C8.5 and TCL WRONGARGS in C8.6–C9.1.
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: Actual CLI executable SHA f4748357cdbf2762f1c5c05916fa53e54718d087120ae9de9c403bbdfaf764b1; retained SDK/header/library/Makefile/source pins and exact environment/runner. No compilation argv or compiler version is recorded for this CLI capture.. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection.. Dialect: Tcl.
-
-For tested argc0..5, accepted counts: empty=0; required-after-default=3; middle-args=3; middle-rest-name=3; trailing-rest=1,2,3,4,5; defaults-around-rest=3,4; all-optional=0,1,2. All seven definitions succeed and the malformed three-field formal definition is refused. Direct Apply accepts its exact two-argument case and refuses short/surplus, required-after-default and middle-rest controls. Rooted, ordinary alias, captured-lambda alias and renamed short calls retain arity failures after successful setup. Error codes are NONE in C8.5 and TCL WRONGARGS in C8.6–C9.1.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Actual CLI executable SHA 2a82f721b68f2ed2347ca4e3daa9a56c49c9e3efce77d00f22fc3b2012d8814d; retained SDK/header/library/Makefile/source pins and exact environment/runner. No compilation argv or compiler version is recorded for this CLI capture.. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 For tested argc0..5, accepted counts: empty=0; required-after-default=3; middle-args=3; middle-rest-name=3; trailing-rest=1,2,3,4,5; defaults-around-rest=3,4; all-optional=0,1,2. All seven definitions succeed and the malformed three-field formal definition is refused. Direct Apply accepts its exact two-argument case and refuses short/surplus, required-after-default and middle-rest controls. Rooted, ordinary alias, captured-lambda alias and renamed short calls retain arity failures after successful setup. Error codes are NONE in C8.5 and TCL WRONGARGS in C8.6–C9.1.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Actual CLI executable SHA e4265a14bb6ce0e652d9804f519dfc745fad3acbaf545ba3b120a8a532ab7806; retained SDK/header/library/Makefile/source pins and exact environment/runner. No compilation argv or compiler version is recorded for this CLI capture.. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI, one fresh process per provider with one queried version and 62 sequential caught definition/call controls. Result hex is binary-scan source projection. Version: jim 0.84-9-g5bac7c9.
 
 For tested argc0..5, accepted counts: empty=0; required-after-default=2,3; middle-args=2,3,4,5; middle-rest-name=2,3,4,5; trailing-rest=1,2,3,4,5; defaults-around-rest=1,2,3,4,5; all-optional=0,1,2. All seven definitions succeed and the malformed three-field formal definition is refused. Direct Apply accepts the exact two-argument case and the two-argument required-after-default and middle-rest cases. Its short/surplus/root-separator and renamed short controls fail. Both interp alias setups are unsupported; following missing alias calls prove no captured-prefix acceptance.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not recorded. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation of these exact original formal-count and call controls.
-
-## Historical references
-
-- `formal-probe.tcl` (input): [rust/tcl-registry/tests/data/native_original_formal_count/probe.tcl](../../../../rust/tcl-registry/tests/data/native_original_formal_count/probe.tcl). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-request.json` (input): [rust/tcl-registry/tests/data/native_original_formal_count/request.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/request.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-capture.py` (input): [rust/tcl-registry/tests/data/native_original_formal_count/capture.py](../../../../rust/tcl-registry/tests/data/native_original_formal_count/capture.py). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_formal_count/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.6.18/receipt.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.6.18/stderr). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.6.18/stdout). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_formal_count/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.1.0/receipt.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.1.0/stderr). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.1.0/stdout). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_formal_count/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.4.20/receipt.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.4.20/stderr). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.4.20/stdout). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_formal_count/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.0.4/receipt.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.0.4/stderr). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.0.4/stdout). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_formal_count/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.5.19/receipt.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.5.19/stderr). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.5.19/stdout). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_original_formal_count/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/jim/receipt.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/jim/stderr](../../../../rust/tcl-registry/tests/data/native_original_formal_count/jim/stderr). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_original_formal_count/jim/stdout](../../../../rust/tcl-registry/tests/data/native_original_formal_count/jim/stdout). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-- `formal-sdk-queue.json` (provider): [rust/tcl-registry/tests/data/native_original_formal_count/sdk-queue.json](../../../../rust/tcl-registry/tests/data/native_original_formal_count/sdk-queue.json). Exact original formal-count source/request/runner, independent SDK association or provider process receipt/raw output. Unsupported Apply and alias setup controls retain their own completion frontier.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -114,17 +67,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/handlers.rs](../../../../rust/tcl-compiler/src/analyser/handlers.rs), `analyser::handlers::original_registry_symbol_tests::original_formal_counts_survive_procedure_and_signature_records` (linked): Seven independently encoded finite successful formal definitions and argc0..5 C5/Jim acceptance expectations survive authentic analyser/signature records; original ordered storage stays separate from authored metadata, with malformed/computed refusal and no actual call/frame or above-five conclusion.
 - [rust/tcl-compiler/src/signature_scan/arity.rs](../../../../rust/tcl-compiler/src/signature_scan/arity.rs), `signature_scan::arity::tests::finite_source_count_bounds_cannot_borrow_unlimited_sentinel` (linked): Checked source metadata conversion rejects finite minimum or maximum bounds at or beyond the u16 unlimited sentinel, while representable exact and independently unbounded shapes remain distinct.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "rust/tcl-registry/tests/data/native_original_formal_count/capture.py"
-]
-```
-
-The retained runner resolves original absolute SDK associations and writes each provider directory. Exact pinned executables/environment and a fresh output directory are needed. The original source and all raw streams are immutable. Linked parser/binder controls and original source-schema consumers retain independent implementation and execution scopes.
+- [rust/tcl-registry/tests/data/native_original_formal_count](../../../../rust/tcl-registry/tests/data/native_original_formal_count)
+- [rust/tcl-registry/tests/data/native_original_formal_count/8.6.18](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.6.18)
+- [rust/tcl-registry/tests/data/native_original_formal_count/9.1.0](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.1.0)
+- [rust/tcl-registry/tests/data/native_original_formal_count/8.4.20](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.4.20)
+- [rust/tcl-registry/tests/data/native_original_formal_count/9.0.4](../../../../rust/tcl-registry/tests/data/native_original_formal_count/9.0.4)
+- [rust/tcl-registry/tests/data/native_original_formal_count/8.5.19](../../../../rust/tcl-registry/tests/data/native_original_formal_count/8.5.19)
+- [rust/tcl-registry/tests/data/native_original_formal_count/jim](../../../../rust/tcl-registry/tests/data/native_original_formal_count/jim)

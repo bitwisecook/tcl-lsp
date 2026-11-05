@@ -20,64 +20,14 @@ Rust source analysis entry and retained variable-state contract. The fixed C8.6 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native or appliance observation for this question is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `analyse_source_in_frame_with_options`: Establish the supplied analysis entry frame before root traversal, separately from nested-call restoration and handler completion.
 - [rust/tcl-compiler/src/var_resolve.rs](../../../../rust/tcl-compiler/src/var_resolve.rs), `restore_execution_frame`: Preserve the existing nested caller and outward-effects restoration boundary without applying it to an unselected model entry parent.
 - [rust/tcl-compiler/src/command_binding/native_result.rs](../../../../rust/tcl-compiler/src/command_binding/native_result.rs), `command_binding::native_result::tests::original_root_entry_retains_selected_frame_and_withdraws_after_unknown_observer` (linked): Retains exact selected Native root namespace/frame and completed scalar contents at final publication; an unknown command still leaves dynamic bindings and refuses the value.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The fixed Rust selector is linked without an attached execution receipt. Existing native address, frame and alias observations remain separate questions and do not prove this implementation contract.

@@ -20,60 +20,23 @@ Exact pinned generic source files for Tcl8.4.20/8.5.19/8.6.18/9.0.4/9.1.0. Indep
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.4.20. Build: No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.. Channel: Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).. Dialect: Tcl.
-
-Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.
-
-### tcl8.5
-
-Status: `inspected`. Version: 8.5.19. Build: No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.. Channel: Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).. Dialect: Tcl.
-
-Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.. Channel: Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).. Dialect: Tcl.
-
-Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.. Channel: Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).. Dialect: Tcl.
-
-Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: No new guest execution for this source-anchor question; exact source-file hashes/lines are retained independently of native probe builds.. Channel: Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0).. Dialect: Tcl.
+Status: `inspected`. Channel: Copied counted DString source supplied by TraceVarProc to Tcl_EvalEx(flags0). Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Inspected counted callback EvalEx and original source object-vector dispatch callsites; no original ControlBody object is passed.
 
 ### jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e1` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.4.20-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e2` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e3` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.5.19-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e4` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e5` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/8.6.18-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e6` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e7` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.0.4-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
-- `e8` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-TraceVarProc.txt). Exact TraceVarProc counted evaluation callsite excerpt; source full-file hash and original lines separate.
-- `e9` (source-anchor): [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-source-object-dispatch.txt](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors/9.1.0-source-object-dispatch.txt). Exact counted source evaluator reached object-vector dispatch: TclEvalObjvInternal on C84/85, Tcl_EvalObjv on C86/90/91; excludes the unrelated List-body branch.
 
 ## Source inspection
 
@@ -97,7 +60,6 @@ tcl8.4 8.4.20, revision `pinned Tcl release 8.4.20`, `generic/tclCmdMZ.c`, funct
 	    }
 
 	    Tcl_RestoreResult(interp, &state);
-
 
 ```
 
@@ -317,7 +279,6 @@ tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, functio
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `NativeEvalObjectProtocol::permits_direct_source_operands`: Purpose-separated matching engine source entry only.
@@ -325,8 +286,6 @@ tcl9.1 9.1.0, revision `pinned Tcl release 9.1.0`, `generic/tclBasic.c`, functio
 - [rust/tcl-registry/src/native_variable_trace.rs](../../../../rust/tcl-registry/src/native_variable_trace.rs), `NativeVariableTraceProtocol::callback_compilation`: Independently selected Direct ScriptCode trace source entry with loop0/catchSome0; triggering physical frame and copied-prefix lifetime remain separate.
 - [rust/tcl-registry/src/native_eval_object.rs](../../../../rust/tcl-registry/src/native_eval_object.rs), `native_eval_object::trace_source_tests::copied_trace_scripts_select_direct_operands_without_borrowing_control_body_compilation` (linked): TraceCallback selects matching C direct operands, declines Jim/foreign version strings, and leaves ControlBody compilation independent.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Reconfirmation is source inspection against exact retained full-file SHA and original function/lines. The independent native prefix probe above checks reached callback bytes but does not observe bytecode-object or literal-pool internals. Rust test execution requires a separately captured current-source result; none is attached here.
+- [rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors](../../../../rust/tcl-registry/tests/data/native_variable_trace_prefix/source-anchors)

@@ -1,7 +1,0 @@
-{
-  "ref": "work",
-  "inputs": {
-    "rust_tests_runner": "hosted",
-    "native_release_build_proof": false
-  }
-}

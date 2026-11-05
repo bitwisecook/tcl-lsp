@@ -20,28 +20,9 @@ Selected cases superclass-zero,superclass-zero-suffix,superclass-dash-zero,super
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `unsupported`. Version: 8.4.20 (recorded build association; linked runtime version not queried by this probe). Build: headerSHA=824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf; librarySHA=532be0a794ca8277c5ad979a227c38600f27c3c91d436e5d3731d661c271fe47; executableSHA=5a206bc4a8be86ebc4f16fe7ab2d1ede603903ead3ebf4ad584789895d75f414. Full original compile argument vector retained in the provider receipt; compiler-version query absent.. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Dialect: C Tcl.
-
-Exact selected rows in case/guest-code/result-byte-count/result-hex order:
-
-```text
-superclass-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-superclass-zero-suffix	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-superclass-dash-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-superclass-escaped-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-zero-suffix	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-dash-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-escaped-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-```
-
-Compile status0 and whole process0 are separate from the printed guest completions. oo::class is unavailable, so the targeted slot worker and zero operand are unreached.
-
-### tcl8.5
-
-Status: `unsupported`. Version: 8.5.19 (recorded build association; linked runtime version not queried by this probe). Build: headerSHA=c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5; librarySHA=94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; executableSHA=65045fd8185fb249adc3328e05b77e59053228c5eb16dcaf4390d0658a85fbf4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Dialect: C Tcl.
+Status: `unsupported`. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Version: tcl8.4 8.4.20 (recorded build association; tcl8.5 8.5.19 (recorded build association; jim 0.84-9-g5bac7c9 (recorded build association.
 
 Exact selected rows in case/guest-code/result-byte-count/result-hex order:
 
@@ -60,7 +41,7 @@ Compile status0 and whole process0 are separate from the printed guest completio
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18 (recorded build association; linked runtime version not queried by this probe). Build: headerSHA=aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245; librarySHA=980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; executableSHA=c6e5158450735a2b8a8b350d436df1a55239ee9daf1ba38ee6f2640adc07ceaa. Full original compile argument vector retained in the provider receipt; compiler-version query absent.. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Dialect: C Tcl.
+Status: `observed`. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Version: tcl8.6 8.6.18 (recorded build association.
 
 Exact selected rows in case/guest-code/result-byte-count/result-hex order:
 
@@ -77,28 +58,9 @@ mixin-escaped-zero	1	56	756e6b6e6f776e206d6574686f6420222d73c0806574223a206d7573
 
 Compile status0 and whole process0 are separate from the printed guest completions.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4 (recorded build association; linked runtime version not queried by this probe). Build: headerSHA=eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a; librarySHA=dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; executableSHA=21baee6e61de27574b6a60baa1da95b8ab635efa49f7c985c0a8ba61e2816f01. Full original compile argument vector retained in the provider receipt; compiler-version query absent.. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Dialect: C Tcl.
-
-Exact selected rows in case/guest-code/result-byte-count/result-hex order:
-
-```text
-superclass-zero	1	30	c08020646f6573206e6f7420726566657220746f20616e206f626a656374
-superclass-zero-suffix	1	33	c08053657420646f6573206e6f7420726566657220746f20616e206f626a656374
-superclass-dash-zero	1	89	756e6b6e6f776e206d6574686f6420222dc080736574223a206d757374206265202d617070656e642c202d617070656e6469666e65772c202d636c6561722c202d70726570656e642c202d72656d6f7665206f72202d736574
-superclass-escaped-zero	1	89	756e6b6e6f776e206d6574686f6420222d73c0806574223a206d757374206265202d617070656e642c202d617070656e6469666e65772c202d636c6561722c202d70726570656e642c202d72656d6f7665206f72202d736574
-mixin-zero	1	30	c08020646f6573206e6f7420726566657220746f20616e206f626a656374
-mixin-zero-suffix	1	33	c08053657420646f6573206e6f7420726566657220746f20616e206f626a656374
-mixin-dash-zero	1	89	756e6b6e6f776e206d6574686f6420222dc080736574223a206d757374206265202d617070656e642c202d617070656e6469666e65772c202d636c6561722c202d70726570656e642c202d72656d6f7665206f72202d736574
-mixin-escaped-zero	1	89	756e6b6e6f776e206d6574686f6420222d73c0806574223a206d757374206265202d617070656e642c202d617070656e6469666e65772c202d636c6561722c202d70726570656e642c202d72656d6f7665206f72202d736574
-```
-
-Compile status0 and whole process0 are separate from the printed guest completions.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0 (recorded build association; linked runtime version not queried by this probe). Build: headerSHA=30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950; librarySHA=513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; executableSHA=ba7203882ca9d0d9af06fc1cbb8aed2a458405680046ca64720fd3b08018bda4. Full original compile argument vector retained in the provider receipt; compiler-version query absent.. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Dialect: C Tcl.
+Status: `observed`. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Version: tcl9.0 9.0.4 (recorded build association; tcl9.1 9.1.0 (recorded build association.
 
 Exact selected rows in case/guest-code/result-byte-count/result-hex order:
 
@@ -114,60 +76,12 @@ mixin-escaped-zero	1	89	756e6b6e6f776e206d6574686f6420222d73c0806574223a206d7573
 ```
 
 Compile status0 and whole process0 are separate from the printed guest completions.
-
-### jim
-
-Status: `unsupported`. Version: 0.84-9-g5bac7c9 (recorded build association; linked runtime version not queried by this probe). Build: headerSHA=d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d; librarySHA=a692b833f5b8f3351c1dc5911810aadf4c5f0ff4ca795ee6b802e6550e57b3da; executableSHA=616daed2a6071a8adc76ac1dc77b505cff843f2e4fed9a5dd0daf8e40a8959b8. Full original compile argument vector retained in the provider receipt; compiler-version query absent.. Channel: Tcl_Eval/Jim_Eval NUL-terminated ASCII source; public result string getter. Dialect: Jim Tcl.
-
-Exact selected rows in case/guest-code/result-byte-count/result-hex order:
-
-```text
-superclass-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-superclass-zero-suffix	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-superclass-dash-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-superclass-escaped-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-zero-suffix	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-dash-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-mixin-escaped-zero	1	32	696e76616c696420636f6d6d616e64206e616d6520226f6f3a3a636c61737322
-```
-
-Compile status0 and whole process0 are separate from the printed guest completions. oo::class is unavailable, so the targeted slot worker and zero operand are unreached.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No BIG-IP load/event or appliance-Tcl result for these exact programs is attached.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/probe.c](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/probe.c). Exact public API/source producers and independently reset interpreter/guest result observer.
-- `cases` (input): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/cases.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/cases.json). All25 named ASCII source strings match the exact C literal vector.
-- `receipt` (provider): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/receipt.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/receipt.json). Six complete original source/header/library/executable/compile/process/raw stream associations.
-- `replay` (implementation): [scripts/dev/replay-array-oo-source-controls.py](../../../../scripts/dev/replay-array-oo-source-controls.py). Maintained exact-input replayer requires captured build correspondence and separate new output; no execution of this script is inferred.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stdout.tsv). Exact25 completion/result-unit rows; selected labels superclass-zero,superclass-zero-suffix,superclass-dash-zero,superclass-escaped-zero,mixin-zero,mixin-zero-suffix,mixin-dash-zero,mixin-escaped-zero.
-- `build-tcl8.4` (provider): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/receipt.json). Independent exact original provider association, compile/process status and whole streams.
-- `stderr-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20/stderr). Exact empty original process stderr.
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stdout.tsv). Exact25 completion/result-unit rows; selected labels superclass-zero,superclass-zero-suffix,superclass-dash-zero,superclass-escaped-zero,mixin-zero,mixin-zero-suffix,mixin-dash-zero,mixin-escaped-zero.
-- `build-tcl8.5` (provider): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/receipt.json). Independent exact original provider association, compile/process status and whole streams.
-- `stderr-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19/stderr). Exact empty original process stderr.
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stdout.tsv). Exact25 completion/result-unit rows; selected labels superclass-zero,superclass-zero-suffix,superclass-dash-zero,superclass-escaped-zero,mixin-zero,mixin-zero-suffix,mixin-dash-zero,mixin-escaped-zero.
-- `build-tcl8.6` (provider): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/receipt.json). Independent exact original provider association, compile/process status and whole streams.
-- `stderr-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18/stderr). Exact empty original process stderr.
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stdout.tsv). Exact25 completion/result-unit rows; selected labels superclass-zero,superclass-zero-suffix,superclass-dash-zero,superclass-escaped-zero,mixin-zero,mixin-zero-suffix,mixin-dash-zero,mixin-escaped-zero.
-- `build-tcl9.0` (provider): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/receipt.json). Independent exact original provider association, compile/process status and whole streams.
-- `stderr-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4/stderr). Exact empty original process stderr.
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stdout.tsv). Exact25 completion/result-unit rows; selected labels superclass-zero,superclass-zero-suffix,superclass-dash-zero,superclass-escaped-zero,mixin-zero,mixin-zero-suffix,mixin-dash-zero,mixin-escaped-zero.
-- `build-tcl9.1` (provider): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/receipt.json). Independent exact original provider association, compile/process status and whole streams.
-- `stderr-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0/stderr). Exact empty original process stderr.
-- `rows-jim` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stdout.tsv](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stdout.tsv). Exact25 completion/result-unit rows; selected labels superclass-zero,superclass-zero-suffix,superclass-dash-zero,superclass-escaped-zero,mixin-zero,mixin-zero-suffix,mixin-dash-zero,mixin-escaped-zero.
-- `build-jim` (provider): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/receipt.json). Independent exact original provider association, compile/process status and whole streams.
-- `stderr-jim` (observation): [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stderr](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim/stderr). Exact empty original process stderr.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -175,23 +89,13 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `SlotOp::resolve_runtime`: Matches the release-selected original operation bytes, preserving materialized-zero rejection separately from a raw String-zero byte purpose.
 - [rust/tcl-registry/src/definer.rs](../../../../rust/tcl-registry/src/definer.rs), `definer::tests::original_tcloo_slot_calls_distinguish_queries_empty_updates_and_materialised_zero` (linked): Pure selected slot grammar distinguishes no-operand query from bare/explicit empty updates and refuses materialized C080 method flags on C86/90/91, with unavailable C84/85/Jim source admission. It does not invoke these native providers.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "scripts/dev/replay-array-oo-source-controls.py",
-  "--tcl-root",
-  "${TCL_SOURCE_ROOT}",
-  "--jim-root",
-  "${JIM_SOURCE_ROOT}",
-  "--output",
-  "${NEW_OUTPUT}"
-]
-```
-
-The replayer first validates the retained whole input/stream bytes, then requires explicitly selected header/library hashes equal to this exact captured build. It compiles the unchanged probe in a new output directory, retaining compiler/process status and separate streams, and requires exact original output/status agreement. A different provider build needs an independently scoped new record. No maintained native launch or Rust passing result is claimed by attaching the runner. The original captures preserve observed unsupported/error doors; outer process0 is not guest success.
+- [rust/tcl-registry/tests/data/native_array_and_oo_source_controls](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls)
+- [scripts/dev](../../../../scripts/dev)
+- [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.4.20)
+- [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.5.19)
+- [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/8.6.18)
+- [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.0.4)
+- [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/9.1.0)
+- [rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim](../../../../rust/tcl-registry/tests/data/native_array_and_oo_source_controls/jim)

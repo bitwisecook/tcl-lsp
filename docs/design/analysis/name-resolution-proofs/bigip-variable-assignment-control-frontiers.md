@@ -20,56 +20,25 @@ All61cases on each of four actual TMMs; exact name/result bytes and setup/callba
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No independent C Tcl or Jim execution of this appliance question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No independent C Tcl or Jim execution of this appliance question is claimed.
 
 ### bigip
 
-Status: `observed`. Version: 21.1.0.1. Build: 0.0.26, Point Release1; no separate hotfix field reported. Channel: All61cases on each of four actual TMMs; exact name/result bytes and setup/callback stages are retained, including counterexamples.. Dialect: F5 iRules and the explicitly recorded hosted contexts.
+Status: `observed`. Channel: All61cases on each of four actual TMMs; exact name/result bytes and setup/callback stages are retained, including counterexamples. Version: bigip 21.1.0.1.
 
 The exact matrix retains45successful assignment/getter programs across five name kinds, five unavailable lassign doors, and sequential-scan first-set failures that did not reach rebinding. The quiet-missing local fixture is explicitly contaminated by a prior value and proves no missing-cell result.
 
 The measured report rows and their limits are:
 
-
 The full matrix contains 61 cases on each of the four actual TMMs. After
 removing only the group/unit columns, all four decoded matrices have SHA-256
 `117f2950bdaaf49a947ba687d9b144bfd417b4bb3430e972d0712f37cd7d8d63`.
 The complete rows are retained as
-[`vl-controls-42100.tsv`](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/vl-controls-42100.tsv)
+`vl-controls-42100.tsv`
 and the peer `42101`–`42103` files.
 
 | Cases | TMM coverage | Measured result |
@@ -89,29 +58,14 @@ and the peer `42101`–`42103` files.
 | sequential `scan`, `upvar 0` | `0:0`–`0:3` | same rejection; callback attempted to turn the already-existing local `second` into a link, so the intended second-destination receiver discriminator was not reached |
 
 The supplemental callback-argument responses are
-[`vl-argument-bytes-42100.body`](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-argument-bytes-42100.body)
+`vl-argument-bytes-42100.body`
 through `42103`; all returned operation/export catch 0 and identical result
 hex.
-
-
-## Historical references
-
-- `report-section` (observation): [scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md). Lines 117–146. Exact build-specific measured report section; all rows and limits remain in the retained report. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `provider-version` (provider): [scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md). Lines 11–11. Actual appliance version attribution for this report; no separately named hotfix inferred. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-- `raw-0` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-argument-bytes-42100.body](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-argument-bytes-42100.body). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `raw-1` (observation): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/vl-controls-42100.tsv](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/decoded/vl-controls-42100.tsv). Exact source or raw evidence explicitly linked by the measured section; its own context/channel remains authoritative.
-- `source-closure-4` (input): [scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json](../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/manifest.json). Retained report-specific source manifest or appliance inventory; individual measured inputs remain distinct. Sanitised retained artifact; lab transport/device details removed, without an appliance rerun.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The pinned report contains the exact source-generation, load and traffic protocol. This record claims no new appliance execution; rerun requires the recorded isolated appliance context, exact bytes and independently captured load/event outcomes. Closed implementation source and unmeasured releases are unavailable.
+- [scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md](../../../../scripts/dev/bigip-probes/resolution-2286/VARIABLE_LIFECYCLE_RESULTS.md)

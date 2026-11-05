@@ -287,64 +287,42 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 
 ## Results
 
-### tmm-procedure, unit 0:0, invocation once
+### tmm-procedure, unit 0:0, invocation once; tmm-procedure, unit 0:1, invocation once; tmm-procedure, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-procedure.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:0|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d65202274776f22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:0|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:0|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:0|once|errorinfo|binary-scan-tcl-value|0|3|696e76616c696420636f6d6d616e64206e616d65202274776f220a202020207768696c6520657865637574696e670a2274776f20776f726473207b6120627d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20222468656164207b6120627d22220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:0|once|errorinfo|binary-scan-tcl-value|1|3|7363726970745f7072656669785f6e6561725f6d6973732220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f7363726970745f7072656669785f6e6561725f6d697373207b6576616c20222468656164207b6120627d227d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:0|once|errorinfo|binary-scan-tcl-value|2|3|6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|6120622063
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:0|once|result|binary-scan-tcl-value|0|1|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:0|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:0|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:0|once|errorinfo|binary-scan-tcl-value|0|4|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a220a202020207768696c6520657865637574696e670a2270726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:0|once|errorinfo|binary-scan-tcl-value|1|4|795f6e616d655f726f756e64747269703a3a612220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2061207b70726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d7d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e64747269702220736372
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:0|once|errorinfo|binary-scan-tcl-value|2|4|697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e6474726970207b6e616d657370616365206576616c20613a207b70726f632070207b7d207b72657475726e2046495253545f534c4f547d7d3b206e616d657370616365206576616c2061207b70726f63203a2e2e2e220a2020202028226576
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:0|once|errorinfo|binary-scan-tcl-value|3|4|616c2220626f6479206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- name-script-prefix-near-miss, setup, completion 0, result, chunk 0 of 1:
+- name-script-prefix-near-miss, setup, completion 0, result:
 
 ```text-visible
 two words⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, result, chunk 0 of 1:
+- name-script-prefix-near-miss, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "two"⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
+- name-script-prefix-near-miss, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
+- name-script-prefix-near-miss, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 0 of 3:
+- name-script-prefix-near-miss, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "two"
@@ -353,454 +331,74 @@ invalid command name "two"
     ("eval" body line 1)
     invoked from within
 "eval "$head {a b}""
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_name_⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 1 of 3:
-
-```text-visible
-script_prefix_near_miss" script line 1)
+    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss" script line 1)
     invoked from within
 "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss {eval "$head {a b}"}"
     ("eval" body line 1)
-    invo⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 2 of 3:
-
-```text-visible
-ked from within
+    invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-script-prefix-near-miss, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- brace-newline-command, setup, completion 0, result, chunk 0 of 1:
+- brace-newline-command, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- brace-newline-command, lookup, completion 0, result, chunk 0 of 1:
+- brace-newline-command, lookup, completion 0, result:
 
 ```text-visible
 a b c⟦EOF⟧
 ```
 
-- brace-newline-command, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- brace-newline-command, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, result, chunk 0 of 1:
+- display-name-roundtrip, setup, completion 1, result:
 
 ```text-visible
 can't create procedure ":p" in non-global namespace with name starting with ":"⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, metadata, chunk 0 of 1:
+- display-name-roundtrip, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, errorcode, chunk 0 of 1:
+- display-name-roundtrip, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 0 of 4:
+- display-name-roundtrip, setup, completion 1, errorinfo:
 
 ```text-visible
 can't create procedure ":p" in non-global namespace with name starting with ":"
     while executing
 "proc :p {} {return SECOND_SLOT}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_displa⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 1 of 4:
-
-```text-visible
-y_name_roundtrip::a" script line 1)
+    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip::a" script line 1)
     invoked from within
 "namespace eval a {proc :p {} {return SECOND_SLOT}}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip" scr⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 2 of 4:
-
-```text-visible
-ipt line 1)
+    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip" script line 1)
     invoked from within
 "namespace eval ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip {namespace eval a: {proc p {} {return FIRST_SLOT}}; namespace eval a {proc :..."
-    ("ev⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 3 of 4:
-
-```text-visible
-al" body line 2)
+    ("eval" body line 2)
     invoked from within
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- display-name-roundtrip, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- brace-newline-command: intended operation reached.
-
-- display-name-roundtrip: intended operation not reached.
-
-- name-script-prefix-near-miss: intended operation reached.
-
-### tmm-procedure, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:1|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d65202274776f22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:1|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:1|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:1|once|errorinfo|binary-scan-tcl-value|0|3|696e76616c696420636f6d6d616e64206e616d65202274776f220a202020207768696c6520657865637574696e670a2274776f20776f726473207b6120627d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20222468656164207b6120627d22220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:1|once|errorinfo|binary-scan-tcl-value|1|3|7363726970745f7072656669785f6e6561725f6d6973732220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f7363726970745f7072656669785f6e6561725f6d697373207b6576616c20222468656164207b6120627d227d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:1|once|errorinfo|binary-scan-tcl-value|2|3|6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|6120622063
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:1|once|result|binary-scan-tcl-value|0|1|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:1|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:1|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:1|once|errorinfo|binary-scan-tcl-value|0|4|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a220a202020207768696c6520657865637574696e670a2270726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:1|once|errorinfo|binary-scan-tcl-value|1|4|795f6e616d655f726f756e64747269703a3a612220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2061207b70726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d7d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e64747269702220736372
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:1|once|errorinfo|binary-scan-tcl-value|2|4|697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e6474726970207b6e616d657370616365206576616c20613a207b70726f632070207b7d207b72657475726e2046495253545f534c4f547d7d3b206e616d657370616365206576616c2061207b70726f63203a2e2e2e220a2020202028226576
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:1|once|errorinfo|binary-scan-tcl-value|3|4|616c2220626f6479206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-script-prefix-near-miss, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-invalid command name "two"⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 0 of 3:
-
-```text-visible
-invalid command name "two"
-    while executing
-"two words {a b}"
-    ("eval" body line 1)
-    invoked from within
-"eval "$head {a b}""
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_name_⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 1 of 3:
-
-```text-visible
-script_prefix_near_miss" script line 1)
-    invoked from within
-"namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss {eval "$head {a b}"}"
-    ("eval" body line 1)
-    invo⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 2 of 3:
-
-```text-visible
-ked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- brace-newline-command, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- brace-newline-command, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b c⟦EOF⟧
-```
-
-- brace-newline-command, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-can't create procedure ":p" in non-global namespace with name starting with ":"⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 0 of 4:
-
-```text-visible
-can't create procedure ":p" in non-global namespace with name starting with ":"
-    while executing
-"proc :p {} {return SECOND_SLOT}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_displa⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 1 of 4:
-
-```text-visible
-y_name_roundtrip::a" script line 1)
-    invoked from within
-"namespace eval a {proc :p {} {return SECOND_SLOT}}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip" scr⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 2 of 4:
-
-```text-visible
-ipt line 1)
-    invoked from within
-"namespace eval ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip {namespace eval a: {proc p {} {return FIRST_SLOT}}; namespace eval a {proc :..."
-    ("ev⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 3 of 4:
-
-```text-visible
-al" body line 2)
-    invoked from within
-"eval $nh_setup"⟦EOF⟧
-```
-
-- display-name-roundtrip, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- brace-newline-command: intended operation reached.
-
-- display-name-roundtrip: intended operation not reached.
-
-- name-script-prefix-near-miss: intended operation reached.
-
-### tmm-procedure, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-procedure.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:2|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d65202274776f22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:2|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:2|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:2|once|errorinfo|binary-scan-tcl-value|0|3|696e76616c696420636f6d6d616e64206e616d65202274776f220a202020207768696c6520657865637574696e670a2274776f20776f726473207b6120627d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20222468656164207b6120627d22220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:2|once|errorinfo|binary-scan-tcl-value|1|3|7363726970745f7072656669785f6e6561725f6d6973732220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f7363726970745f7072656669785f6e6561725f6d697373207b6576616c20222468656164207b6120627d227d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:2|once|errorinfo|binary-scan-tcl-value|2|3|6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|6120622063
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:2|once|result|binary-scan-tcl-value|0|1|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:2|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:2|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:2|once|errorinfo|binary-scan-tcl-value|0|4|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a220a202020207768696c6520657865637574696e670a2270726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:2|once|errorinfo|binary-scan-tcl-value|1|4|795f6e616d655f726f756e64747269703a3a612220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2061207b70726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d7d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e64747269702220736372
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:2|once|errorinfo|binary-scan-tcl-value|2|4|697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e6474726970207b6e616d657370616365206576616c20613a207b70726f632070207b7d207b72657475726e2046495253545f534c4f547d7d3b206e616d657370616365206576616c2061207b70726f63203a2e2e2e220a2020202028226576
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:2|once|errorinfo|binary-scan-tcl-value|3|4|616c2220626f6479206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- name-script-prefix-near-miss, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-two words⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-invalid command name "two"⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 0 of 3:
-
-```text-visible
-invalid command name "two"
-    while executing
-"two words {a b}"
-    ("eval" body line 1)
-    invoked from within
-"eval "$head {a b}""
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_name_⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 1 of 3:
-
-```text-visible
-script_prefix_near_miss" script line 1)
-    invoked from within
-"namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss {eval "$head {a b}"}"
-    ("eval" body line 1)
-    invo⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 2 of 3:
-
-```text-visible
-ked from within
-"eval $nh_operation"⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- brace-newline-command, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- brace-newline-command, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-a b c⟦EOF⟧
-```
-
-- brace-newline-command, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, result, chunk 0 of 1:
-
-```text-visible
-can't create procedure ":p" in non-global namespace with name starting with ":"⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, metadata, chunk 0 of 1:
-
-```text-visible
-errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorcode, chunk 0 of 1:
-
-```text-visible
-NONE⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 0 of 4:
-
-```text-visible
-can't create procedure ":p" in non-global namespace with name starting with ":"
-    while executing
-"proc :p {} {return SECOND_SLOT}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_displa⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 1 of 4:
-
-```text-visible
-y_name_roundtrip::a" script line 1)
-    invoked from within
-"namespace eval a {proc :p {} {return SECOND_SLOT}}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip" scr⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 2 of 4:
-
-```text-visible
-ipt line 1)
-    invoked from within
-"namespace eval ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip {namespace eval a: {proc p {} {return FIRST_SLOT}}; namespace eval a {proc :..."
-    ("ev⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 3 of 4:
-
-```text-visible
-al" body line 2)
-    invoked from within
-"eval $nh_setup"⟦EOF⟧
-```
-
-- display-name-roundtrip, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- display-name-roundtrip, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
@@ -819,57 +417,35 @@ al" body line 2)
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|74776f20776f726473
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:3|once|result|binary-scan-tcl-value|0|1|696e76616c696420636f6d6d616e64206e616d65202274776f22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:3|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:3|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:3|once|errorinfo|binary-scan-tcl-value|0|3|696e76616c696420636f6d6d616e64206e616d65202274776f220a202020207768696c6520657865637574696e670a2274776f20776f726473207b6120627d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20222468656164207b6120627d22220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:3|once|errorinfo|binary-scan-tcl-value|1|3|7363726970745f7072656669785f6e6561725f6d6973732220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f6e616d655f7363726970745f7072656669785f6e6561725f6d697373207b6576616c20222468656164207b6120627d227d220a2020202028226576616c2220626f6479206c696e652031290a20202020696e766f
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|lookup|1|0:3|once|errorinfo|binary-scan-tcl-value|2|3|6b65642066726f6d2077697468696e0a226576616c20246e685f6f7065726174696f6e22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|name-script-prefix-near-miss|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|6120622063
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|brace-newline-command|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:3|once|result|binary-scan-tcl-value|0|1|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a22
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:3|once|metadata|binary-scan-tcl-value|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:3|once|errorcode|binary-scan-tcl-value|0|1|4e4f4e45
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:3|once|errorinfo|binary-scan-tcl-value|0|4|63616e2774206372656174652070726f63656475726520223a702220696e206e6f6e2d676c6f62616c206e616d6573706163652077697468206e616d65207374617274696e67207769746820223a220a202020207768696c6520657865637574696e670a2270726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:3|once|errorinfo|binary-scan-tcl-value|1|4|795f6e616d655f726f756e64747269703a3a612220736372697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2061207b70726f63203a70207b7d207b72657475726e205345434f4e445f534c4f547d7d220a2020202028696e206e616d657370616365206576616c20223a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e64747269702220736372
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:3|once|errorinfo|binary-scan-tcl-value|2|4|697074206c696e652031290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616432365f646973706c61795f6e616d655f726f756e6474726970207b6e616d657370616365206576616c20613a207b70726f632070207b7d207b72657475726e2046495253545f534c4f547d7d3b206e616d657370616365206576616c2061207b70726f63203a2e2e2e220a2020202028226576
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|setup|1|0:3|once|errorinfo|binary-scan-tcl-value|3|4|616c2220626f6479206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a226576616c20246e685f736574757022
-Oct 12 08:56:02 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad2_6_2 <RULE_INIT>: NHO|nh20261012broad2|display-name-roundtrip|tmm-procedure|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- name-script-prefix-near-miss, setup, completion 0, result, chunk 0 of 1:
+- name-script-prefix-near-miss, setup, completion 0, result:
 
 ```text-visible
 two words⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, result, chunk 0 of 1:
+- name-script-prefix-near-miss, lookup, completion 1, result:
 
 ```text-visible
 invalid command name "two"⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, metadata, chunk 0 of 1:
+- name-script-prefix-near-miss, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, errorcode, chunk 0 of 1:
+- name-script-prefix-near-miss, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 0 of 3:
+- name-script-prefix-near-miss, lookup, completion 1, errorinfo:
 
 ```text-visible
 invalid command name "two"
@@ -878,104 +454,74 @@ invalid command name "two"
     ("eval" body line 1)
     invoked from within
 "eval "$head {a b}""
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_name_⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 1 of 3:
-
-```text-visible
-script_prefix_near_miss" script line 1)
+    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss" script line 1)
     invoked from within
 "namespace eval ::__tcl_lsp_probe_nh20261012broad26_name_script_prefix_near_miss {eval "$head {a b}"}"
     ("eval" body line 1)
-    invo⟦EOF⟧
-```
-
-- name-script-prefix-near-miss, lookup, completion 1, errorinfo, chunk 2 of 3:
-
-```text-visible
-ked from within
+    invoked from within
 "eval $nh_operation"⟦EOF⟧
 ```
 
-- name-script-prefix-near-miss, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- name-script-prefix-near-miss, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- brace-newline-command, setup, completion 0, result, chunk 0 of 1:
+- brace-newline-command, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- brace-newline-command, lookup, completion 0, result, chunk 0 of 1:
+- brace-newline-command, lookup, completion 0, result:
 
 ```text-visible
 a b c⟦EOF⟧
 ```
 
-- brace-newline-command, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- brace-newline-command, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, result, chunk 0 of 1:
+- display-name-roundtrip, setup, completion 1, result:
 
 ```text-visible
 can't create procedure ":p" in non-global namespace with name starting with ":"⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, metadata, chunk 0 of 1:
+- display-name-roundtrip, setup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, errorcode, chunk 0 of 1:
+- display-name-roundtrip, setup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 0 of 4:
+- display-name-roundtrip, setup, completion 1, errorinfo:
 
 ```text-visible
 can't create procedure ":p" in non-global namespace with name starting with ":"
     while executing
 "proc :p {} {return SECOND_SLOT}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_displa⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 1 of 4:
-
-```text-visible
-y_name_roundtrip::a" script line 1)
+    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip::a" script line 1)
     invoked from within
 "namespace eval a {proc :p {} {return SECOND_SLOT}}"
-    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip" scr⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 2 of 4:
-
-```text-visible
-ipt line 1)
+    (in namespace eval "::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip" script line 1)
     invoked from within
 "namespace eval ::__tcl_lsp_probe_nh20261012broad26_display_name_roundtrip {namespace eval a: {proc p {} {return FIRST_SLOT}}; namespace eval a {proc :..."
-    ("ev⟦EOF⟧
-```
-
-- display-name-roundtrip, setup, completion 1, errorinfo, chunk 3 of 4:
-
-```text-visible
-al" body line 2)
+    ("eval" body line 2)
     invoked from within
 "eval $nh_setup"⟦EOF⟧
 ```
 
-- display-name-roundtrip, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- display-name-roundtrip, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧

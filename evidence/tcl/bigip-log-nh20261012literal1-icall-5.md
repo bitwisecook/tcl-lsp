@@ -112,48 +112,35 @@ foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-pre
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-NHO|nh20261012literal1|literal-tcltest|icall|setup|0|none|once|result|utf-8|0|1|
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|result|utf-8|0|1|63616e2774207265616420226465627567223a206e6f2073756368207661726961626c65
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|metadata|utf-8|0|1|6572726f72636f64652d70726573656e742031206572726f72696e666f2d70726573656e7420312072657475726e2d6f7074696f6e7320756e617661696c61626c65
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|errorcode|utf-8|0|1|4e4f4e45
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|errorinfo|utf-8|0|5|63616e2774207265616420226465627567223a206e6f2073756368207661726961626c650a202020207768696c6520657865637574696e670a226966207b246465627567203e3d20246c6576656c7d207b0a09707574732024737472696e670a202020207d220a202020202870726f636564757265202244656275675075747322206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a2244656275675075747320332022656e746572696e6720436f6e73747261696e74496e697469
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|errorinfo|utf-8|1|5|616c697a65722024636f6e73747261696e74202473637269707422220a202020202870726f6365647572652022436f6e73747261696e74496e697469616c697a657222206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a22436f6e73747261696e74496e697469616c697a65722073696e676c6554657374496e74657270207b73696e676c6550726f636573737d220a202020202870726f6365647572652022446566696e65436f6e73747261696e74496e697469616c697a6572
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|errorinfo|utf-8|2|5|7322206c696e652032290a20202020696e766f6b65642066726f6d2077697468696e0a22446566696e65436f6e73747261696e74496e697469616c697a657273220a2020202028696e206e616d657370616365206576616c20223a3a74636c746573742220736372697074206c696e652033290a20202020696e766f6b65642066726f6d2077697468696e0a226e616d657370616365206576616c2074636c74657374207b0a202020202320446566696e6520696e697469616c697a65727320666f7220616c6c20
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|errorinfo|utf-8|3|5|746865206275696c742d696e20636f6e747261696e7420646566696e6974696f6e730a20202020446566696e65436f6e73747261696e74496e697469616c697a6572730a0a2020202023205365742075702074686520636f6e73742e2e2e220a202020202866696c6520222f7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c22206c696e652033323732290a20202020696e766f6b65642066726f6d2077697468696e0a22736f75726365202f
-NHO|nh20261012literal1|literal-tcltest|icall|lookup|1|none|once|errorinfo|utf-8|4|5|7573722f73686172652f636f6d7061742d74636c382e342f74636c74657374322e322f74636c746573742e74636c220a2020202028227061636b6167652069666e65656465642220736372697074290a20202020696e766f6b65642066726f6d2077697468696e0a227061636b61676520726571756972652074636c746573742022
-NHO|nh20261012literal1|literal-tcltest|icall|runtime-cleanup|0|none|once|result|utf-8|0|1|
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- literal-tcltest, setup, completion 0, result, chunk 0 of 1:
+- literal-tcltest, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- literal-tcltest, lookup, completion 1, result, chunk 0 of 1:
+- literal-tcltest, lookup, completion 1, result:
 
 ```text-visible
 can't read "debug": no such variable⟦EOF⟧
 ```
 
-- literal-tcltest, lookup, completion 1, metadata, chunk 0 of 1:
+- literal-tcltest, lookup, completion 1, metadata:
 
 ```text-visible
 errorcode-present 1 errorinfo-present 1 return-options unavailable⟦EOF⟧
 ```
 
-- literal-tcltest, lookup, completion 1, errorcode, chunk 0 of 1:
+- literal-tcltest, lookup, completion 1, errorcode:
 
 ```text-visible
 NONE⟦EOF⟧
 ```
 
-- literal-tcltest, lookup, completion 1, errorinfo, chunk 0 of 5:
+- literal-tcltest, lookup, completion 1, errorinfo:
 
 ```text-visible
 can't read "debug": no such variable
@@ -163,53 +150,29 @@ can't read "debug": no such variable
     }"
     (procedure "DebugPuts" line 3)
     invoked from within
-"DebugPuts 3 "entering ConstraintIniti⟦EOF⟧
-```
-
-- literal-tcltest, lookup, completion 1, errorinfo, chunk 1 of 5:
-
-```text-visible
-alizer $constraint $script""
+"DebugPuts 3 "entering ConstraintInitializer $constraint $script""
     (procedure "ConstraintInitializer" line 3)
     invoked from within
 "ConstraintInitializer singleTestInterp {singleProcess}"
-    (procedure "DefineConstraintInitializer⟦EOF⟧
-```
-
-- literal-tcltest, lookup, completion 1, errorinfo, chunk 2 of 5:
-
-```text-visible
-s" line 2)
+    (procedure "DefineConstraintInitializers" line 2)
     invoked from within
 "DefineConstraintInitializers"
     (in namespace eval "::tcltest" script line 3)
     invoked from within
 "namespace eval tcltest {
-    # Define initializers for all⟦SPACE⟧⟦EOF⟧
-```
-
-- literal-tcltest, lookup, completion 1, errorinfo, chunk 3 of 5:
-
-```text-visible
-the built-in contraint definitions
+    # Define initializers for all the built-in contraint definitions
     DefineConstraintInitializers
 
     # Set up the const..."
     (file "/usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl" line 3272)
     invoked from within
-"source /⟦EOF⟧
-```
-
-- literal-tcltest, lookup, completion 1, errorinfo, chunk 4 of 5:
-
-```text-visible
-usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl"
+"source /usr/share/compat-tcl8.4/tcltest2.2/tcltest.tcl"
     ("package ifneeded" script)
     invoked from within
 "package require tcltest "⟦EOF⟧
 ```
 
-- literal-tcltest, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- literal-tcltest, runtime-cleanup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧

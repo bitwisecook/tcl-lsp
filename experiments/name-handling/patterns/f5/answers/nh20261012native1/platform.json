@@ -1,4 +1,0 @@
-{
-  "remote_command": "tmsh show sys hardware",
-  "exit_code": 0
-}

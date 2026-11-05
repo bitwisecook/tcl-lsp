@@ -1,2 +1,0 @@
-VM error: could not find interpreter "a x2"
-options: 

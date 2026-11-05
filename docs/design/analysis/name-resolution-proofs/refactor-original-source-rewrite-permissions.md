@@ -24,55 +24,11 @@ The source/software assertion definition establishes no execution or Native stor
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -81,16 +37,10 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/refactor/source_rewrite.rs](../../../../rust/tcl-lsp-core/src/refactor/source_rewrite.rs), `refactor::source_rewrite::tests::original_source_rewrites_require_current_handler_and_distinct_permissions` (linked): Actual Native selected handlers yield disabled no-edit obligations; stale/shadowed targets do not transform while separately selected Logical authoring remains supported.
 - [rust/tcl-lsp-core/src/refactor/source_rewrite.rs](../../../../rust/tcl-lsp-core/src/refactor/source_rewrite.rs), `refactor::source_rewrite::tests::original_dictionary_conversion_does_not_insert_into_an_existing_or_observed_cell` (linked): Dictionary conversion cannot use structural advice to insert an arbitrary temporary into an occupied or observed cell.
 
-A named test is a coverage binding, not a claim that it executed.
-
 - [rust/tcl-lsp-core/src/refactor/source_rewrite.rs](../../../../rust/tcl-lsp-core/src/refactor/source_rewrite.rs), `select`: Consume authentic selected effective argv/origins and current source context while keeping captured values outside written clause/edit positions.
 - [rust/tcl-lsp-core/src/refactor/source_rewrite.rs](../../../../rust/tcl-lsp-core/src/refactor/source_rewrite.rs), `refactor::source_rewrite::tests::logical_source_rewrite_keeps_captured_values_outside_written_clause_positions` (linked): Actual document-backed refactors share CurrentSourceContext and original source-command geometry; source rewrites and Logical setters consume authentic selected schema/effective argv/origins. Captured operands remain data without current editable words. Data-group actual route retains complete supplied Logical source currency, selected If/Switch clause layout and original Set/Return arm horizons, actual proposed output availability/current descriptor identity; explicit standalone authoring APIs remain separate. Native movement/store/Normal/frame/control-flow/evaluation/edit refusal gates remain independent. No native-provider or software execution promotion. Current source definition only; execution and Native edit-equivalence outcomes remain independent.
 
 These source bindings establish no executed assertion result; exact software outcomes belong to the independently pinned Rust validation receipts.
-
-## Replay
-
-The named Rust selectors bind fixed source-consumer assertions. No Rust execution receipt or native experiment is attached. Whole-image/configuration/Registry currency and independently required purpose permissions remain mandatory.
 
 ## Source-action obligation boundary
 

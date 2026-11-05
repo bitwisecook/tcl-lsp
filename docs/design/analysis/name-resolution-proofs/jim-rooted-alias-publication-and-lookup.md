@@ -22,71 +22,45 @@ One fixed ASCII LF CLI file per fresh provider process uses the original standal
 
 ### tcl8.4
 
-Status: `unsupported`. Version: 8.4.20. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims. Version: tcl8.4 8.4.20.
 
 Actual stock 8.4.20 exposes no standalone alias and prints alias_publication_scope not_applicable. All four alias controls are unexecuted here; no interp alias or another installation/package capability is substituted. Process exits zero with empty stderr.
 
 ### tcl8.5
 
-Status: `unsupported`. Version: 8.5.19. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims. Version: tcl8.5 8.5.19.
 
 Actual stock 8.5.19 exposes no standalone alias and prints alias_publication_scope not_applicable. All four alias controls are unexecuted here; no interp alias or another installation/package capability is substituted. Process exits zero with empty stderr.
 
 ### tcl8.6
 
-Status: `unsupported`. Version: 8.6.18. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims. Version: tcl8.6 8.6.18.
 
 Actual stock 8.6.18 exposes no standalone alias and prints alias_publication_scope not_applicable. All four alias controls are unexecuted here; no interp alias or another installation/package capability is substituted. Process exits zero with empty stderr.
 
 ### tcl9.0
 
-Status: `unsupported`. Version: 9.0.4. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims. Version: tcl9.0 9.0.4.
 
 Actual stock 9.0.4 exposes no standalone alias and prints alias_publication_scope not_applicable. All four alias controls are unexecuted here; no interp alias or another installation/package capability is substituted. Process exits zero with empty stderr.
 
 ### tcl9.1
 
-Status: `unsupported`. Version: 9.1.0. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims.. Dialect: C Tcl stock CLI.
+Status: `unsupported`. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims. Version: tcl9.1 9.1.0.
 
 Actual stock 9.1.0 exposes no standalone alias and prints alias_publication_scope not_applicable. All four alias controls are unexecuted here; no interp alias or another installation/package capability is substituted. Process exits zero with empty stderr.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact CLI executable; independently rechecked required library/header/Makefile/source/package pins and environment are retained in the unchanged receipt. No fresh build command or compiler binary version is recorded.. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims.. Dialect: Jim standalone alias CLI.
+Status: `observed`. Channel: One fixed ASCII LF CLI source file. Public alias return spelling, caught command invocation values and info-body success code only. No NUL, non-ASCII, private table/frame/object identity, alias-query enumeration, or class/package scope claims. Version: jim 0.84-9-g5bac7c9.
 
 Actual Jim 0.84-9-g5bac7c9 exposes standalone alias. Exact public rows: rooted_replacement ::alias_slot 0 ROOT_ALIAS 0 ROOT_ALIAS 1; multiword_replacement {::AliasProbe slot} 0 MULTIWORD_ALIAS 0 MULTIWORD_ALIAS 1; extra_root_extent ::::colon_slot 0 COLON_ALIAS 0 COLON_ALIAS 0 COLON_ALIAS; namespace_competition ::competition_slot 0 GLOBAL_ALIAS 0 LOCAL_PROC 0 GLOBAL_ALIAS. Returned original alias spellings remain distinct from their bare/rooted/extra-root caller results. Prior procedure info-body queries fail; namespace-local competition returns its independent LOCAL_PROC while root calls return GLOBAL_ALIAS. Process exits zero with empty stderr. No private alias table/object/header/frame or untested byte extent is observed.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: BIG-IP.
+Status: `not-tested`.
 
 No appliance execution answers this standalone Jim alias question; stock C/Jim caller projections supply no hosted result.
-
-## Historical references
-
-- `alias194-probe.tcl` (input): [rust/tcl-registry/tests/data/native_jim_alias_publication194/probe.tcl](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/probe.tcl). Exact original fixed ASCII LF source executed by all six providers.
-- `alias194-request.json` (input): [rust/tcl-registry/tests/data/native_jim_alias_publication194/request.json](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/request.json). Exact authored four-control question list, original source SHA, provider list, explicit BIG-IP and standalone-command purpose limits.
-- `alias194-capture.py` (input): [rust/tcl-registry/tests/data/native_jim_alias_publication194/capture.py](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/capture.py). Exact Root-executed launcher with explicit provider/executable/artifact checks, external prior provider receipts, recorded CLI source-file commands and whole streams; no new launch is claimed.
-- `alias194-8.4.20-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `alias194-8.4.20-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `alias194-8.4.20-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20/stderr). Whole exact empty process stderr.
-- `alias194-8.5.19-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `alias194-8.5.19-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `alias194-8.5.19-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19/stderr). Whole exact empty process stderr.
-- `alias194-8.6.18-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `alias194-8.6.18-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `alias194-8.6.18-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18/stderr). Whole exact empty process stderr.
-- `alias194-9.0.4-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `alias194-9.0.4-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `alias194-9.0.4-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4/stderr). Whole exact empty process stderr.
-- `alias194-9.1.0-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `alias194-9.1.0-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `alias194-9.1.0-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0/stderr). Whole exact empty process stderr.
-- `alias194-jim-receipt.json` (provider): [rust/tcl-registry/tests/data/native_jim_alias_publication194/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/jim/receipt.json). Unchanged actual CLI process receipt, original command/environment/version and full executable/library/header/build/source SHA associations.
-- `alias194-jim-stdout` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/jim/stdout](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/jim/stdout). Whole exact stdout with public version/package discovery and caught class-control outcomes; no row inferred or normalised.
-- `alias194-jim-stderr` (observation): [rust/tcl-registry/tests/data/native_jim_alias_publication194/jim/stderr](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/jim/stderr). Whole exact empty process stderr.
-- `alias194-source-anchors-Jim_GetStringNoQualifier.c` (source-anchor): [rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors/Jim_GetStringNoQualifier.c](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors/Jim_GetStringNoQualifier.c). Exact independently pinned Jim excerpt; original retained name registration and counted comparison-root geometry remain distinct, with no new native process/table introspection.
-- `alias194-source-anchors-Jim_RegisterCommand.c` (source-anchor): [rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors/Jim_RegisterCommand.c](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors/Jim_RegisterCommand.c). Exact independently pinned Jim excerpt; original retained name registration and counted comparison-root geometry remain distinct, with no new native process/table introspection.
 
 ## Source inspection
 
@@ -162,7 +136,6 @@ Jim_Cmd *Jim_RegisterCommand(Jim_Interp *interp, Jim_Obj *cmdNameObj,
 
 ```
 
-
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `jim_alias`: Implement the selected actual Jim standalone core command with original alias-name result and retained original prefix objects; public stdout supplies no private object identity.
@@ -171,8 +144,13 @@ Jim_Cmd *Jim_RegisterCommand(Jim_Interp *interp, Jim_Obj *cmdNameObj,
 - [rust/tcl-vm/tests/native_compilation_conformance.rs](../../../../rust/tcl-vm/tests/native_compilation_conformance.rs), `native_compilation_conformance::jim_rooted_alias_publication_matches_original_native_source_and_values` (linked): Full original CLI source and exact Jim stdout compare four complete public control rows after provider-version metadata. Test binding supplies no additional native process or private cell identity.
 - [runtime/rust/src/cmd_alias.rs](../../../../runtime/rust/src/cmd_alias.rs), `cmd_alias::tests::original_jim_core_alias_matches_all_four_standalone_native_public_rows` (linked): Actual Jim core registration runs the untouched original194 probe and compares all four whole public rows with reported version metadata excluded; no private object/header/frame identity follows from native stdout, and linked status claims no executed pass.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Original exact commands, whole streams, environment overrides and complete required SDK/source/executable associations remain in unchanged receipts. Other inherited environment variables are unrecorded. The actual launcher depends on original external provider paths/retained prior receipts and refuses existing outputs; its retained bytes are not a portable replay promise. Re-running creates new observations. Publication/gate launches no native or Rust process.
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.4.20)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.5.19)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/8.6.18)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.0.4)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/9.1.0)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/jim](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/jim)
+- [rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors](../../../../rust/tcl-registry/tests/data/native_jim_alias_publication194/source-anchors)

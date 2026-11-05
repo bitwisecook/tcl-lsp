@@ -20,55 +20,11 @@ Conditional source outline cards under retained native naming policies. Missing 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-This is a current Rust implementation contract. No native provider observation or test execution is claimed for this precise consumer question.
-
-## Historical references
-
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs). Current original consumer implementation and fixed assertions. No Rust or native execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -76,8 +32,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs), `source_outline`: Project current conditional source cards independently of navigation and rename receipts.
 - [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs), `document_symbols::original::tests::original_write_advice_cards_do_not_require_or_donate_storage_symbols` (linked): Require distinct opaque source cards with storage/reporting maps absent; reject displaced source and a removed advice inventory.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Exact fixed Rust selectors are listed separately. No test execution, native interpreter result, appliance result or new handler reach is certified by this implementation record.
+- [rust/tcl-lsp-core/src/document_symbols/original.rs](../../../../rust/tcl-lsp-core/src/document_symbols/original.rs)

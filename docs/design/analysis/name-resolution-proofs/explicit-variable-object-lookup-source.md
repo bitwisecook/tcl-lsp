@@ -20,58 +20,23 @@ Exact LF windows of TclOO_Object_LinkVar/TclOO_Object_VarName and C9 TclOOLookup
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18. Build: Pinned source inspection; no executed build association from these excerpts.. Channel: Inspected stock method/lookup function windows, no guest input.. Dialect: Tcl.
-
-Separate original namespace-only target/local alias and varname construction/creation recipes shown in exact functions.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4. Build: Pinned source inspection; no executed build association from these excerpts.. Channel: Inspected stock method/lookup function windows, no guest input.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected stock method/lookup function windows, no guest input. Version: tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Separate original namespace-only target/local alias and varname construction/creation recipes shown in exact functions.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Pinned source inspection; no executed build association from these excerpts.. Channel: Inspected stock method/lookup function windows, no guest input.. Dialect: Tcl.
-
-Separate original namespace-only target/local alias and varname construction/creation recipes shown in exact functions.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `tcl8.6-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json). JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
-- `tcl8.6-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json). JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
-- `tcl9.0-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
-- `tcl9.0-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
-- `tcl9.0-TclOOLookupObjectVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json). JSON pointer `/windows/2/snippet`. Exact retained whole native function LF window.
-- `tcl9.1-TclOO_Object_LinkVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). JSON pointer `/windows/0/snippet`. Exact retained whole native function LF window.
-- `tcl9.1-TclOO_Object_VarName` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). JSON pointer `/windows/1/snippet`. Exact retained whole native function LF window.
-- `tcl9.1-TclOOLookupObjectVar` (source-anchor): [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json). JSON pointer `/windows/2/snippet`. Exact retained whole native function LF window.
 
 ## Source inspection
 
@@ -790,7 +755,6 @@ TclOOLookupObjectVar(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-syntax/src/naming/oo_variables.rs](../../../../rust/tcl-syntax/src/naming/oo_variables.rs), `native_oo_explicit_variable_local_name`: Purpose-separated pure byte selection or construction; no receiver or native object grant.
@@ -799,8 +763,8 @@ TclOOLookupObjectVar(
 - [rust/tcl-syntax/src/naming/oo_variables.rs](../../../../rust/tcl-syntax/src/naming/oo_variables.rs), `native_oo_private_variable_matches`: Purpose-separated pure byte selection or construction; no receiver or native object grant.
 - [rust/tcl-syntax/src/naming/oo_variables.rs](../../../../rust/tcl-syntax/src/naming/oo_variables.rs), `naming::oo_variables::explicit_variable_tests::explicit_local_and_varname_lookup_keep_their_independent_byte_extents` (linked): Separates local CString, counted lookup construction, private-name match purpose, reporting view and unavailable engines; no native operation pass.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Offline verify-only checked each immutable capture variant and all1740 protocol rows; zero native/compiler/Rust launches. Actual object namespace IDs belong to their individual fresh captures. V1 user varname recursion is a measured harness-input limitation, not guest unavailable. C8.4/Jim return-options C API not captured. Source inspection can be reproduced only by matching pinned full-file SHA and LF snippet windows; native runner cannot reinspect source.
+- [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl8.6-source.json)
+- [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.0-source.json)
+- [rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json](../../../../rust/tcl-cmd-core/tests/data/native_tcloo_explicit_variable/tcl9.1-source.json)

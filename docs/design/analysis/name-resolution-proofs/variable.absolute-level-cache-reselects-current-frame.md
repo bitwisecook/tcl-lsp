@@ -99,7 +99,6 @@ No appliance observation for this question.
 
 Version: not recorded. Build: not recorded. Input channel: not recorded.
 
-
 ## Conclusion
 
 All five successful final probes report missing and retired frame selection as -1, and select level 1 after first push, replacement, other-interpreter push and duplication. C8.4 retains no levelReference cache; C8.5+ retains levelReference with resident spelling and no four type hooks in these six windows. This proves re-selection behaviour for this object sequence, not enduring frame identity or variable-slot ownership.
@@ -107,25 +106,6 @@ All five successful final probes report missing and retired frame selection as -
 ## Scope
 
 Thirty completed final private TclGetFrame/TclObjGetFrame windows, C8.4.20–9.1.0, original counted #1 object. The first attempt separately completed C8.4/C8.5 but failed linking C8.6/C9 because of unresolved zlib dependencies; those failed attempts have no runtime observations. Jim and BIG-IP not queried.
-
-## Historical references
-
-- `rust/tcl-syntax/tests/data/native_frame_reference/manifest.json`: Complete final compile/run argv, headers/archive/binary hashes and stdout/stderr hex.
-- `rust/tcl-syntax/tests/data/native_frame_reference/attempt1-manifest.json`: First attempt: two completed providers and three actual failed-link stderr records, without runtime rows for failed links.
-- `rust/tcl-syntax/tests/data/native_frame_reference/probe.c`: Exact retained object/push/pop/replacement/foreign-interpreter/duplicate sequence.
-- `rust/tcl-syntax/tests/data/native_frame_reference/8.4.20.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/8.5.19.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/8.6.18.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/9.0.4.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-- `rust/tcl-syntax/tests/data/native_frame_reference/9.1.0.tsv`: Six original frame selection, cache residency/refcount and four type-hook presence windows.
-
-## Replay
-
-```sh
-cc -DSTDC_HEADERS=1 -DHAVE_UNISTD_H=1 -I/path/to/recorded/generic -I/path/to/recorded/unix rust/tcl-syntax/tests/data/native_frame_reference/probe.c /path/to/recorded/libtcl.a -lm -ldl -lpthread -lz -o /tmp/native-variable-proof
-```
-
-Replace provider/header/archive paths with the recorded release/build and preserve the manifested original compiler options. Execute /tmp/native-variable-proof in a fresh process; require all stdout bytes to equal that provider's retained transcript, empty stderr and exit 0. The retained probe uses private interpreter/frame/compiler headers; a stock shell invocation is not an equivalent replay. Original artifact hashes identify the observed build, not a fresh rerun. No Rust pass is inferred.
 
 ## Rust comparisons
 

@@ -104,32 +104,22 @@ Public original object-vector proc definition, native body constructors and priv
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No retained observation of this exact question is attached for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c). Exact original body constructors and owner-aware before/stored-body observer.
-- `receipt` (provider): [rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json). Six original compile/run/build/output associations; Jim Bytearray skip remains explicit.
-- `rows-tcl8.4` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv). Full original12-column header stream; selected kind IDs [1, 2].
-- `rows-tcl8.5` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv). Full original12-column header stream; selected kind IDs [1, 2].
-- `rows-tcl8.6` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv). Full original12-column header stream; selected kind IDs [1, 2].
-- `rows-tcl9.0` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv). Full original12-column header stream; selected kind IDs [1, 2].
-- `rows-tcl9.1` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv). Full original12-column header stream; selected kind IDs [1, 2].
-- `rows-jim` (observation): [rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv). Full original12-column header stream; selected kind IDs [1, 2].
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `NativeProcedureActivationProtocol::copies_shared_definition_body`: Selects original shared-body capture independently from entered body compilation/activation.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::procedure_body_capture_matches_58_native_definition_windows` (linked): Compares all58 original definition header windows, keeping declared external refs and stored-body identity separate from body execution.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-No fresh native execution or Rust test pass is claimed. A new comparison must retain the exact original program/API flags, independently identify the selected provider build, and capture separate process status/stdout/stderr. Original absolute paths do not constitute a portable runnable replay command. An original raw stream absent from this corpus cannot be validated from its digest alone. Probe source is an input observer, not native implementation source.
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/probe.c)
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/manifest.json)
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.4.20.tsv)
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.5.19.tsv)
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/8.6.18.tsv)
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.0.4.tsv)
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/9.1.0.tsv)
+- [rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv](../../../../rust/tcl-vm/tests/data/native_procedure_body_capture/Jim.tsv)

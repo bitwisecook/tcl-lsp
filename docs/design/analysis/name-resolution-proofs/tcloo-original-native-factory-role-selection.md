@@ -20,55 +20,11 @@ Rust selection of original ordinary class factories under C8.6, C9.0 and C9.1 an
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
+Status: `not-tested`.
 
 No guest execution of this Rust implementation question is claimed.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
-
-No guest execution of this Rust implementation question is claimed.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No guest execution of this Rust implementation question is claimed.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -79,9 +35,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/command_binding/registered_class_factory.rs](../../../../rust/tcl-compiler/src/command_binding/registered_class_factory.rs), `OriginalClassFactoryState::capture`: Selected invocation and actual effective selector transport into the native role query; source-only factory completion remains separate.
 - [rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs](../../../../rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs), `command_binding::native_class_factory_roles::tests::original_native_class_factory_roles_require_actual_same_entry_allocations` (linked): Actual captured ordinary factories retain stock roles and intrinsic Create; supported configurable factories independently retain their support allocation and namespaces; omitted capability inventories decline.
 - [rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs](../../../../rust/tcl-compiler/src/command_binding/native_class_factory_roles.rs), `command_binding::native_class_factory_roles::tests::original_native_class_factory_roles_decline_changed_dispatch_and_unknown_topology` (linked): Changed roles, constructors, filter closure, mixins, method handlers, visibility, duplicate allocations, dispatch currency, tainted tables and missing support namespaces decline.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The exact named Rust selectors are validation obligations without an attached execution receipt. Backend-captured capability correspondence is independently tested from guest execution; all provider statuses remain not-tested for this implementation question.

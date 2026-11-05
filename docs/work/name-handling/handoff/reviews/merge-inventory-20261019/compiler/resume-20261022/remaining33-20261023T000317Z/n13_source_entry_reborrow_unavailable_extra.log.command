@@ -1,1 +1,0 @@
-cargo test --locked -p tcl-compiler --lib command_binding::source_point_entry::unavailable_entry_reborrow_controls::source_entry_reborrow_refuses_unavailable_ordinary_and_unknown_history -- --exact --nocapture --test-threads=1

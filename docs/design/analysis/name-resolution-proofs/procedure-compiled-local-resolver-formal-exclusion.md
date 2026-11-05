@@ -22,59 +22,21 @@ Read-only inspection retains five whole original provider source files, exact fo
 
 ### tcl8.4
 
-Status: `inspected`. Version: 8.4.20. Build: Source-only exact pinned tclCompile.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Read-only whole source and exact forty-line resolver guard excerpt. Version: tcl8.4 8.4.20.
 
 Inspected selector excludes VAR_ARGUMENT|VAR_TEMPORARY|VAR_RESOLVED. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
 
-### tcl8.5
+### tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.5.19. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
-
-Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
-
-### tcl8.6
-
-Status: `inspected`. Version: 8.6.18. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
+Status: `inspected`. Channel: Read-only whole source and exact forty-line resolver guard excerpt. Version: tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
 
-### tcl9.0
+### jim, bigip
 
-Status: `inspected`. Version: 9.0.4. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
-
-Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0. Build: Source-only exact pinned tclProc.c; no interpreter/compiler execution.. Channel: Read-only whole source and exact forty-line resolver guard excerpt.. Dialect: Pinned original C release source.
-
-Inspected path clears VAR_RESOLVED and excludes VAR_ARGUMENT|VAR_TEMPORARY when haveResolvers before namespace/interpreter compiled-variable resolver selection. Source-branch fact only; no reached resolver, physical slot, runtime shadowing or Native admission observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
+Status: `not-tested`.
 
 This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This original-source implementation contract supplies no native process, reached handler, entered frame, contents/value materialisation, completion or edit-authority observation.
-
-## Historical references
-
-- `compiled-local-formal-8.4.20-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.4.20-tclCompile.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/tclCompile.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.5.19-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.5.19-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.6.18-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-8.6.18-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.0.4-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.0.4-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.1.0-resolver-excerpt.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-9.1.0-tclProc.c` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/tclProc.c). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
-- `compiled-local-formal-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/request.json](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/request.json). Exact unchanged independent read-only provider source, selected guard/resolver excerpt or inspection request; no native execution or physical slot observation.
 
 ## Source inspection
 
@@ -213,7 +175,6 @@ tcl8.6 8.6.18, revision `Pinned complete original provider source; read-only ins
     localPtr = firstLocalPtr;
     codePtr->flags &= ~TCL_BYTECODE_RESOLVE_VARS;
 
-
 ```
 
 tcl9.0 9.0.4, revision `Pinned complete original provider source; read-only inspection`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclProc.c`, function `InitResolvedLocals`, lines 1188–1227. Retained reference `compiled-local-formal-9.0.4-tclProc.c`.
@@ -258,7 +219,6 @@ tcl9.0 9.0.4, revision `Pinned complete original provider source; read-only insp
     }
     localPtr = firstLocalPtr;
     codePtr->flags &= ~TCL_BYTECODE_RESOLVE_VARS;
-
 
 ```
 
@@ -305,16 +265,16 @@ tcl9.1 9.1.0, revision `Pinned complete original provider source; read-only insp
     localPtr = firstLocalPtr;
     codePtr->flags &= ~TCL_BYTECODE_RESOLVE_VARS;
 
-
 ```
-
 
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.4.20/resolver-excerpt.c)
+- [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.5.19/resolver-excerpt.c)
+- [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/8.6.18/resolver-excerpt.c)
+- [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.0.4/resolver-excerpt.c)
+- [rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c](../../../../rust/tcl-registry/tests/data/native_compiled_local_formal_source272/9.1.0/resolver-excerpt.c)

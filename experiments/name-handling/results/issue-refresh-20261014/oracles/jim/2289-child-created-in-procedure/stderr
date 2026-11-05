@@ -1,6 +1,0 @@
-/tmp/name-issues-refresh-20261014/oracles/jim/2289-child-created-in-procedure/source.tcl:1: Error: wrong # args: should be "interp"
-Traceback (most recent call last):
-  File "/tmp/name-issues-refresh-20261014/oracles/jim/2289-child-created-in-procedure/source.tcl", line 2
-    New
-  File "/tmp/name-issues-refresh-20261014/oracles/jim/2289-child-created-in-procedure/source.tcl", line 1, in New
-    interp create vectorCoreChild

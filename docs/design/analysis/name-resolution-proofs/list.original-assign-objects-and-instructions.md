@@ -22,58 +22,39 @@ ASCII source installed through C Tcl_EvalEx(length=-1, GLOBAL) or Jim_Eval, then
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: compile_status=0, process=0, library d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011, executable c71657c8bbf057eff0ffc20c4e0555bfea6a0bff5250c9e7b9e691f361851613. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source.. Dialect: Tcl.
+Status: `observed`. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source. Version: tcl8.4 8.4.20.
 
 R|11|1|string|1|1|696e76616c696420636f6d6d616e64206e616d6520226c61737369676e22|storeScalar1,storeArray1,; R|12|1|string|1|1|696e76616c696420636f6d6d616e64206e616d6520226c61737369676e22|storeScalar1,storeArray1,list:2,; R|13|1|string|1|1|696e76616c696420636f6d6d616e64206e616d6520226c61737369676e22|storeScalar1,storeArray1,list:3,; R|14|1|none|1|3|53544f50|storeScalar1,storeArray1,; R|23|1|string|1|1|696e76616c696420636f6d6d616e64206e616d6520226c61737369676e22|storeScalar1,storeArray1,; R|28|1|string|1|1|696e76616c696420636f6d6d616e64206e616d6520226c61737369676e22|storeScalar1,storeArray1,
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: compile_status=0, process=0, library 99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df, executable 37fd698661eb52dc667ae952ccfccb2502690d9074843f1f5f676faae6ec8881. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source.. Dialect: Tcl.
+Status: `observed`. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source. Version: tcl8.5 8.5.19.
 
 R|11|0|list|0|1|43|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,; R|12|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,list:2,; R|13|0|list|0|1|412042207b6669727374207365636f6e647d|storeScalar1,storeArray1,over:1,listIndexImm:0,storeStk,over:1,listIndexImm:1,storeStk,listRangeImm,list:3,; R|14|1|none|1|3|53544f50|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,; R|23|0|none|1|2|41|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,; R|28|1|string|1|1|77726f6e67202320617267733a2073686f756c6420626520226c61737369676e206c697374207661724e616d65203f7661724e616d65202e2e2e3f22|storeScalar1,storeArray1,
 
-### tcl8.6
+### tcl8.6, tcl9.0
 
-Status: `observed`. Version: 8.6.18. Build: compile_status=0, process=0, library a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6, executable 759144f1aa71e1034935ef0a35456913c137a4746d955283107db3e022d72445. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source.. Dialect: Tcl.
-
-R|11|0|list|0|1|43|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,; R|12|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,list:2,; R|13|0|list|0|1|412042207b6669727374207365636f6e647d|storeScalar1,storeArray1,over:1,listIndexImm:0,storeStk,over:1,listIndexImm:1,storeStk,listRangeImm,list:3,; R|14|1|none|1|4|53544f50|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,; R|23|0|none|1|2|41|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,; R|28|0|list|0|1|4120422043|storeScalar1,storeArray1,
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4. Build: compile_status=0, process=0, library 2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04, executable 7e0d5f8bc8dfb2aa8b2cdde680ebaf3cc9ba699288eb0bae6dd3ca05234a2ca4. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source.. Dialect: Tcl.
+Status: `observed`. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source. Version: tcl8.6 8.6.18; tcl9.0 9.0.4.
 
 R|11|0|list|0|1|43|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,; R|12|0|list|0|1|412042|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,list:2,; R|13|0|list|0|1|412042207b6669727374207365636f6e647d|storeScalar1,storeArray1,over:1,listIndexImm:0,storeStk,over:1,listIndexImm:1,storeStk,listRangeImm,list:3,; R|14|1|none|1|4|53544f50|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,over:1,listIndexImm:1,storeStk,listRangeImm,; R|23|0|none|1|2|41|storeScalar1,storeArray1,dup,listIndexImm:0,storeScalar1,dup,listIndexImm:1,storeScalar1,listRangeImm,; R|28|0|list|0|1|4120422043|storeScalar1,storeArray1,
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: compile_status=0, process=0, library 8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33, executable 2536f7e255d18ce9d87ed5414e85a4a96861586337cbf15832adb279146ff19e. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source.. Dialect: Tcl.
+Status: `observed`. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source. Version: tcl9.1 9.1.0.
 
 R|11|0|list|0|1|43|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:4,dup,listIndexImm:1,storeScalar:5,listRangeImm,; R|12|0|list|0|1|412042|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:4,dup,listIndexImm:1,storeScalar:5,listRangeImm,list:2,; R|13|0|list|0|1|412042207b6669727374207365636f6e647d|storeScalar:2,storeArray:3,over:1,listIndexImm:0,storeStk,over:1,listIndexImm:1,storeStk,listRangeImm,list:3,; R|14|1|none|1|4|53544f50|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:4,over:1,listIndexImm:1,storeStk,listRangeImm,; R|23|0|none|1|2|41|storeScalar:2,storeArray:3,dup,listIndexImm:0,storeScalar:4,dup,listIndexImm:1,storeScalar:5,listRangeImm,; R|28|0|list|0|1|4120422043|storeScalar:2,storeArray:3,
 
 ### jim
 
-Status: `observed`. Version: Jim0.84. Build: Independent original compile/run0 and source, header, library and executable SHA in its Jim manifest. No newer launcher version is borrowed.. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Fresh original public string object passed to Tcl_EvalObjv or Jim_EvalObjVector; ASCII procedure source. Version: jim Jim0.84.
 
 R|11|0|list|0|1|43|; R|12|0|list|0|1|412042|; R|13|0|list|0|1|412042207b6669727374207365636f6e647d|; R|14|1|source|1|3|53544f50|; R|23|0|source|1|2|41|; R|28|1|none|1|1|77726f6e67202320617267733a2073686f756c6420626520226c61737369676e207661724c697374206c697374203f7661724e616d65202e2e2e3f22|
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-registry/tests/data/native_list_operations/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_operations/manifest.json). Original C compile/process rows, exact program/static library/executable/output hashes and30 result windows per provider.
-- `e1` (provider): [rust/tcl-registry/tests/data/native_list_operations/jim-manifest.json](../../../../rust/tcl-registry/tests/data/native_list_operations/jim-manifest.json). Independent Jim compiler and source/header/library/executable/output identity; exact30 original result windows.
-- `e2` (input): [rust/tcl-registry/tests/data/native_list_operations/probe.c](../../../../rust/tcl-registry/tests/data/native_list_operations/probe.c). Actual C input program, original public object-vector entry and private opcode/header observation order.
-- `e3` (input): [rust/tcl-registry/tests/data/native_list_operations/jim-probe.c](../../../../rust/tcl-registry/tests/data/native_list_operations/jim-probe.c). Independent Jim original object-vector program and same-object snapshots.
-- `e4` (observation): [rust/tcl-registry/tests/data/native_list_operations/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/8.4.20.txt). Selected cases [11, 12, 13, 14, 23, 28] within exact full original stream; other operation rows belong to independent questions.
-- `e5` (observation): [rust/tcl-registry/tests/data/native_list_operations/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/8.5.19.txt). Selected cases [11, 12, 13, 14, 23, 28] within exact full original stream; other operation rows belong to independent questions.
-- `e6` (observation): [rust/tcl-registry/tests/data/native_list_operations/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/8.6.18.txt). Selected cases [11, 12, 13, 14, 23, 28] within exact full original stream; other operation rows belong to independent questions.
-- `e7` (observation): [rust/tcl-registry/tests/data/native_list_operations/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/9.0.4.txt). Selected cases [11, 12, 13, 14, 23, 28] within exact full original stream; other operation rows belong to independent questions.
-- `e8` (observation): [rust/tcl-registry/tests/data/native_list_operations/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/9.1.0.txt). Selected cases [11, 12, 13, 14, 23, 28] within exact full original stream; other operation rows belong to independent questions.
-- `e9` (observation): [rust/tcl-registry/tests/data/native_list_operations/jim.txt](../../../../rust/tcl-registry/tests/data/native_list_operations/jim.txt). Selected cases [11, 12, 13, 14, 23, 28] within exact full original stream; other operation rows belong to independent questions.
 
 ## Source inspection
 
@@ -134,7 +115,6 @@ int main(void){Jim_Interp*i=Jim_CreateInterp();Jim_RegisterCoreCommands(i);Jim_C
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_list_operations_compilation.rs](../../../../rust/tcl-registry/src/native_list_operations_compilation.rs), `compile_native_list_operation`: Selected original compiler-word recipe; source/static geometry does not grant ordinary handler dispatch.
@@ -150,30 +130,6 @@ int main(void){Jim_Interp*i=Jim_CreateInterp();Jim_RegisterCoreCommands(i);Jim_C
 - [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs), `interp::tests::native_wrong_arguments_string_result_requires_the_structured_presenter` (linked): Structured C WrongArguments retains the selected String result; generic equal message bytes keep their independent untyped producer.
 - [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::native_wrong_arguments_completion_preserves_the_selected_string_producer` (linked): VM consumes the same structured C String producer and refuses message-lookalike recovery; no new native header observation.
 
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "scripts/dev/replay-native-list-object-probes.py",
-  "--corpus",
-  "operations",
-  "--tcl-source-root",
-  "${TCL_SOURCE_ROOT}",
-  "--jim-source-root",
-  "${JIM_SOURCE_ROOT}",
-  "--output",
-  "${NEW_OUTPUT}"
-]
-```
-
-Requires exact original probe and library hashes; independently provision the matching C release or Jim static build. The runner records its fresh compiler arguments, executable hash, process status and streams and compares stdout byte for byte. Original stderr is absent from these manifests; the current replay separately requires empty stderr and does not claim retained stderr equality. Private C instruction probes require matching tclInt.h/tclCompile.h ABI. Missing originals and mismatched libraries are adapter refusals, not native guest answers. C library callbacks require the matching Tcl library directory. Every process has a60-second budget; run serially or obey a global maximum of two native processes. Reconfirmation of the oracle does not establish Rust parity or a native capability.
-
-
 ## Exact original-source349 software outcomes
 
 These finite results belong to the original source349 body/question/document pairs and the owned Runtime executable. Passing, failing, aborted/incomplete and unstarted selections retain their separate meanings. They establish no outcome for another source image or external provider.
@@ -183,4 +139,8 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 0 | 1 | 0 | 1 |
 | `isolated` | 1 | 1 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_list_operations](../../../../rust/tcl-registry/tests/data/native_list_operations)

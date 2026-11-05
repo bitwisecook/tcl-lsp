@@ -37,26 +37,7 @@ The wrapper recorded Tcl completion code 0 in 34 log lines. Its recorded errorCo
 UNAVAILABLE⟦EOF⟧
 ```
 
-### TMM unit 1, captured result 2
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-42⟦EOF⟧
-```
-
-The wrapper recorded Tcl completion code 0 in 32 log lines. Its recorded errorCode field was:
-
-```text-visible
-UNAVAILABLE⟦EOF⟧
-```
-
-### TMM unit 2, captured result 3
+### TMM unit 1, captured result 2; TMM unit 2, captured result 3
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
 - Recorded input channel: HTTP_REQUEST.

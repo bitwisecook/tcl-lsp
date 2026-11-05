@@ -20,500 +20,145 @@ Other assumptions were not separately recorded.
 
 ## Script
 
+Fixture: [bigip-tmm-rule-init-2](fixtures/bigip-tmm-rule-init-2.md)
+
+- run: `nh20261012broad1`
+- case: `upvar-one-namespace-caller`
+- case.2: `upvar-zero-current-frame`
+- case.3: `upvar-global-frame`
+
+### nh_setup
+
 ```tcl-visible
-set nh_unit "[TMM::cmp_group]:[TMM::cmp_unit]"
-set nh_invocation once
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d65207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d65207b70726f632072756e207b7d207b736574207820313b2075707661722030207820793b20736574207920323b2072657475726e2024787d7d0a]
-set nh_operation [binary format H* 3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d653a3a72756e0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+namespace eval ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame {proc run {} {set x 1; upvar 0 x y; set y 2; return $x}}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+### nh_operation
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d652a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d652a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d652a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d652a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d652a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d652a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f7a65726f5f63757272656e745f6672616d652a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+```tcl-visible
+::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame::run
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c6572207b7d0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c6572207b7661726961626c652078204e414d4553504143455f56414c55453b2070726f632072756e207b7d207b75707661722031207820793b2072657475726e2024797d7d0a]
-set nh_operation [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c6572207b72756e7d0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+### nh_cleanup
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame*] [info commands ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame*] [info vars ::__tcl_lsp_probe_nh20261012broad15_upvar_zero_current_frame*]⟦EOF⟧
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c65722a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c65722a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c65722a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c65722a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c65722a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c65722a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f6f6e655f6e616d6573706163655f63616c6c65722a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+### nh_setup.2
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-set nh_setup [binary format H* 6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d65207b7d0a736574203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d655f7820474c4f42414c0a6e616d657370616365206576616c203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d65207b70726f632072756e207b7d207b7570766172202330205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d655f7820793b207365742079204348414e4745443b2072657475726e2024797d7d0a]
-set nh_operation [binary format H* 6c697374205b3a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d653a3a72756e5d205b736574203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d655f785d0a]
-set nh_setup_code [catch {eval $nh_setup} nh_setup_result]
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller {}
+namespace eval ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller {variable x NAMESPACE_VALUE; proc run {} {upvar 1 x y; return $y}}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_setup_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_setup_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_setup_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|setup|$nh_setup_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-if {$nh_setup_code == 0} {
-set nh_code [catch {eval $nh_operation} nh_result]
+### nh_operation.2
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|lookup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
-}
-set nh_cleanup [binary format H* 666f7265616368206e685f6368696c64205b696e7465727020736c617665735d207b6966207b5b737472696e67206d61746368205f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d652a20246e685f6368696c645d7d207b696e746572702064656c65746520246e685f6368696c647d7d0a666f7265616368206e685f6e73205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d652a5d207b6e616d6573706163652064656c65746520246e685f6e737d0a666f7265616368206e685f636d64205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d652a5d207b72656e616d6520246e685f636d64207b7d7d0a666f7265616368206e685f766172205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d652a5d207b756e736574202d6e6f636f6d706c61696e20246e685f7661727d0a6c697374205b6e616d657370616365206368696c6472656e203a3a203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d652a5d205b696e666f20636f6d6d616e6473203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d652a5d205b696e666f2076617273203a3a5f5f74636c5f6c73705f70726f62655f6e68323032363130313262726f616431355f75707661725f676c6f62616c5f6672616d652a5d]
-set nh_code [catch {eval $nh_cleanup} nh_result]
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller {run}
+```
 
-set nh_ec {}
-set nh_ei {}
-set nh_ec_present 0
-set nh_ei_present 0
-if {$nh_code == 1} {
-    if {[info exists ::errorCode]} {set nh_ec $::errorCode; set nh_ec_present 1}
-    if {[info exists ::errorInfo]} {set nh_ei $::errorInfo; set nh_ei_present 1}
-}
-foreach {nh_field nh_value} [list result $nh_result metadata [list errorcode-present $nh_ec_present errorinfo-present $nh_ei_present return-options unavailable] errorcode $nh_ec errorinfo $nh_ei] {
-    if {$nh_field != "result" && $nh_code != 1} {continue}
-    set nh_encoding utf-8
-    set nh_encoder encoding
-    if {[catch {$nh_encoder convertto utf-8 $nh_value} nh_encoded]} {
-        set nh_encoded $nh_value
-        set nh_encoding binary-scan-tcl-value
-    }
-    binary scan $nh_encoded H* nh_hex
-    set nh_chunks [expr {([string length $nh_hex] + 399) / 400}]
-    if {$nh_chunks == 0} {set nh_chunks 1}
-    for {set nh_i 0} {$nh_i < $nh_chunks} {incr nh_i} {
-        set nh_part [string range $nh_hex [expr {$nh_i * 400}] [expr {$nh_i * 400 + 399}]]
-        log local0. "NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|runtime-cleanup|$nh_code|$nh_unit|$nh_invocation|$nh_field|$nh_encoding|$nh_i|$nh_chunks|$nh_part"
-    }
-}
+### nh_cleanup.2
+
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller*] [info commands ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller*] [info vars ::__tcl_lsp_probe_nh20261012broad15_upvar_one_namespace_caller*]⟦EOF⟧
+```
+
+### nh_setup.3
+
+```tcl-visible
+namespace eval ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame {}
+set ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame_x GLOBAL
+namespace eval ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame {proc run {} {upvar #0 __tcl_lsp_probe_nh20261012broad15_upvar_global_frame_x y; set y CHANGED; return $y}}
+```
+
+### nh_operation.3
+
+```tcl-visible
+list [::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame::run] [set ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame_x]
+```
+
+### nh_cleanup.3
+
+```tcl-visible
+foreach nh_child [interp slaves] {if {[string match __tcl_lsp_probe_nh20261012broad15_upvar_global_frame* $nh_child]} {interp delete $nh_child}}
+foreach nh_ns [namespace children :: ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame*] {namespace delete $nh_ns}
+foreach nh_cmd [info commands ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame*] {rename $nh_cmd {}}
+foreach nh_var [info vars ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame*] {unset -nocomplain $nh_var}
+list [namespace children :: ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame*] [info commands ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame*] [info vars ::__tcl_lsp_probe_nh20261012broad15_upvar_global_frame*]⟦EOF⟧
 ```
 
 ## Results
 
-### tmm-RULE_INIT, unit 0:0, invocation once
+### tmm-RULE_INIT, unit 0:0, invocation once; tmm-RULE_INIT, unit 0:1, invocation once; tmm-RULE_INIT, unit 0:2, invocation once
 
 - Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
 - Recorded input channel: tmm-RULE_INIT.
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|32
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|4e414d4553504143455f56414c5545
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|setup|0|0:0|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|lookup|0|0:0|once|result|binary-scan-tcl-value|0|1|4348414e474544204348414e474544
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|runtime-cleanup|0|0:0|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- upvar-zero-current-frame, setup, completion 0, result, chunk 0 of 1:
+- upvar-zero-current-frame, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- upvar-zero-current-frame, lookup, completion 0, result, chunk 0 of 1:
+- upvar-zero-current-frame, lookup, completion 0, result:
 
 ```text-visible
 2⟦EOF⟧
 ```
 
-- upvar-zero-current-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- upvar-zero-current-frame, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- upvar-one-namespace-caller, setup, completion 0, result, chunk 0 of 1:
+- upvar-one-namespace-caller, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- upvar-one-namespace-caller, lookup, completion 0, result, chunk 0 of 1:
+- upvar-one-namespace-caller, lookup, completion 0, result:
 
 ```text-visible
 NAMESPACE_VALUE⟦EOF⟧
 ```
 
-- upvar-one-namespace-caller, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- upvar-one-namespace-caller, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- upvar-global-frame, setup, completion 0, result, chunk 0 of 1:
+- upvar-global-frame, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- upvar-global-frame, lookup, completion 0, result, chunk 0 of 1:
+- upvar-global-frame, lookup, completion 0, result:
 
 ```text-visible
 CHANGED CHANGED⟦EOF⟧
 ```
 
-- upvar-global-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- upvar-global-frame: intended operation reached.
-
-- upvar-one-namespace-caller: intended operation reached.
-
-- upvar-zero-current-frame: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:1, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|32
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|4e414d4553504143455f56414c5545
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|setup|0|0:1|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|lookup|0|0:1|once|result|binary-scan-tcl-value|0|1|4348414e474544204348414e474544
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|runtime-cleanup|0|0:1|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- upvar-zero-current-frame, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- upvar-zero-current-frame, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-2⟦EOF⟧
-```
-
-- upvar-zero-current-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- upvar-one-namespace-caller, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- upvar-one-namespace-caller, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-NAMESPACE_VALUE⟦EOF⟧
-```
-
-- upvar-one-namespace-caller, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- upvar-global-frame, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- upvar-global-frame, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-CHANGED CHANGED⟦EOF⟧
-```
-
-- upvar-global-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- upvar-global-frame: intended operation reached.
-
-- upvar-one-namespace-caller: intended operation reached.
-
-- upvar-zero-current-frame: intended operation reached.
-
-### tmm-RULE_INIT, unit 0:2, invocation once
-
-- Recorded version: BIG-IP 21.1.0.1; Tcl patchlevel Not recorded.
-- Recorded input channel: tmm-RULE_INIT.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|32
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|4e414d4553504143455f56414c5545
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|setup|0|0:2|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|lookup|0|0:2|once|result|binary-scan-tcl-value|0|1|4348414e474544204348414e474544
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|runtime-cleanup|0|0:2|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
-
-These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
-
-- upvar-zero-current-frame, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- upvar-zero-current-frame, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-2⟦EOF⟧
-```
-
-- upvar-zero-current-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- upvar-one-namespace-caller, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- upvar-one-namespace-caller, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-NAMESPACE_VALUE⟦EOF⟧
-```
-
-- upvar-one-namespace-caller, runtime-cleanup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-{} {} {}⟦EOF⟧
-```
-
-- upvar-global-frame, setup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-⟦EOF⟧
-```
-
-- upvar-global-frame, lookup, completion 0, result, chunk 0 of 1:
-
-```text-visible
-CHANGED CHANGED⟦EOF⟧
-```
-
-- upvar-global-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- upvar-global-frame, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
@@ -532,71 +177,59 @@ CHANGED CHANGED⟦EOF⟧
 - Exit status: Not recorded.
 - Standard output: Not recorded.
 - Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|32
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-zero-current-frame|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|4e414d4553504143455f56414c5545
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-one-namespace-caller|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|setup|0|0:3|once|result|binary-scan-tcl-value|0|1|
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|lookup|0|0:3|once|result|binary-scan-tcl-value|0|1|4348414e474544204348414e474544
-Oct 12 08:06:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_probe_nh20261012broad1_5_6 <RULE_INIT>: NHO|nh20261012broad1|upvar-global-frame|tmm-RULE_INIT|runtime-cleanup|0|0:3|once|result|binary-scan-tcl-value|0|1|7b7d207b7d207b7d
-```
+- Recorded result: decoded below.
 
 These are log lines selected by the recorded run, case, context, unit and invocation; they are not process stdout. Multiple log snapshots may contain the same line, so duplicates do not by themselves establish repeated executions. The following entries decode each retained NHO payload chunk separately.
 
-- upvar-zero-current-frame, setup, completion 0, result, chunk 0 of 1:
+- upvar-zero-current-frame, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- upvar-zero-current-frame, lookup, completion 0, result, chunk 0 of 1:
+- upvar-zero-current-frame, lookup, completion 0, result:
 
 ```text-visible
 2⟦EOF⟧
 ```
 
-- upvar-zero-current-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- upvar-zero-current-frame, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- upvar-one-namespace-caller, setup, completion 0, result, chunk 0 of 1:
+- upvar-one-namespace-caller, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- upvar-one-namespace-caller, lookup, completion 0, result, chunk 0 of 1:
+- upvar-one-namespace-caller, lookup, completion 0, result:
 
 ```text-visible
 NAMESPACE_VALUE⟦EOF⟧
 ```
 
-- upvar-one-namespace-caller, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- upvar-one-namespace-caller, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧
 ```
 
-- upvar-global-frame, setup, completion 0, result, chunk 0 of 1:
+- upvar-global-frame, setup, completion 0, result:
 
 ```text-visible
 ⟦EOF⟧
 ```
 
-- upvar-global-frame, lookup, completion 0, result, chunk 0 of 1:
+- upvar-global-frame, lookup, completion 0, result:
 
 ```text-visible
 CHANGED CHANGED⟦EOF⟧
 ```
 
-- upvar-global-frame, runtime-cleanup, completion 0, result, chunk 0 of 1:
+- upvar-global-frame, runtime-cleanup, completion 0, result:
 
 ```text-visible
 {} {} {}⟦EOF⟧

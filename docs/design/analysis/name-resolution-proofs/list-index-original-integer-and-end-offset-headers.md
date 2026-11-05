@@ -20,23 +20,9 @@ Selected input IDs [0, 1, 2, 6, 7] from nine exact original String index constru
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1
 
-Status: `observed`. Version: 8.4.20; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
-
-Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
-
-```text
-0|0|int|1|1|none|1|2|7b4120427d2043
-1|0|end-offset|1|1|none|1|2|44
-2|0|end-offset|1|1|none|1|2|7b4120427d2043
-6|0|int|1|1|none|1|1|
-7|0|int|1|1|none|1|1|
-```
-
-### tcl8.5
-
-Status: `observed`. Version: 8.5.19; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
+Status: `observed`. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots. Version: tcl8.4 8.4.20; tcl8.5 8.5.19; tcl8.6 8.6.18; tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
 
@@ -48,87 +34,17 @@ Exact selected rows in the manifest9-column order: case/guest code/original inde
 7|0|int|1|1|none|1|1|
 ```
 
-### tcl8.6
+### jim, bigip
 
-Status: `observed`. Version: 8.6.18; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
-
-Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
-
-```text
-0|0|int|1|1|none|1|2|7b4120427d2043
-1|0|end-offset|1|1|none|1|2|44
-2|0|end-offset|1|1|none|1|2|7b4120427d2043
-6|0|int|1|1|none|1|1|
-7|0|int|1|1|none|1|1|
-```
-
-### tcl9.0
-
-Status: `observed`. Version: 9.0.4; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
-
-Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
-
-```text
-0|0|int|1|1|none|1|2|7b4120427d2043
-1|0|end-offset|1|1|none|1|2|44
-2|0|end-offset|1|1|none|1|2|7b4120427d2043
-6|0|int|1|1|none|1|1|
-7|0|int|1|1|none|1|1|
-```
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0; exact launched patchlevel not queried by this probe. Build: exit=0. Compiler/version/configuration fields absent from this original receipt remain unknown.. Channel: Public object-vector invocation with original native index String object; pre-render header snapshots.. Dialect: C Tcl.
-
-Exact selected rows in the manifest9-column order: case/guest code/original index primary,resident,refs/result primary,resident,refs/result hex.
-
-```text
-0|0|int|1|1|none|1|2|7b4120427d2043
-1|0|end-offset|1|1|none|1|2|44
-2|0|end-offset|1|1|none|1|2|7b4120427d2043
-6|0|int|1|1|none|1|1|
-7|0|int|1|1|none|1|1|
-```
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: Jim Tcl.
+Status: `not-tested`.
 
 No original observation for this exact question is attached for this provider.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
-
-No original observation for this exact question is attached for this provider.
-
-## Historical references
-
-- `probe` (input): [rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c). Exact original index constructors/public procedure invocation and pre-result-getter header observer.
-- `inputs` (input): [rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json). Nine input strings matched exactly to native C literals.
-- `receipt` (provider): [rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json). Five original retained source/build/process/output closures; compile status absent remains unknown.
-- `rows-tcl8.4` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt). Full9-row original stream; selected case IDs [0, 1, 2, 6, 7].
-- `rows-tcl8.5` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt). Full9-row original stream; selected case IDs [0, 1, 2, 6, 7].
-- `rows-tcl8.6` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt). Full9-row original stream; selected case IDs [0, 1, 2, 6, 7].
-- `rows-tcl9.0` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt). Full9-row original stream; selected case IDs [0, 1, 2, 6, 7].
-- `rows-tcl9.1` (observation): [rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt). Full9-row original stream; selected case IDs [0, 1, 2, 6, 7].
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_list_index_compilation.rs](../../../../rust/tcl-registry/src/native_list_index_compilation.rs), `NativeListIndexOperation`: Keeps runtime index object conversion separate from literal compiler coordinates.
 - [rust/tcl-vm/src/exec/native_list_index_tests.rs](../../../../rust/tcl-vm/src/exec/native_list_index_tests.rs), `exec::native_list_index_tests::original_objects::original_index_getters_match_45_native_header_and_result_windows` (linked): Compares45 attached original index/result primary/resident/ref and guest windows; no intermediate native backing allocation assertion is borrowed.
 - [runtime/rust/src/interp/native_body_artifact/native_list_index.rs](../../../../runtime/rust/src/interp/native_body_artifact/native_list_index.rs), `interp::native_body_artifact::native_list_index::original_objects::original_index_getters_match_45_native_header_and_result_windows` (linked): Runtime checks45 original result/index header windows under the selected release; source/native currentness remains independent.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-No new native run or Rust execution result is claimed. Replay must compile the retained exact probe against independently identified release headers/libraries and preserve separate compile/process status and raw streams before comparing the attached original hashes. Original absolute compile paths are capture metadata, not a portable executable command. No evaluator/source/parser or native allocation authority may be obtained by matching display text. Probe code is input/observer code; absent native source excerpts supply no implementation explanation.
-
 
 ## Exact original-source349 software outcomes
 
@@ -139,4 +55,15 @@ These finite results belong to the original source349 body/question/document pai
 | `grouped` | 1 | 0 | 0 | 0 |
 | `isolated` | 1 | 0 | 0 | 0 |
 
-[Exact original body hashes and process outcomes](rust-validation/frozen349/question-body-outcomes.json) join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+Exact original body hashes and process outcomes join the unchanged original receipts, streams, frozen source, own inventory/admission and complete executable bytes. The grouped abort is independent of the isolated diagnostics.
+
+## Evidence
+
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/probe.c)
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.json)
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/manifest.json)
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt)
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt)
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt)
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt)
+- [rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt](../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt)

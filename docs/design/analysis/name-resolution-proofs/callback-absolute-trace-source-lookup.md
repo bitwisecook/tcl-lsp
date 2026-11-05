@@ -22,83 +22,45 @@ Original fixed ASCII LF source-file CLI on C8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt. Version: tcl8.4 8.4.20.
 
 Exact stdout: version 8.4.20 | trace-command trace | fire variable cb 0 VALUE {{variable B 3 ::B}} | fire command cb 0 {} {{command B 3 ::B}} | fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}} | fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}} | fire command ::Dest::cb 0 {} {{command Dest 3 ::B}} | fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}} . Relative head selects B, absolute head selects Dest, and both report triggering caller ::B. Public variable/command suffix counts are three; execution enter/leave counts are two/four.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt. Version: tcl8.5 8.5.19.
 
 Exact stdout: version 8.5.19 | trace-command trace | fire variable cb 0 VALUE {{variable B 3 ::B}} | fire command cb 0 {} {{command B 3 ::B}} | fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}} | fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}} | fire command ::Dest::cb 0 {} {{command Dest 3 ::B}} | fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}} . Relative head selects B, absolute head selects Dest, and both report triggering caller ::B. Public variable/command suffix counts are three; execution enter/leave counts are two/four.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt. Version: tcl8.6 8.6.18.
 
 Exact stdout: version 8.6.18 | trace-command trace | fire variable cb 0 VALUE {{variable B 3 ::B}} | fire command cb 0 {} {{command B 3 ::B}} | fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}} | fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}} | fire command ::Dest::cb 0 {} {{command Dest 3 ::B}} | fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}} . Relative head selects B, absolute head selects Dest, and both report triggering caller ::B. Public variable/command suffix counts are three; execution enter/leave counts are two/four.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt. Version: tcl9.0 9.0.4.
 
 Exact stdout: version 9.0.4 | trace-command trace | fire variable cb 0 VALUE {{variable B 3 ::B}} | fire command cb 0 {} {{command B 3 ::B}} | fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}} | fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}} | fire command ::Dest::cb 0 {} {{command Dest 3 ::B}} | fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}} . Relative head selects B, absolute head selects Dest, and both report triggering caller ::B. Public variable/command suffix counts are three; execution enter/leave counts are two/four.
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.. Dialect: Tcl.
+Status: `observed`. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt. Version: tcl9.1 9.1.0.
 
 Exact stdout: version 9.1.0 | trace-command trace | fire variable cb 0 VALUE {{variable B 3 ::B}} | fire command cb 0 {} {{command B 3 ::B}} | fire execution cb 0 VALUE {{execution B 2 ::B} {execution B 4 ::B}} | fire variable ::Dest::cb 0 VALUE {{variable Dest 3 ::B}} | fire command ::Dest::cb 0 {} {{command Dest 3 ::B}} | fire execution ::Dest::cb 0 VALUE {{execution Dest 2 ::B} {execution Dest 4 ::B}} . Relative head selects B, absolute head selects Dest, and both report triggering caller ::B. Public variable/command suffix counts are three; execution enter/leave counts are two/four.
 
 ### jim
 
-Status: `unsupported`. Version: 0.84-9-g5bac7c9. Build: Selected native executable; the exact original receipt retains independently checked library/header/Makefile/source artifact pins and environment. No new build is claimed.. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt.. Dialect: Jim Tcl.
+Status: `unsupported`. Channel: Original fixed ASCII LF source-file CLI; caught trace installation/firing, public callback suffix length and public namespace labels; no internal object/header/argv/cache or future registration-currentness receipt. Version: jim 0.84-9-g5bac7c9.
 
 Exact stdout: version 0.84-9-g5bac7c9 | trace-command {} | add variable cb 1 {invalid command name "trace"} | add command cb 1 {invalid command name "trace"} | add execution cb 1 {invalid command name "trace"} | add variable ::Dest::cb 1 {invalid command name "trace"} | add command ::Dest::cb 1 {invalid command name "trace"} | add execution ::Dest::cb 1 {invalid command name "trace"} . Trace is absent; each caught installation fails and no callback fires.
 
 ### bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance process or event callback observation is retained for this question.
-
-## Historical references
-
-- `8-4-20-receipt-json` (provider): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20/receipt.json](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `8-4-20-stderr` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20/stderr](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `8-4-20-stdout` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20/stdout](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20/stdout). Exact entire original stdout including caught guest outcomes.
-- `8-5-19-receipt-json` (provider): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19/receipt.json](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `8-5-19-stderr` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19/stderr](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `8-5-19-stdout` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19/stdout](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19/stdout). Exact entire original stdout including caught guest outcomes.
-- `8-6-18-receipt-json` (provider): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `8-6-18-stderr` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18/stderr](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `8-6-18-stdout` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18/stdout](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18/stdout). Exact entire original stdout including caught guest outcomes.
-- `9-0-4-receipt-json` (provider): [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `9-0-4-stderr` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4/stderr](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `9-0-4-stdout` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4/stdout](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4/stdout). Exact entire original stdout including caught guest outcomes.
-- `9-1-0-receipt-json` (provider): [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `9-1-0-stderr` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0/stderr](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `9-1-0-stdout` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0/stdout](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0/stdout). Exact entire original stdout including caught guest outcomes.
-- `jim-receipt-json` (provider): [rust/tcl-registry/tests/data/native_absolute_trace_source253/jim/receipt.json](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/jim/receipt.json). Exact original process receipt including selected executable/artifact pins, environment and whole raw stream joins.
-- `jim-stderr` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/jim/stderr](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/jim/stderr). Exact empty original stderr; guest errors are caught in stdout.
-- `jim-stdout` (observation): [rust/tcl-registry/tests/data/native_absolute_trace_source253/jim/stdout](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/jim/stdout). Exact entire original stdout including caught guest outcomes.
-- `probe-tcl` (input): [rust/tcl-registry/tests/data/native_absolute_trace_source253/probe.tcl](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/probe.tcl). Exact original finite ASCII source/provider request; no process outcome.
-- `request-json` (input): [rust/tcl-registry/tests/data/native_absolute_trace_source253/request.json](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/request.json). Exact original finite ASCII source/provider request; no process outcome.
-- `source-tcl8.4-TraceCommandProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.4.20-TraceCommandProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.4.20-TraceCommandProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.4-TraceExecutionProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.4.20-TraceExecutionProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.4.20-TraceExecutionProc.txt). Independent exact current pinned release-source excerpt: CString Tcl_Eval. Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.4-TraceVarProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.4.20-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.4.20-TraceVarProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.5-TraceCommandProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.5.19-TraceCommandProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.5.19-TraceCommandProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.5-TraceExecutionProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.5.19-TraceExecutionProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.5.19-TraceExecutionProc.txt). Independent exact current pinned release-source excerpt: CString Tcl_Eval. Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.5-TraceVarProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.5.19-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.5.19-TraceVarProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.6-TraceCommandProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.6.18-TraceCommandProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.6.18-TraceCommandProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.6-TraceExecutionProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.6.18-TraceExecutionProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.6.18-TraceExecutionProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl8.6-TraceVarProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.6.18-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/8.6.18-TraceVarProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl9.0-TraceCommandProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.0.4-TraceCommandProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.0.4-TraceCommandProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl9.0-TraceExecutionProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.0.4-TraceExecutionProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.0.4-TraceExecutionProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl9.0-TraceVarProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.0.4-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.0.4-TraceVarProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl9.1-TraceCommandProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.1.0-TraceCommandProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.1.0-TraceCommandProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl9.1-TraceExecutionProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.1.0-TraceExecutionProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.1.0-TraceExecutionProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
-- `source-tcl9.1-TraceVarProc` (source-anchor): [rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.1.0-TraceVarProc.txt](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/source-anchors/9.1.0-TraceVarProc.txt). Independent exact current pinned release-source excerpt: counted Tcl_EvalEx(flags0). Full source hash and original LF line coordinates are retained; no new build or internal guest observation.
 
 ## Source inspection
 
@@ -203,7 +165,6 @@ tcl8.6 8.6.18, revision `pinned release source 8.6.18`, `generic/tclTrace.c`, fu
 		    Tcl_DStringLength(&cmd), 0);
 	    tcmdPtr->flags &= ~TCL_TRACE_EXEC_IN_PROGRESS;
 
-
 ```
 
 tcl8.6 8.6.18, revision `pinned release source 8.6.18`, `generic/tclTrace.c`, function `TraceVarProc`, lines 2047–2053. Retained reference `source-tcl8.6-TraceVarProc`.
@@ -241,7 +202,6 @@ tcl9.0 9.0.4, revision `pinned release source 9.0.4`, `generic/tclTrace.c`, func
 	    traceCode = Tcl_EvalEx(interp, Tcl_DStringValue(&cmd),
 		    Tcl_DStringLength(&cmd), 0);
 	    tcmdPtr->flags &= ~TCL_TRACE_EXEC_IN_PROGRESS;
-
 
 ```
 
@@ -281,7 +241,6 @@ tcl9.1 9.1.0, revision `pinned release source 9.1.0`, `generic/tclTrace.c`, func
 		    Tcl_DStringLength(&cmd), 0);
 	    tcmdPtr->flags &= ~TCL_TRACE_EXEC_IN_PROGRESS;
 
-
 ```
 
 tcl9.1 9.1.0, revision `pinned release source 9.1.0`, `generic/tclTrace.c`, function `TraceVarProc`, lines 1917–1923. Retained reference `source-tcl9.1-TraceVarProc`.
@@ -297,22 +256,16 @@ tcl9.1 9.1.0, revision `pinned release source 9.1.0`, `generic/tclTrace.c`, func
 
 ```
 
-
 ## Consumer bindings
 
 No implementation binding is claimed by this observation record.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Recorded argument vector:
-
-```json
-[
-  "/absolute/path/to/independently-selected/native-tclsh",
-  "rust/tcl-registry/tests/data/native_absolute_trace_source253/probe.tcl"
-]
-```
-
-Repeat independently for each required provider. The original receipt command, environment, exact executable and required artifact SHA, source SHA, whole stdout/stderr and process exit remain the authority. Preserve caught guest errors and all eight rows, including release-specific error presentation. No internal object, native argv/header/cache, future callable/installation, frame or BIG-IP reconfirmation follows. Related source-contract selectors are independent Rust coverage, not additional native results.
+- [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.4.20)
+- [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.5.19)
+- [rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/8.6.18)
+- [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.0.4)
+- [rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/9.1.0)
+- [rust/tcl-registry/tests/data/native_absolute_trace_source253/jim](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253/jim)
+- [rust/tcl-registry/tests/data/native_absolute_trace_source253](../../../../rust/tcl-registry/tests/data/native_absolute_trace_source253)

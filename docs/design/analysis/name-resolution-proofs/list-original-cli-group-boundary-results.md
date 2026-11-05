@@ -22,155 +22,39 @@ C84/85 reject stride through their actual option tables. C86/9 leading2 produces
 
 ### tcl8.4
 
-Status: `observed`. Version: 8.4.20. Build: Exact selected CLI/static-library SDK pins; independent fresh CLI and same-library version diagnostics and recorded before/after comparison. Loader diagnostic identifies paths only; complete build/load/toolchain closure unrecorded.. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles.. Dialect: tcl8.4.
+Status: `observed`. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles. Version: tcl8.4 8.4.20.
 
 Every stride spelling is unsupported, with observed NONE and exact option text; all callback counts0.
 
 ### tcl8.5
 
-Status: `observed`. Version: 8.5.19. Build: Exact selected CLI/static-library SDK pins; independent fresh CLI and same-library version diagnostics and recorded before/after comparison. Loader diagnostic identifies paths only; complete build/load/toolchain closure unrecorded.. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles.. Dialect: tcl8.5.
+Status: `observed`. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles. Version: tcl8.5 8.5.19.
 
 Every stride spelling is unsupported, with observed TCL LOOKUP INDEX option -stride and exact option text; all callback counts0.
 
 ### tcl8.6
 
-Status: `observed`. Version: 8.6.18. Build: Exact selected CLI/static-library SDK pins; independent fresh CLI and same-library version diagnostics and recorded before/after comparison. Loader diagnostic identifies paths only; complete build/load/toolchain closure unrecorded.. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles.. Dialect: tcl8.6.
+Status: `observed`. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles. Version: tcl8.6 8.6.18.
 
 Leading2 gives BADINDEX; negative index is INDEXOUTOFRANGE with its -index context; minimum/nonmultiple width BADSTRIDE; wide stride overflows Int. Valid command case6 callback count1.
 
-### tcl9.0
+### tcl9.0, tcl9.1
 
-Status: `observed`. Version: 9.0.4. Build: Exact selected CLI/static-library SDK pins; independent fresh CLI and same-library version diagnostics and recorded before/after comparison. Loader diagnostic identifies paths only; complete build/load/toolchain closure unrecorded.. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles.. Dialect: tcl9.0.
-
-Leading2 gives BADINDEX; negative index is TCL VALUE INDEX OUTOFRANGE; minimum/nonmultiple and wide stride BADSTRIDE. Valid command case6 callback count1.
-
-### tcl9.1
-
-Status: `observed`. Version: 9.1.0. Build: Exact selected CLI/static-library SDK pins; independent fresh CLI and same-library version diagnostics and recorded before/after comparison. Loader diagnostic identifies paths only; complete build/load/toolchain closure unrecorded.. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles.. Dialect: tcl9.1.
+Status: `observed`. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles. Version: tcl9.0 9.0.4; tcl9.1 9.1.0.
 
 Leading2 gives BADINDEX; negative index is TCL VALUE INDEX OUTOFRANGE; minimum/nonmultiple and wide stride BADSTRIDE. Valid command case6 callback count1.
 
 ### jim
 
-Status: `observed`. Version: 0.84-9-g5bac7c9. Build: Exact selected CLI/static-library SDK pins; independent fresh CLI and same-library version diagnostics and recorded before/after comparison. Loader diagnostic identifies paths only; complete build/load/toolchain closure unrecorded.. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles.. Dialect: jim.
+Status: `observed`. Channel: Fresh initialized CLI ASCII Tcl source; actual request/probe/script bytes and startup selection are recorded. This is separate from original651 native-created argv/header roles. Version: jim 0.84-9-g5bac7c9.
 
 Leading2 reports element2 missing from group sublist; negative index, minimum/nonmultiple and wide stride report their primitive messages with NONE and no errorInfo global. Valid command case6 callback count1.
 
 ### bigip
 
-Status: `not-tested`. Version: unrecorded. Build: No actual appliance execution.. Channel: No appliance source/result channel retained.. Dialect: BIG-IP iRules.
+Status: `not-tested`. Channel: No appliance source/result channel retained.
 
 No public appliance code/errorInfo/callback result is inferred.
-
-## Historical references
-
-- `probe` (input): [runtime/rust/tests/data/native_original_list_group_cli656/probe.tcl](../../../../runtime/rust/tests/data/native_original_list_group_cli656/probe.tcl). Exact ASCII source with genuine Tcl comparator and immediate catch/error-global capture.
-- `request` (input): [runtime/rust/tests/data/native_original_list_group_cli656/request.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/request.json). Exact question and source bounds; no expected results supplied before actual execution.
-- `collector` (input): [runtime/rust/tests/data/native_original_list_group_cli656/collector.py](../../../../runtime/rust/tests/data/native_original_list_group_cli656/collector.py). Actual Root collector source: fresh processes, projection parsing, exact before pins and recorded unchanged after comparisons.
-- `results` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/results.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/results.json). All66 process exits, completed projection counts and independent provider/version status.
-- `retention` (reconfirmation): [runtime/rust/tests/data/native_original_list_group_cli656/retention.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/retention.json). Every original output/receipt/source/vector file retained losslessly.
-- `whole-input-map` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/pinned-input-map.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/pinned-input-map.json). Every measured input joins exact full bytes by canonical path or verified existing/new archive member.
-- `new-input-bytes` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/new-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_list_group_cli656/new-input-bytes.tar.gz). Whole additional measured loader/tool/input bytes, deterministic archive with verified hash-named members.
-- `public-fields` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/software_controls.rs](../../../../runtime/rust/tests/data/native_original_list_group_cli656/software_controls.rs). Literal66 exact capture fields from original streams; no derived private results.
-- `existing-sdk-bytes` (provider): [runtime/rust/tests/data/native_original_list_numeric645_647/pinned-input-bytes.tar.gz](../../../../runtime/rust/tests/data/native_original_list_numeric645_647/pinned-input-bytes.tar.gz). Existing verified complete measured source/SDK/tool bytes; complete build/load closure remains unrecorded.
-- `tcl8.4-receipt` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/receipt.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/receipt.json). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.4-cli-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/cli-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.4-same-library-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/same-library-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/same-library-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.4-loader-diagnostic` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/loader-diagnostic.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/loader-diagnostic.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.4-case-0` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-00/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-00/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-1` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-01/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-01/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-2` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-02/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-02/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-3` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-03/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-03/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-4` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-04/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-04/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-5` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-05/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-05/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-6` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-06/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-06/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-7` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-07/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-07/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-8` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-08/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-08/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-9` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-09/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-09/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.4-case-10` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-10/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20/case-10/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-receipt` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/receipt.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/receipt.json). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.5-cli-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/cli-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.5-same-library-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/same-library-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/same-library-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.5-loader-diagnostic` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/loader-diagnostic.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/loader-diagnostic.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.5-case-0` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-00/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-00/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-1` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-01/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-01/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-2` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-02/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-02/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-3` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-03/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-03/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-4` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-04/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-04/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-5` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-05/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-05/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-6` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-06/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-06/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-7` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-07/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-07/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-8` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-08/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-08/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-9` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-09/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-09/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.5-case-10` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-10/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19/case-10/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-receipt` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/receipt.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/receipt.json). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.6-cli-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/cli-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.6-same-library-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/same-library-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/same-library-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.6-loader-diagnostic` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/loader-diagnostic.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/loader-diagnostic.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl8.6-case-0` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-00/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-00/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-1` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-01/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-01/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-2` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-02/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-02/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-3` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-03/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-03/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-4` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-04/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-04/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-5` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-05/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-05/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-6` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-06/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-06/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-7` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-07/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-07/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-8` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-08/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-08/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-9` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-09/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-09/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl8.6-case-10` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-10/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18/case-10/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-receipt` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/receipt.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/receipt.json). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.0-cli-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/cli-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.0-same-library-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/same-library-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/same-library-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.0-loader-diagnostic` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/loader-diagnostic.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/loader-diagnostic.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.0-case-0` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-00/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-00/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-1` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-01/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-01/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-2` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-02/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-02/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-3` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-03/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-03/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-4` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-04/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-04/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-5` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-05/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-05/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-6` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-06/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-06/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-7` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-07/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-07/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-8` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-08/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-08/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-9` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-09/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-09/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.0-case-10` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-10/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4/case-10/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-receipt` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/receipt.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/receipt.json). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.1-cli-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/cli-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.1-same-library-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/same-library-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/same-library-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.1-loader-diagnostic` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/loader-diagnostic.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/loader-diagnostic.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `tcl9.1-case-0` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-00/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-00/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-1` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-01/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-01/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-2` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-02/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-02/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-3` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-03/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-03/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-4` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-04/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-04/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-5` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-05/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-05/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-6` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-06/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-06/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-7` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-07/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-07/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-8` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-08/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-08/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-9` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-09/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-09/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `tcl9.1-case-10` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-10/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0/case-10/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-receipt` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/receipt.json](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/receipt.json). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `jim-cli-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/cli-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/cli-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `jim-same-library-version` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/same-library-version.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/same-library-version.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `jim-loader-diagnostic` (provider): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/loader-diagnostic.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/loader-diagnostic.stdout). Exact selected original provider execution/version/loader diagnostic, independent of guest status.
-- `jim-case-0` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-00/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-00/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-1` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-01/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-01/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-2` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-02/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-02/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-3` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-03/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-03/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-4` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-04/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-04/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-5` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-05/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-05/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-6` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-06/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-06/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-7` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-07/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-07/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-8` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-08/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-08/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-9` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-09/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-09/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `jim-case-10` (observation): [runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-10/execute.stdout](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim/case-10/execute.stdout). Exact original fixed case public projections; process exit distinct from guest code.
-- `selected-producer-0` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.4.20-lsort.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.4.20-lsort.txt). Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result
-- `selected-producer-1` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.5.19-lsort.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.5.19-lsort.txt). Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result
-- `selected-producer-2` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.6.18-lsort.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl8.6.18-lsort.txt). Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result
-- `selected-producer-3` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl9.0.4-lsort.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl9.0.4-lsort.txt). Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result
-- `selected-producer-4` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl9.1.0-lsort.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/tcl9.1.0-lsort.txt). Tcl_LsortObjCmd, MergeSort/MergeLists and SortCompare: original prefix/operands, bucket merging and Int result
-- `selected-producer-5` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-7053-7062.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-7053-7062.txt). ListSortIndexHelper
-- `selected-producer-6` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-7150-7265.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-7150-7265.txt). ListSortCommand, ListRemoveDuplicates and ListSortElements
-- `selected-producer-7` (source-anchor): [runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-13831-13970.txt](../../../../runtime/rust/tests/data/native_original_list_group_command651/source-windows/jim-13831-13970.txt). Jim_LsortCoreCommand
 
 ## Source inspection
 
@@ -966,7 +850,6 @@ Tcl_LsortObjCmd(
 	elementPtr = MergeLists(subList[j], elementPtr, &sortInfo);
     }
 
-
     /*
      * Now store the sorted elements in the result list.
      */
@@ -1172,7 +1055,6 @@ SortCompare(
 	    
 	    return 0;
 	}
-
 
 	objPtr1 = elemPtr1->index.objValuePtr;
 	objPtr2 = elemPtr2->index.objValuePtr;
@@ -1885,7 +1767,6 @@ SortCompare(
 
 	    return 0;
 	}
-
 
 	objPtr1 = elemPtr1->collationKey.objValuePtr;
 	objPtr2 = elemPtr2->collationKey.objValuePtr;
@@ -3885,15 +3766,19 @@ badindex:
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/lsort.rs](../../../../rust/tcl-cmd-core/src/lsort.rs), `GroupingFailure`: Typed group size and leading-coordinate diagnostics at the actual branch; no message reparsing.
 - [rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs](../../../../rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs), `original_cli_group_fields_match_native656_source_capture` (linked): Exact66 fixed capture-prefix script/code/result/errorCode/errorInfo/presence/count fields match actual CLI656 streams. argv is separately initialised; native startup/private getters, print helper and callback/libc chronology are excluded.
 - [runtime/rust/src/cmd_list/native_original_group_command_controls.rs](../../../../runtime/rust/src/cmd_list/native_original_group_command_controls.rs), `original_cli_group_fields_match_native656_source_capture` (linked): Exact66 fixed capture-prefix script/code/result/errorCode/errorInfo/presence/count fields match actual CLI656 streams. argv is separately initialised; native startup/private getters, print helper and callback/libc chronology are excluded.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Replay exact canonical probe with one decimal case index per fresh pinned CLI, same startup library/environment and independently retained version/collector/input map. Existing SDK archive bytes are reused only by verified hash/member. Full build/load/toolchain closure and software execution are unrecorded. Do not infer any original651 missing output.
+- [runtime/rust/tests/data](../../../../runtime/rust/tests/data)
+- [runtime/rust/tests/data/native_original_list_group_cli656/8.4.20](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.4.20)
+- [runtime/rust/tests/data/native_original_list_group_cli656/8.5.19](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.5.19)
+- [runtime/rust/tests/data/native_original_list_group_cli656/8.6.18](../../../../runtime/rust/tests/data/native_original_list_group_cli656/8.6.18)
+- [runtime/rust/tests/data/native_original_list_group_cli656/9.0.4](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.0.4)
+- [runtime/rust/tests/data/native_original_list_group_cli656/9.1.0](../../../../runtime/rust/tests/data/native_original_list_group_cli656/9.1.0)
+- [runtime/rust/tests/data/native_original_list_group_cli656/Jim](../../../../runtime/rust/tests/data/native_original_list_group_cli656/Jim)
+- [runtime/rust/tests/data/native_original_list_group_command651](../../../../runtime/rust/tests/data/native_original_list_group_command651)

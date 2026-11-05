@@ -24,87 +24,29 @@ This is a source/code-generation definition binding, not an attached assertion r
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim
 
-Status: `observed`. Version: tcl8.4. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-14 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl8.5
-
-Status: `observed`. Version: tcl8.5. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-14 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl8.6
-
-Status: `observed`. Version: tcl8.6. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-14 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.0
-
-Status: `observed`. Version: tcl9.0. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-14 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### tcl9.1
-
-Status: `observed`. Version: tcl9.1. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Tcl.
-
-14 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
-
-### jim
-
-Status: `observed`. Version: jim. Build: Recorded executable. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description.. Dialect: Jim Tcl.
+Status: `observed`. Channel: Exact producer API/source in the attached probe or retained row; see scoped input description. Version: tcl8.4 tcl8.4; tcl8.5 tcl8.5; tcl8.6 tcl8.6; tcl9.0 tcl9.0; tcl9.1 tcl9.1.
 
 14 retained provider record(s) answer the exact scoped inputs. Final selected record fields: {"exit": 0}. Exact result, diagnostic and owner columns are retained in the attached evidence; guest errors are outcomes, not harness success claims.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No native observation for this precise question and provider is attached; no result is inferred from another dialect, source channel or record.
-
-## Historical references
-
-- `receipt-0` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `artifact-1` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt). Retained exact input/observation bytes. Per-question scope selects the relevant producer/case ranges; adjacent streams are not automatically equivalent.
-- `receipt-2` (observation): [rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json). Exact recovered input/provider/observation record; initial failed observer attempts, where present, are retained as harness limitations.
-- `maintained-source-replayer` (implementation): [scripts/dev/replay-grammar-native-source.py](../../../../scripts/dev/replay-grammar-native-source.py). Maintained source-only replay adapter; no fresh native execution is recorded by this contribution.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_mathop.rs](../../../../runtime/rust/src/cmd_mathop.rs), `cmd_mathop::tests::original_mathop_compilation_matches_all_84_native_controls` (linked): All eighty-four unchanged original recorded procedure/source controls compare under actual selected engine and explicit Jim distribution bootstrap. Recorded source results do not establish independent compiler/worker/object admission or an executed Runtime pass.
-
-A named test is a coverage binding, not a claim that it executed.
 
 - [rust/tcl-compiler/src/codegen/statements/native_mathop.rs](../../../../rust/tcl-compiler/src/codegen/statements/native_mathop.rs), `CodegenCtx::append_native_mathop_tasks`: Translate the selected original mathop recipe into operand/literal/primitive tasks without creating an operand evaluation that the recipe omits.
 - [rust/tcl-compiler/src/codegen/statements/native_mathop.rs](../../../../rust/tcl-compiler/src/codegen/statements/native_mathop.rs), `codegen::statements::native_mathop::tests::original_comparison_preparation_reaches_nested_words_without_an_inline_hook` (linked): Captured-entry software code generation retains the selected comparison recipe for nested original mathop source words in list and return contexts while omitting tick operand literals where that recipe does not evaluate operands.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-## Replay
+## Evidence
 
-Recorded argument vector:
-
-```json
-[
-  "python3",
-  "scripts/dev/replay-grammar-native-source.py",
-  "--proof",
-  "naming.mathop-procedure-source-controls",
-  "--provider",
-  "8.4",
-  "--executable",
-  "/path/to/exact/recorded/provider",
-  "--output",
-  "/tmp/name-resolution-source-replay"
-]
-```
-
-Select each observed provider explicitly. The driver pins retained evidence bytes, checks independently launched patchlevel, preserves original source/wrapper bytes, compares process exit/stdout/stderr and writes a fresh provider receipt outside the repository. The shared two-slot limit and60-second timeout remain unchanged. Guest errors inside a catch are expected data. This driver replays source-only observations; it supplies no private-header or original-object identity evidence.
+- [rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/manifest.json)
+- [rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/rows.txt)
+- [rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json](../../../../rust/tcl-cmd-core/tests/data/native_mathop_compilation/cases.json)

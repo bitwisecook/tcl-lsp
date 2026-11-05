@@ -20,55 +20,11 @@ Original complete retained source/input/config/ContextRegistry and selected sour
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This source diagnostic applicability, original word geometry and typed transport question supplies no native provider execution observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This source diagnostic applicability, original word geometry and typed transport question supplies no native provider execution observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This source diagnostic applicability, original word geometry and typed transport question supplies no native provider execution observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This source diagnostic applicability, original word geometry and typed transport question supplies no native provider execution observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This source diagnostic applicability, original word geometry and typed transport question supplies no native provider execution observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This source diagnostic applicability, original word geometry and typed transport question supplies no native provider execution observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This source diagnostic applicability, original word geometry and typed transport question supplies no native provider execution observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -92,9 +48,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject::tests::original_package_source_subject_transport_retains_selected_purpose_and_package` (linked): Core transport retains required package and typed original purpose independently of message/fix presentation; the payload creates no loader, installed package or runtime key authority.
 - [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads` (linked): The four original reported Tcltest fixture bodies remain byte-exact through direct or captured name/description aliases; a genuine selected source package provider keeps setup/body/cleanup reads defined and retains captured-versus-written effective ordinals.
 - [rust/tcl-compiler/src/analyser/diagnostics/tests.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/tests.rs), `analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque` (linked): Selected Tcltest source advice reports only the genuine original absent body read, keeps bracket-looking result data opaque and withdraws missing/changed input or unselected/replaced package handlers rather than borrowing lifecycle roles.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Body-marked Rust selectors bind implementation coverage only. Actual outcomes require independent exact-source/executable receipts; these source metadata and reviewed proposal purposes establish no native package load, current command presence, callback success or handler equivalence.

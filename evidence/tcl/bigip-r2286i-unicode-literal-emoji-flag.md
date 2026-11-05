@@ -22,37 +22,7 @@ This is the HTTP_REQUEST event body from the installed rule. Each line below is 
 
 ## Results
 
-### TMM unit 0, HTTP_REQUEST
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-value=🇳🇿|value_hex=f09f87b3f09f87bf|chars=8
-```
-
-Each displayed suffix appeared in 16 log lines for this unit. The line breaks separate captured log suffixes.
-
-### TMM unit 1, HTTP_REQUEST
-
-- Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
-- Recorded input channel: HTTP_REQUEST.
-- Exit status: Not recorded.
-- Standard output: Not recorded.
-- Standard error: Not recorded.
-- Recorded result:
-
-```text-visible
-value=🇳🇿|value_hex=f09f87b3f09f87bf|chars=8
-```
-
-Each displayed suffix appeared in 16 log lines for this unit. The line breaks separate captured log suffixes.
-
-### TMM unit 2, HTTP_REQUEST
+### TMM unit 0, HTTP_REQUEST; TMM unit 1, HTTP_REQUEST; TMM unit 2, HTTP_REQUEST
 
 - Recorded version: BIG-IP 21.1.0.1 build 0.0.26; Tcl patchlevel Not recorded.
 - Recorded input channel: HTTP_REQUEST.

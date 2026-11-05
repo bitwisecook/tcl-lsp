@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "remote-operation",
-    "connection-configuration-omitted",
-    "bash -s"
-  ],
-  "exit_code": 0,
-  "stdin_sha256": "e4f1f613e290d0817701ad358dcb3b7f06655957bc64b0dae31887084337a25c"
-}

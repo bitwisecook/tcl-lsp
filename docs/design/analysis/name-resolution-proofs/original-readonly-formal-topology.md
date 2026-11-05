@@ -20,55 +20,11 @@ Rust readonly original formal metadata for explicit C Tcl and Jim source recipes
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust implementation contract; no native provider observation or executed test result is attached.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -94,9 +50,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/diagnostics/validity.rs](../../../../rust/tcl-compiler/src/analyser/diagnostics/validity.rs), `analyser::diagnostics::validity::selected_formal_tests::original_formal_diagnostics_reject_three_fields_and_withdraw_known_shadows` (linked): Six source grammars diagnose an overlong formal specifier; authentic moved/captured-prefix proc roles retain E006, while a known proc replacement supplies no nominal builtin formal-list role.
 - [rust/tcl-compiler/src/inlining/tests.rs](../../../../rust/tcl-compiler/src/inlining/tests.rs), `inlining::tests::original_inlining_activation_requires_selected_c_parameter_grammar` (linked): An explicit Logical model with independently selected authored C parameter/activation axis exercises the eligible nullary empty-procedure IR transform. Jim and missing parameter axes retain the original top-level IR; no current native naming recipe, default/rest/reference activation or executed frame is asserted.
 - [rust/tcl-compiler/src/command_binding.rs](../../../../rust/tcl-compiler/src/command_binding.rs), `command_binding::selected_replay_formal_tests::original_procedure_replay_validity_requires_the_selected_formal_grammar` (linked): Selected C/Jim replay syntax keeps qualified/array-shaped and duplicate args outcomes distinct; missing grammar is Unavailable. No procedure is installed or executed.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Run the exact linked Rust selectors through the maintained workspace test setup. This record contains no interpreter observation or executed Rust result.

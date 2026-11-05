@@ -275,7 +275,7 @@ All semantic/guard assertions stay unchanged. No newallow except the established
 
 ## Preserved history
 
-Full exact earlier tracking bytes (including all original protocol/plan/evidence paths, semantic obligations, guards and historical measurements) are losslessly archived in [compiler-codegen-before-20261023T192829Z.md.gz](../handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261023/compiler-codegen-before-20261023T192829Z.md.gz). Uncompressed SHA256 `0d0f852a6732ab299fbbfff46f2152b8978463ecf2debd0f668caa8a05b53cb9`; compressed SHA256 `3f9671bd30dd4bb7e4f335f1fefa39a5fb4cf05074efd989fce3be0cb2d79849`. The current snapshot above supersedes stale running-state prose, not its evidence.
+Full exact earlier tracking bytes (including all original protocol/plan/evidence paths, semantic obligations, guards and historical measurements) are losslessly archived in `compiler-codegen-before-20261023T192829Z.md.gz`. Uncompressed SHA256 `0d0f852a6732ab299fbbfff46f2152b8978463ecf2debd0f668caa8a05b53cb9`; compressed SHA256 `3f9671bd30dd4bb7e4f335f1fefa39a5fb4cf05074efd989fce3be0cb2d79849`. The current snapshot above supersedes stale running-state prose, not its evidence.
 
 
 ### 2026-10-25 12:40 UTC — current strict and original index purpose

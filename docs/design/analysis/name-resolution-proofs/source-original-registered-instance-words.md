@@ -20,55 +20,11 @@ Marked C8.6 source controls cover actual Registry descriptor ownership, method p
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This conditional original named factory/setter/method source contract supplies no native widget/factory execution, construction, current runtime object/cell/value, receiver/frame or Normal observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This conditional original named factory/setter/method source contract supplies no native widget/factory execution, construction, current runtime object/cell/value, receiver/frame or Normal observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This conditional original named factory/setter/method source contract supplies no native widget/factory execution, construction, current runtime object/cell/value, receiver/frame or Normal observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This conditional original named factory/setter/method source contract supplies no native widget/factory execution, construction, current runtime object/cell/value, receiver/frame or Normal observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This conditional original named factory/setter/method source contract supplies no native widget/factory execution, construction, current runtime object/cell/value, receiver/frame or Normal observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This conditional original named factory/setter/method source contract supplies no native widget/factory execution, construction, current runtime object/cell/value, receiver/frame or Normal observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This conditional original named factory/setter/method source contract supplies no native widget/factory execution, construction, current runtime object/cell/value, receiver/frame or Normal observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -103,12 +59,6 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/diagnostic_subject.rs](../../../../rust/tcl-lsp-core/src/diagnostic_subject.rs), `diagnostic_subject::tests::registered_instance_transport_retains_factory_and_applicability_without_message_identity` (linked): Core transport preserves registeredInstanceSource factory identity, original instance-name bytes and applicability independently of message wording.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs), `command_binding::source_transition_advice::registered_instance::tests::original_registered_instance_unknown_mutation_retains_only_conditional_factory_advice` (linked): Unknown source widening preserves genuine original factory/name/vector only with explicit UnknownEarlierMutation and UnavailableActualLookup; stored setter-handle advice is withdrawn. No current instance or successful construction follows.
 - [rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs](../../../../rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs), `command_binding::source_transition_advice::registered_instance::tests::original_registered_factory_candidate_keys_delegate_jim_comparison_without_publication` (linked): Pure Jim candidate geometry uses counted Unicode and shared root comparison; C/Logical unsupported geometry refuses, without manufacturing a source factory or native publication.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Marked selectors bind conditional source ownership and descriptor/diagnostic transport coverage. Exact Rust outcomes require independently pinned source/executable receipts. All native provider answers remain not-tested for this source purpose; no construction, instance allocation, runtime value, Normal or edit proof is attached.
 
 ## Shared inherited catalogue provider supplement
 

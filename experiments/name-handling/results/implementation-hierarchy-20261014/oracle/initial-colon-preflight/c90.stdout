@@ -1,3 +1,0 @@
-SUPER ::Outer::Inner::Base ::Outer::Inner::Child
-MIXIN ::Traits::Inner::Base ::Traits::Inner::Child
-OWNER ::B::Base

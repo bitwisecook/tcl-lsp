@@ -20,27 +20,15 @@ Exact twelve ASCII source/artifact entries for C9.0.4 and C9.1.0, binary and wra
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
 ### tcl9.0
 
-Status: `observed`. Version: 9.0.4. Build: Shell SHA cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18; full build/source wrapper not retained. Channel: ASCII procedure source through original compiler artifact presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII procedure source through original compiler artifact presenter. Version: tcl9.0 9.0.4.
 
 Six completed artifact captures; exact retained selection flags and wrapper provenance:
 
@@ -117,7 +105,7 @@ Six completed artifact captures; exact retained selection flags and wrapper prov
 
 ### tcl9.1
 
-Status: `observed`. Version: 9.1.0. Build: Shell SHA d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c; full build/source wrapper not retained. Channel: ASCII procedure source through original compiler artifact presenter. Dialect: Tcl.
+Status: `observed`. Channel: ASCII procedure source through original compiler artifact presenter. Version: tcl9.1 9.1.0.
 
 Six completed artifact captures; exact retained selection flags and wrapper provenance:
 
@@ -192,34 +180,18 @@ Six completed artifact captures; exact retained selection flags and wrapper prov
 ]
 ```
 
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
-
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `e0` (provider): [rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json). 12 original shell artifact records, source/binary hashes and opcode flags.
-- `e1` (observation): [rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv). Exact six body spellings and opcode/concat answers per queried provider.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_instruction_plan.rs](../../../../rust/tcl-registry/src/native_instruction_plan.rs), `original_uplevel_instruction_keeps_level_and_script_stack_geometry`: Independent current Rust comparison at the stated semantic boundary.
 - [rust/tcl-registry/src/native_instruction_plan.rs](../../../../rust/tcl-registry/src/native_instruction_plan.rs), `native_instruction_plan::tests::original_uplevel_instruction_keeps_level_and_script_stack_geometry` (linked): Checks actual C9.1 level/script/concat operands and refusal variants against the original frontier table.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The original per-case procedure/disassembler wrappers and artifact logs are not retained, only their hashes/flags and exact body table. A fresh replay must retain a matching-build original procedure disassembler and complete source for all six bodies, then compare uplevel/concat presence independently in C9.0 and C9.1. Running instructions.tsv as Tcl or assuming a generic call implies this opcode is invalid.
+- [rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/provenance.json)
+- [rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv](../../../../rust/tcl-registry/tests/data/native_uplevel_compilation/instructions.tsv)

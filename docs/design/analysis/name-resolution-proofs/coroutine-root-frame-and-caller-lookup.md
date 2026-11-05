@@ -20,56 +20,23 @@ Source inspection of exact Tcl8.6.18/9.0.4/9.1.0 generic/tclBasic.c functions as
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, jim
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No observation for this question.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No observation for this question.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: 8.6.18 pinned source. Build: Full generic/tclBasic.c source hash independently matches immutable publication-v2 required_sha256.. Channel: Inspected TclNRCoroutineObjCmd function window, not a native invocation.. Dialect: Tcl.
-
-Each inspected TclNRCoroutineObjCmd saves lookupNsPtr from the caller varFrame namespace, sets running.framePtr and running.varFramePtr to rootFramePtr, clears cmdFramePtr, restores that root running context, and supplies the saved caller lookupNsPtr before evaluating the unchanged original argv List. Base execution context and first-command lookup context are distinct. No body, preparation, namespace existence, arbitrary frame or Normal permission follows.
-
-### tcl9.0
-
-Status: `inspected`. Version: 9.0.4 pinned source. Build: Full generic/tclBasic.c source hash independently matches immutable publication-v2 required_sha256.. Channel: Inspected TclNRCoroutineObjCmd function window, not a native invocation.. Dialect: Tcl.
+Status: `inspected`. Channel: Inspected TclNRCoroutineObjCmd function window, not a native invocation. Version: tcl8.6 8.6.18 pinned source; tcl9.0 9.0.4 pinned source; tcl9.1 9.1.0 pinned source.
 
 Each inspected TclNRCoroutineObjCmd saves lookupNsPtr from the caller varFrame namespace, sets running.framePtr and running.varFramePtr to rootFramePtr, clears cmdFramePtr, restores that root running context, and supplies the saved caller lookupNsPtr before evaluating the unchanged original argv List. Base execution context and first-command lookup context are distinct. No body, preparation, namespace existence, arbitrary frame or Normal permission follows.
-
-### tcl9.1
-
-Status: `inspected`. Version: 9.1.0 pinned source. Build: Full generic/tclBasic.c source hash independently matches immutable publication-v2 required_sha256.. Channel: Inspected TclNRCoroutineObjCmd function window, not a native invocation.. Dialect: Tcl.
-
-Each inspected TclNRCoroutineObjCmd saves lookupNsPtr from the caller varFrame namespace, sets running.framePtr and running.varFramePtr to rootFramePtr, clears cmdFramePtr, restores that root running context, and supplies the saved caller lookupNsPtr before evaluating the unchanged original argv List. Base execution context and first-command lookup context are distinct. No body, preparation, namespace existence, arbitrary frame or Normal permission follows.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No observation for this question.
 
 ### bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
+Status: `not-tested`.
 
 No appliance observation for this question.
-
-## Historical references
-
-- `root-frame-window-0` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). JSON pointer `/0/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
-- `root-frame-window-1` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). JSON pointer `/1/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
-- `root-frame-window-2` (source-anchor): [rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/root-frame-source-windows.json). JSON pointer `/2/snippet`. Exact full-function LF excerpts and full-source hashes, independently associated with the unchanged v2 provider receipt.
-- `association-tcl8.6` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/8.6.18/receipt.json). Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
-- `association-tcl9.0` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.0.4/receipt.json). Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
-- `association-tcl9.1` (provider): [rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json](../../../../rust/tcl-registry/tests/data/native_coroutine_publication/v2/9.1.0/receipt.json). Existing immutable source/header/library/probe/input/executable association only; its native results are scoped under separate empirical questions.
 
 ## Source inspection
 
@@ -476,13 +443,6 @@ TclNRCoroutineObjCmd(
 
 ```
 
-
 ## Consumer bindings
 
 - [rust/tcl-vm/src/cmd_coro.rs](../../../../rust/tcl-vm/src/cmd_coro.rs), `cmd_coroutine`: Stamp the initial original-invocation driver with the actual shared root frame; retain caller namespace separately in the unchanged invocation List.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Source-only reproduction checks each exact LF range against a retrieved full source with the pinned SHA and checks the immutable receipt association. Existing publication replay does not re-inspect compiler source. No Rust or fresh native execution is claimed.

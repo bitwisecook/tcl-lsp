@@ -22,55 +22,11 @@ Authored Rust controls in C8.4, C8.5, C8.6, C9.0 and C9.1 source contexts, plus 
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
+Status: `not-tested`.
 
 No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-No native interpreter observation establishes this Rust source-advice invariant.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -93,9 +49,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/variable_alias_templates.rs](../../../../rust/tcl-compiler/src/analyser/variable_alias_templates.rs), `analyser::variable_alias_templates::tests::original_alias_templates_join_qualified_targets_in_their_current_source_frame` (linked): Finite source-defined control: original alias templates join qualified targets in their current source frame. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-compiler/src/signature_scan/original_name.rs](../../../../rust/tcl-compiler/src/signature_scan/original_name.rs), `signature_scan::original_name::tests::original_logical_name_units_keep_actual_grammar_without_native_word_admission` (linked): Finite source-defined control: original logical name units keep actual grammar without native word admission. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
 - [rust/tcl-compiler/src/signature_scan/variable_name.rs](../../../../rust/tcl-compiler/src/signature_scan/variable_name.rs), `signature_scan::variable_name::tests::original_logical_roots_keep_exact_document_geometry_and_native_refusal` (linked): Finite source-defined control: original logical roots keep exact document geometry and native refusal. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The linked Rust selectors are current source-relationship coverage obligations. No native process or executed Rust result is inferred; current physical alias and editable-reference authority remain separate.

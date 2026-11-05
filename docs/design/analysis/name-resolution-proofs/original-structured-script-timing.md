@@ -20,55 +20,11 @@ Three marked Rust controls compare selected trace add variable/execution prefixe
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This selected source script-position/timing, appended-prefix arity and finite ASCII list grammar contract supplies no native callback/body entry, installed handler, object construction, result/header or runtime frame observation.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -95,9 +51,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-compiler/src/analyser/interp_visibility.rs](../../../../rust/tcl-compiler/src/analyser/interp_visibility.rs), `analyser::interp_visibility::tests::original_child_script_positions_retain_list_values_and_reference_timing` (linked): Within a positively owned C child-source snapshot, the shared original singleton command-substitution geometry plus a visible selected ListArguments descriptor can retain a finite ASCII list value for readonly role selection. The capsule retains the original operand, complete list-producer vector and full input; it supplies no native result object. Genuine uplevel [list source ...] inputs, quoted file-name element boundaries and nested static list producers resolve through the same FrameLevel role grammar before fallback. Dynamic head, non-list producer, known list shadow, inert set data, reference-only trace removal and unknown trace selector controls retain no W129 conclusion. Executable positions come solely from authored_source_script_arguments, preserving ReferenceOnly exclusion and unknown callback payloads.
 - [rust/tcl-registry/src/selected_script_timing.rs](../../../../rust/tcl-registry/src/selected_script_timing.rs), `selected_script_timing::tests::authored_plain_scripts_keep_lambda_lists_separate_from_bodies_and_prefixes` (linked): Across selected C8.5–9.1 source contexts, a dynamic apply lambda keeps its generic script slot but no plain slot; uplevel body and after prefix retain their exact original slots.
 - [rust/tcl-compiler/src/analyser/commands.rs](../../../../rust/tcl-compiler/src/analyser/commands.rs), `analyser::commands::original_nested_source_tests::nested_source_callbacks_keep_the_original_input_baked_count_and_purpose` (linked): An original lsort callback retains the genuine compare name input, one baked argument and selected Exactly(2) appended arity; the source callback descriptor does not imply invocation or Normal.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-Marked selectors bind structured source grammar and selected hook coverage. Native callback dispatch, frames, Normal completion, object/getter/header correspondence and edits require independent evidence. Exact Rust outcomes remain in their pinned source/executable receipts.

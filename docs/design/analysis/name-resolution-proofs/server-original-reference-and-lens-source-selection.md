@@ -20,56 +20,11 @@ Rust server workspace source-selection and location transport. Fixed C8.6 source
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
+Status: `not-tested`.
 
 This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: C Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### jim
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: Jim Tcl.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-### bigip
-
-Status: `not-tested`. Version: not recorded. Build: not recorded. Channel: not recorded. Dialect: F5 iRules.
-
-This is a Rust source-consumer contract. No executed interpreter or appliance observation is attached.
-
-## Historical references
-
-- `implementation-0` (implementation): [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs). Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
-- `implementation-1` (implementation): [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs). Current Rust owner for this readonly source purpose; this digest is not an execution receipt.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -88,8 +43,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-server/src/readonly_reference_reports.rs](../../../../rust/tcl-lsp-server/src/readonly_reference_reports.rs), `readonly_reference_reports::tests::readonly_member_wire_rejects_equal_path_provider_republication` (linked): Genuine MemoryStore equal-path ABA republication preserves bytes/input and SourceFile yet withdraws the old provider receipt; an independent URI invalidation and a same-byte document revision also withdraw the final set.
 - [rust/tcl-lsp-server/src/readonly_reference_reports.rs](../../../../rust/tcl-lsp-server/src/readonly_reference_reports.rs), `readonly_reference_reports::tests::unavailable_member_wire_has_no_clickable_empty_census` (linked): Partial zero and unavailable coverage carry no reference-count absence or clickable empty location result; the existing inventory retains its old zero title.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-The named Rust selectors are linked coverage obligations. Their execution outcome is separate; no native provider replay or physical runtime authority is claimed.
+- [rust/tcl-lsp-server/src/lib.rs](../../../../rust/tcl-lsp-server/src/lib.rs)
+- [rust/tcl-lsp-core/src/original_call_hierarchy.rs](../../../../rust/tcl-lsp-core/src/original_call_hierarchy.rs)

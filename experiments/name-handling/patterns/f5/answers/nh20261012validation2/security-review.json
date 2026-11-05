@@ -1,8 +1,0 @@
-{
-  "scope": "New evidence bundles, new reviewed authority records and their documents, current question index and new external reviews. Existing sealed historical evidence is not relabelled as a new sanitised capture.",
-  "files_scanned": 4583,
-  "new_authority_records_scanned": 279,
-  "credential_and_transport_secret_matches": 0,
-  "actual_credential_values_or_fingerprints_retained": false,
-  "browser_review": "Only the actual APL content frame DOM and cropped content image are retained; account navigation/session UI is excluded."
-}

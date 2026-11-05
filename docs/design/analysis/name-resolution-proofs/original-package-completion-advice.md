@@ -20,55 +20,11 @@ Readonly package catalogue and version-floor advice only. Genuine original packa
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.5
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.5.
+Status: `not-tested`.
 
 This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl8.6
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.6.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.0
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.0.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### tcl9.1
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl9.1.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-This is a Rust source-consumer implementation contract. No native provider observation or executed Rust result is attached; selected source advice supplies no physical native or runtime authority.
-
-## Historical references
-
-No evidence artifact is attached.
-
-## Source inspection
-
-No implementation source excerpt is attached. Native outputs do not supply an implementation explanation.
 
 ## Consumer bindings
 
@@ -78,9 +34,3 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/document_floor.rs](../../../../rust/tcl-lsp-core/src/document_floor.rs), `document_floor::original_package_advice_tests::original_package_advice_keeps_actual_context_and_original_requirement_units` (linked): Actual original package names and version operands survive changed reporting fields; missing/foreign source rows cannot donate a require, and a caller profile cannot replace ambient context.
 - [rust/tcl-lsp-core/src/document_floor.rs](../../../../rust/tcl-lsp-core/src/document_floor.rs), `document_floor::original_package_advice_tests::original_package_advice_preserves_alternative_floor_and_conditional_bounds` (linked): Alternative requirements retain the least admitted version floor; conditional requirements cannot establish unconditional package advice and retain the independent ambient floor.
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::original_package_completion_tests::original_package_completion_uses_retained_context_and_ignores_reported_names` (linked): Current original Tk advice survives altered reporting names and a foreign caller profile while changed whole source withdraws completion.
-
-A named test is a coverage binding, not a claim that it executed.
-
-## Replay
-
-The linked Rust selectors exercise readonly package/context and floor premises. No execution receipt or native provider observation is attached to this implementation contract.

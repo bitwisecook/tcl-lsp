@@ -20,67 +20,23 @@ Read-only inspection retains four whole original C source files, their exact dis
 
 ## Provider answers
 
-### tcl8.4
+### tcl8.4, jim, bigip
 
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: tcl8.4.
+Status: `not-tested`.
 
 No source inspection or generic ensemble process for this provider is supplied by this selected C8.5+ source question. C8.4 option and Jim/hosted purposes remain independent.
 
 ### tcl8.5
 
-Status: `inspected`. Version: Pinned source 8.5.19; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 94313727ea507b1b2b00018062a0f57587458a3509c37f2e4b351dd58d0592dc; public header SHA c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmd excerpt; independent build receipt metadata.. Dialect: Original C Tcl 8.5.19 ensemble source implementation.
+Status: `inspected`. Channel: Read-only whole source and exact NsEnsembleImplementationCmd excerpt; independent build receipt metadata. Version: tcl8.5 Pinned source 8.5.19; no generic ensemble execution/version process.
 
 Read-only source branch passes/appends the fixed suffix subcommand ?argument ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
 
-### tcl8.6
+### tcl8.6, tcl9.0, tcl9.1
 
-Status: `inspected`. Version: Pinned source 8.6.18; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 980630e3a7d37f82322fda1a7e45a85b86d8d905cb395a2aa0c083b3c7eaa8cb; public header SHA aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 8.6.18 ensemble source implementation.
-
-Read-only source branch passes/appends the fixed suffix subcommand ?arg ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
-
-### tcl9.0
-
-Status: `inspected`. Version: Pinned source 9.0.4; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA dace08db925224497714ba86969fabb51c05a78f2bda22db6c05f795c3a70ae4; public header SHA eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 9.0.4 ensemble source implementation.
+Status: `inspected`. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata. Version: tcl8.6 Pinned source 8.6.18; no generic ensemble execution/version process; tcl9.0 Pinned source 9.0.4; no generic ensemble execution/version process; tcl9.1 Pinned source 9.1.0; no generic ensemble execution/version process.
 
 Read-only source branch passes/appends the fixed suffix subcommand ?arg ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
-
-### tcl9.1
-
-Status: `inspected`. Version: Pinned source 9.1.0; no generic ensemble execution/version process.. Build: Existing independent Native292 compile receipt only: archive SHA 513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db; public header SHA 30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950. No new compiler or generic ensemble process.. Channel: Read-only whole source and exact NsEnsembleImplementationCmdNR excerpt; independent build receipt metadata.. Dialect: Original C Tcl 9.1.0 ensemble source implementation.
-
-Read-only source branch passes/appends the fixed suffix subcommand ?arg ...?. Parameter-prefix construction, original invocation/header, renderer and actual handler execution require their independent premises; this source observation grants no generic public result or software pass.
-
-### jim
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: jim.
-
-No source inspection or generic ensemble process for this provider is supplied by this selected C8.5+ source question. C8.4 option and Jim/hosted purposes remain independent.
-
-### bigip
-
-Status: `not-tested`. Version: not tested. Build: not tested. Channel: not tested. Dialect: bigip.
-
-No source inspection or generic ensemble process for this provider is supplied by this selected C8.5+ source question. C8.4 option and Jim/hosted purposes remain independent.
-
-## Historical references
-
-- `ensemble-missing-selector-source297-8.5.19-independent-info292-compile.receipt.json` (provider): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.5.19-independent-info292-compile.receipt.json](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.5.19-independent-info292-compile.receipt.json). Exact existing independent Native292 compilation receipt retained as build metadata only; no generic ensemble execution or new compilation.
-- `ensemble-missing-selector-source297-8.5.19-tclNamesp.c` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.5.19-tclNamesp.c](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.5.19-tclNamesp.c). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-8.5.19-tclNamesp.c-6025-6053.txt` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.5.19-tclNamesp.c-6025-6053.txt](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.5.19-tclNamesp.c-6025-6053.txt). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-8.6.18-independent-info292-compile.receipt.json` (provider): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.6.18-independent-info292-compile.receipt.json](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.6.18-independent-info292-compile.receipt.json). Exact existing independent Native292 compilation receipt retained as build metadata only; no generic ensemble execution or new compilation.
-- `ensemble-missing-selector-source297-8.6.18-tclEnsemble.c` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.6.18-tclEnsemble.c](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.6.18-tclEnsemble.c). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-8.6.18-tclEnsemble.c-1677-1723.txt` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.6.18-tclEnsemble.c-1677-1723.txt](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/8.6.18-tclEnsemble.c-1677-1723.txt). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-9.0.4-independent-info292-compile.receipt.json` (provider): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.0.4-independent-info292-compile.receipt.json](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.0.4-independent-info292-compile.receipt.json). Exact existing independent Native292 compilation receipt retained as build metadata only; no generic ensemble execution or new compilation.
-- `ensemble-missing-selector-source297-9.0.4-tclEnsemble.c` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.0.4-tclEnsemble.c](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.0.4-tclEnsemble.c). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-9.0.4-tclEnsemble.c-1748-1793.txt` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.0.4-tclEnsemble.c-1748-1793.txt](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.0.4-tclEnsemble.c-1748-1793.txt). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-9.1.0-independent-info292-compile.receipt.json` (provider): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.1.0-independent-info292-compile.receipt.json](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.1.0-independent-info292-compile.receipt.json). Exact existing independent Native292 compilation receipt retained as build metadata only; no generic ensemble execution or new compilation.
-- `ensemble-missing-selector-source297-9.1.0-tclEnsemble.c` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.1.0-tclEnsemble.c](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.1.0-tclEnsemble.c). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-9.1.0-tclEnsemble.c-1749-1794.txt` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.1.0-tclEnsemble.c-1749-1794.txt](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/9.1.0-tclEnsemble.c-1749-1794.txt). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `ensemble-missing-selector-source297-request.json` (source-anchor): [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/request.json](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297/request.json). Exact independently pinned original C source, dispatcher excerpt or read-only original question request; no provider execution or private object observation.
-- `naming-ensemble-original-missing-selector-source-usage-runtime-rust-src-interp.rs` (implementation): [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-ensemble-original-missing-selector-source-usage-rust-tcl-registry-src-native_ensemble.rs` (implementation): [rust/tcl-registry/src/native_ensemble.rs](../../../../rust/tcl-registry/src/native_ensemble.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-ensemble-original-missing-selector-source-usage-rust-tcl-registry-src-native_index_lookup.rs` (implementation): [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
-- `naming-ensemble-original-missing-selector-source-usage-rust-tcl-vm-src-interp.rs` (implementation): [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs). Current source/API owner and software assertion definition; no executed Rust or native provider result.
 
 ## Source inspection
 
@@ -115,7 +71,6 @@ NsEnsembleImplementationCmd(
 	Tcl_WrongNumArgs(interp, 1, objv, "subcommand ?argument ...?");
 	return TCL_ERROR;
     }
-
 
 ```
 
@@ -169,7 +124,6 @@ NsEnsembleImplementationCmdNR(
 	return TCL_ERROR;
     }
 
-
 ```
 
 tcl9.0 Pinned original source 9.0.4; independent build metadata only., revision `Exact original content SHA; no source-control revision claimed.`, `/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclEnsemble.c`, function `NsEnsembleImplementationCmdNR`, lines 1748–1793. Retained reference `ensemble-missing-selector-source297-9.0.4-tclEnsemble.c`.
@@ -220,7 +174,6 @@ NsEnsembleImplementationCmdNR(
 
 	return TCL_ERROR;
     }
-
 
 ```
 
@@ -273,9 +226,7 @@ NsEnsembleImplementationCmdNR(
 	return TCL_ERROR;
     }
 
-
 ```
-
 
 ## Consumer bindings
 
@@ -285,8 +236,10 @@ NsEnsembleImplementationCmdNR(
 - [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `Vm::ensemble_wrong_args`: Consume the same selected suffix with independently retained invocation words, parameter spelling and usage/header protocol; no observed native private object is recreated by this byte recipe.
 - [rust/tcl-registry/src/native_ensemble.rs](../../../../rust/tcl-registry/src/native_ensemble.rs), `native_ensemble::configuration_surface_tests::actual_ensemble_missing_selector_usage_is_selected_independently_of_info` (linked): Pure selected protocol keeps C8.5 argument and C8.6/C9.0/C9.1 arg suffixes equal to their inspected dispatcher recipes; info delegates for those releases. C8.4, Jim, hosted and missing release/family cannot borrow the generic C recipe. This definition is no executed Rust or generic native ensemble result.
 
-A named test is a coverage binding, not a claim that it executed.
+## Evidence
 
-## Replay
-
-Named Rust coverage is linked, not an executed-result claim. Exact source/executable receipts retain actual outcomes separately. Native evidence and runtime/effect/frame/edit obligations remain independent.
+- [rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297](../../../../rust/tcl-registry/tests/data/native_ensemble_missing_selector_source297)
+- [runtime/rust/src/interp.rs](../../../../runtime/rust/src/interp.rs)
+- [rust/tcl-registry/src/native_ensemble.rs](../../../../rust/tcl-registry/src/native_ensemble.rs)
+- [rust/tcl-registry/src/native_index_lookup.rs](../../../../rust/tcl-registry/src/native_index_lookup.rs)
+- [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs)

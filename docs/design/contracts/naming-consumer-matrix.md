@@ -284,7 +284,7 @@ slot, then renders that word through the shared Tcl list owner.
 
 A named test is an available control, not an execution receipt. Software
 results apply only to the exact frozen source image, binary and selection
-retained in the [verification archive](../analysis/name-resolution-proofs/rust-validation/README.md).
+retained in the verification archive.
 A successful inventory lists tests; it does not execute assertions. Native
 records answer only their original input and public channel. Source/API
 contracts retain not-tested provider rows even when a Rust control exercises

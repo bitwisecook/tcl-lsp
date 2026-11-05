@@ -1,2 +1,0 @@
-    set timeCmd {clock format [clock seconds] -format "%Y-%m-%d %H:%M:%S %Z" -locale en}
-    puts [outputChannel] "Tests began at [eval $timeCmd]"
