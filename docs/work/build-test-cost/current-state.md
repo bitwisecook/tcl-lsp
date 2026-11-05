@@ -14,7 +14,7 @@ for access).
 | 2 | `rust-check` is one serial 16-minute job | **Landed, awaiting first CI run**: `cargo xtask batch`/`make xtask-gates`; `rust-check` split into `lint` and `drift` matrix legs | `rust/xtask/src/main.rs`, `Makefile`, `.github/workflows/ci.yml`, `scripts/dev/test-pr-gate-path.sh` |
 | 3 | Repository weight on `work` | **Landed**: the evidence prune (`8ab317a`) took the tree from 10.7 GB to 0.34 GB; `make check-tracked-size` in `xtask-check` keeps it there | `scripts/dev/check-tracked-size.py`, `scripts/dev/test_tracked_size.py` |
 | 4 | Monolithic crates compiled twice | **Landed**: the emitters split into `tcl-codegen`; test parity with the base proven | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
-| 5 | Hundreds of fat test binaries | **Landed, per-binary test-count check running**: integration tests merged per (crate, shard) | `rust/*/tests/it_<k>/`, `scripts/dev/rust-test-binary-shards.tsv`, test-tiers contract |
+| 5 | Hundreds of fat test binaries | **Landed**: integration tests merged per (crate, shard); no test lost | `rust/*/tests/it_<k>/`, `scripts/dev/rust-test-binary-shards.tsv`, test-tiers contract |
 | 6 | Broken and racing CI caches | Not started (item 2 gives each `rust-check` leg its own cache key) | |
 | 7 | Exhaustive checks in unoptimised unit tests | Not started | |
 | 8 | Version stamp reruns on every cargo call | Not started | |
@@ -229,6 +229,11 @@ into one CI shard and undo the binary-aware balance. Instead, in each crate the
 - `tcl-vm`, deps warm, 4 vCPU, no debuginfo: building its integration
   harnesses went from 51 s and 9.2 GB to 46 s and 1.8 GB (82 files, 15
   executables).
+- No test lost: each of the 35 merged binaries' `--list` count equals the
+  static `#[test]` count of its files (8,025 tests), except four files where
+  the difference is a `#[test]` in a doc comment (`taint_depth`,
+  `pack_torture`), a `cmd-core`-feature test (`precision_oracle`, built in
+  CI's `--all-features`) and a release-only test (`cmd_thread_e2e`).
 - Merged modules: `crate::` paths became `crate::<module>::`, out-of-line
   modules and relative `include_*!` paths resolve from `tests/it_<k>/`, and the
   one shared support file that named a sibling through `crate::` uses
@@ -236,7 +241,5 @@ into one CI shard and undo the binary-aware balance. Instead, in each crate the
 
 Open:
 
-- Each merged binary's listed tests against the static `#[test]` count of its
-  files (first two equal: `tcl-cli::it_5` 85, `tcl-codegen::it_2` 350).
 - The CI build-once/archive pipeline for `rust-tests` (plan 5.3) and test
   debuginfo settings (5.2).
