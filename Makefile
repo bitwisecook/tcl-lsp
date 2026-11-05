@@ -204,10 +204,10 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 
 .PHONY: help
 # Top-level gates
-.PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
+.PHONY: rust-check rust-check-lint rust-check-drift check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-bundled-manifests xtask-gen-equivalence-packs xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
+.PHONY: xtask-check xtask-gates xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-bundled-manifests xtask-gen-equivalence-packs xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-object-recipe-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
@@ -901,7 +901,52 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-bundled-manifests xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-object-recipe-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+# The single-command `cargo xtask` drift gates `xtask-check` runs, as one
+# `cargo xtask batch` process: one cargo start-up and build check, one warm
+# set of registry caches. Each still has its own `xtask-*` target for local use;
+# a gate added to `xtask-check` that is a bare `cargo xtask` call belongs here.
+XTASK_GATES := \
+	'workflow-sync --check' \
+	'kcs-index-links' \
+	'diag-tables --check' \
+	'diag-emission-check' \
+	'gen-editor-catalogs --check' \
+	'gen-bundled-environments --check' \
+	'gen-bundled-manifests --check' \
+	'gen-editor-dialects --check' \
+	'gen-irule-test-data --check' \
+	'gen-zed-queries --check' \
+	'gen-tmlanguage-keywords --check' \
+	'gen-bigip-grammars --check' \
+	'gen-editor-settings --check' \
+	'gen-vscode-package --check' \
+	'gen-jetbrains-catalog --check' \
+	'gen-ai-diagnostics --check' \
+	'owner-resolution' \
+	'catalogue-callers --check' \
+	'resolution-drift' \
+	'retired-api-gate' \
+	'object-recipe-gate' \
+	'pack-goldens --check' \
+	'number-drift' \
+	'segmentation-drift' \
+	'value-transfers --check' \
+	'registry-axes --check' \
+	'command-backing --check' \
+	'callback-inventory --check' \
+	'audit-option-dialects --check' \
+	'runtime-stdlib' \
+	'gen-editor-extensions --check' \
+	'gen-editor-configs --check' \
+	'gen-environment-docs --check' \
+	'f5-query-builtins-doc --check' \
+	'bigip-data-schema --check'
+
+xtask-gates: ## Run every single-command xtask drift gate in one process
+	@echo "==> Running 35 xtask drift gates in one process (cargo xtask batch)"
+	cd $(ROOT) && cargo xtask batch $(XTASK_GATES)
+
+xtask-check: check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-gates xtask-sslictcl-data xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -1184,7 +1229,11 @@ _prep-pr-smoke-tier: smoke
 
 # Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
 # rust-check worker behind the stable pr-gate aggregate in GitHub Actions.
-rust-check: check-rust-pr xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
+rust-check: rust-check-lint rust-check-drift ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
+
+# The two halves CI runs as parallel legs of its `rust-check` job.
+rust-check-lint: check-rust-pr ## Rust fmt + clippy (the lint leg of rust-check)
+rust-check-drift: xtask-check ## Generated-file drift gates (the drift leg of rust-check)
 
 # The local pre-push gate: format + codegen + lint/typecheck + the smoke test
 # tier.  Deliberately NOT the full test suite — CI runs the deep suites

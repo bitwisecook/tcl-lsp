@@ -228,8 +228,25 @@ require_contains "$rust_check" 'name: Set up Rust' \
 worker_step=$(step_block "$rust_check" 'Run fast CI gate (format + Clippy + generated-file drift)')
 [ -n "$worker_step" ] ||
     fail 'rust-check must define the named fast-gate step'
-require_line "$worker_step" '        run: make rust-check' \
-    'rust-check fast-gate step must run the unchanged make rust-check contract'
+require_line "$worker_step" '        run: make rust-check-${{ matrix.part }}' \
+    'rust-check fast-gate step must run its leg of the make rust-check contract'
+# The legs together are exactly `make rust-check`: both run, neither cancels
+# the other, and the Makefile defines rust-check as their union.
+require_line "$rust_check" '    strategy:' \
+    'rust-check must split make rust-check into matrix legs'
+require_line "$rust_check" '      fail-fast: false' \
+    'rust-check legs must not cancel each other'
+require_line "$rust_check" '        part: [lint, drift]' \
+    'rust-check must run exactly the lint and drift legs'
+makefile_line() {
+    grep -E "^$1:" "${MAKEFILE:-$REPO_ROOT/Makefile}" | sed 's/[[:space:]]*##.*$//'
+}
+[ "$(makefile_line rust-check)" = 'rust-check: rust-check-lint rust-check-drift' ] ||
+    fail 'make rust-check must be exactly rust-check-lint plus rust-check-drift'
+[ "$(makefile_line rust-check-lint)" = 'rust-check-lint: check-rust-pr' ] ||
+    fail 'make rust-check-lint must be exactly check-rust-pr'
+[ "$(makefile_line rust-check-drift)" = 'rust-check-drift: xtask-check' ] ||
+    fail 'make rust-check-drift must be exactly xtask-check'
 require_line "$worker_step" "        if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')" \
     'rust-check fast-gate step must preserve pre-release and already-green skips'
 worker_if_lines=$(printf '%s\n' "$worker_step" | grep -Ec '^        if:' || true)
@@ -431,6 +448,25 @@ if [ "${PR_GATE_CONTRACT_NEGATIVE:-true}" = true ]; then
         '        continue-on-error: true' "$WORKFLOW" > "$candidate"
     expect_rejected rust-check-step-continue-on-error "$candidate"
 
+    candidate=$tmp/rust-check-one-leg.yml
+    sed 's/^        part: \[lint, drift\]$/        part: [lint]/' "$WORKFLOW" > "$candidate"
+    expect_rejected rust-check-one-leg "$candidate"
+
+    candidate=$tmp/rust-check-fail-fast.yml
+    awk '
+        !done && $0 == "      fail-fast: false" && seen { print "      fail-fast: true"; done = 1; next }
+        $0 == "  rust-check:" { seen = 1 }
+        { print }
+    ' "$WORKFLOW" > "$candidate"
+    expect_rejected rust-check-fail-fast "$candidate"
+
+    candidate=$tmp/Makefile.rust-check-without-drift
+    sed 's/^rust-check: rust-check-lint rust-check-drift/rust-check: rust-check-lint/' \
+        "$REPO_ROOT/Makefile" > "$candidate"
+    if MAKEFILE=$candidate PR_GATE_CONTRACT_NEGATIVE=false sh "$0"; then
+        fail 'negative control unexpectedly passed: rust-check-without-drift'
+    fi
+
     candidate=$tmp/duplicate-rust-check-step-condition.yml
     insert_after_prefix "        if: needs.channel.outputs.prerelease != 'true'" \
         '        if: false' "$WORKFLOW" > "$candidate"
@@ -440,8 +476,8 @@ if [ "${PR_GATE_CONTRACT_NEGATIVE:-true}" = true ]; then
     # step may satisfy the make-rust-check contract.
     candidate=$tmp/commented-worker.yml
     awk '
-        $0 == "        run: make rust-check" {
-            print "        # run: make rust-check"
+        $0 == "        run: make rust-check-${{ matrix.part }}" {
+            print "        # run: make rust-check-${{ matrix.part }}"
             print "        run: true"
             next
         }

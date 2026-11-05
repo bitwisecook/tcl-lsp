@@ -139,6 +139,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Run several subcommands in this one process, each given as one quoted
+    /// argument (`'diag-tables --check'`). Every gate runs; the batch fails if
+    /// any did. One process means one build check and one warm set of
+    /// registry caches instead of one `cargo xtask` start-up per gate.
+    Batch {
+        /// The subcommands, each a space-separated argv after `xtask`.
+        #[arg(required = true)]
+        gates: Vec<String>,
+    },
+
     /// Validate markdown links + KCS/design index coverage under `docs/`.
     KcsIndexLinks,
 
@@ -567,7 +577,56 @@ enum Command {
 }
 
 fn main() -> anyhow::Result<ExitCode> {
-    match Cli::parse().command {
+    dispatch(Cli::parse().command)
+}
+
+fn batch(gates: &[String]) -> ExitCode {
+    let mut failed = Vec::new();
+    let started = std::time::Instant::now();
+    for gate in gates {
+        let argv = std::iter::once("xtask").chain(gate.split_whitespace());
+        let gate_started = std::time::Instant::now();
+        println!("==> xtask {gate}");
+        let outcome = match Cli::try_parse_from(argv) {
+            Ok(Cli {
+                command: Command::Batch { .. },
+            }) => Err(anyhow::anyhow!("a batch cannot contain a batch")),
+            Ok(cli) => dispatch(cli.command),
+            Err(err) => Err(err.into()),
+        };
+        let ok = match outcome {
+            Ok(code) => code == ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                false
+            }
+        };
+        println!(
+            "<== xtask {gate}: {} in {:.1}s",
+            if ok { "ok" } else { "FAILED" },
+            gate_started.elapsed().as_secs_f64()
+        );
+        if !ok {
+            failed.push(gate.as_str());
+        }
+    }
+    println!(
+        "xtask batch: {} of {} gates passed in {:.1}s",
+        gates.len() - failed.len(),
+        gates.len(),
+        started.elapsed().as_secs_f64()
+    );
+    if failed.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        eprintln!("xtask batch: failed: {}", failed.join(", "));
+        ExitCode::FAILURE
+    }
+}
+
+fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
+    match command {
+        Command::Batch { gates } => Ok(batch(&gates)),
         Command::KcsIndexLinks => kcs_index_links::run(),
         Command::SmokeTargets { operation, package } => {
             cargo_smoke::run(&operation, package.as_deref())

@@ -417,7 +417,17 @@ jobs:
     # There is deliberately no job-level path or tag skip here. The worker
     # must report a real result for every graph shape; only its unchanged,
     # pre-release, and already-green work is step-gated below.
+    #
+    # Two legs of one job: `make rust-check` is exactly `rust-check-lint`
+    # (fmt + clippy) plus `rust-check-drift` (generated-file drift gates), and
+    # each leg used to wait for the other. `needs.rust-check.result` fails when
+    # either leg fails, so `pr-gate` is unchanged.
+    name: rust-check (${{ matrix.part }})
     needs: [channel]
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [lint, drift]
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -426,12 +436,15 @@ jobs:
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       # rust-toolchain.toml pins the channel (stable); the action installs it
-      # plus fmt/clippy and wires up Swatinem cache.
+      # plus fmt/clippy and wires up Swatinem cache, one per leg: clippy's
+      # check metadata and the drift leg's xtask build share little, and two
+      # legs saving one key race.
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           components: clippy, rustfmt
+          cache-key: rust-check-${{ matrix.part }}
 
       - name: Fetch pinned Tcl 9.0.4 TomMath sources
         timeout-minutes: 16
@@ -453,7 +466,7 @@ jobs:
         # and already-green tags report success without repeating this work.
         # Already-green merge pushes still run to warm the base-branch cache.
         if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        run: make rust-check
+        run: make rust-check-${{ matrix.part }}
 
   # `pr-gate` is the required status on `rust`. It must run even when a needed
   # job failed: Actions otherwise skips a dependent job, and a skipped required
