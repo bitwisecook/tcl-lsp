@@ -87,17 +87,21 @@ def plan(
 ) -> Plan:
     source_sha = git("rev-parse", "--verify", f"{source}^{{commit}}", cwd=root)
     base_sha = git("rev-parse", "--verify", f"{base}^{{commit}}", cwd=root)
-    parent = base_sha if is_ancestor(base_sha, source_sha, root) else ""
-    for _ in range(deepen):
-        if parent:
+    parent = ""
+    for attempt in range(deepen + 1):
+        if is_ancestor(base_sha, source_sha, root):
+            parent = base_sha
             break
         parent = git("merge-base", source_sha, base_sha, cwd=root, check=False)
-        if parent:
+        shallow = git("rev-parse", "--is-shallow-repository", cwd=root) == "true"
+        if parent or attempt == deepen or not shallow:
             break
-        if git("rev-parse", "--is-shallow-repository", cwd=root) != "true":
-            break
-        git("fetch", "--filter=blob:none", "--deepen=500", remote, cwd=root)
-    parent = parent or git("merge-base", source_sha, base_sha, cwd=root, check=False)
+        refs = [
+            f"+refs/heads/{name[len(remote) + 1 :]}:refs/remotes/{name}"
+            for name in (source, base)
+            if name.startswith(f"{remote}/")
+        ]
+        git("fetch", "--filter=blob:none", "--deepen=500", remote, *refs, cwd=root)
     if not parent:
         raise CutError(
             f"no merge-base between {source} and {base}; "

@@ -95,6 +95,28 @@ class CutSquashedBranchTests(unittest.TestCase):
         merge_base = sh(self.root, "merge-base", "origin/work", "origin/rust")
         self.assertEqual(sh(self.root, "rev-parse", "slim^"), merge_base)
 
+    def test_deepens_a_shallow_clone_to_find_the_base(self) -> None:
+        shallow = Path(self.temp.name) / "shallow"
+        sh(
+            Path(self.temp.name),
+            "clone",
+            "-q",
+            "--depth=1",
+            "--no-single-branch",
+            f"file://{self.remote}",
+            str(shallow),
+        )
+        self.root = shallow
+        code, _, err = self.run_main("cut", "--branch", "slim")
+        self.assertEqual(code, 1)
+        self.assertIn("no merge-base", err)
+        code, out, err = self.run_main("cut", "--branch", "slim", "--deepen", "2")
+        self.assertEqual(code, 0, err)
+        self.assertIn("base tip", out)
+        self.assertEqual(
+            sh(shallow, "rev-parse", "slim^"), sh(shallow, "rev-parse", "origin/rust")
+        )
+
     def test_refuses_existing_branch_and_dirty_tree(self) -> None:
         code, _, err = self.run_main("cut", "--branch", "work")
         self.assertEqual(code, 1)
