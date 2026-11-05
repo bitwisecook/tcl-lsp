@@ -2389,10 +2389,26 @@ fn scan_cfg_callers<'a>(
         let config = ctx.module.lexer_config;
         for (&block_id, block) in &func.blocks {
             for (index, stmt) in block.statements.iter().enumerate() {
-                if stmt.tokens().is_some_and(|tokens| {
-                    !tokens.evaluates_words()
-                        || crate::variable_bindings::source_free_effect_marker(tokens)
-                }) {
+                if stmt
+                    .tokens()
+                    .is_some_and(|tokens| !tokens.evaluates_words())
+                {
+                    continue;
+                }
+                // The unseen code beside a call to one retained in-module
+                // procedure is that procedure's body, scanned as its own caller.
+                if crate::ssa::is_unseen_call_marker(stmt)
+                    && index > 0
+                    && func
+                        .source_tokens_at(block_id, index - 1)
+                        .and_then(|tokens| tokens.source_binding.as_ref())
+                        .and_then(crate::command_binding::SourceInvocationBinding::proved_target)
+                        .is_some_and(|target| {
+                            target.kind == crate::command_binding::BindingKind::Proc
+                                && !target.registry_backed
+                                && target.implementation_allocation.is_some()
+                        })
+                {
                     continue;
                 }
                 let tokens = func.source_tokens_at(block_id, index);

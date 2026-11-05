@@ -3803,3 +3803,31 @@ mod declared_package_require {
         assert!(!found.iter().any(|c| c == "W214"), "{found:?}");
     }
 }
+
+// Interprocedural seeding from callers: a procedure every caller passes the
+// same literal folds its condition (I230); any other caller, direct, through
+// `uplevel` or through a dispatched head, retracts the seed.
+//   tclsh: `proc h {m} {expr {$m eq "prod"}}; list [h prod] [h dev]` ⇒ `1 0`
+mod caller_uniform_literal_seed {
+    use super::*;
+
+    const LIB: &str = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n    return $r\n}\nhelper prod\n";
+
+    #[test]
+    fn agreeing_callers_fold_the_condition() {
+        let src = format!("{LIB}helper prod\n");
+        assert!(fires(&src, D, "I230"), "{:?}", codes(&src, D));
+    }
+
+    #[test]
+    fn a_differing_caller_retracts_the_fold() {
+        for other in [
+            "helper dev",
+            "uplevel #0 {helper dev}",
+            "set c helper; $c dev",
+        ] {
+            let src = format!("{LIB}{other}\n");
+            assert!(!fires(&src, D, "I230"), "`{other}`: {:?}", codes(&src, D));
+        }
+    }
+}

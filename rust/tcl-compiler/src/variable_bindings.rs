@@ -380,9 +380,7 @@ impl Function {
     }
 }
 
-/// A synthetic effect marker standing beside the command it describes; it
-/// carries no command words of its own.
-pub(crate) fn source_free_effect_marker(tokens: &crate::ir::CommandTokens) -> bool {
+fn source_free_effect_marker(tokens: &crate::ir::CommandTokens) -> bool {
     use crate::ir::SyntheticMarker;
     match tokens.synthetic {
         Some(
