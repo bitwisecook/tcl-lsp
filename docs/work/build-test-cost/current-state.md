@@ -204,4 +204,11 @@ Open:
 
 - Teach the source-route checker cross-crate `tcl_compiler::` routes, so the
   two unchecked routes above become checked (naming workstream's gate).
-- Re-time a cold library build against the base.
+
+Build time, cold `cargo build --workspace --lib` on 4 vCPU without debuginfo,
+base `4be8d9f` then the split, back to back: **248.6 s → 235.4 s** (−5%).
+`tcl-compiler` itself 125.5 s → 114.7 s and still the critical path;
+`tcl-lsp-core` starts 14 s earlier; `tcl-vm` now waits for `tcl-codegen` but
+is off the critical path. The large wins in this area need the cycle in
+`tcl-compiler`'s production code broken by design, or the build-once CI
+pipeline of item 5.
