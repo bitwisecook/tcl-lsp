@@ -3720,3 +3720,51 @@ mod event_lifecycle {
         }
     }
 }
+
+// Requiring a package the interpreter provides at start-up only checks its
+// version; no loader runs, so the command world stays proved.
+//   tclsh8.6: `package names` ⇒ `zlib TclOO tcl::tommath Tcl`
+//   tclsh9.0: `package names` ⇒ `zlib tcl::zlib TclOO tcl::oo tcl::tommath Tcl tcl`
+mod interpreter_provided_package_require {
+    use super::*;
+
+    const BODY: &str = "proc f {a} { puts $nope }\nf 1\n";
+
+    #[test]
+    fn requiring_tcl_keeps_procedure_diagnostics() {
+        for (dialect, require) in [
+            ("tcl8.4", "package require Tcl 8.4"),
+            ("tcl8.5", "package require Tcl 8.5"),
+            ("tcl8.6", "package require Tcl 8.6"),
+            ("tcl9.0", "package require Tcl 9.0"),
+            ("tcl9.0", "package require tcl 9.0"),
+            ("tcl9.1", "package require Tcl 9.1"),
+        ] {
+            let src = format!("{require}\n{BODY}");
+            let found = codes(&src, dialect);
+            for code in ["W210", "W214"] {
+                assert!(
+                    found.iter().any(|c| c == code),
+                    "{dialect} `{require}` lost {code}: {found:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn requiring_tcloo_where_the_core_provides_it_keeps_procedure_diagnostics() {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let src = format!("package require TclOO\n{BODY}");
+            assert!(fires(&src, dialect, "W210"), "{dialect}");
+        }
+    }
+
+    #[test]
+    fn the_diagnostics_match_the_unrequired_script() {
+        let mut plain = codes(BODY, D);
+        let mut required = codes(&format!("package require Tcl 8.6\n{BODY}"), D);
+        plain.sort();
+        required.sort();
+        assert_eq!(plain, required);
+    }
+}

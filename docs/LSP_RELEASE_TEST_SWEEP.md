@@ -24,6 +24,8 @@ pushed fix commit; their numbers are added below as they complete.
 
 | # | Cluster | Scope | Evidence | Status |
 | --- | --- | --- | --- | --- |
+| 0 | `package require` of anything makes every later command an unproved binding, so W210/W214, call-graph edges and compiler folds vanish below a file's prelude. Fixed for the interpreter's own packages (fix 2). For other packages the decision is to trust a loader limited to its declared surface when a loaded SpecTcl pack or the shipped registry declares the package (fix 3, in progress). | LSP, SpecTcl, product | `tcl diag`/`tcl callgraph` with and without `package require Tcl 8.6`; `explore` reports `unresolved-unproved-binding` | Partly fixed |
+| 0b | LSP server `e2e` suite: 1020 passed, 412 failed, then aborted (panic in a destructor during `semantic_tokens_reference_client::large_file_first_semantic_tokens_response_is_prompt`; one `memory allocation … failed`). Failures span diagnostics (62), iRules (33), rename (25), definition (25), rename safety (24), code actions (24), references (19), recovery (18). | LSP, product | `tcl-lsp-server` `tests/e2e.rs` at fix 2 | Triage next |
 | 1 | Test fixtures lower with a profile-less `CommandRegistry::build_default()` or a lexer config that does not match the registry's profile. The name-resolution contract makes both abstain, so commands stay generic `Call`s and procedures are never materialised (`fixture body "::p" absent`). | Test harness (hundreds of `tcl-compiler`, `tcl-lsp-core`, `tcl-lsp-db` failures) | `cfg.rs`, `codegen*.rs`, `checks.rs`, `core_analyses.rs`, `dataflow.rs`, `compiler_residual.rs`, `alias_scoping.rs`, `caller_frame_effects.rs` | Partly fixed (fix 1); remaining files need the same migration |
 | 2 | SpecTcl pack `const_fold` hooks never dispatch in the optimiser; CLI `opt` with `package require` does not fold `::tcl_lsp_fixture::strlen abcde`. Builtin folds work. | SpecTcl, product | `tcl-cli` `cli_publishes_project_pack_hooks`; `tcl-spec-hooks` `const_fold_e2e`; trace shows no `dispatch-entry` | Open |
 | 3 | Pack-defined `try` respelling lowers to `Try` but its bodies lose their definitions under dialect-aware lowering. | SpecTcl, product | `cfg.rs::a_try_handler_walk_reads_timing_not_keywords` (exposed by fix 1) | Open |
@@ -43,7 +45,9 @@ pushed fix commit; their numbers are added below as they complete.
 
 | Fix | Commit | Change | Measured effect |
 | --- | --- | --- | --- |
-| 1 | this commit | `lower_to_ir` lexes and resolves under the registry's own profile; `codegen.rs` fixtures use a tcl8.6-projected registry | Across the 43 binaries that call `lower_to_ir`: 85 tests newly pass, 1 newly fails (cluster 3, exposed). `codegen` 106→37, `cfg` 14→7, `alias_scoping` 7→2, `compiler_residual` 23→20. `dialect_threading` (no `lower_to_ir` use) has 5 iRules failures, cluster 14 |
+| 1 | `453e4ca35` (pushed as `285869e8d`) | `lower_to_ir` lexes and resolves under the registry's own profile; `codegen.rs` fixtures use a tcl8.6-projected registry | Across the 43 binaries that call `lower_to_ir`: 85 tests newly pass, 1 newly fails (cluster 3, exposed). `codegen` 106→37, `cfg` 14→7, `alias_scoping` 7→2, `compiler_residual` 23→20. `dialect_threading` (no `lower_to_ir` use) has 5 iRules failures, cluster 14 |
+
+| 2 | this commit | Seed the packages a fresh interpreter provides (`TclVersion::core_provided_packages`: `Tcl`, `tcl`, `TclOO`, `tcl::oo`) as present, so requiring one is a version check, not an unknown loader | `package require Tcl 8.6` keeps W210/W214 and call-graph edges; 3 new `checks.rs` regression tests pass on 8.4–9.1; no new failures in `checks`, `cli`, `taint`, `optimiser`, `builtins_e2e`, `cmd_oo_e2e`, `pkg_verbs` against baseline |
 
 ## Not yet run
 

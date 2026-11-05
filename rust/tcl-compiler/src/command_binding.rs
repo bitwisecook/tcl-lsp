@@ -15718,6 +15718,9 @@ impl ModuleCommandBindings {
     }
 
     fn initial_from_baseline(registry: &CommandRegistry, baseline: Arc<BindingBaseline>) -> Self {
+        let state_baseline_release = (baseline.native_entry.is_none() && !baseline.unknown_entry)
+            .then_some(baseline.release)
+            .flatten();
         let mut exports: BTreeMap<String, Vec<tcl_core_types::NameBytes>> = BTreeMap::new();
         let mut namespaces = BTreeSet::from(["::".to_owned()]);
         if let Some(context) = baseline.hosted_execution_context {
@@ -15755,6 +15758,7 @@ impl ModuleCommandBindings {
                     .collect(),
             ),
             namespaces: Arc::new(namespaces.into_iter().collect()),
+            packages: Arc::new(interpreter_provided_packages(state_baseline_release)),
             ..Self::default()
         };
         state.original_command_world =
@@ -20884,6 +20888,29 @@ fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
     } else {
         Binding::of(BindingKind::Opaque)
     }
+}
+
+/// The packages a fresh interpreter of `release` provides before any script
+/// runs. Requiring one only checks its version: no loader runs and no command
+/// binding changes.
+fn interpreter_provided_packages(
+    release: Option<tcl_dialect::TclVersion>,
+) -> BTreeMap<String, BTreeSet<PackageProvision>> {
+    release
+        .map(tcl_dialect::TclVersion::core_provided_packages)
+        .unwrap_or_default()
+        .iter()
+        .map(|package| {
+            (
+                package.name.to_owned(),
+                BTreeSet::from([PackageProvision {
+                    present: true,
+                    version: Some(package.version.to_owned()),
+                    implementation: None,
+                }]),
+            )
+        })
+        .collect()
 }
 
 fn apply_package_transition(
