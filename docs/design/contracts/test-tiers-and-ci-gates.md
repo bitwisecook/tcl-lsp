@@ -71,6 +71,23 @@ Binary-level assignment preserves automatic coverage for new tests
 inside an existing harness; a new or renamed harness fails the metadata proof
 until the map assigns it.
 
+Integration tests are linked per shard, not per file. In each crate, the
+`tests/*.rs` files assigned to shard `k` are modules of one harness,
+`tests/it_<k>/main.rs` (target `it_<k>`): every test still runs in the shard
+it ran in, and the crate links at most five test binaries instead of one per
+file (`tcl-vm`: 82 files, 46 s and 1.8 GB to build its harnesses instead of
+51 s and 9.2 GB). Add a test file as `mod <file>;` in the `it_<k>` of the
+shard it belongs to; a new top-level `tests/*.rs` is a binary of its own and
+needs a map row. Files stay separate binaries when a command or filter names
+them (`--test <name>`, smoke binaries, `*_corpus` and
+`differential_incremental`), when they are explicit `[[test]]` targets, or
+when they need crate-level attributes. A merged module is no longer a crate
+root: its `crate::` paths go through `crate::<module>::`, its out-of-line
+modules and relative `include_*!` paths are written relative to
+`tests/it_<k>/`, and a shared support file reaches its siblings through
+`super::`. Under nextest each test is still its own process; under plain
+`cargo test` the files of one shard now share a process.
+
 ## Decision rules / contracts
 
 1. **Fuzzing is always manual.** Campaigns (`make fuzz`, `tcl-fuzz`) and
@@ -357,7 +374,7 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
 
 - `rust/tcl-lsp-server/tests/e2e.rs` and its `e2e/` module tree — native LSP
   end-to-end, one module per feature area sharing a single test binary.
-- `rust/tcl-registry/tests/registry_sweep.rs`, `registry_commands.rs` — the
+- `rust/tcl-registry/tests/it_5/registry_sweep.rs`, `registry_commands.rs` — the
   registry generates real Tcl and iRules and asserts live analysis (arity
   E002/E003, subcommands E001/W001, event scoping IRULE1001/1002, ordering).
   Contract: [registry-contract-tests.md](registry-contract-tests.md).

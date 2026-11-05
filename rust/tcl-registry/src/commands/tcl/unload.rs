@@ -110,7 +110,7 @@ pub fn spec() -> CommandSpec {
         // no iRules row. `ALL_TCL` never intersects the bare IRULES mask, so
         // `unload` falls out of iRules by plain intersection — no subtractive
         // disable list. That contract is pinned by
-        // `tcl-registry/tests/dialect_profile.rs`'s
+        // `tcl-registry/tests/it_5/dialect_profile.rs`'s
         // `irules_banned_commands_lack_the_irules_bit`, which asserts every
         // banned name's spec lacks an iRules row. Narrowing this field to
         // `TCL85_PLUS` would keep the ban intact (that gate lacks the IRULES

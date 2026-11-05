@@ -257,7 +257,7 @@ Adding a new typed value:
    DSL should expose the structured fields.
 
 The catalogue-wide invariants are guarded by
-`rust/tcl-registry/tests/registry_sweep.rs`, which walks every property of
+`rust/tcl-registry/tests/it_5/registry_sweep.rs`, which walks every property of
 every kind and asserts the derived predicates agree with the underlying
 slices, that an `Enum` kind enumerates values or declares a `shape_kind`,
 and that no reference target or enum member is empty.

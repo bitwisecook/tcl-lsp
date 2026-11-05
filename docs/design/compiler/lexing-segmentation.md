@@ -94,7 +94,7 @@ this adapter; retain independent parser-kind, source-range and consumer checks.
 the canonical lossless **red-green concrete syntax tree** for the region
 (`rust/tcl-compiler/src/parsing/syntax/`, see
 [syntax-tree.md](syntax-tree.md)) and *derives* the `SegmentedCommand` list from
-it.  `rust/tcl-compiler/tests/differential_segment.rs` holds the derivation
+it.  `rust/tcl-compiler/tests/it_4/differential_segment.rs` holds the derivation
 byte-identical to a frozen copy of the earlier token loop, so everything below
 describes the output shape.
 

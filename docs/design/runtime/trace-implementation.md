@@ -138,7 +138,7 @@ own. `var_trace_may_fire` keeps the untraced fast path
 for ordinary variables while the hook is the only trace: an access then needs
 the trace walk only when its name contains `env`, or once a link has reached
 the hooked array or one of its elements under another name. Witnesses:
-`rust/tcl-vm/tests/env_host_sync_e2e.rs`.
+`rust/tcl-vm/tests/it_2/env_host_sync_e2e.rs`.
 
 Command/execution traces remain the command-side tables described below. The
 VM also needs one extra piece of state that the tree-walker does not: because

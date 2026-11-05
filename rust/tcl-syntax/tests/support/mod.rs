@@ -19,7 +19,7 @@
 //! The real-tclsh matrix the conformance suites pin their vectors against.
 //!
 //! One interpreter per modelled release, keyed the way
-//! `tcl-vm/tests/cross_version_info_surface_e2e.rs` keys it:
+//! `tcl-vm/tests/it_3/cross_version_info_surface_e2e.rs` keys it:
 //! `TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91` name a binary explicitly, and each
 //! release otherwise falls back to its conventional PATH name.  A release
 //! with no binary is skipped **loudly** — the suite says which column went

@@ -227,7 +227,7 @@ provenance changes must not bypass the central host bootstrap introduced by
 
 ## Focused witnesses
 
-`rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` covers:
+`rust/tcl-vm/tests/it_5/command_mutation_deopt_e2e.rs` covers:
 
 - Tcl 9.0.4 procedure-call resolution after a namespace-local command shadows
   the unchanged global procedure whose body had been inlined;
@@ -257,13 +257,13 @@ provenance changes must not bypass the central host bootstrap introduced by
   a pin made part-way through a running function is seen at its next command
   (`a_running_function_is_checked_against_its_manifest_when_the_pin_changes`).
 
-`rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` covers the pin: the
+`rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs` covers the pin: the
 profile form is the context the profile names, the VM's held identity is the
 identity a module compiled for its pin states, a context the ingress refuses
 leaves the pin unchanged, and the `trace` option table is the pinned
 profile's and not the plain release its runtime version names.
 
-`rust/tcl-spectcl/tests/codegen_stamps.rs` covers a bundled spec pack's
+`rust/tcl-spectcl/tests/it_5/codegen_stamps.rs` covers a bundled spec pack's
 `alias_of lassign` command: its specialised site records `lassign`'s
 identity and the pack's facts, the VM holding those facts admits it through
 the alias hop with no plain recompile, and a proc at the pack spelling, or

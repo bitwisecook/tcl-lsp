@@ -407,7 +407,7 @@ lifecycle is owned by `runtime/rust/src/interp.rs` and
 
 ## Test conformance
 
-The behavioural suites live in `rust/tcl-vm/tests/cmd_oo_e2e.rs` and
+The behavioural suites live in `rust/tcl-vm/tests/it_3/cmd_oo_e2e.rs` and
 `runtime/rust/src/cmd_oo.rs` / `cmd_namespace.rs` (tclsh-pinned end-to-end
 vectors), plus the analyser's OO suites
 (`rust/tcl-compiler` `analyser`/`oo` tests, `mro_lattice_adversarial.rs`).

@@ -52,7 +52,7 @@
 //! for. The studio re-exports [`loader`] as `tcl_spec_studio::spectcl` and
 //! [`catalogue`], so its own surface is unchanged — it is now a *consumer* of
 //! this crate rather than its owner, which is also what lets the equivalence
-//! gate in `tcl-spec-studio/tests/spectcl_ports.rs` keep testing exactly the
+//! gate in `tcl-spec-studio/tests/it_3/spectcl_ports.rs` keep testing exactly the
 //! loader the server runs.
 //!
 //! ## Scope layering — packs are a *workspace* fact

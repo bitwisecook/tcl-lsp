@@ -86,7 +86,7 @@ pub fn spec() -> CommandSpec {
         // intersects the bare `IRULES` mask, so `update` falls out of iRules
         // by plain intersection, with no subtractive disable list; the
         // `irules_banned_commands_lack_the_irules_bit` contract test
-        // (`tcl-registry/tests/dialect_profile.rs`) pins that every banned
+        // (`tcl-registry/tests/it_5/dialect_profile.rs`) pins that every banned
         // name's spec lacks an iRules row. No other dialect profile (iApps,
         // tmsh, the EDA vendor shells, Expect, Tk, itcl) bans it or registers
         // a competing spec of its own (none of their command directories

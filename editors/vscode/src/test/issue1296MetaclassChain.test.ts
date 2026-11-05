@@ -31,7 +31,7 @@
 // what it is: the index converges across several debounced publishes, and a
 // real client asks its provider whenever it likes. The deep TP/FP/TN coverage
 // lives in the salsa (`rust/tcl-lsp-db/tests/class_factory_fixpoint.rs`),
-// analyser (`rust/tcl-compiler/tests/analyser.rs`, `mod class_factories`), and
+// analyser (`rust/tcl-compiler/tests/it_4/analyser.rs`, `mod class_factories`), and
 // native e2e (`rust/tcl-lsp-server/tests/e2e/issue1296_metaclass_chain.rs`)
 // suites.
 //

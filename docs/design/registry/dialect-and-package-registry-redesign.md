@@ -897,7 +897,7 @@ capability-specific:
   **every** tier — set-valued security facts union, single-valued ones
   keep the shipped value — so a four-line workspace pack declaring
   `command exec -override { arity 1.. }` cannot strip `exec`'s
-  `TAINT_SINK` (`rust/tcl-spectcl/tests/i6_security_floor.rs`). The floor
+  `TAINT_SINK` (`rust/tcl-spectcl/tests/it_2/i6_security_floor.rs`). The floor
   is deliberately not tier-keyed, and stays so now that the editor's
   Workspace Trust state reaches discovery: it is a security contract over
   every tier rather than a trust ranking between them;

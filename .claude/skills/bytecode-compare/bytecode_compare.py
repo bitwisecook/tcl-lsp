@@ -56,7 +56,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 # The snippet corpus and *our* disassembly both live in the Rust codegen
 # fixtures. Each `<name>.tcl` has a sibling `<name>.golden` holding the
 # label-stripped disassembly the emitter produces for it, byte-identity gated by
-# `rust/tcl-codegen/tests/codegen_golden.rs`. So the goldens ARE our current
+# `rust/tcl-codegen/tests/it_2/codegen_golden.rs`. So the goldens ARE our current
 # output whenever that test passes.
 SNIPPETS_DIR = (
     REPO_ROOT / "rust" / "tcl-compiler" / "tests" / "fixtures" / "codegen" / "matching"

@@ -319,7 +319,7 @@ declared member (`hostname a b c` → `E003`) is still an arity error.
 | Loader, vocabulary table, policy, emitter | `rust/tcl-sslictcl/src/{dsl,vocabulary,policy,emit}.rs` |
 | Editor projection (diagnostics, outline) | `rust/tcl-lsp-core/src/{sslictcl_diagnostics,declaration_outline}.rs` |
 | Body vocabulary (completion, painting) | `rust/tcl-lsp-core/src/oo_body.rs` `definition_grammar_at`; `CommandRegistry::document_grammar` |
-| Contract tests | `rust/tcl-sslictcl/tests/registry_pack_drift.rs`, `rust/tcl-registry/tests/sslictcl_pack.rs`, `rust/tcl-registry/tests/detect_dialect.rs`, `rust/tcl-lsp-core/tests/semantic_tokens.rs` |
+| Contract tests | `rust/tcl-sslictcl/tests/registry_pack_drift.rs`, `rust/tcl-registry/tests/it_5/sslictcl_pack.rs`, `rust/tcl-registry/tests/it_3/detect_dialect.rs`, `rust/tcl-lsp-core/tests/it_2/semantic_tokens.rs` |
 | End-to-end tests | `rust/tcl-lsp-server/tests/e2e/sslictcl.rs`, `editors/vscode/src/test/sslictclAuthoring.test.ts`, `rust/tcl-lsp-server-wasm/test/e2e.mjs` |
 
 ## See also

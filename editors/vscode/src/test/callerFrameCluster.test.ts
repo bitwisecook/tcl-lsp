@@ -24,7 +24,7 @@ import { getDocUri, activate, pollUntil, waitForDiagnosticsSnapshot } from "./he
 //
 // Every fact asserted here is pinned on tclsh 9.0.4 and 8.6.16, which agree;
 // the transcripts are quoted in `testFixture/callerFrameCluster.tcl` and in
-// the compiler-unit twins under `rust/tcl-compiler/tests/caller_frame_effects.rs`
+// the compiler-unit twins under `rust/tcl-compiler/tests/it_4/caller_frame_effects.rs`
 // / `rust/tcl-lsp-core/src/caller_frame.rs`.
 //
 // The value of this tier is that it exercises the *client-visible* result:

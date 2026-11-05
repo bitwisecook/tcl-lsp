@@ -387,7 +387,7 @@ assert the payload is complete.
   every contract field, and `types` covers imports plus defined functions.
 - `rust/tcl-codegen/src/codegen/wasm/ir.rs` (unit) — `type_section()`
   predicts the type table `to_bytes` emits.
-- `rust/tcl-cli/tests/explorer_gui.rs` (integration) — drives the shipped GUI
+- `rust/tcl-cli/tests/it_5/explorer_gui.rs` (integration) — drives the shipped GUI
   in headless Chromium against a real payload and asserts the WASM tab
   renders, the spinner stops, and no pane errors.  Skips with a printed
   reason when node/Playwright are unavailable; set `TCL_EXPLORER_GUI_TEST=1`

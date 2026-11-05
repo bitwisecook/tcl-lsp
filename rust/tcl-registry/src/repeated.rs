@@ -81,7 +81,7 @@ pub struct RepeatedArgLayout {
     ///
     /// This is the fact
     /// `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`
-    /// (`tcl-registry/tests/registry_sweep.rs`) checks against
+    /// (`tcl-registry/tests/it_5/registry_sweep.rs`) checks against
     /// [`ArgRole`]: every generic write-detection site the compiler has
     /// (`tcl-compiler`'s `ssa::defs_of_with_registry`, `var_scoping`,
     /// `cfg_builder`, `lowering`, `ir_helpers`) resolves "does this argument

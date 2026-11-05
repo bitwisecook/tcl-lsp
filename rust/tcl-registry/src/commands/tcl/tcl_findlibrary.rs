@@ -78,7 +78,7 @@ pub fn spec() -> CommandSpec {
         // unreachable there — no disable list is involved. Adding an iRules
         // row would re-admit exactly the command the ban exists to exclude.
         // The `irules_banned_commands_never_resolve` contract test
-        // (`tcl-registry/tests/dialect_profile.rs`) enforces this directly:
+        // (`tcl-registry/tests/it_5/dialect_profile.rs`) enforces this directly:
         // `tcl_findLibrary` is in its banned set and must not carry an iRules
         // row nor resolve under f5-irules. Every other dialect profile
         // (Expect, the EDA vendor shells, tmsh, iApps, BPF) runs a Tcl core

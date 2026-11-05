@@ -1,0 +1,743 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Headless smoke test for the compiler-explorer web GUI (`gui/`).
+//!
+//! The GUI is shipped source (`index.html`, `explorer-core.js`, `worker.js`)
+//! that no Rust test otherwise exercises, so a producer/consumer mismatch in
+//! the explorer contract could only be caught by opening a browser: the
+//! `(module)` header could stop carrying `types`, `renderWasmModuleHeader`
+//! could throw a `TypeError` mid-render, the WASM tab could stay blank, and
+//! — because the throw skips the rest of the message handler — the compile
+//! spinner could spin forever.
+//!
+//! This test produces a real contract payload in-process (the same
+//! `serialise_result` the WASM facade calls) and drives the shipped GUI in
+//! headless Chromium via `tests/gui/explorer-gui-smoke.mjs`.
+//!
+//! Source goes in the way the shipped UI accepts it: Monaco owns the editor
+//! and the `#source` textarea behind it is hidden state plumbing, so the
+//! driver writes through the editor host's `onChange` bridge rather than
+//! typing into an element no user can reach.
+//!
+//! It needs `node` plus a Playwright install; without them it prints why and
+//! passes, so a plain `cargo test` on a machine with no browser stack is not
+//! blocked. Point it at a non-default install with:
+//!
+//! * `TCL_EXPLORER_PLAYWRIGHT` — module specifier / path for `playwright`
+//!   (default: `playwright`, resolved from the driver's own directory),
+//! * `TCL_EXPLORER_CHROMIUM` — Chromium executable to launch,
+//! * `TCL_EXPLORER_GUI_TEST=1` — fail instead of skipping when the toolchain
+//!   is missing (set this in CI once the browser stack is installed).
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use serde_json::Value;
+
+const BUILD_RS: &str = include_str!("../../build.rs");
+const GUI_RS: &str = include_str!("../../src/commands/gui.rs");
+
+fn manifest_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+/// True when the harness must fail rather than skip on a missing toolchain.
+fn strict() -> bool {
+    std::env::var("TCL_EXPLORER_GUI_TEST").is_ok_and(|v| v != "0" && !v.is_empty())
+}
+
+/// Report a missing prerequisite: fail under `TCL_EXPLORER_GUI_TEST`, else
+/// print and skip.
+fn skip(reason: &str) {
+    assert!(!strict(), "explorer GUI smoke test cannot run: {reason}");
+    println!("skipping explorer GUI smoke test: {reason}");
+}
+
+/// Resolve the `playwright` module the driver should import, honouring
+/// `TCL_EXPLORER_PLAYWRIGHT` and falling back to a global npm install (the
+/// driver's own `node_modules` lookup handles a local install).
+fn playwright_specifier() -> Option<String> {
+    if let Ok(explicit) = std::env::var("TCL_EXPLORER_PLAYWRIGHT") {
+        return Some(explicit);
+    }
+    let global_root = Command::new("npm")
+        .args(["root", "-g"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+    let root = String::from_utf8(global_root.stdout).ok()?;
+    let candidate = Path::new(root.trim()).join("playwright/index.mjs");
+    candidate.is_file().then(|| candidate.display().to_string())
+}
+
+fn assert_editor_and_trait_reference(first: &Value) {
+    // The native Web UI has one editor implementation, and its registry-owned
+    // trait glossary renders without a JavaScript name/description table.
+    assert_eq!(first["monacoMounted"], true, "Monaco did not mount");
+    assert_eq!(
+        first["stateEditorDisplay"], "none",
+        "the textarea editor remained visible behind Monaco"
+    );
+    assert!(
+        first["traitRows"].as_u64().unwrap_or(0) > 90,
+        "the trait reference did not render every registry trait"
+    );
+    assert!(
+        first["traitGroups"].as_u64().unwrap_or(0) > 1,
+        "the trait reference was not grouped"
+    );
+    let trait_text = first["traitText"].as_str().unwrap_or_default();
+    assert!(
+        trait_text.contains("TAINT_SOURCE") && trait_text.contains("taint source"),
+        "the registry's trait documentation is not visible: {trait_text}"
+    );
+}
+
+/// The post-SSA card words each solver branch fact by its kind and lists the
+/// selection records the SCCP view carries: the arm a `selected` fact names is
+/// "never selected", not a constant branch with no target, a decided branch
+/// keeps its wording, and each record names the arm a member selects and the arm
+/// whose body runs. The shipped `explorer-core.js` runs in a `vm` context over a
+/// real contract payload, so this needs `node` and no browser.
+#[test]
+fn post_ssa_card_words_selected_facts_and_lists_selections() {
+    if Command::new("node").arg("--version").output().is_err() {
+        skip("`node` is not on PATH");
+        return;
+    }
+    let source = "proc pick {} {\n    set s abc\n    switch -glob -- $s {\n        a* {puts A}\n\
+                  b* {puts B}\n        default {puts D}\n    }\n}\n\
+                  proc fixed {} {\n    set c 1\n    if {$c} {puts yes} else {puts no}\n}\n";
+    let result = tcl_explorer::run_pipeline(source, "tcl8.6");
+    let payload = serde_json::to_string(&tcl_explorer::serialise_result(&result))
+        .expect("explorer payload serialises");
+    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
+    let payload_path = out_dir.join("explorer-core-facts-payload.json");
+    std::fs::write(&payload_path, payload).expect("write payload");
+
+    let card = |view: &str| -> String {
+        let output = Command::new("node")
+            .arg(manifest_dir().join("tests/gui/explorer-core-facts.mjs"))
+            .arg(manifest_dir().join("gui"))
+            .arg(&payload_path)
+            .arg(view)
+            .output()
+            .expect("spawn node driver");
+        assert!(
+            output.status.success(),
+            "explorer-core facts driver failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: Value = serde_json::from_slice(&output.stdout).expect("driver prints JSON");
+        report["text"].as_str().unwrap_or_default().to_owned()
+    };
+    let text = card("compiled");
+
+    assert!(
+        text.contains("arm never selected: b* in entry_1"),
+        "the selected fact is not worded as the text view words it: {text}"
+    );
+    assert!(
+        !text.contains("b* is always"),
+        "a selected fact was worded as a constant branch: {text}"
+    );
+    assert!(
+        text.contains("selections: selection: arm 0 bodies: arm 0 [3:5]"),
+        "the selection record is not listed: {text}"
+    );
+    assert!(
+        text.contains("$c is always true (take if_then_3)"),
+        "a decided branch lost its wording: {text}"
+    );
+
+    // The selection records describe the compiled source alone: the optimised
+    // view is the CFG of the rewritten program, which holds no such statement.
+    let optimised = card("optimised");
+    assert!(
+        !optimised.contains("selection:"),
+        "a selection record of the compiled source was listed under the optimised view: {optimised}"
+    );
+}
+
+#[test]
+fn native_serve_requires_the_complete_monaco_bundle() {
+    for asset in [
+        "editor/build-info.json",
+        "editor/assets/monaco-host.js",
+        "editor/lsp/worker.js",
+        "editor/lsp/tcl_lsp_server_wasm_bg.wasm",
+    ] {
+        assert!(BUILD_RS.contains(asset), "build completeness omits {asset}");
+    }
+    assert!(BUILD_RS.contains("GUI_HAS_EDITOR"));
+    assert!(GUI_RS.contains("!assets::GUI_HAS_WASM || !assets::GUI_HAS_EDITOR"));
+    assert!(GUI_RS.contains("make explorer-build && cargo build -p tcl-cli --release"));
+    assert!(!GUI_RS.contains("make explorer-wasm && cargo build -p tcl-cli --release"));
+}
+
+/// An edit made while the WASM module is still loading must not be dropped.
+/// The driver holds module load open (the stubbed
+/// `wasm_bindgen` parks on a gate), enters the source through the Monaco host
+/// — the only editor the shipped page shows — and only then lets the worker
+/// report ready, so this is a state the test enters on purpose rather than a
+/// timing window it has to win.
+fn assert_compile_survives_module_load(report: &Value, first: &Value, source: &str) {
+    assert_eq!(
+        report["queuedDuringLoad"], true,
+        "the GUI never queued a compile for the edit made during module load"
+    );
+    assert_eq!(
+        report["compilesDuringLoad"], 0,
+        "the worker compiled before it finished loading"
+    );
+    assert_eq!(
+        first["compiledSource"], source,
+        "the compile owed from module load never reached the compiler"
+    );
+}
+
+fn assert_compile_triggers(report: &Value) {
+    let before = report["compilesBeforeButton"]
+        .as_u64()
+        .expect("compile count");
+    let after = report["compilesAfterButton"]
+        .as_u64()
+        .expect("compile count");
+    assert_eq!(
+        after,
+        before + 1,
+        "clicking Compile did not trigger a fresh compile ({before} -> {after})"
+    );
+
+    let before_shortcut = report["compilesBeforeShortcut"]
+        .as_u64()
+        .expect("shortcut compile count");
+    let after_shortcut = report["compilesAfterShortcut"]
+        .as_u64()
+        .expect("shortcut compile count");
+    assert_eq!(
+        after_shortcut,
+        before_shortcut + 1,
+        "Ctrl/Cmd+Enter in Monaco did not force compilation ({before_shortcut} -> {after_shortcut})"
+    );
+
+    // Monaco is the only editor: an ordinary edit reaches the compiler only
+    // through its `onChange` bridge into the hidden `#source` textarea.
+    let before_edit = report["compilesBeforeEdit"]
+        .as_u64()
+        .expect("edit compile count");
+    let after_edit = report["compilesAfterEdit"]
+        .as_u64()
+        .expect("edit compile count");
+    assert_eq!(
+        after_edit,
+        before_edit + 1,
+        "editing in Monaco did not recompile ({before_edit} -> {after_edit})"
+    );
+}
+
+/// The codegen-pass toggles: rows built from `meta.semanticOptimisations`
+/// before any compile lands, a tick that forces a recompile, and — the part a
+/// label alone would fake — the selection actually reaching the compiler.
+fn assert_codegen_pass_toggles(report: &Value) {
+    let rows = report["passRowCount"].as_u64().expect("pass row count");
+    assert_eq!(
+        rows,
+        tcl_explorer::SemanticOptimisationPassId::all().len() as u64,
+        "the toggle panel did not render one row per pass"
+    );
+    assert_eq!(
+        report["summaryBefore"].as_str().map(str::trim),
+        Some("Codegen passes: none"),
+        "an untouched Explorer must show the generic lowering"
+    );
+
+    let before = report["compilesBeforeToggle"]
+        .as_u64()
+        .expect("compile count");
+    let after = report["compilesAfterToggle"]
+        .as_u64()
+        .expect("compile count");
+    assert_eq!(
+        after,
+        before + 1,
+        "ticking a pass did not force a recompile ({before} -> {after})"
+    );
+    assert_eq!(
+        report["passesSent"].as_str(),
+        Some(tcl_explorer::SemanticOptimisationPassId::all()[0].as_str()),
+        "the ticked pass never reached the compiler"
+    );
+    assert_ne!(
+        report["summaryAfter"].as_str().map(str::trim),
+        Some("Codegen passes: none")
+    );
+
+    // The group buttons are presets over the same checkboxes.
+    assert_eq!(
+        report["nativeTierTicked"].as_u64(),
+        Some(4),
+        "the `native-tier` preset did not tick its four passes"
+    );
+
+    // And the answer to "does it live-update": the WASM pane must repaint
+    // from the new result. A recompile the page never renders would satisfy
+    // every assertion above and leave the user looking at the old module.
+    let before = &report["wasmBeforeToggle"];
+    let after = &report["wasmAfterToggle"];
+    assert_ne!(
+        before["wasmText"], after["wasmText"],
+        "the WASM pane did not repaint after a pass was ticked"
+    );
+    assert!(
+        after["wasmInstructions"].as_u64().unwrap_or(0) > 0,
+        "the repainted WASM pane rendered no instructions: {after}"
+    );
+    assert_eq!(
+        after["spinnerDisplay"], "none",
+        "the spinner never settled after the toggle recompile"
+    );
+    assert!(
+        after["errorBoxes"].as_array().is_some_and(Vec::is_empty),
+        "the toggle recompile surfaced an error box: {after}"
+    );
+}
+
+/// Write the two contract payloads the driver stubs the WASM facade with.
+///
+/// The first is what `compile` returns; the second is the same source with
+/// every codegen pass on, which the stub returns whenever a pass selection is
+/// sent. Without a *second* payload the WASM pane would look identical however
+/// the toggles were set, and the repaint assertion would pass on a page that
+/// never rendered.
+fn write_driver_payloads(source: &str) -> (PathBuf, PathBuf) {
+    let result = tcl_explorer::run_pipeline(source, "tcl8.6");
+    let payload = serde_json::to_string(&tcl_explorer::serialise_result(&result))
+        .expect("explorer payload serialises");
+    let optimised = serde_json::to_string(&tcl_explorer::serialise_result_with_optimisations(
+        &result,
+        tcl_explorer::SemanticOptimisationConfig::from_names("all").expect("a valid group"),
+    ))
+    .expect("optimised explorer payload serialises");
+    assert_ne!(
+        payload, optimised,
+        "the two payloads must differ or the render assertion proves nothing"
+    );
+
+    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
+    let payload_path = out_dir.join("explorer-gui-payload.json");
+    std::fs::write(&payload_path, &payload).expect("write payload");
+    let optimised_path = out_dir.join("explorer-gui-payload-optimised.json");
+    std::fs::write(&optimised_path, &optimised).expect("write optimised payload");
+    (payload_path, optimised_path)
+}
+
+#[test]
+fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
+    if Command::new("node").arg("--version").output().is_err() {
+        skip("`node` is not on PATH");
+        return;
+    }
+    let Some(playwright) = playwright_specifier() else {
+        skip("playwright is not installed (npm i -g playwright)");
+        return;
+    };
+
+    let source = "proc add {a b} {\n    return [expr {$a + $b}]\n}\nputs [add 1 2]\n";
+    let (payload_path, optimised_path) = write_driver_payloads(source);
+
+    let driver = manifest_dir().join("tests/gui/explorer-gui-smoke.mjs");
+    let gui = manifest_dir().join("gui");
+    let mut cmd = Command::new("node");
+    cmd.arg(&driver)
+        .arg(&gui)
+        .arg(&payload_path)
+        .arg(&optimised_path)
+        .env("TCL_EXPLORER_PLAYWRIGHT", playwright);
+    if let Ok(chromium) = std::env::var("TCL_EXPLORER_CHROMIUM") {
+        cmd.env("TCL_EXPLORER_CHROMIUM", chromium);
+    }
+    let output = cmd.output().expect("spawn node driver");
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !output.status.success() {
+        // A missing browser binary is an environment problem, not a
+        // regression — skip unless the harness is running in strict mode.
+        if !strict()
+            && (stderr.contains("Executable doesn't exist")
+                || stderr.contains("browserType.launch")
+                || stderr.contains("ERR_MODULE_NOT_FOUND"))
+        {
+            skip(&format!("browser unavailable: {}", stderr.trim()));
+            return;
+        }
+        panic!("explorer GUI driver failed:\n{stderr}");
+    }
+
+    let report: Value =
+        serde_json::from_slice(&output.stdout).expect("driver prints a JSON report");
+    let first = &report["first"];
+
+    assert_eq!(
+        report["pageErrors"].as_array().map(Vec::len),
+        Some(0),
+        "the GUI raised uncaught errors while rendering: {}",
+        report["pageErrors"]
+    );
+    assert_eq!(
+        first["errorBoxes"].as_array().map(Vec::len),
+        Some(0),
+        "a pane reported a render failure: {}",
+        first["errorBoxes"]
+    );
+
+    assert_compile_survives_module_load(&report, first, source);
+
+    // The throbber must stop once a result is in.
+    assert_eq!(
+        first["spinnerDisplay"], "none",
+        "the compile spinner never stopped"
+    );
+    assert_eq!(first["statusLight"], "status-light synced");
+
+    // The WASM tab must actually show a disassembly.
+    assert_eq!(
+        first["wasmModuleHeaders"], 1,
+        "the (module) header did not render"
+    );
+    assert!(
+        first["wasmFunctions"].as_u64().unwrap_or(0) >= 2,
+        "expected the top level plus ::add in the WASM tab, got {}",
+        first["wasmFunctions"]
+    );
+    assert!(
+        first["wasmInstructions"].as_u64().unwrap_or(0) > 0,
+        "the WASM tab rendered no instructions"
+    );
+    let wasm_text = first["wasmText"].as_str().unwrap_or_default();
+    assert!(
+        wasm_text.contains("(module)") && wasm_text.contains("types"),
+        "the module header is missing its import/type summary: {wasm_text}"
+    );
+    // The Tcl ASM tab shares the renderer — keep it honest too.
+    assert!(
+        first["asmFunctions"].as_u64().unwrap_or(0) >= 2,
+        "the Tcl ASM tab did not render"
+    );
+
+    // The dropdown must list every dialect before the first
+    // result, and the toolbar must offer an explicit Compile button.
+    let dialects = first["dialects"].as_array().expect("dialect list");
+    assert!(
+        dialects.len() > 1 && dialects.iter().any(|d| d == "tcl9.0"),
+        "the dialect dropdown was not populated: {dialects:?}"
+    );
+    assert_eq!(first["hasCompileButton"], true, "no Compile button");
+
+    assert_editor_and_trait_reference(first);
+    assert!(
+        report["traitRowsBeforeCompile"].as_u64().unwrap_or(0) > 90,
+        "the ready-message trait reference was empty before compilation"
+    );
+
+    assert_compile_triggers(&report);
+    assert_codegen_pass_toggles(&report);
+}
+
+fn assert_missing_retained_views(rendered: &Value) {
+    for shell in ["standalone", "vscode"] {
+        for pane in [
+            "#stats",
+            "#pane-opt",
+            "#pane-optimiser-passes",
+            "#pane-event-order",
+            "#pane-callouts",
+        ] {
+            assert_eq!(
+                rendered[shell]["panes"][pane], "This view is unavailable for this analysis",
+                "{shell}/{pane}"
+            );
+        }
+        for field in ["optimisations", "annotations", "eventOrder"] {
+            assert!(
+                rendered[shell]["arrayCounts"][field].is_null(),
+                "{shell}/{field}"
+            );
+        }
+        assert!(rendered[shell]["badges"]["opt"].is_null());
+        assert!(rendered[shell]["badges"]["callouts"].is_null());
+    }
+    assert!(
+        rendered["standalone"]["panes"]["#pane-irules-flow"]
+            .as_str()
+            .unwrap()
+            .contains("This view is unavailable for this analysis")
+    );
+    assert!(rendered["standalone"]["badges"]["event-order"].is_null());
+    assert!(rendered["standalone"]["badges"]["irules-flow"].is_null());
+}
+
+fn assert_empty_retained_views(rendered: &Value) {
+    for shell in ["standalone", "vscode"] {
+        for (pane, expected) in [
+            ("#pane-opt", "No optimiser rewrites"),
+            ("#pane-optimiser-passes", "Optimiser pipeline unavailable"),
+            ("#pane-event-order", "No event-order data"),
+            ("#pane-callouts", "No annotations"),
+        ] {
+            assert_eq!(rendered[shell]["panes"][pane], expected, "{shell}/{pane}");
+        }
+        for field in ["optimisations", "annotations", "eventOrder"] {
+            assert_eq!(rendered[shell]["arrayCounts"][field], 0, "{shell}/{field}");
+        }
+    }
+    assert_eq!(
+        rendered["standalone"]["panes"]["#pane-irules-flow"],
+        "No events detected"
+    );
+}
+
+fn assert_missing_actual_cu_views(rendered: &Value, fields: [&str; 9]) {
+    for shell in ["standalone", "vscode"] {
+        for pane in [
+            "#pane-asm",
+            "#pane-wasm",
+            "#pane-cfg-post",
+            "#pane-shimmer",
+            "#pane-gvn",
+            "#pane-taint",
+            "#pane-liveness",
+            "#pane-irules-flow",
+            "#pane-bounds",
+        ] {
+            assert_eq!(
+                rendered[shell]["panes"][pane], "This view is unavailable for this analysis",
+                "{shell}/{pane}"
+            );
+        }
+        for field in fields {
+            assert!(
+                rendered[shell]["arrayCounts"][field].is_null(),
+                "{shell}/{field}"
+            );
+        }
+        for badge in [
+            "asm",
+            "wasm",
+            "cfg-post",
+            "shimmer",
+            "gvn",
+            "taint",
+            "irules-flow",
+            "bounds",
+        ] {
+            assert!(
+                rendered[shell]["badges"][badge].is_null(),
+                "{shell}/{badge}"
+            );
+        }
+    }
+}
+
+fn assert_empty_actual_cu_views(rendered: &Value, fields: [&str; 9]) {
+    for shell in ["standalone", "vscode"] {
+        for (pane, expected) in [
+            ("#pane-asm", "No assembly"),
+            ("#pane-wasm", "No WASM output"),
+            ("#pane-shimmer", "No shimmer warnings"),
+            ("#pane-gvn", "No redundant computations detected"),
+            ("#pane-taint", "No tainted data flows detected"),
+            ("#pane-bounds", "No provable out-of-range / divide-by-zero"),
+        ] {
+            assert_eq!(rendered[shell]["panes"][pane], expected, "{shell}/{pane}");
+        }
+        for field in fields {
+            assert_eq!(rendered[shell]["arrayCounts"][field], 0, "{shell}/{field}");
+        }
+    }
+}
+
+/// The actual missing-owner payload is not a successful empty analysis. Both
+/// shipped shell badge consumers and the shared renderers must accept it.
+/// This drives the shipped JavaScript in Node's DOM stand-in, not a browser.
+#[test]
+fn retained_source_unavailable_payload_renders_without_empty_success_claims() {
+    // naming.source.retained-explorer-consumers
+    // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+    if Command::new("node").arg("--version").output().is_err() {
+        skip("`node` is not on PATH");
+        return;
+    }
+    let mut result = tcl_explorer::run_pipeline("when HTTP_REQUEST {}", "f5-irules");
+    let current = tcl_explorer::serialise_result(&result);
+    assert_eq!(current["eventOrder"].as_array().unwrap().len(), 1);
+    assert!(current["stats"].is_object());
+    for field in ["optimisations", "optimiserPasses", "annotations"] {
+        assert!(current[field].is_array(), "{field}");
+    }
+    result.unit.ir_module.retained_source_bindings = None;
+    let unavailable = tcl_explorer::serialise_result(&result);
+    for field in [
+        "stats",
+        "optimisations",
+        "optimiserPasses",
+        "eventOrder",
+        "annotations",
+        "annotationsByLine",
+    ] {
+        assert!(unavailable[field].is_null(), "{field}");
+    }
+    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
+    let driver = manifest_dir().join("tests/gui/explorer-core-retained-views.mjs");
+    let vscode_shell = manifest_dir().join("../../editors/vscode/src/compilerExplorerHtml.ts");
+    let render = |payload: &Value, name: &str| -> Value {
+        let payload_path = out_dir.join(format!("explorer-retained-{name}.json"));
+        std::fs::write(&payload_path, serde_json::to_vec(payload).unwrap()).unwrap();
+        let output = Command::new("node")
+            .arg(&driver)
+            .arg(manifest_dir().join("gui"))
+            .arg(&vscode_shell)
+            .arg(&payload_path)
+            .output()
+            .expect("spawn Node driver");
+        assert!(
+            output.status.success(),
+            "render failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("render report")
+    };
+    let rendered = render(&unavailable, "unavailable");
+    assert_missing_retained_views(&rendered);
+    let mut independent_warning = unavailable.clone();
+    independent_warning["irulesFlow"] = serde_json::json!([
+        {"code": "W-test", "message": "independent warning", "range": null}
+    ]);
+    let warning = render(&independent_warning, "warning");
+    let warning_text = warning["standalone"]["panes"]["#pane-irules-flow"]
+        .as_str()
+        .unwrap();
+    assert!(warning_text.contains("This view is unavailable for this analysis"));
+    assert!(warning_text.contains("W-test independent warning"));
+
+    // Completed empty arrays retain their existing presentation. The synthetic
+    // empty state is a wire control, independently of the missing-owner producer.
+    let mut empty = current.clone();
+    for field in [
+        "optimisations",
+        "optimiserPasses",
+        "eventOrder",
+        "annotations",
+        "irulesFlow",
+    ] {
+        empty[field] = serde_json::json!([]);
+    }
+    empty["optimisedSource"] = Value::Null;
+    let rendered = render(&empty, "empty");
+    assert_empty_retained_views(&rendered);
+    let rendered = render(&current, "current");
+    for shell in ["standalone", "vscode"] {
+        assert!(
+            rendered[shell]["panes"]["#pane-event-order"]
+                .as_str()
+                .unwrap()
+                .contains("HTTP_REQUEST")
+        );
+        assert_eq!(rendered[shell]["arrayCounts"]["eventOrder"], 1);
+    }
+}
+
+/// Shared actual-CU consumers preserve structural unavailable output through
+/// shipped core renderers and both shell hooks/counts. The DOM is a stand-in.
+#[test]
+fn remaining_actual_cu_unavailable_payload_renders_all_retained_views() {
+    // naming.source.retained-explorer-consumers
+    // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
+    if Command::new("node").arg("--version").output().is_err() {
+        skip("`node` is not on PATH");
+        return;
+    }
+    let mut result = tcl_explorer::run_pipeline("when HTTP_REQUEST {}", "f5-irules");
+    let current = tcl_explorer::serialise_result(&result);
+    let fields = [
+        "asm",
+        "wasm",
+        "cfgPostSsa",
+        "shimmer",
+        "gvn",
+        "taintWarnings",
+        "liveness",
+        "irulesFlow",
+        "bounds",
+    ];
+    for field in fields {
+        assert!(current[field].is_array(), "{field}");
+    }
+    result.unit.ir_module.retained_source_bindings = None;
+    let unavailable = tcl_explorer::serialise_result(&result);
+    for field in fields {
+        assert!(unavailable[field].is_null(), "{field}");
+    }
+    let out_dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&out_dir).expect("create target tmp dir");
+    let render = |payload: &Value, name: &str| -> Value {
+        let file = out_dir.join(format!("explorer-actual-cu-{name}.json"));
+        std::fs::write(&file, serde_json::to_vec(payload).unwrap()).unwrap();
+        let output = Command::new("node")
+            .arg(manifest_dir().join("tests/gui/explorer-core-retained-views.mjs"))
+            .arg(manifest_dir().join("gui"))
+            .arg(manifest_dir().join("../../editors/vscode/src/compilerExplorerHtml.ts"))
+            .arg(&file)
+            .output()
+            .expect("spawn Node driver");
+        assert!(
+            output.status.success(),
+            "render failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("render report")
+    };
+    let rendered = render(&unavailable, "unavailable");
+    assert_missing_actual_cu_views(&rendered, fields);
+    // Warning unavailability does not erase independently retained tracking.
+    let mut tracking = unavailable.clone();
+    tracking["taintTracking"] = serde_json::json!([
+        {"name": "kept", "entries": [{"variable": "v", "version": 1, "taint": "external"}]}
+    ]);
+    let rendered = render(&tracking, "tracking");
+    for shell in ["standalone", "vscode"] {
+        let text = rendered[shell]["panes"]["#pane-taint"].as_str().unwrap();
+        assert!(text.contains("This view is unavailable for this analysis"));
+        assert!(text.contains("Taint Tracking") && text.contains("kept"));
+        assert!(rendered[shell]["badges"]["taint"].is_null());
+    }
+    let mut empty = current.clone();
+    for field in fields {
+        empty[field] = serde_json::json!([]);
+    }
+    empty["taintTracking"] = serde_json::json!([]);
+    empty["eventOrder"] = serde_json::json!([]);
+    empty["asmOptimised"] = Value::Null;
+    empty["wasmOptimised"] = Value::Null;
+    empty["cfgPostSsaOptimised"] = Value::Null;
+    let rendered = render(&empty, "empty");
+    assert_empty_actual_cu_views(&rendered, fields);
+}

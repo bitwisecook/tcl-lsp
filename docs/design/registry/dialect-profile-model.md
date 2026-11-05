@@ -905,7 +905,7 @@ internals. There is **no ban list** anywhere in the model. Instead:
    `is_available` drops it when `operators_as_commands` is false.
 
 Both directions are contract-tested in
-`rust/tcl-registry/tests/dialect_profile.rs`: every banned name must
+`rust/tcl-registry/tests/it_5/dialect_profile.rs`: every banned name must
 resolve to registered spec data *and* must not name iRules, and
 `OPERATOR_COMMAND` must mark exactly the `tcl::mathop` spellings.
 

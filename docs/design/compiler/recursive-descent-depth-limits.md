@@ -251,7 +251,7 @@ Standout tests:
   `shallow_dynamic_if_still_runs`, and
   `deeply_nested_command_substitution_is_unaffected` (ordinary nested `[…]`
   also routes through `Vm::eval_source` but not through `cmd_control.rs`).
-- `rust/tcl-lexer/tests/lexer_depth.rs` — every `tcl-lexer` cap, including
+- `rust/tcl-lexer/tests/it_4/lexer_depth.rs` — every `tcl-lexer` cap, including
   the structural-index scanners reachable on raw document text.
 - `rust/tcl-lsp-server/tests/e2e/issue996_stack_overflow.rs` — drives the
   packaged native server with input at the reported crash depth and past the

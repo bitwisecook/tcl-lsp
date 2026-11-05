@@ -395,7 +395,7 @@ prepend can never land without its deletion:
 ## Tests
 
 - `rust/tcl-compiler/src/optimiser/code_sinking.rs` — pass unit tests
-- `rust/tcl-compiler/tests/optimiser.rs` — the `code_sinking_o125_*` cases,
+- `rust/tcl-compiler/tests/it_3/optimiser.rs` — the `code_sinking_o125_*` cases,
   which pin the emitted source and re-check it through the `tcl diag` surface
 - `rust/tcl-compiler/src/optimiser/manager.rs` — the group all-or-nothing
   behaviour of the resurrected-reference guard

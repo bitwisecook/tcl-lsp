@@ -70,7 +70,7 @@ pub fn spec() -> CommandSpec {
         // whole class of command (`open`/`seek`, banned for the identical
         // reason, carry the same `Some(SpecSurface::ALL_TCL)` value); the
         // `irules_banned_commands_never_resolve` contract test in
-        // `tcl-registry/tests/dialect_profile.rs` pins that `tell` and its
+        // `tcl-registry/tests/it_5/dialect_profile.rs` pins that `tell` and its
         // siblings do not resolve under f5-irules. No other modelled dialect
         // (iApps, tmsh, the EDA vendor shells, Tk, Expect, incr Tcl) disables
         // or alters `tell` — each carries a core-release row that `ALL_TCL`

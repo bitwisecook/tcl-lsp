@@ -58,7 +58,7 @@ assembly; `NativeEvalId::owner` and the inventory's *Owner* column say so.
 
 To give a new command a value: declare it on the spec (or add the
 descriptor the derivation reads), add its route to the pinned set in
-`rust/tcl-registry/tests/value_transfers.rs`, and regenerate the inventory.
+`rust/tcl-registry/tests/it_4/value_transfers.rs`, and regenerate the inventory.
 Adding an arm to the compiler is the one thing not to do.
 
 ## Related

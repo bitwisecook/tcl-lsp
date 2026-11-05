@@ -143,7 +143,7 @@ issue status follows this branch's tests, not an older implementation audit.
 | #2216 | Fixed | `line_delete_span_takes_trailing_horizontal_whitespace` checks spaces/tabs and LF/CRLF without consuming the successor. |
 
 The remaining assigned issue witnesses are being checked in
-`rust/tcl-codegen/tests/release_optimiser_safety.rs`. A passing witness records
+`rust/tcl-codegen/tests/it_3/release_optimiser_safety.rs`. A passing witness records
 behavioural preservation, including completion and the caught error message;
 it does not on its own claim a missed optimisation now fires.
 

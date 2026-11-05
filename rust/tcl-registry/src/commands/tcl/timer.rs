@@ -118,7 +118,7 @@ static SLEEP_VALUES: [(u8, &[ArgValue]); 2] = [(0, &SLEEP_MODE), (2, &UNITS)];
 ///   command"), agree with each other on `sleep for` / `sleep until` /
 ///   `cancel` instead — that's what's modelled below, and it also matches
 ///   `timer_is_91_only_with_scheduler_side_effects`
-///   (`tcl-registry/tests/tcl91_dialect.rs`), landed independently on the
+///   (`tcl-registry/tests/it_5/tcl91_dialect.rs`), landed independently on the
 ///   same six subcommand names.
 /// - Its TIME MAXIMUM VALUE section spells the boundary error "time to
 ///   far" (missing the second "o"); the fact is described in plain prose

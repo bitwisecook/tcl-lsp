@@ -48,7 +48,7 @@ crate-type = ["cdylib"]
 # bare `WebAssembly.instantiate` with no glue object, so a `js-sys` import makes
 # instantiation itself fail ("Import #0 module=__wbindgen_placeholder__"). The
 # VM's browser host then reports the epoch instead, which is what it did before
-# there was a clock to choose at all. `tcl-vm/tests/wasm_coro_e2e.rs` guards it.
+# there was a clock to choose at all. `tcl-vm/tests/it_2/wasm_coro_e2e.rs` guards it.
 tcl-vm = { path = "../tcl-vm", default-features = false }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-codegen = { path = "../tcl-codegen" }

@@ -288,7 +288,7 @@ Faithfulness is asserted by execution, not by review:
 - **MRO.** `tcl_syntax::mro` asserts its linearisations against real tclsh
   9.0 `info class call` output, including the diamond and two-pass mixin
   cases.
-- **Tricky interactions.** `tcl-vm/tests/tricky_resolution_e2e.rs` pins the
+- **Tricky interactions.** `tcl-vm/tests/it_3/tricky_resolution_e2e.rs` pins the
   alias, `forward`, mathfunc, `unknown`, `rename`, and colon-name
   interactions against both 8.6 and 9.0.
 - **Selection drift.** `cargo xtask resolution-drift` (in `make xtask-check`)

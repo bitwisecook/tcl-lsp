@@ -116,7 +116,7 @@ const SANCTIONED_FILES: &[&str] = &[
 ];
 
 /// The corpus differential rule 3 requires, and the tests it must declare.
-const CROSS_CHECK_FILE: &str = "rust/tcl-lexer/tests/differential_boundaries.rs";
+const CROSS_CHECK_FILE: &str = "rust/tcl-lexer/tests/it_2/differential_boundaries.rs";
 const CROSS_CHECK_TESTS: &[&str] = &[
     "fn scanner_agrees_with_owner_on_edge_cases",
     "fn scanner_agrees_with_owner_over_corpora",
@@ -707,7 +707,7 @@ mod tests {
         assert!(is_exempt_path("rust/tcl-lexer/src/parse_cut.rs"));
         assert!(is_exempt_path("rust/tcl-lexer/src/structural_index.rs"));
         assert!(is_exempt_path("rust/tcl-compiler/src/segmenter.rs"));
-        assert!(is_exempt_path("rust/tcl-lexer/tests/lexer_depth.rs"));
+        assert!(is_exempt_path("rust/tcl-lexer/tests/it_4/lexer_depth.rs"));
         assert!(!is_exempt_path("rust/tcl-lsp-core/src/expr_context.rs"));
         assert!(!is_exempt_path("rust/tcl-compiler/src/lowering/mod.rs"));
         #[cfg(unix)]

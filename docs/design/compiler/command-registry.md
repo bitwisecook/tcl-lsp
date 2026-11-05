@@ -1592,7 +1592,7 @@ whose handler would know only a position or a keyword a descriptor states —
 `try`, `for`, `dict for`, `dict update`, `incr`, `append`, `lappend`,
 `upvar`, `namespace upvar`, `global`, `variable`, `set` — has no variant:
 there are 31 variants on 42 stamp rows, which
-`rust/tcl-registry/tests/analyser_hooks.rs` pins. The variants are analyser
+`rust/tcl-registry/tests/it_4/analyser_hooks.rs` pins. The variants are analyser
 policy over typed facts, documented where it runs:
 
 - procedure definition and the `all_procs` table — `Proc`, `OptProc`,

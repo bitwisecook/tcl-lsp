@@ -49,7 +49,7 @@ The rest of the model follows from what packs and hooks are:
 - **A shimmed command is invisible from the sandbox.** Commands are
   registered only into host-owned interpreters by host code — each
   `Interp<E>` owns its own engine, and a pack's or hook's engine is a
-  different, fresh one. `rust/tcl-cshim/tests/sandbox_isolation.rs` proves
+  different, fresh one. `rust/tcl-cshim/tests/it_5/sandbox_isolation.rs` proves
   both halves negatively: a pack program and a hook body that try `load`, and
   that try to call a command the shim registered into a separate host
   interpreter, are refused, while the host interpreter answers.

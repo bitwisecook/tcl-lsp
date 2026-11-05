@@ -4947,7 +4947,7 @@ fn itcl_method_bodies_are_analysed_end_to_end() {
 
 // Caller-frame injection through `upvar` / `uplevel`.
 //
-// The compiler-unit twins live in `tcl-compiler/tests/caller_frame_effects.rs`.
+// The compiler-unit twins live in `tcl-compiler/tests/it_4/caller_frame_effects.rs`.
 // These pin the same facts through the **live server**, whose incremental
 // per-item analysis is a different code path from the whole-file walk those
 // tests drive — a regression confined to the diagnostic-publishing pipeline

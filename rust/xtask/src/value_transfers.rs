@@ -54,7 +54,7 @@
 //!    its reason. `--check` fails on drift, on a
 //!    variable-writing command with no semantics that no classification
 //!    names, and on a stale classification.
-//! 3. **A pinned-set test** — `rust/tcl-registry/tests/value_transfers.rs`
+//! 3. **A pinned-set test** — `rust/tcl-registry/tests/it_4/value_transfers.rs`
 //!    — over every loadable dialect and the shipped `.tclspec` packs, so a
 //!    route cannot appear, vanish, or move without that file changing.
 

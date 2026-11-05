@@ -381,7 +381,7 @@ following are explicit non-goals, not accidental gaps:
 
 ## Testing
 
-- **Registry** (`tcl-registry/tests/registry_commands.rs`):
+- **Registry** (`tcl-registry/tests/it_3/registry_commands.rs`):
   `tk_widget_constructors_declare_creates_instance_at` and
   `tk_widgets_with_subcommands_self_reference_their_object_class` (widgets
   with a real subcommand table — round-trips `object_class.instance_methods`

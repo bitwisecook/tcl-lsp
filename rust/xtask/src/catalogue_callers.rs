@@ -121,19 +121,19 @@ const ALLOWED: &[(&str, &str)] = &[
         "tests: the semantic handle agrees with every catalogue profile",
     ),
     (
-        "rust/tcl-registry/tests/detect_dialect.rs",
+        "rust/tcl-registry/tests/it_3/detect_dialect.rs",
         "tests: detection agrees with the catalogue",
     ),
     (
-        "rust/tcl-registry/tests/dialect_profile.rs",
+        "rust/tcl-registry/tests/it_5/dialect_profile.rs",
         "tests: catalogue profile invariants",
     ),
     (
-        "rust/tcl-registry/tests/registry_sweep.rs",
+        "rust/tcl-registry/tests/it_5/registry_sweep.rs",
         "tests: the registry sweep walks every catalogue profile",
     ),
     (
-        "rust/tcl-registry/tests/spec_pack_provenance.rs",
+        "rust/tcl-registry/tests/it_4/spec_pack_provenance.rs",
         "tests: pack provenance across every catalogue profile",
     ),
     (
@@ -149,7 +149,7 @@ const ALLOWED: &[(&str, &str)] = &[
         "`could_collide` asks every profile's context whether two packages coexist",
     ),
     (
-        "rust/tcl-vm/tests/cross_version_command_surface_e2e.rs",
+        "rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs",
         "tests: the VM's profile pin agrees with every catalogue profile",
     ),
     (

@@ -49,7 +49,7 @@
 //! draft from through the ordinary `draft::from_command_spec`. Loading a pack
 //! and browsing a shipped command therefore produce drafts by the *same* code,
 //! which is what makes the per-port equivalence gate in
-//! `tcl-spec-studio/tests/spectcl_ports.rs` meaningful.
+//! `tcl-spec-studio/tests/it_3/spectcl_ports.rs` meaningful.
 //!
 //! The frozen syntax is `docs/design/spec-dsl-examples/README.md`; the
 //! architecture around it is `docs/design/registry/spec-packs.md`.
@@ -2559,7 +2559,7 @@ fn checked_lifecycle(lifecycle: Lifecycle, what: &str, line: u32, log: &mut Log)
 /// Report a child lifecycle that reaches outside its parent's window.
 ///
 /// Notice-only, and the declaration is kept: the hard gate is the shipped-spec
-/// sweep (`tcl-registry/tests/registry_sweep.rs`), which asserts the same
+/// sweep (`tcl-registry/tests/it_5/registry_sweep.rs`), which asserts the same
 /// containment. Only releases the child declares **for itself** are compared —
 /// one it leaves open is the inherited one — and the narrowed window must
 /// still be a legal ordering, since a child introduced after its parent

@@ -219,7 +219,7 @@ computed **instruction-granular** (a backward walk per block seeded from
 locals with disjoint ranges share a slot.  Parameters are pinned to stable low
 slots.  No production emitter consumes it: the bytecode path stays
 one-slot-per-name for tclsh byte-parity and the WASM backend binds locals
-through the runtime frame; `rust/tcl-compiler/tests/slot_allocation.rs`
+through the runtime frame; `rust/tcl-compiler/tests/it_4/slot_allocation.rs`
 exercises it.
 
 ## Worklist dataflow (liveness, type/taint propagation)

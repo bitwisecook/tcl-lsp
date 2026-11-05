@@ -29,7 +29,7 @@
 //!
 //! 1. **The vocabulary**, derived from the registry every loadable dialect
 //!    and the shipped `.tclspec` packs build together — the registry
-//!    `rust/tcl-registry/tests/analyser_hooks.rs` sweeps — so a word a pack
+//!    `rust/tcl-registry/tests/it_4/analyser_hooks.rs` sweeps — so a word a pack
 //!    adds joins the lint with no edit here.
 //! 2. **A source lint** over the analysis and tooling tiers (the roots the
 //!    value-transfer gate scans). A vocabulary word is a site when it is the
@@ -326,7 +326,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
 // The vocabulary
 
 /// The compiled-in dialects whose packs the registry merges — the list
-/// `rust/tcl-registry/tests/analyser_hooks.rs` sweeps.
+/// `rust/tcl-registry/tests/it_4/analyser_hooks.rs` sweeps.
 const LOADABLE_DIALECTS: &[&str] = &[
     "tcl8.4",
     "tcl8.5",
@@ -1352,7 +1352,7 @@ mod tests {
         for excluded in [
             "rust/tcl-registry/src/registry.rs",
             "rust/tcl-registry/src/commands/tcl/if_.rs",
-            "rust/tcl-compiler/tests/analyser.rs",
+            "rust/tcl-compiler/tests/it_4/analyser.rs",
             "rust/tcl-lsp-core/src/formatting/tests.rs",
             "rust/tcl-compiler/src/lowering/tests/structured.rs",
         ] {

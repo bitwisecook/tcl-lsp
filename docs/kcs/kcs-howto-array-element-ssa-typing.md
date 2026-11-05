@@ -59,7 +59,7 @@ and the dead-store/unused diagnostics, plus `rust/tcl-lsp-core` hover.
 2. Lock behaviour with a focused test at the right layer:
    type inference (`type_infer::tests::array_elements_type_independently`,
    `dynamic_key_write_joins_element_types`), diagnostics
-   (`rust/tcl-compiler/tests/checks.rs` dead-store/RBS cases), or e2e
+   (`rust/tcl-compiler/tests/it_5/checks.rs` dead-store/RBS cases), or e2e
    (`diagnostic_matrix.rs` array rows).
 
 ## Failure modes

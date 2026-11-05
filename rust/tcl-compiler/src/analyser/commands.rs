@@ -8343,7 +8343,7 @@ mod tests {
     /// global `::tcl::mathfunc::f` for a call made from inside `::ns` —
     /// confirmed real Tcl behaviour by the VM's
     /// `namespace_local_mathfunc_shadows_global_in_expr`
-    /// (`tcl-vm/tests/tricky_resolution_e2e.rs`). The analyser must settle
+    /// (`tcl-vm/tests/it_3/tricky_resolution_e2e.rs`). The analyser must settle
     /// the call to the local override, not the fixed global form.
     #[test]
     fn expr_function_call_resolves_namespace_local_mathfunc_override() {

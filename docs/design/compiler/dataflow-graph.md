@@ -137,5 +137,5 @@ across runs.
   (`extract_function_dataflow`, `extract_dataflow_graph`).
 - **Projections**: `rust/tcl-explorer/src/serialise.rs`,
   `rust/tcl-lsp-core/src/graphs.rs`.
-- **Tests**: `rust/tcl-compiler/tests/dataflow.rs` plus the in-module tests
+- **Tests**: `rust/tcl-compiler/tests/it_4/dataflow.rs` plus the in-module tests
   in `dataflow_graph.rs` and the `tcl-explorer` crate tests.

@@ -482,7 +482,7 @@ A `Lifecycle` must be internally ordered (introduced ≤ deprecated <
 retired, where each is present) and a child's declared releases must fall
 inside its parent's window. Both properties are checked at two strengths:
 
-- **Shipped specs — a hard gate.** `rust/tcl-registry/tests/registry_sweep.rs`
+- **Shipped specs — a hard gate.** `rust/tcl-registry/tests/it_5/registry_sweep.rs`
   walks every compiled-in command, recursing into every level, and asserts
   both properties (`Lifecycle::validate`, `Lifecycle::intersect`). A
   shipped spec with an invalid or non-contained lifecycle fails the suite.

@@ -27,7 +27,7 @@
 //! false positives.
 //!
 //! The single-file legs of the abstention live in
-//! `rust/tcl-compiler/tests/analyser.rs` (`issue_1367_…`). This suite pins
+//! `rust/tcl-compiler/tests/it_4/analyser.rs` (`issue_1367_…`). This suite pins
 //! the workspace half: the defining subclass lives in a *different
 //! document*, so the abstention only works if the cross-file class index
 //! feeds the base document's re-publish — the "converged, not first,

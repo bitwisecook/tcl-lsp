@@ -88,7 +88,7 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
 /// the file's loops and helper procedures run in the deterministic sandbox
 /// and what they registered is written back as straight-line declarations.
 /// A canonical pack therefore round-trips, which is the bijection the
-/// gates in `tcl-spectcl/tests/export.rs` hold to.
+/// gates in `tcl-spectcl/tests/it_2/export.rs` hold to.
 ///
 /// Two deliberate choices, both stated in the pack's own terms:
 ///

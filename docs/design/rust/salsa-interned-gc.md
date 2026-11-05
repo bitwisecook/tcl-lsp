@@ -121,7 +121,7 @@ All three tests live in `rust/tcl-lsp-db/tests/interned_gc.rs`.
 | `interned_slots_stay_bounded_across_an_edit_session` | test-time | the live interned working set tracking the edit count instead of the program, from any cause — a durability bump inside the crate's own graph, an untracked intern on the edit path, or a salsa upgrade that changes the policy |
 | `raising_input_durability_disables_the_collector` | test-time | a vacuous primary test: the raised-input control must exceed its slot-growth bound for all four body-keyed ingredients and report zero reuse for all six ingredients |
 | `no_input_durability_is_raised` | test-time | a `with_durability` / builder-`durability` call site in `tcl-lsp-db` or `tcl-lsp-server`, i.e. the hazard-1 shape written where the behavioural tests cannot see it |
-| `edit_session_memory_growth_plateaus` (`rust/tcl-lsp-db/tests/memory_growth.rs`) | test-time | the aggregate retained-bytes plateau (the #1035 regression class), of which this invariant is one contributor |
+| `edit_session_memory_growth_plateaus` (`rust/tcl-lsp-db/tests/it_5/memory_growth.rs`) | test-time | the aggregate retained-bytes plateau (the #1035 regression class), of which this invariant is one contributor |
 | Doc comments at the six struct definitions and the four inputs | doc-only | a reviewer reaching the definition site with no context |
 
 ### What the behavioural tests measure

@@ -127,7 +127,7 @@ done
 for excluded in \
     editors/vscode/src/extension.ts \
     rust/bigip-report-gen/python/tests/test_engine.py \
-    rust/tcl-codegen/tests/codegen.rs \
+    rust/tcl-codegen/tests/it_2/codegen.rs \
     rust/tcl-bigip/examples/dump_apl.rs; do
     if grep -Fxq "$excluded" "$listed_file"; then
         fail "native-engine source identity includes non-compilation input $excluded"

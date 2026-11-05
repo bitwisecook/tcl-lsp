@@ -35,7 +35,7 @@
 //!
 //! so a reader can re-derive any expectation in a real shell without this
 //! harness. The matching pins for the bytecode VM live in
-//! `rust/tcl-vm/tests/numeric_tower_e2e.rs`; the two files assert the same
+//! `rust/tcl-vm/tests/it_2/numeric_tower_e2e.rs`; the two files assert the same
 //! rows so the engines cannot drift.
 
 #![cfg(have_tommath)]

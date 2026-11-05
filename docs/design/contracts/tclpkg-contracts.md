@@ -156,4 +156,4 @@ and removing them from the reserved list in the same change.
 | Virtual environments | `rust/tcl-pkg/src/venv.rs` |
 | Docker generation | `rust/tcl-pkg/src/docker.rs` |
 | CLI verbs | `rust/tcl-cli/src/commands/pkg.rs`, `venv.rs`, `rust/tcl-cli/src/cli.rs` |
-| CLI tests | `rust/tcl-cli/tests/pkg_verbs.rs` |
+| CLI tests | `rust/tcl-cli/tests/it_5/pkg_verbs.rs` |

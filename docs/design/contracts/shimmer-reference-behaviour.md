@@ -165,7 +165,7 @@ mutation cannot prove this cycle. Unknown operations, aliases and trace effects
 remain barriers; a branch or backedge cannot borrow a body context from a path
 that did not enter it. The diagnostic is conditional and carries no action.
 The focused controls live in
-`rust/tcl-compiler/tests/lsp_shimmer_conditional_source.rs`.
+`rust/tcl-compiler/tests/it_3/lsp_shimmer_conditional_source.rs`.
 
 ## Where the command-level knowledge lives
 
@@ -330,7 +330,7 @@ dedicated `Statement::Incr` node.
   the braced / quoted / bare triple for both a non-evaluating and an
   evaluating command, `a_braced_argument_commits_no_intrep_for_later_reads`
   the commit half) and the `FP-SH-24` fixtures.
-- Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/checks.rs`.
+- Unit tests co-located with each shimmer module (`rust/tcl-compiler/src/shimmer/*.rs`) and in `rust/tcl-compiler/tests/it_5/checks.rs`.
 - TP/FP/TN/FN regression fixtures in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` (the `FP-SH-NN` series).
 - Native `lsp_e2e` coverage in `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` and `rust/tcl-lsp-server/tests/e2e/code_actions.rs` (the noqa suppress quick fix).
 - VS Code integration coverage in `editors/vscode/src/test/shimmerPrecision.test.ts` against `editors/vscode/testFixture/shimmerPrecision.tcl`.

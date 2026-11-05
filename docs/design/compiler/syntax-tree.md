@@ -206,7 +206,7 @@ replaced, kept as a permanent regression net:
   The last is a real fragment, not trivia: the lexer emits a separator
   backslash-newline as `Sep`, but a quoted-word content backslash-newline as
   an `Esc` token the tree must keep.
-- **Segment byte-identity** — `rust/tcl-compiler/tests/differential_segment.rs`
+- **Segment byte-identity** — `rust/tcl-compiler/tests/it_4/differential_segment.rs`
   compares the production `segment_commands_with_offset_and_config` against
   `frozen_oracle::segment_local`, a byte-for-byte snapshot of the token loop
   taken before the segmenter derived from the CST. Comparing against the live
@@ -251,7 +251,7 @@ tokenisers or cursor-local by nature, not duplicate segmenters.
 - Segment derivation: `rust/tcl-compiler/src/parsing/syntax/segment.rs`
 - Segmenter (consumer): `rust/tcl-compiler/src/segmenter.rs`
 - Tests: `rust/tcl-compiler/src/parsing/syntax/` unit tests, plus the
-  differential oracle in `rust/tcl-compiler/tests/differential_segment.rs`
+  differential oracle in `rust/tcl-compiler/tests/it_4/differential_segment.rs`
 
 ## Related docs
 

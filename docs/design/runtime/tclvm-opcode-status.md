@@ -25,7 +25,7 @@ the same change. The rows are checked against the `Op` enum in
 The rows follow Tcl 9.0.4's `tclInstructionTable[]` ordering and operand
 widths. The `opcode_family_partition_total` test
 (`rust/tcl-bytecode/src/lib.rs`) keeps every enum variant routed to exactly one
-mnemonic family and size class, and `rust/tcl-vm/tests/opcode_c_parity.rs` +
+mnemonic family and size class, and `rust/tcl-vm/tests/it_5/opcode_c_parity.rs` +
 `opcode_catch_parity.rs` pin the C-semantics contracts.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
@@ -320,7 +320,7 @@ deliberate divergences; everything else matches C per the parity suites.
   `land`/`lor` are never emitted by codegen
   (`&&`/`||` compile to short-circuit jump sequences instead), but the VM's
   dispatch `match` is exhaustive over the whole `Op` enum
-  (`rust/tcl-vm/tests/opcode_dispatch_coverage.rs`), so they carry
+  (`rust/tcl-vm/tests/it_2/opcode_dispatch_coverage.rs`), so they carry
   real eager-boolean dispatch arms rather than being dead.
 - Variable opcodes come in `Scalar1/Scalar4/ScalarStk/Array1/Array4/ArrayStk/Stk`
   families — every family member C Tcl emits is covered.

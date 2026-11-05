@@ -1080,7 +1080,7 @@ fn a_forced_import_from_a_wholly_foreign_namespace_shadows_end_to_end() {
 // `SHADOW_MAIN` is byte-identical in both directions; only the sibling
 // document differs, so these pin the server's *wiring* (does each provider
 // actually receive `export_snapshot()`?) rather than the core resolver, which
-// `tcl-lsp-core/tests/force_import_shadow_consumers.rs` covers.
+// `tcl-lsp-core/tests/it_5/force_import_shadow_consumers.rs` covers.
 //
 // C-Tcl proof (tclsh 8.6.14 and tclsh 9.0.4 agreeing): with the sibling's
 // `namespace export helper` present, `helper 1 2` prints `SRC/1/2`; without

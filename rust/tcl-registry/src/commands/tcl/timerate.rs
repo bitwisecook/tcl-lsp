@@ -169,7 +169,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 /// `TCL86_PLUS` gate alone excludes `timerate` from iRules (whose
 /// embedded core is pinned to Tcl 8.4.6), exactly the mechanism
 /// `irules_banned_commands_never_resolve`
-/// (`tcl-registry/tests/dialect_profile.rs`) already documents for
+/// (`tcl-registry/tests/it_5/dialect_profile.rs`) already documents for
 /// `dict`/`lassign`/`apply`/`lmap`/`coroutine`. Unlike its sibling `time`
 /// — a genuine K36322151 command whose iRules exclusion rides on its own
 /// `ALL_TCL` `dialects` group (see `time.rs`) — `timerate` was never one

@@ -297,7 +297,7 @@ const fn hover_key(
 ///
 /// Kept in step with the block's grammar
 /// ([`SPECTCL_HOVER_GRAMMAR`](crate::definer::SPECTCL_HOVER_GRAMMAR)) by
-/// `tcl-spectcl/tests/spectcl_dialect_analysis.rs`: the grammar is what folds
+/// `tcl-spectcl/tests/it_4/spectcl_dialect_analysis.rs`: the grammar is what folds
 /// and paints the block, this is what resolves its words as *commands*, and a
 /// key missing from either half is invisible in one of the two.
 const SPECTCL_HOVER_KEYS: &[ScopedCommand] = &[

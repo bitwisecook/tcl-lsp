@@ -72,7 +72,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// Tcl version but not an iRules row, so the spec never intersects iRules'
 /// bare `IRULES` mask and `time` is unreachable there — there is no
 /// subtractive disable list. The `irules_banned_commands_never_resolve`
-/// contract test (`tcl-registry/tests/dialect_profile.rs`) pins that `time`
+/// contract test (`tcl-registry/tests/it_5/dialect_profile.rs`) pins that `time`
 /// does not resolve under f5-irules, exactly as `exec_.rs`/`pid.rs` document
 /// for their own banned entries. (Its Tcl 8.6+ sibling `timerate` is likewise
 /// absent from iRules, but through its `TCL86_PLUS` version gate rather than a

@@ -12,7 +12,7 @@
  * `optimised` renders the pane's optimised view (the CFG of the optimiser's
  * rewritten source) instead of the compiled source's.
  *
- * Driven by `rust/tcl-cli/tests/explorer_gui.rs`. The shipped script runs in a
+ * Driven by `rust/tcl-cli/tests/it_5/explorer_gui.rs`. The shipped script runs in a
  * `vm` context whose DOM is a stand-in that absorbs every call and keeps only
  * what is assigned to `innerHTML`, so the test needs `node` and no browser.
  */

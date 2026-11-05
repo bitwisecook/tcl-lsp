@@ -55,7 +55,7 @@
 //! iRules row (see `spec()` below), so it is simply absent under iRules and
 //! falls out of iRules by plain intersection, with no subtractive disable list
 //! (contract-tested by `irules_banned_commands_lack_the_irules_bit`,
-//! `tcl-registry/tests/dialect_profile.rs`). No other dialect profile (iApps,
+//! `tcl-registry/tests/it_5/dialect_profile.rs`). No other dialect profile (iApps,
 //! tmsh, the EDA vendor shells, Expect, Tk) bans `vwait` or registers a
 //! competing spec of its own — the `irules/`, `iapps/`, `expect/`, `tk/`, and
 //! `eda_*/` command directories were all grepped for `vwait` with no hits

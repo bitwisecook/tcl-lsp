@@ -15456,7 +15456,7 @@ fn global_seed_is_the_plain_analysis_m9() {
 // M11 (TIP 278) — cross-version namespace-scope variable fallback.
 //
 // C-Tcl facts, pinned live against tclsh8.6 (8.6.16) and tclsh9.0 (9.0.4)
-// (the same table `rust/tcl-vm/tests/cross_version_vars_e2e.rs` executes
+// (the same table `rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs` executes
 // under both binaries):
 //   * `set g 1; namespace eval foo { set g }`      8.6 → 1, 9.0 → error
 //   * `set v 1; namespace eval bar { variable v; set v }`  both → error

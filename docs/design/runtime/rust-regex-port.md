@@ -98,7 +98,7 @@ With the `cmd-core` feature the crate implements
 The **bytecode VM** (`rust/tcl-vm`) uses `AreEngine` for ARE syntax, including
 `\m`/`\M`/`[[:<:]]` word edges and POSIX longest-match submatches.
 Command-level behaviour is covered by
-`rust/tcl-vm/tests/regexp_e2e.rs` (cases ported from `regexp.test`, expected
+`rust/tcl-vm/tests/it_2/regexp_e2e.rs` (cases ported from `regexp.test`, expected
 values captured from real tclsh).
 
 The Rust runtime (`runtime/rust`) uses it: its `cmd_regex` adapter drives

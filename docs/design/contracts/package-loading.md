@@ -566,13 +566,13 @@ when cached registration data is read.
   (`source_graph_inheritance_suppresses_w120_in_sourced_module`,
   `explicit_entry_point_config_suppresses_w120_project_wide`,
   `pull_path_applies_w120_package_refinement`).
-- `tcl-registry/tests/registry_sweep.rs` — registry-wide command / package
+- `tcl-registry/tests/it_5/registry_sweep.rs` — registry-wide command / package
   coverage.
-- `tcl-vm/tests/package_diagnostics_e2e.rs` — per-release diagnostic messages
+- `tcl-vm/tests/it_4/package_diagnostics_e2e.rs` — per-release diagnostic messages
   and `errorCode`; `runtime/rust/src/cmd_package.rs`
   `package_error_codes_follow_the_pinned_release`.
-- `tcl-vm/tests/package_coro_e2e.rs` — coroutine suspension through package
-  loading; `tcl-vm/tests/tcltest_load.rs` runs upstream package-3.54.
+- `tcl-vm/tests/it_2/package_coro_e2e.rs` — coroutine suspension through package
+  loading; `tcl-vm/tests/it_4/tcltest_load.rs` runs upstream package-3.54.
 
 ## Cross-reference: tclpkg
 

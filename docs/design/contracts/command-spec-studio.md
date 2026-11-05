@@ -495,7 +495,7 @@ after the example rather than failing to render.
 
 ### Invariant: the schema covers every spec field
 
-`rust/tcl-spec-studio/tests/schema_coverage.rs` reads `tcl-registry/src/spec.rs` at compile time
+`rust/tcl-spec-studio/tests/it_5/schema_coverage.rs` reads `tcl-registry/src/spec.rs` at compile time
 (via `include_str!`), extracts the field list from the `CommandSpec::DEFAULT`
 and `SubCommand::DEFAULT` initialisers, and compares it against the schema in
 both directions. A field added to the registry without a schema entry fails
@@ -609,7 +609,7 @@ reports; `studio.ts` paints them.
 | Chips | A command's pack is a chip wherever the heading is not already saying it — the command palette, the editor's source line — and a name several packs declare says so: `close is also declared in expect, irules.` |
 | Unfiled | A command whose pack the catalogue does not describe is filed under a bare heading rather than dropped: an unknown dialect has an empty catalogue, and a browser showing nothing would be worse. |
 
-Gate: `rust/tcl-registry/tests/spec_pack_provenance.rs` proves every command
+Gate: `rust/tcl-registry/tests/it_4/spec_pack_provenance.rs` proves every command
 in every browsable dialect resolves to a pack that is a real `commands/<id>/`
 directory, and that the iRules `close` files under `irules` while Tcl 9.0's
 files under `tcl`. The studio's own tests prove the catalogue's counts sum to
@@ -737,7 +737,7 @@ Four rules the output must satisfy:
 
 ### Verifying the output compiles
 
-`rust/tcl-spec-studio/tests/render_sweep.rs` renders every command in every browsable dialect and
+`rust/tcl-spec-studio/tests/it_2/render_sweep.rs` renders every command in every browsable dialect and
 asserts the structural invariants. Those assertions cannot prove the result is
 valid Rust. The real check is to render the specs into the registry and build
 it; the procedure is at the top of that test file.

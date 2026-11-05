@@ -215,7 +215,7 @@ default it was not asked for.
   byte array has no lossless spelling and 8.x reads text in the system
   encoding; a command that declares no route keeps its `const_fold`
   callback.
-- **The oracle.** `rust/tcl-registry/tests/differential_fold.rs` runs every
+- **The oracle.** `rust/tcl-registry/tests/it_4/differential_fold.rs` runs every
   fold against a real `tclsh`; the fuzzer pairs `tclvm`, `runtime-rust`,
   and `tclsh`, with the rule that a two-way native pair has no oracle
   ([differential-fuzzing.md](../contracts/differential-fuzzing.md)).
@@ -389,7 +389,7 @@ axis, and the axis's owner in the tree decides each bit:
 | `FORMAT_VERBS` | the `format` conversion set | `format::is_available`, `format::is_verb` |
 | `STRING_CLASSES` | the `string is` class set and its bounds | `string_is::resolve_class`, `NumberSyntax::is_tcl9_or_later` |
 | `REGEXP_FEATURES` | ARE syntax, flags, and engine limits | `tcl_regex::cmd_core::AreEngine`, `regex::RegexFlags` |
-| `LIST_RENDERING` | the canonical quoting of a list result | `tcl_syntax::list`, `rust/tcl-vm/tests/dict_canonicalisation_parity.rs` |
+| `LIST_RENDERING` | the canonical quoting of a list result | `tcl_syntax::list`, `rust/tcl-vm/tests/it_5/dict_canonicalisation_parity.rs` |
 | `DICT_ORDER` | canonical key order and the duplicate rule | `ValueOps::dict_pairs` |
 | `COLLATION` | case folding and ordering in a comparison | `string::simple_upper` / `simple_lower` / `simple_title`, `switch::select` |
 | `BYTE_STRINGS` | how a code point above `U+00FF` crosses to bytes | `TclVersion::byte_string_encoding`, whose two answers are `ByteStringEncoding::LegacyTruncate` up to 8.6 and `CheckedLatin1` from 9.0 |
@@ -2132,8 +2132,8 @@ entry, and five gates hold them together:
 | `rust/tcl-spec-studio/src/coverage.rs`'s exhaustive destructuring witness | fails to compile until `semantics`, `evaluate`, and `facts` are surfaced or marked `Surface::Excluded` with a reason |
 | `native_hook_tables_cover_their_catalogues` | one row per family, including the three route fields |
 | `value_tables_cover_their_catalogues` | one row per closed vocabulary: the route kinds, the `-outcome` words, the `depends` words, and the `-evaluate-reason` words |
-| `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` | a rendered-then-reloaded draft differs from its source only on `GAPS` keys; `export.rs` round-trips bodies verbatim as it does for `const_fold` |
-| `rust/tcl-spec-studio/tests/reference_doc.rs` | `docs/references/command-spec/fields.md` is regenerated from the studio schema, so the three fields' help text is one string in `rust/tcl-spec-studio/src/help.rs` and not two |
+| `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` | a rendered-then-reloaded draft differs from its source only on `GAPS` keys; `export.rs` round-trips bodies verbatim as it does for `const_fold` |
+| `rust/tcl-spec-studio/tests/it_2/reference_doc.rs` | `docs/references/command-spec/fields.md` is regenerated from the studio schema, so the three fields' help text is one string in `rust/tcl-spec-studio/src/help.rs` and not two |
 
 The studio has a route picker and a body box —
 `schema.rs`'s `route` and `body` `NestedFieldSchema` rows under
@@ -2206,17 +2206,17 @@ implementation against the library's real behaviour.
 
 ## Test anchors
 
-- `rust/tcl-registry/tests/differential_fold.rs` — every fold against a real `tclsh`, per release found on `PATH`
+- `rust/tcl-registry/tests/it_4/differential_fold.rs` — every fold against a real `tclsh`, per release found on `PATH`
 - `rust/tcl-spec-hooks/tests/const_fold_e2e.rs` — O129 driven by a `.tclspec` body
 - `rust/tcl-spec-hooks/tests/containment_e2e.rs` — the budget, quarantine, and poison paths the route's isolation rule extends
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack's hooks through the sandboxed host at budget: a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, `value_tables_cover_their_catalogues`
 - `rust/tcl-registry/src/value_transfer/reference_body.rs` — `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`, the scan's refusals; `rust/tcl-spectcl/src/loader/reference.rs` — `the_scans_whitelist_is_the_hosts`; `rust/tcl-spectcl/tests/pack_source_e2e.rs` — `a_reference_body_answers_through_the_host_as_the_procedure_does`, the parity of a derived body with the procedure it came from, and `a_derived_body_runs_under_the_release_the_call_is_analysed_under`, the rows that hold against each release's own `tclsh`; `rust/tcl-engine-tclvm/src/lib.rs` — `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`
-- `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the four-surface round trip
-- `rust/tcl-spec-studio/tests/reference_doc.rs` — the generated field reference
-- `rust/tcl-vm/tests/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on
+- `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the four-surface round trip
+- `rust/tcl-spec-studio/tests/it_2/reference_doc.rs` — the generated field reference
+- `rust/tcl-vm/tests/it_5/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on
 - `rust/tcl-spec-hooks/tests/containment_e2e.rs` — `a_body_with_a_global_counter_answers_identically_on_every_call`: the `fold [incr ::counter]` body raises under `Engine::confine_stores`, so every call answers alike
-- `rust/tcl-regex/tests/precision_oracle.rs` — the regexp precision witnesses, the `^(a+)+\1$` / `^(a+)+b$` pair among them
+- `rust/tcl-regex/tests/it_2/precision_oracle.rs` — the regexp precision witnesses, the `^(a+)+\1$` / `^(a+)+b$` pair among them
 - `rust/tcl-registry/src/pack_hooks.rs` — `host_install_and_quarantine_bump_the_generation`; `runtime/rust/tests/common/engine_cases.rs` and `rust/tcl-engine-tclvm/src/lib.rs` — `set_release_pins_the_numeral_grammar`
 
 ## Related docs

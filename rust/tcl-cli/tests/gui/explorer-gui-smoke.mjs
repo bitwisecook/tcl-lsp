@@ -6,7 +6,7 @@
 /*
  * Headless smoke test for the compiler-explorer GUI (`rust/tcl-cli/gui/`).
  *
- * Driven by `rust/tcl-cli/tests/explorer_gui.rs`, which compiles a Tcl
+ * Driven by `rust/tcl-cli/tests/it_5/explorer_gui.rs`, which compiles a Tcl
  * snippet with the real explorer pipeline and hands the resulting contract
  * JSON to this script:
  *

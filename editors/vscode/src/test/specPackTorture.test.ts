@@ -18,7 +18,7 @@
 
 // SpecTcl pack torture, through the extension host.
 //
-// `rust/tcl-spectcl/tests/pack_torture.rs` is the loader-altitude half of this:
+// `rust/tcl-spectcl/tests/it_2/pack_torture.rs` is the loader-altitude half of this:
 // it proves no `.tclspec`, however malformed, can panic or hang the parser. It
 // cannot prove the thing a user actually cares about, which is that none of it
 // takes *the editor* with it — the loader runs on a worker inside a live

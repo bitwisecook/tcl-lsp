@@ -263,7 +263,7 @@ filesystem confined to the project tree and the Tcl libraries named by
   and runs against a throwaway `HOME`; `tcl pkg build` still builds under the
   confinement, and a script that did not declare the network cannot reach a
   local listener wherever the audit log says the denial was enforced
-  (`rust/tcl-cli/tests/pkg_build.rs`).
+  (`rust/tcl-cli/tests/it_5/pkg_build.rs`).
 
 ## Boundaries of the model
 

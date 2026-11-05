@@ -584,7 +584,7 @@ through the generic operations the interface contract names:
   synthetic domains, the interpreter-domain stack, export tombstone
   ordering, rename epochs, literal-iteration simulation, and value binding
   of a created interpreter. The drift test in
-  `rust/tcl-registry/tests/analyser_hooks.rs` pins the set. A hook variant
+  `rust/tcl-registry/tests/it_4/analyser_hooks.rs` pins the set. A hook variant
   whose handler implements one command's binding rules is command-specific
   is recorded in the current command-knowledge inventory's
   [compiler-owned handlers](value-transfers-migration.md#compiler-owned-handlers).
@@ -837,7 +837,7 @@ frozen-syntax memo's coverage matrix, the renderer emitting it, and
 (`rust/tcl-spec-studio/src/store.rs` reports the grammar itself, and the
 form shows its rows read-only).
 
-**Tests.** `rust/tcl-spec-studio/tests/spectcl_ports.rs`'s
+**Tests.** `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs`'s
 `the_clause_grammar_derivation_agrees_with_the_shipped_walk` holds the `if`
 and `foreach` ports' grammars to the shipped ones and walks each call corpus
 through both, including the two subtle `if` rows (`if else {a}` is valid; a
@@ -848,9 +848,9 @@ loops, and `dict` and `array`'s iterating subcommands — is rendered to
 `derivations_are_recorded_as_derivations` in the same file keeps the rule
 that a derivation is an explicit opt-in and never an implicit consequence
 of declaring the data it reads;
-`rust/tcl-compiler/tests/cfg.rs` and `analyser.rs` keep their `if` / `try`
+`rust/tcl-compiler/tests/it_5/cfg.rs` and `analyser.rs` keep their `if` / `try`
 / loop cases as the behavioural parity gate; and
-`rust/tcl-registry/tests/registry_sweep.rs` holds a `Group` row's `layout`
+`rust/tcl-registry/tests/it_5/registry_sweep.rs` holds a `Group` row's `layout`
 to a real `repeated_args` entry
 (`clause_grammar_group_rows_cite_a_real_layout`) and a
 `conditional_binding` var-list slot away from `ArgRole::VarWrite`
@@ -1057,7 +1057,7 @@ form needs: `member_option` (so `method ?-export?` and `command
 ?-override?` are data), `-shift`, and the `SpecTcl` and `SslicTcl`
 families.
 
-**Tests.** `rust/tcl-registry/tests/registry_sweep.rs`'s
+**Tests.** `rust/tcl-registry/tests/it_5/registry_sweep.rs`'s
 `every_member_carries_an_effect_that_agrees_with_its_roles` holds the
 agreement rules: every `MemberSpec` carries an `effect`; a `Callable` row's
 `name_slot`, `params_slot`, and `body_slot` are exactly the *first*
@@ -1069,9 +1069,9 @@ arguments, not one list); a `Relation` row carries a `slot`, and itcl's
 list of class references; a `Retraction` row carries a `retraction`; and a
 `Visibility` row carries a `visibility_effect`.
 `no_member_effect_names_a_family` is the negative.
-`rust/tcl-registry/tests/analyser_hooks.rs`'s
+`rust/tcl-registry/tests/it_4/analyser_hooks.rs`'s
 `analyser_hook_stamps_are_disjoint_from_definer_families` keeps hook stamps
-and definer families apart. `rust/tcl-compiler/tests/mro_lattice_adversarial.rs`
+and definer families apart. `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`
 is the hierarchy gate, and `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs`
 holds that a member spelling only a workspace pack declares reaches
 document symbols, hover and go-to-definition through its row's effect, with
@@ -1143,7 +1143,7 @@ body; the template-word plan is the value axis's
 by-name functions (`arg_indices_for_role_words`, `pattern_args_words`,
 `command_prefixes`, `CommandSpec::return_type_for_call`) share each
 query's rule rather than restating it, and
-`rust/tcl-registry/tests/registry_sweep.rs`'s
+`rust/tcl-registry/tests/it_5/registry_sweep.rs`'s
 `derived_queries_agree_with_the_by_name_answers` holds every query to the
 by-name answer on every shipped command of every loadable dialect; they
 differ only where the resolution's subcommand, selected under the release,
@@ -1494,7 +1494,7 @@ separate field at all.
 **The studio field.** Neither `pattern_arg_resolver` nor the option
 effects has a `GAPS` row: the resolver is an escape hatch no shipped spec
 sets, and `option -effect` / `option_effect_family` are in the option-row
-form with the loader spelling (`rust/tcl-spec-studio/tests/option_row_editing.rs`
+form with the loader spelling (`rust/tcl-spec-studio/tests/it_4/option_row_editing.rs`
 is that form's gate): an option row's `effect` is drafted and written back,
 and `option_effect_families` has its generator and reverse parser.
 
@@ -1503,12 +1503,12 @@ include `tp_no_switches_runs_every_substitution` and `lsearch -regexp
 -glob` searching the list `-regexp` for the glob pattern `-glob`, the
 boundary rule; `rust/tcl-registry/src/registry.rs`'s
 `substitutions_performed_answers_per_call_and_only_for_substituting_commands`
-is the projection's gate; `rust/tcl-registry/tests/registry_sweep.rs` holds
+is the projection's gate; `rust/tcl-registry/tests/it_5/registry_sweep.rs` holds
 that every option with an `effect` names a declared family
 (`every_option_effect_names_a_declared_family`) and that a family's `base`
 mentions only axes its options mention
 (`a_family_base_mentions_only_axes_its_options_mention`);
-`rust/tcl-registry/tests/tcl91_dialect.rs` pins the positive family's
+`rust/tcl-registry/tests/it_5/tcl91_dialect.rs` pins the positive family's
 availability; and `rust/tcl-compiler/src/analyser/diagnostics/tests.rs`'s
 `w147_reports_mixed_subst_switch_families` pins the mixed-family error
 tclsh 9.1 raises.
@@ -1582,7 +1582,7 @@ tclsh 9.1 raises.
   admitted stamp is inert in production, and the second witness compiles
   one directly: the emitter specialises it and records the alias target's
   identity and the pack facts behind it, which the VM's alias hop and its
-  held facts admit (`rust/tcl-spectcl/tests/codegen_stamps.rs`; rungs 1
+  held facts admit (`rust/tcl-spectcl/tests/it_5/codegen_stamps.rs`; rungs 1
   and 2 below).
 - **The workspace overlay reaches a compile by its key, and a miss stops
   the compile.** A non-zero overlay is the key a pack set's registry
@@ -2478,27 +2478,27 @@ flowchart LR
 
 ## Test anchors
 
-- `rust/tcl-registry/tests/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation
+- `rust/tcl-registry/tests/it_4/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
 - `rust/tcl-codegen/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
-- `rust/tcl-cshim/tests/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
+- `rust/tcl-cshim/tests/it_5/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
-- `rust/tcl-spec-studio/tests/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
-- `rust/tcl-spec-studio/tests/spectcl_roundtrip.rs` — the round trip that carries `semantic_operation`, `definition_body` and `alias_of` (`alias_of_survives_the_round_trip`) with no `GAPS` row
-- `rust/tcl-spec-studio/tests/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
-- `rust/tcl-registry/tests/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
-- `rust/tcl-registry/tests/tcl91_dialect.rs` — the availability of `subst`'s positive option family
-- `rust/tcl-compiler/tests/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
+- `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
+- `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the round trip that carries `semantic_operation`, `definition_body` and `alias_of` (`alias_of_survives_the_round_trip`) with no `GAPS` row
+- `rust/tcl-spec-studio/tests/it_4/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
+- `rust/tcl-registry/tests/it_5/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
+- `rust/tcl-registry/tests/it_5/tcl91_dialect.rs` — the availability of `subst`'s positive option family
+- `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs, `the_loaded_report_bridges_to_the_default_fact`, the shim's report declared at the extension default, and `load_through_the_host_bridge_defines_the_commands` with `the_same_vectors_run_through_the_host_load_bridge`, the host's `load`
-- `rust/tcl-spectcl/tests/i6_security_floor.rs` — the floor and its take-shipped extension
-- `rust/tcl-spectcl/tests/codegen_stamps.rs` — rung 3: `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` and `a_pack_text_body_that_diverges_turns_the_site_plain`; `rust/tcl-cli/tests/spec_verbs.rs` — `spec_test_reports_an_arity_divergence` and the verb's other rows
-- `rust/tcl-spectcl/tests/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
-- `rust/tcl-vm/tests/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor, and the manifest's per-rung check: `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, `a_manifest_for_another_world_refuses_the_whole_module`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`
-- `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the pin: `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, and `the_trace_gate_reads_the_pinned_profile_not_the_release_name`
+- `rust/tcl-spectcl/tests/it_2/i6_security_floor.rs` — the floor and its take-shipped extension
+- `rust/tcl-spectcl/tests/it_5/codegen_stamps.rs` — rung 3: `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` and `a_pack_text_body_that_diverges_turns_the_site_plain`; `rust/tcl-cli/tests/it_5/spec_verbs.rs` — `spec_test_reports_an_arity_divergence` and the verb's other rows
+- `rust/tcl-spectcl/tests/it_3/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`
+- `rust/tcl-vm/tests/it_5/command_mutation_deopt_e2e.rs` — `a_rung_zero_module_is_admitted_under_a_changed_pack_set`, the claims check's rung-0 floor, and the manifest's per-rung check: `a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites`, `a_rung_zero_unit_is_admitted_under_a_changed_pack_set`, `a_manifest_for_another_world_refuses_the_whole_module`, `a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites`, `a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs` and `a_running_function_is_checked_against_its_manifest_when_the_pin_changes`
+- `rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs` — the pin: `the_profile_form_of_a_pin_is_the_context_the_profile_names`, `a_context_the_ingress_refuses_leaves_the_pin_unchanged`, and `the_trace_gate_reads_the_pinned_profile_not_the_release_name`
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs`, `rust/xtask/src/command_backing.rs` — the backing query and its gate: `identities_come_from_the_pinned_generation_never_an_overlay` and `the_sweep_attests_only_the_builtin_it_registered` in each runtime, `a_declared_builtin_the_runtime_lacks_is_drift_unless_waived` and `a_declared_none_the_runtime_registers_is_drift` in the gate
-- `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-codegen/src/compile_service.rs`, `rust/tcl-lsp-db/tests/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
+- `rust/tcl-registry/src/model/ingress.rs`, `rust/tcl-codegen/src/compile_service.rs`, `rust/tcl-lsp-db/tests/it_2/overlay_generations.rs`, `dialect_seam.rs`, `rust/tcl-spectcl/tests/it_5/codegen_stamps.rs` — the overlay miss: `an_uninstalled_overlay_is_an_error_not_the_plain_generation`, the service's `a_service_whose_overlay_is_gone_declines_every_compile` and `a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed`, the database's abstention, retry and retired-generation tests, and `the_compilation_unit_sees_the_packs_commands`
 
 ## Related docs
 

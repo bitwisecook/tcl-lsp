@@ -2,7 +2,7 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::body_identity::{fixture_id, fixture_id_if_present};
+use super::body_identity::{fixture_id, fixture_id_if_present};
 
 pub struct FixtureEscapes {
     pub module: tcl_compiler::ir::Module,

@@ -58,7 +58,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // diverges from `tcl-vm`'s own `cmd_set` wrong-#-args text
 // (`"wrong # args: should be \"set varName ?newValue?\""`,
 // `tcl-vm/src/command.rs`) and from this fact's write-up in
-// `tcl-compiler/tests/analyser.rs`'s `too_few_args_set_fires_e002` — both
+// `tcl-compiler/tests/it_4/analyser.rs`'s `too_few_args_set_fires_e002` — both
 // reproduce a genuine, long-standing real-`tclsh` quirk where the C
 // `Tcl_SetObjCmd` usage string says `newValue` even though `doc/set.n`
 // has always said `value`; the two have simply never been reconciled

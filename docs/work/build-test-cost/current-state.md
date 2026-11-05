@@ -14,7 +14,7 @@ for access).
 | 2 | `rust-check` is one serial 16-minute job | **Landed, awaiting first CI run**: `cargo xtask batch`/`make xtask-gates`; `rust-check` split into `lint` and `drift` matrix legs | `rust/xtask/src/main.rs`, `Makefile`, `.github/workflows/ci.yml`, `scripts/dev/test-pr-gate-path.sh` |
 | 3 | Repository weight on `work` | **Landed**: the evidence prune (`8ab317a`) took the tree from 10.7 GB to 0.34 GB; `make check-tracked-size` in `xtask-check` keeps it there | `scripts/dev/check-tracked-size.py`, `scripts/dev/test_tracked_size.py` |
 | 4 | Monolithic crates compiled twice | **Landed**: the emitters split into `tcl-codegen`; test parity with the base proven | `rust/tcl-codegen`, `docs/design/contracts/project-layout.md` |
-| 5 | Hundreds of fat test binaries | Not started | |
+| 5 | Hundreds of fat test binaries | **Landed, per-binary test-count check running**: integration tests merged per (crate, shard) | `rust/*/tests/it_<k>/`, `scripts/dev/rust-test-binary-shards.tsv`, test-tiers contract |
 | 6 | Broken and racing CI caches | Not started (item 2 gives each `rust-check` leg its own cache key) | |
 | 7 | Exhaustive checks in unoptimised unit tests | Not started | |
 | 8 | Version stamp reruns on every cargo call | Not started | |
@@ -212,3 +212,31 @@ base `4be8d9f` then the split, back to back: **248.6 s → 235.4 s** (−5%).
 is off the critical path. The large wins in this area need the cycle in
 `tcl-compiler`'s production code broken by design, or the build-once CI
 pipeline of item 5.
+
+## 5. Integration-test binaries
+
+Merging every crate's tests into one binary would move all of a crate's tests
+into one CI shard and undo the binary-aware balance. Instead, in each crate the
+`tests/*.rs` files assigned to shard `k` became modules of one harness
+`tests/it_<k>/main.rs`. Each test keeps its shard.
+
+- 267 files in 13 crates became 35 binaries; the shard map proves 185 targets
+  instead of 417 (`verify-nextest-binary-shards.py --metadata-only`).
+- Kept as their own binaries: smoke binaries, `*_corpus` and
+  `differential_incremental` (nextest binary filters), anything run by
+  `--test <name>`, explicit `[[test]]` targets, files with crate-level
+  attributes, and `f5-cli`/`runtime/rust` (outside the shard map).
+- `tcl-vm`, deps warm, 4 vCPU, no debuginfo: building its integration
+  harnesses went from 51 s and 9.2 GB to 46 s and 1.8 GB (82 files, 15
+  executables).
+- Merged modules: `crate::` paths became `crate::<module>::`, out-of-line
+  modules and relative `include_*!` paths resolve from `tests/it_<k>/`, and the
+  one shared support file that named a sibling through `crate::` uses
+  `super::`. References to moved files in docs, scripts and code follow them.
+
+Open:
+
+- Each merged binary's listed tests against the static `#[test]` count of its
+  files (first two equal: `tcl-cli::it_5` 85, `tcl-codegen::it_2` 350).
+- The CI build-once/archive pipeline for `rust-tests` (plan 5.3) and test
+  debuginfo settings (5.2).

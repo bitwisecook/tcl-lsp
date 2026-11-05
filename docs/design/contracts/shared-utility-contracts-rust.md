@@ -36,7 +36,7 @@ audits and inventory-writing modes do not satisfy that route.
 | --- | --- | --- | --- | --- |
 | Original native procedure compilation custody | `rust/tcl-runtime-api/src/native_procedure_roles.rs`; `rust/tcl-runtime-api/src/native_procedure_compilation.rs`; `rust/tcl-runtime-api/src/native_compiler_pass.rs`; `rust/tcl-vm/src/interp.rs`; `rust/tcl-codegen/src/compile_service.rs`; `rust/tcl-codegen/src/compile_service/native_procedure_source.rs`; `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/lowering/mod.rs`; `rust/tcl-compiler/src/var_resolve.rs`; `rust/tcl-compiler/src/command_binding/compiled_preflight/ordered_locals.rs`; `rust/tcl-compiler/src/command_binding/native_compiler_formals.rs` | `OriginalProcedureCompileRequest`; `NativeProcedureRoleLedger::compilation_request`; `NativeCompiledProcedure::original_compiled_body` | the actual declaration ledger and private compiler-pass owner issue immutable original body/formals/namespace custody; weak native-role and source-context currentness cannot retain or revive a retired allocation; compiler bodies use their own Module issuer and source owner, with no authored publication, physical slot, frame-elision or relocation permission; the ordinary Tcl declaration compiler issues ordered local primaries under the exact root source allocation, namespace, nominal compiler frame and configuration, with immutable declaration equality and independent weak currentness; authored header topology, inherited source-point input, caller physical slots, handler effects and Normal completion remain separate | `xtask-owner-resolution` |
 | Logical C8.4 Eval source words over a physical C9 core | `rust/tcl-registry/src/native_eval_object.rs`; `rust/tcl-registry/src/invocation_words.rs`; `rust/tcl-registry/src/native_compiled_variables.rs`; `rust/tcl-vm/src/interp.rs`; `rust/tcl-vm/src/interp/logical_eval_source.rs`; `rust/tcl-vm/src/literal_pool.rs`; `rust/tcl-vm/src/compiled.rs` | `InvocationDialect::eval_object_protocol`; `InvocationDialect::logical_source_string_protocol`; `InvocationDialect::authored_logical_compiled_variable_protocol` | the actual logical Eval selection, independently installed matching eval/source-word/name/compiled-variable providers and current physical C9 core issue only fresh logical source words; native Direct, other purposes and existing uplevel keep their own admission; the plain plan has no private constants, native pool/cache or compiled-local layout; immutable current policy and original unit generations guard execution, with no Native class, value or body-purpose grant | `xtask-owner-resolution` |
-| Inlining profitability data | `rust/tcl-codegen/src/inlining/mod.rs`; `rust/tcl-codegen/tests/inlining.rs` | `InliningProfitability`; `inlining_profitability` | statement count and explicit static call count only; distinct inert type, no conversion to executable InlineDecision; compiler admission, escape, exact argument/value/frame/observer currentness and all actual transformation guards remain independent; existing semantic classifier and AOT frame-elision predicates are unchanged | `xtask-owner-resolution` |
+| Inlining profitability data | `rust/tcl-codegen/src/inlining/mod.rs`; `rust/tcl-codegen/tests/it_3/inlining.rs` | `InliningProfitability`; `inlining_profitability` | statement count and explicit static call count only; distinct inert type, no conversion to executable InlineDecision; compiler admission, escape, exact argument/value/frame/observer currentness and all actual transformation guards remain independent; existing semantic classifier and AOT frame-elision predicates are unchanged | `xtask-owner-resolution` |
 | C8.6 eager expression compiler source syntax | `rust/tcl-registry/src/native_expression_program.rs`; `rust/tcl-compiler/src/command_binding.rs`; `rust/tcl-compiler/src/command_binding/compiled_preflight.rs`; `rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs`; `rust/tcl-compiler/src/command_binding/compiled_preflight/expression_syntax.rs`; `rust/tcl-compiler/src/command_binding/compiler_inventory.rs` | `NativeExpressionProgram::c86_eager_compiler_scripts` | actual retained C8.6 eager arithmetic program and current Inline Expr preparation issue only original child source syntax; exact source/configuration/input/Registry, parent registration, namespace/table and every original vector remain current; separate inventory cannot donate Native admission, entered frames, effects or Normal, and C8.4 early-error preflight remains independent | `xtask-owner-resolution` |
 | Original C compiled-stack body purpose | `rust/tcl-registry/src/native_eval_object.rs`; `runtime/rust/src/interp.rs`; `runtime/rust/src/interp/native_body_artifact/native_control.rs` | `EvalObjectPurpose::CompiledStack`; `NativeEvalObjectProtocol::compiles_source` | actual admitted C instruction compiles the original body header with a NULL invoker, including canonical Lists; unavailable artifacts refuse without generic List or source fallback; original dynamic control and Catch callers retain actual operand lifetimes and inherited Eval frame; Jim and Logical C84 simulation cannot acquire this physical compiler purpose | `xtask-owner-resolution` |
 | Original qualified inventory report data | `rust/tcl-syntax/src/naming/native.rs`; `rust/tcl-runtime-api/src/lib.rs`; `runtime/rust/src/state_traits.rs`; `rust/tcl-vm/src/interp/native_namespace_names.rs`; `rust/tcl-cmd-core/src/info.rs` | `NativeNamespaceReportParts`; `native_qualified_inventory_report_bytes`; `Namespaces::namespace_report_parts_checked` | actual retained C namespace paths and reached original Jim holder bytes issue immutable report parts; qualification preserves counted data, duplicates and consumer order without constructing namespace identity or granting lookup; providers retain original holder/frame/context currentness and terminal refusal | `xtask-owner-resolution` |
@@ -3374,18 +3374,18 @@ helper without reading the rationale:
 - `rust/tcl-cmd-core/src/ensemble.rs` — the two option tables, the
   ensemble subcommand scan's empty-word divergence, and the
   comma-before-`or` enumeration.
-- `rust/tcl-vm/tests/namespace_surface_e2e.rs` and the
+- `rust/tcl-vm/tests/it_3/namespace_surface_e2e.rs` and the
   `cmd_namespace.rs` test module in `runtime/rust` — the `namespace`
   command surface (`which -variable`, `origin`, `export`/`import`
   leading options, teardown, `ensemble`) pinned against tclsh 8.6.16
   and 9.0.4 on both engines.
 - `rust/tcl-cmd-core/src/sort.rs` —
   `parse_wide_shares_the_canonical_integer_grammar`.
-- `rust/tcl-vm/tests/namespace_colon_runs_e2e.rs` — colon-run
+- `rust/tcl-vm/tests/it_2/namespace_colon_runs_e2e.rs` — colon-run
   resolution/creation pinned against tclsh8.6.
-- `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs` — `tcl::prefix` message
+- `rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs` — `tcl::prefix` message
   texts pinned against tclsh.
-- `rust/tcl-vm/tests/builtins_e2e.rs` and the `builtins.rs` /
+- `rust/tcl-vm/tests/it_5/builtins_e2e.rs` and the `builtins.rs` /
   `cmd_alias.rs` test modules in `runtime/rust` —
   `interp_debug_option_uses_c_noun_and_abbreviates`,
   `interp_limit_type_word_resolves_like_tcl_get_index_from_obj`,
@@ -3395,46 +3395,46 @@ helper without reading the rationale:
   pinned against tclsh 8.6.16 and 9.0.4 on both engines
   (`runtime/rust/tests/rename_interp_semantics.rs` pins the runtime's
   deliberately shortened enumeration).
-- `rust/tcl-vm/tests/builtins_e2e.rs` and the `cmd_package.rs` test
+- `rust/tcl-vm/tests/it_5/builtins_e2e.rs` and the `cmd_package.rs` test
   module in `runtime/rust` —
   `package_option_words_resolve_like_tcl_get_index_from_obj`, with the
   release axis of `package`'s table (`prefer` from 8.5, `files` from
   9.0) pinned in
-  `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs`.
-- `rust/tcl-vm/tests/cmd_event_e2e.rs` /
+  `rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs`.
+- `rust/tcl-vm/tests/it_5/cmd_event_e2e.rs` /
   `cmd_control_e2e.rs` / `builtins_e2e.rs` and the `cmd_event.rs`,
   `cmd_error.rs`, `cmd_chan.rs` test modules in `runtime/rust` —
   `update_and_after_words_resolve_like_tcl_get_index_from_obj`,
   `try_handler_type_resolves_like_tcl_get_index_from_obj`, and
   `seek_origin_resolves_like_tcl_get_index_from_obj`.
-- `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs` —
+- `rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs` —
   `info_and_file_ensemble_misses_carry_the_full_option_list`; the
   `cmd_info.rs` / `cmd_fs.rs` test modules in `runtime/rust` carry the
   matching `*_ensemble_miss_carries_the_full_option_list` rows.
-- `rust/tcl-vm/tests/cmd_info_prefix_e2e.rs`
+- `rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs`
   (`prefix_ensemble_and_match_options_resolve_like_tclsh`),
   `cmd_string_e2e.rs` (`string_subcommand_dispatch`, tightened from
   `starts_with` to the full tclsh 9.0.4 text), and the `cmd_string.rs`
   test module in `runtime/rust`
   (`string_and_prefix_ensembles_resolve_like_tclsh`, which also pins
   `string is`'s `class` and `option` nouns).
-- `rust/tcl-vm/tests/cmd_collections_e2e.rs`
+- `rust/tcl-vm/tests/it_2/cmd_collections_e2e.rs`
   (`array_bad_subcommand`, `dict_bad_subcommand` — both tightened from
   `starts_with` to full text) and the `cmd_array.rs` / `cmd_dict.rs`
   test modules in `runtime/rust`, plus
   `prefix.rs::dict_filter_type_noun_and_abbreviations` for the owner's
   own `filterType` row.
-- `rust/tcl-vm/tests/builtins_e2e.rs`
+- `rust/tcl-vm/tests/it_5/builtins_e2e.rs`
   (`ensemble_subcommand_words_resolve_like_tclsh`) and the
   `cmd_binary.rs`, `cmd_misc.rs`, `cmd_zlib.rs`, `cmd_namespace.rs`
   test modules in `runtime/rust` — the `binary`/`encoding`/`zlib`/
   `namespace` surfaces, including `zlib gzip`'s and `gunzip`'s option
   tables (C's order is `-header, -level`, not alphabetical).
-- `rust/tcl-vm/tests/builtins_e2e.rs` and the `cmd_fs.rs` test module in
+- `rust/tcl-vm/tests/it_5/builtins_e2e.rs` and the `cmd_fs.rs` test module in
   `runtime/rust` — `glob_option_words_resolve_like_tcl_get_index_from_obj`
   on each side, covering rejection of an unknown option
   as well as the shared abbreviation verdicts.
-- `rust/tcl-vm/tests/cmd_oo_e2e.rs`
+- `rust/tcl-vm/tests/it_3/cmd_oo_e2e.rs`
   (`info_object_isa_category_resolves_like_tcl_get_index_from_obj`,
   `tip558_configurable_property_abbreviates`) and the `cmd_oo.rs` test
   module in `runtime/rust`
@@ -3451,14 +3451,14 @@ helper without reading the rationale:
   `backslash_newline_absorbs_the_following_space_run` and
   `delimiter_errors_keep_their_dict_wording_and_fragment` (the dict scan
   riding the shared list codec).
-- `rust/tcl-vm/tests/cmd_collections_e2e.rs` —
+- `rust/tcl-vm/tests/it_2/cmd_collections_e2e.rs` —
   `duplicate_dict_keys_canonicalise_last_value_wins` (every VM dict path
   through `ValueOps::dict_pairs`, including the compile-time
   `dict create` fold) and
   `dict_parse_errors_use_the_dict_noun_and_error_code`;
-  `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the
+  `rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e.rs` — the
   *foldable* `dict create` availability vector.
-- `rust/tcl-vm/tests/dict_canonicalisation_parity.rs` — the cross-crate
+- `rust/tcl-vm/tests/it_5/dict_canonicalisation_parity.rs` — the cross-crate
   gate for `canonical_dict_slots`. The canonicalisation rule is
   "first-occurrence key position, last value wins". The suite feeds
   duplicate-key and odd-shape inputs through every binding: the `ValueOps`
@@ -3472,14 +3472,14 @@ helper without reading the rationale:
   is its leg of the same gate.
 - `rust/tcl-lexer/src/ranges.rs` —
   `braced_var_name_end_follows_the_release_rule`;
-  `rust/tcl-vm/tests/cross_version_vars_e2e.rs` —
+  `rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs` —
   `subst_braced_var_close_rule_follows_the_emulated_release`,
   `unterminated_braced_var_raises_on_both_releases` and their
   tclsh-pinned sibling; `runtime/rust/src/subst.rs` —
   `braced_var_close_rule_follows_the_emulated_release`;
   `runtime/rust/src/builtins.rs` —
   `unterminated_braced_var_raises_missing_close_brace`.
-- `rust/tcl-vm/tests/language_e2e.rs` —
+- `rust/tcl-vm/tests/it_4/language_e2e.rs` —
   `zero_length_array_name_is_an_array_element` and
   `link_commands_reject_element_looking_names` (`split_element_ref`).
 - `rust/tcl-spectcl/src/loader.rs` — `ArgRows::seal`, the single projection
@@ -3489,7 +3489,7 @@ helper without reading the rationale:
   `sub_subcommand_resolution_honours_the_package_floor` for the request-time
   floor; `rust/tcl-registry/src/arity.rs` —
   `adjacent_windows_do_not_overlap_but_straddling_ones_do`;
-  `rust/tcl-registry/tests/registry_sweep.rs` —
+  `rust/tcl-registry/tests/it_5/registry_sweep.rs` —
   `arity_window_gate_rejects_each_malformed_shape` (the shipped-spec
   side of the same invariant the pack loader only notices).
 - `rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs` —
@@ -3498,12 +3498,12 @@ helper without reading the rationale:
   the max, then the reporting tie-break), with
   `no_pack_overlay_leaves_every_floor_where_it_was` as the FN guard for
   a session that loads no packs.
-- `rust/tcl-compiler/tests/differential_group.rs` — the command / word
+- `rust/tcl-compiler/tests/it_4/differential_group.rs` — the command / word
   segmentation gate: `group_commands` against the shipping segmenter,
   command for command and word for word, over `samples/` and the Tcl
   9.0.4 library at three dialects and three nesting levels
   (`owner_matches_segmenter_over_corpora`), with tcllib behind
-  `--ignored`. `rust/tcl-lexer/tests/differential_boundaries.rs` — the
+  `--ignored`. `rust/tcl-lexer/tests/it_2/differential_boundaries.rs` — the
   other half: `command_boundaries` against that owner
   (`scanner_agrees_with_owner_over_corpora`), plus
   `dialect_divergences_are_pinned` for the two axes the byte scanner is

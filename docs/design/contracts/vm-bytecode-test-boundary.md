@@ -66,7 +66,7 @@ depend on neither backend formatting nor C's codegen choices.
 
 ## Test anchors
 
-- `rust/tcl-codegen/tests/codegen_golden.rs`, `codegen.rs`,
+- `rust/tcl-codegen/tests/it_2/codegen_golden.rs`, `codegen.rs`,
   `differential_codegen.rs`, `body_command_dis_oracle.rs`.
 - `rust/tcl-vm/tests/` — the execution suites (`language_e2e.rs`, the
   `cmd_*_e2e.rs` family, `command_resolution_conformance.rs`).
