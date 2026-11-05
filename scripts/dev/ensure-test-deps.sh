@@ -104,7 +104,7 @@ requested_tcl_releases() {
         | awk 'NF && !seen[$0]++ { print }'
 }
 
-WASMTIME_VERSION="49.0.3"
+WASMTIME_VERSION="50.0.1"
 WASI_SDK_VERSION="34.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
@@ -1242,8 +1242,8 @@ ensure_rgxg() {
 # and checked against its digest before it runs, so a dev box and a CI runner
 # install the same uv from the same script.  Re-pin both together:
 #   curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum
-UV_VERSION="0.13.1"
-UV_INSTALLER_SHA256="7c482d409673a53f4d9bd34ae95c9166be3b8d89ca82f27dd7bca3cab457afff"
+UV_VERSION="0.13.7"
+UV_INSTALLER_SHA256="d263ee68314cf5bea36b08e6bd9e2c4563240d7adb73756cf33af5c199b92db4"
 
 ensure_uv() {
     if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi

@@ -115,7 +115,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           cache-key: perf-benchmark
@@ -528,7 +528,7 @@ jobs:
         timeout-minutes: 3
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: nextest@0.9.148
+          tool: nextest@0.9.151
       - name: Validate revision and record original source
         timeout-minutes: 3
         env:
@@ -1795,7 +1795,7 @@ jobs:
       - name: Install original wasm-bindgen CLI
         uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasm-bindgen-cli@0.2.129
+          tool: wasm-bindgen-cli@0.2.130
       - name: Set up original Node.js host
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

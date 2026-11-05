@@ -5,7 +5,7 @@
   "version": "0.0.0-dev",
   "publisher": "bitwisecook",
   "license": "AGPL-3.0-or-later",
-  "packageManager": "npm@12.2.0",
+  "packageManager": "npm@12.2.1",
   "icon": "docs/icon.png",
   "repository": {
     "type": "git",
@@ -10385,6 +10385,8 @@
     },
     "ovsx": {
       "@vscode/vsce": "$@vscode/vsce"
-    }
+    },
+    "glob": "$glob",
+    "minimatch": "^11.0.4"
   }
 }

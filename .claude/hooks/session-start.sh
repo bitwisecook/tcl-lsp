@@ -42,7 +42,7 @@ REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 tcl_reference_load_toolchains "$REPO_ROOT"
 
 # Pinned toolchain versions. Bump these when new stable releases land.
-WASMTIME_VERSION="49.0.3"
+WASMTIME_VERSION="50.0.1"
 BINARYEN_VERSION="133"
 WASI_SDK_VERSION="34.0"
 # Rust tracks the floating `stable` channel to match `rust-toolchain.toml`
