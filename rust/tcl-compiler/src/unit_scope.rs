@@ -2389,10 +2389,10 @@ fn scan_cfg_callers<'a>(
         let config = ctx.module.lexer_config;
         for (&block_id, block) in &func.blocks {
             for (index, stmt) in block.statements.iter().enumerate() {
-                if stmt
-                    .tokens()
-                    .is_some_and(|tokens| !tokens.evaluates_words())
-                {
+                if stmt.tokens().is_some_and(|tokens| {
+                    !tokens.evaluates_words()
+                        || crate::variable_bindings::source_free_effect_marker(tokens)
+                }) {
                     continue;
                 }
                 let tokens = func.source_tokens_at(block_id, index);

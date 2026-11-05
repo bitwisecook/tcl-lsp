@@ -179,10 +179,23 @@ impl SourceInvocationBinding {
         input: &crate::analyser::ResolvedAnalysisInput,
         registry: &CommandRegistry,
     ) -> Option<OriginalSourceProcedureArgumentRoles<'a>> {
+        use crate::command_binding::OriginalInvocationSourcePurpose;
         let metadata = self.original_invocation_metadata_for_input(tokens, input, registry)?;
-        let logical = self.original_invocation_source_purpose(tokens, metadata, registry)?
-            == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
-        let targets = if logical {
+        let purpose = self.original_invocation_source_purpose(tokens, metadata, registry)?;
+        let logical = purpose == OriginalInvocationSourcePurpose::Logical;
+        let targets = if purpose == OriginalInvocationSourcePurpose::AuthoredSimulation {
+            // Authored source has no Native entry: its closed source binding is
+            // the procedure correspondence. Inherited and unknown entries keep
+            // their independent refusal.
+            let baseline = &self.lookup_state.as_ref()?.state.baseline;
+            if baseline.native_entry.is_some()
+                || baseline.unknown_entry
+                || baseline.source_point_entry.is_some()
+            {
+                return None;
+            }
+            self.targets.clone()
+        } else if logical {
             // The sealed declaration keeps raw runtime uncertainty. Join its
             // complete source targets before using internal allocations solely
             // for original procedure correspondence, never actual dispatch.
