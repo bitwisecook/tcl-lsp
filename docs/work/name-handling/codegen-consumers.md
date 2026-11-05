@@ -96,4 +96,4 @@ matches require per-callsite dispositions before any entire-codebase completion
 claim. This audit reconciles actual target entry points and representative map
 owners; it does not declare that all those additional consumers are done.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

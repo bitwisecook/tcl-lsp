@@ -213,4 +213,4 @@ sidecars/traces/teardown too; a compiler migration alone is not full issue closu
 Original-argv acceptance, F5 answers and current naming-base/variable-policy
 producer work remain independent prerequisites or explicit outstanding items.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

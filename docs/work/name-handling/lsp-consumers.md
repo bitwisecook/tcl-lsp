@@ -387,4 +387,4 @@ Every row is retained from the accompanying sealed candidate-callsite snapshot; 
 
 Roster: 381 tracked implementation/test source files, 232 classified non-test files, 330 lexical candidate function/module groups. These are census counts, not conformance or completed-consumer counts.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

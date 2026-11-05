@@ -123,4 +123,4 @@ Broader receipt: `experiments/name-handling/results/registry-descriptor-root-cac
 
 The Registry scope is not complete until A/B/C/D are resolved or conservatively delimited with actual consumer controls, all required original Native/provider conformance is measured, and final durable documentation/comment cleanup is completed by the parent. No blanket proof/census digest renewal is justified by this audit.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

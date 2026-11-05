@@ -106,6 +106,8 @@ passes, and ownership matrices.
 
 ## contracts/
 
+- [compacted-source-names.md](contracts/compacted-source-names.md) — compacted source-name construction: length-first lowercase spellings checked against the retained lexer configuration.
+- [studio-active-source.md](contracts/studio-active-source.md) — live Studio source publication through a Backend-owned lease for the exact `.tclspec` document.
 - [runtime-trace-outcomes.md](contracts/runtime-trace-outcomes.md) — original callback Guest outcomes, full typed Host refusal and shared caller transport.
 
 - [runtime-error-code-owners.md](contracts/runtime-error-code-owners.md) — original C error-code headers, selected global/private storage and checked publication.

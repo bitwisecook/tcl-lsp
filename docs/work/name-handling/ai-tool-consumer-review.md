@@ -197,4 +197,4 @@ writer; namespace-imported cursor location before rename and unknown writer.
 Tie any conformance claim to the retained interpreter/native-context oracle
 for the exact question. Canonical proof/provider records are unchanged.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

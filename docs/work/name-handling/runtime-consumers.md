@@ -47,4 +47,4 @@ Scope: production `runtime/rust/src`, read on 2026-10-13. This inventories polic
 
 Unresolved operation questions remain separate: raw original C-string NUL versus Tcl STRING Unicode NUL; namespace query versus ordinary scalar/element flags; retired and same-display recreated namespace tokens; rename-window display collisions; direct native byte-array/header/cell equivalence. Existing retained proofs bound these questions. F5 answers must come from the appliance chat, not C compatibility inheritance.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.

@@ -20,4 +20,4 @@ Configured extraction consumes `tcl-irules::original_hosted_source_variable_refe
 
 Original C Tcl 8.4–9.1 and latest Jim source controls are retained in `experiments/name-handling/apl-source-variable-geometry`. The BIG-IP publication questions are in `experiments/name-handling/apl-source-variable-geometry/f5-questions.md`. Source geometry tests do not establish iApp export rules; appliance result documents must retain actual declaration, input, interpreter/context, status and output before those rules become conformance tests.
 
-Final source238 validation: [ordinary272 current snapshot](current-state.md#current272-selected-scopes); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
+Final source238 validation: [ordinary272 current snapshot](current-state.md); exact portable receipts and unfinished owner work are indexed in `handoff/README.md`. Historical scope in this document remains bounded to its stated capture.
