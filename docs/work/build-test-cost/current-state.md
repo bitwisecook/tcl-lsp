@@ -19,7 +19,7 @@ for access).
 | 7 | Exhaustive checks in unoptimised unit tests | **Partly landed**: the registry prerequisite-index test runs its dialects concurrently (75 s → 38 s); coverage unchanged | `rust/tcl-registry/src/registry.rs` |
 | 8 | Version stamp reruns on every cargo call | **Landed**: dev-profile builds no longer re-run the stamp on every call; a no-op `cargo build -p tcl-lsp-server` went from 65 s to 0.3 s | `rust/tcl-version/build.rs` |
 | 9 | Duplicate WASM builds | **Landed, awaiting first CI run**: `lsp-server-wasm` builds the browser module once and `test-ext-web` downloads it | `.github/workflows/ci.yml`, `scripts/dev/test-release-dependency-graph.sh` |
-| 10 | Runner queueing in bursts | Not started | |
+| 10 | Runner queueing in bursts | **Landed**: superseded resolution-oracle PR runs are cancelled; Dependabot's weekly PRs are spread over the week | `.github/workflows/resolution-oracles.yml`, `.github/dependabot.yml` |
 
 ## Baseline state of `work` (`84ddae4`), independent of this work
 
@@ -364,3 +364,29 @@ binary merge had left behind:
   run at the time and are left as they are.
 
 Every `-p <pkg> --test <name>` in the tree now resolves to a real target.
+
+## 10. Runner queueing
+
+Most of the queueing defences were already in place:
+
+- `ci.yml` cancels superseded runs per ref.
+- The `tank` shard keeps every pending job with `queue: max`.
+- The diagnostic workflows deliberately never cancel.
+
+Two sources of bursts remained:
+
+- **`resolution-oracles.yml`** runs a 45-minute reference matrix on every PR
+  push that touches `rust/**`, and it had no concurrency group. Each push
+  stacked another full run behind the last. PR runs now share one group per
+  ref and cancel the superseded head. Other events group per commit, so a
+  landed commit's run is neither cancelled nor displaced from the queue.
+- **Dependabot** had seven weekly ecosystems (actions, pip, three npm trees,
+  cargo, gradle), all on the default day. Each grouped PR runs the full CI
+  pipeline, so one morning queued seven pipelines at once. The schedules are
+  now staggered Monday to Friday. Security updates still open as soon as an
+  advisory lands.
+
+Open:
+
+- Confirm on the first PR after this lands that superseded oracle runs show
+  as cancelled.

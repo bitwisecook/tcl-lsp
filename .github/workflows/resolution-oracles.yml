@@ -25,6 +25,13 @@ on:
 permissions:
   contents: read
 
+# A newer push to a PR supersedes the 45-minute matrix still running for the
+# old head. Other events group per commit, so each landed commit keeps its own
+# result and a queued run is never displaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   complete-reference-matrix:
     runs-on: ubuntu-latest

@@ -25,12 +25,16 @@
 # Grouped updates land as a single PR per ecosystem per week to keep review
 # load manageable. Security advisories still open a PR immediately regardless
 # of schedule.
+#
+# Each grouped PR runs the full CI pipeline, so the weekly days are staggered:
+# seven ecosystems on one morning used to queue seven pipelines at once.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
     groups:
       actions:
         patterns:
@@ -40,6 +44,7 @@ updates:
     directory: /rust/bigip-report-gen/python
     schedule:
       interval: weekly
+      day: friday
     groups:
       python:
         patterns:
@@ -49,6 +54,7 @@ updates:
     directory: /editors/vscode
     schedule:
       interval: weekly
+      day: wednesday
     groups:
       # The npm CLI itself is pinned via the `packageManager` field in
       # package.json (currently npm@12.2.0). Dependabot tracks that
@@ -80,6 +86,7 @@ updates:
     directory: /rust/tcl-spec-studio/web
     schedule:
       interval: weekly
+      day: thursday
     groups:
       npm-cli:
         patterns:
@@ -94,6 +101,7 @@ updates:
     directory: /rust/bigip-report-gen/frontend
     schedule:
       interval: weekly
+      day: friday
     groups:
       npm-cli:
         patterns:
@@ -129,6 +137,7 @@ updates:
       - /rust/zed-query-check
     schedule:
       interval: weekly
+      day: tuesday
     groups:
       cargo:
         patterns:
@@ -143,6 +152,7 @@ updates:
     directory: /editors/jetbrains
     schedule:
       interval: weekly
+      day: thursday
     groups:
       gradle:
         patterns:
