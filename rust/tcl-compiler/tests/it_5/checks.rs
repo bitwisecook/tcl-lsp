@@ -3841,3 +3841,38 @@ mod caller_uniform_literal_seed {
         }
     }
 }
+
+// A call to a recursive procedure keeps the command world proved when the body
+// changes no command, namespace or object for any argument; otherwise the
+// world after the call is unknown.
+//   tclsh: `proc g {n} {if {$n} {g 0} else {rename puts p2}}; g 1; puts x`
+//          ⇒ invalid command name "puts"
+mod recursive_call_command_world {
+    use super::*;
+
+    const LATER: &str = "proc f {a} { puts $nope }\nf 1\n";
+
+    #[test]
+    fn a_world_preserving_recursive_call_keeps_later_diagnostics() {
+        for callee in [
+            "proc g {n} { if {$n} { g 0 } }\ng 1\n",
+            "proc g {n} { h }\nproc h {} { g 0 }\ng 1\n",
+            "proc fib {n} {\n    if {$n < 2} { return $n }\n    return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}]\n}\nfib 10\n",
+        ] {
+            let src = format!("{callee}{LATER}");
+            assert!(fires(&src, D, "W210"), "{callee}: {:?}", codes(&src, D));
+        }
+    }
+
+    #[test]
+    fn a_world_changing_recursive_body_still_widens() {
+        for callee in [
+            "proc g {n} { if {$n} { proc puts {a} {}; g 0 } }\ng 1\n",
+            "proc g {n} { if {$n} { g 0 } else { rename puts p2 } }\ng 1\n",
+            "proc g {n {m 0}} { if {$n} { g 0 1 } elseif {$m} { rename puts p2 } }\ng 1\n",
+        ] {
+            let src = format!("{callee}{LATER}");
+            assert!(!fires(&src, D, "W210"), "{callee}: {:?}", codes(&src, D));
+        }
+    }
+}

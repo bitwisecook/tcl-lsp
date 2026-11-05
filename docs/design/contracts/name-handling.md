@@ -1724,6 +1724,22 @@ points, with no Native invocation, entered physical frame, Normal certificate or
 publication permission.
 
 
+### Recursive procedure calls
+
+A call that re-enters a procedure body already being walked is a back-edge.
+The walker assumes the recursive call leaves the command world (bindings,
+objects, namespaces with their exports, paths and unknown handlers, packages
+and loaders, class and object state, the original command world and the opaque
+flags) as the enclosing activation finds it; its variable effects stay unknown,
+so the activation's variables are widened at the back-edge. The assumption is a
+fixpoint only if it holds for every argument vector, so when the enclosing
+activation ends it is verified twice from the activation's entry state: every
+outcome of that activation, and every outcome of one further walk of the body
+with each formal, defaulted ones included, bound to an unknown word, must leave
+the command world unchanged. If either does not, the activation is walked again
+with a widening back-edge (the previous opaque mutation); its records join the
+first walk's, so no fact stays proved on the refused assumption.
+
 ### Positive retained-view references
 
 Readonly retained-view references report positive exact source calls; they do not certify complete absence, execution, a completed command world or edit coverage. The selected document and every source scope that requires it must be complete without conditional obligations. An unrelated unfinished scope does not supply that completion and does not erase independently owned positive references.

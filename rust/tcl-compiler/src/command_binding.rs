@@ -4087,6 +4087,11 @@ pub struct SourceCommandBindings {
     deferred_outcomes: SharedSourceInventory<Vec<SourceDeferredOutcome>>,
     future_bodies: SharedSourceInventory<Vec<SourceFutureBodyInventory>>,
     active_calls: BTreeSet<DeferredImplementationId>,
+    /// Activations whose recursive back-edge assumed the call leaves the
+    /// shared command world unchanged; verified when the activation ends.
+    recursive_assumptions: BTreeSet<DeferredImplementationId>,
+    /// Activations whose assumption failed: their back-edge widens.
+    recursive_assumption_refused: BTreeSet<DeferredImplementationId>,
     active_variable_observers: Vec<variable_observers::ActiveVariableObserver>,
     called_implementations: BTreeSet<DeferredImplementationId>,
     phases: SharedSourceInventory<Vec<SourcePhasePoint>>,
@@ -4154,6 +4159,8 @@ impl PartialEq for SourceCommandBindings {
             && self.deferred_outcomes == other.deferred_outcomes
             && self.future_bodies == other.future_bodies
             && self.active_calls == other.active_calls
+            && self.recursive_assumptions == other.recursive_assumptions
+            && self.recursive_assumption_refused == other.recursive_assumption_refused
             && self.active_variable_observers == other.active_variable_observers
             && self.called_implementations == other.called_implementations
             && self.phases == other.phases
@@ -7328,6 +7335,16 @@ impl SourceOutcomes {
         self.complete_procedure_return = complete_return.filter(|route| {
             self.normal.is_none() && self.abrupt.len() == 1 && self.abrupt[0].0 == *route
         });
+    }
+
+    /// Whether every outcome leaves the command world exactly as `entry`
+    /// held it: bindings, objects, namespaces, packages and class state.
+    fn preserves_command_world(&self, entry: &ModuleCommandBindings) -> bool {
+        self.normal
+            .iter()
+            .map(AsRef::as_ref)
+            .chain(self.abrupt.iter().map(|(_, state)| state.as_ref()))
+            .all(|state| state.same_command_world(entry))
     }
 
     fn publish(&self, state: &mut ModuleCommandBindings) {
@@ -11146,22 +11163,70 @@ impl SourceCommandBindings {
         let implementation = body.implementation_id();
         if !self.active_calls.insert(implementation.clone()) {
             self.record_unrepresented_called_body(site, state, target, &body);
-            state.mark_opaque_binding_mutation();
+            if self.recursive_assumption_refused.contains(&implementation) {
+                state.mark_opaque_binding_mutation();
+            } else {
+                // Fixpoint assumption: the recursive call leaves the shared
+                // command world as the enclosing activation finds it. Its
+                // variable effects stay unknown. Verified when the enclosing
+                // activation ends.
+                Arc::make_mut(&mut state.source_variables).widen();
+                self.recursive_assumptions.insert(implementation);
+            }
             return SourceOutcomes::invocation(state, Route::Unknown);
         }
-        let result = self.walk_called_body(
-            site,
-            effective,
-            state,
-            receiver_self::CalledBodyTarget {
-                target,
-                receiver: None,
-            },
-            &body,
-            context,
-        );
+        let entry = boxed_source_branch(state);
+        let selected = receiver_self::CalledBodyTarget {
+            target,
+            receiver: None,
+        };
+        let mut result = self.walk_called_body(site, effective, state, selected, &body, context);
+        if self.recursive_assumptions.remove(&implementation)
+            && (!result.preserves_command_world(&entry)
+                || !self.recursive_body_preserves_command_world(
+                    site, effective, &entry, selected, &body, context,
+                ))
+        {
+            // The body changes the command world, so the assumption is not a
+            // fixpoint: walk this activation again with a widening back-edge.
+            // Its records join those of the first walk.
+            *state = *entry;
+            self.recursive_assumption_refused
+                .insert(implementation.clone());
+            result = self.walk_called_body(site, effective, state, selected, &body, context);
+            self.recursive_assumption_refused.remove(&implementation);
+        }
         self.active_calls.remove(&implementation);
         result
+    }
+
+    /// The recursive back-edge assumption must hold for every argument
+    /// vector a recursive call can pass, not only this activation's: walk
+    /// the body once more with every formal, defaulted ones included, bound
+    /// to an unknown word.
+    fn recursive_body_preserves_command_world(
+        &mut self,
+        site: u32,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        entry: &ModuleCommandBindings,
+        selected: receiver_self::CalledBodyTarget<'_>,
+        body: &DeferredSourceBody,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        let Some(head) = effective.first() else {
+            return false;
+        };
+        let generic = std::iter::once(head.clone())
+            .chain(
+                body.parameters
+                    .iter()
+                    .map(|_| crate::registry_invocation::EffectiveInvocationWord::Dynamic),
+            )
+            .collect::<Vec<_>>();
+        let mut scratch = boxed_source_branch(entry);
+        let outcomes = self.walk_called_body(site, &generic, &mut scratch, selected, body, context);
+        self.recursive_assumptions.remove(&body.implementation_id());
+        outcomes.preserves_command_world(entry)
     }
 
     fn walk_called_body(
@@ -16343,6 +16408,32 @@ impl ModuleCommandBindings {
 
     /// Widen both command resolution and the optimiser's command-trust
     /// projection because an unbounded command-binding effect may occur.
+    /// Equality of the command world, independent of variable frames and
+    /// source-position bookkeeping.
+    fn same_command_world(&self, other: &Self) -> bool {
+        self.bindings == other.bindings
+            && self.objects == other.objects
+            && self.namespace_exports == other.namespace_exports
+            && self.namespace_paths == other.namespace_paths
+            && self.namespaces == other.namespaces
+            && self.unknown_lookup_namespaces == other.unknown_lookup_namespaces
+            && self.unknown_namespace_paths == other.unknown_namespace_paths
+            && self.namespace_unknown_handlers == other.namespace_unknown_handlers
+            && self.unknown_export_namespaces == other.unknown_export_namespaces
+            && self.packages == other.packages
+            && self.revoked_loaders == other.revoked_loaders
+            && self.loader_handler_unknown == other.loader_handler_unknown
+            && self.class_definitions == other.class_definitions
+            && self.object_instances == other.object_instances
+            && self.bounded_constructions == other.bounded_constructions
+            && self.original_command_world == other.original_command_world
+            && self.opaque_domain == other.opaque_domain
+            && self.opaque_binding_mutation == other.opaque_binding_mutation
+            && self.dynamic_proc_binding == other.dynamic_proc_binding
+            && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
+            && self.unclosed_command_world == other.unclosed_command_world
+    }
+
     fn mark_opaque_binding_mutation(&mut self) {
         Arc::make_mut(&mut self.command_observers)
             .fresh_procedures
